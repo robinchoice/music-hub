@@ -1,0 +1,23 @@
+FROM oven/bun:1 AS base
+WORKDIR /app
+
+FROM base AS install
+COPY package.json bun.lock ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/web/package.json ./apps/web/
+RUN bun install --frozen-lockfile
+
+FROM base AS build
+COPY --from=install /app/node_modules ./node_modules
+COPY --from=install /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=install /app/apps/web/node_modules ./apps/web/node_modules
+COPY . .
+ENV PUBLIC_API_URL=/api
+RUN cd apps/web && bun run build
+
+FROM base AS production
+COPY --from=build /app/apps/web/build ./build
+COPY --from=build /app/apps/web/package.json .
+EXPOSE 3000
+ENV NODE_ENV=production
+CMD ["bun", "./build/index.js"]

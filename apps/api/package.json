@@ -1,0 +1,19 @@
+{
+  "name": "@music-hub/api",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/s3-request-presigner": "^3",
+    "@hono/zod-validator": "^0.5",
+    "@music-hub/db": "workspace:*",
+    "@music-hub/shared": "workspace:*",
+    "drizzle-orm": "^0.44",
+    "hono": "^4",
+    "resend": "^6.10.0"
+  }
+}

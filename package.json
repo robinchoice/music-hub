@@ -1,0 +1,19 @@
+{
+  "name": "music-hub",
+  "private": true,
+  "packageManager": "bun@1.3.11",
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "db:generate": "turbo db:generate --filter=@music-hub/db",
+    "db:migrate": "turbo db:migrate --filter=@music-hub/db",
+    "db:seed": "turbo db:seed --filter=@music-hub/db"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "turbo": "latest",
+    "typescript": "^5"
+  }
+}

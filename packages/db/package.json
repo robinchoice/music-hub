@@ -1,0 +1,21 @@
+{
+  "name": "@music-hub/db",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "bun run seed.ts"
+  },
+  "dependencies": {
+    "@music-hub/shared": "workspace:*",
+    "drizzle-orm": "^0.44",
+    "postgres": "^3.4"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31"
+  }
+}
