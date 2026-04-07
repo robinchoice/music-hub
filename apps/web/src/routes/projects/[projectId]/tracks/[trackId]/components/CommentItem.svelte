@@ -8,7 +8,8 @@
     timestampSeconds: number | null;
     resolvedAt: string | null;
     createdAt: string;
-    user: { id: string; name: string; avatarUrl: string | null };
+    guestName?: string | null;
+    user: { id: string; name: string; avatarUrl: string | null } | null;
   };
 
   let {
@@ -22,12 +23,15 @@
     onResolve: (id: string) => void;
     onReply?: (id: string) => void;
   } = $props();
+
+  const displayName = $derived(comment.user?.name ?? comment.guestName ?? 'Gast');
+  const isGuest = $derived(!comment.user);
 </script>
 
 <div class="comment" class:resolved={comment.resolvedAt}>
   <div class="comment-header">
-    <Avatar name={comment.user.name} src={comment.user.avatarUrl} size="sm" />
-    <span class="comment-author">{comment.user.name}</span>
+    <Avatar name={displayName} src={comment.user?.avatarUrl ?? null} size="sm" />
+    <span class="comment-author">{displayName}{#if isGuest} <span class="guest-tag">Gast</span>{/if}</span>
     {#if comment.timestampSeconds !== null}
       <button
         class="comment-timestamp"
@@ -121,6 +125,16 @@
   .action-btn.resolve:hover {
     color: var(--color-success);
     border-color: var(--color-success);
+  }
+
+  .guest-tag {
+    font-size: var(--text-xs);
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-tertiary);
+    padding: 0 0.3rem;
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-1);
   }
 
   .comment-body {

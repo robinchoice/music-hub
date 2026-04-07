@@ -47,6 +47,7 @@ export const commentRoutes = new Hono<AppEnv>()
         parentId: comments.parentId,
         resolvedAt: comments.resolvedAt,
         createdAt: comments.createdAt,
+        guestName: comments.guestName,
         user: {
           id: users.id,
           name: users.name,
@@ -54,7 +55,7 @@ export const commentRoutes = new Hono<AppEnv>()
         },
       })
       .from(comments)
-      .innerJoin(users, eq(users.id, comments.userId))
+      .leftJoin(users, eq(users.id, comments.userId))
       .where(eq(comments.versionId, versionId))
       .orderBy(asc(comments.createdAt));
 

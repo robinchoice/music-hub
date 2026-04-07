@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, real, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, real, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { versions } from './tracks.js';
 
@@ -7,9 +7,8 @@ export const comments = pgTable('comments', {
   versionId: uuid('version_id')
     .references(() => versions.id, { onDelete: 'cascade' })
     .notNull(),
-  userId: uuid('user_id')
-    .references(() => users.id)
-    .notNull(),
+  userId: uuid('user_id').references(() => users.id),
+  guestName: varchar('guest_name', { length: 100 }),
   body: text('body').notNull(),
   timestampSeconds: real('timestamp_seconds'),
   parentId: uuid('parent_id'),

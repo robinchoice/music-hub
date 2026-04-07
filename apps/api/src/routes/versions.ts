@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { requestUploadUrlSchema, createVersionSchema } from '@music-hub/shared';
 import { tracks, versions, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
@@ -97,6 +97,8 @@ export const versionRoutes = new Hono<AppEnv>()
         label: input.label,
         notes: input.notes,
         status: 'uploaded',
+        parentVersionId: input.parentVersionId,
+        branchLabel: input.branchLabel,
         originalFileName: input.originalFileName,
         mimeType: input.mimeType,
         fileSize: input.fileSize,
@@ -111,6 +113,81 @@ export const versionRoutes = new Hono<AppEnv>()
     );
 
     return c.json({ version }, 201);
+  })
+
+  // Get version tree (graph) for a track
+  .get('/track/:trackId/tree', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const trackId = c.req.param('trackId');
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, trackId)).limit(1);
+    if (!track) return c.json({ error: 'Not found' }, 404);
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+
+    if (!membership) return c.json({ error: 'Not found' }, 404);
+
+    const nodes = await db
+      .select({
+        id: versions.id,
+        parentVersionId: versions.parentVersionId,
+        branchLabel: versions.branchLabel,
+        versionNumber: versions.versionNumber,
+        label: versions.label,
+        status: versions.status,
+        createdById: versions.createdById,
+        createdAt: versions.createdAt,
+      })
+      .from(versions)
+      .where(eq(versions.trackId, trackId))
+      .orderBy(asc(versions.createdAt));
+
+    return c.json({ nodes });
+  })
+
+  // Promote a version to mainline (clears branchLabel)
+  .post('/:id/promote', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+
+    const [version] = await db
+      .select()
+      .from(versions)
+      .where(eq(versions.id, versionId))
+      .limit(1);
+    if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db
+      .select()
+      .from(tracks)
+      .where(eq(tracks.id, version.trackId))
+      .limit(1);
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(
+        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
+      )
+      .limit(1);
+
+    if (!membership || !membership.canApprove) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const [updated] = await db
+      .update(versions)
+      .set({ branchLabel: null })
+      .where(eq(versions.id, versionId))
+      .returning();
+
+    return c.json({ version: updated });
   })
 
   // Get stream URL

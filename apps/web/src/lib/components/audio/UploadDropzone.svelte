@@ -4,9 +4,13 @@
 
   let {
     trackId,
+    parentVersionId = null,
+    branchLabel = null,
     onUploaded,
   }: {
     trackId: string;
+    parentVersionId?: string | null;
+    branchLabel?: string | null;
     onUploaded: () => void;
   } = $props();
 
@@ -78,6 +82,8 @@
         originalFileName: file.name,
         mimeType: file.type || 'audio/wav',
         fileSize: file.size,
+        parentVersionId: parentVersionId ?? undefined,
+        branchLabel: branchLabel ?? undefined,
       });
 
       label = '';

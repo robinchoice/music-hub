@@ -11,6 +11,8 @@
   import ABCompare from '$lib/components/audio/ABCompare.svelte';
   import VersionInfo from './components/VersionInfo.svelte';
   import VersionHistory from './components/VersionHistory.svelte';
+  import VersionGraph from './components/VersionGraph.svelte';
+  import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
 
   type Version = {
@@ -22,6 +24,18 @@
     originalFileName: string;
     duration: number | null;
     createdAt: string;
+    parentVersionId?: string | null;
+    branchLabel?: string | null;
+  };
+
+  type GraphNode = {
+    id: string;
+    parentVersionId: string | null;
+    branchLabel: string | null;
+    versionNumber: number;
+    label: string | null;
+    status: string;
+    createdAt: string;
   };
 
   type Comment = {
@@ -31,7 +45,8 @@
     parentId: string | null;
     resolvedAt: string | null;
     createdAt: string;
-    user: { id: string; name: string; avatarUrl: string | null };
+    guestName?: string | null;
+    user: { id: string; name: string; avatarUrl: string | null } | null;
   };
 
   const projectId = $page.params.projectId!;
@@ -49,6 +64,11 @@
   let playerRef = $state<WaveformPlayer>();
   let compareVersion = $state<Version | null>(null);
   let compareStreamUrl = $state('');
+  let graphNodes = $state<GraphNode[]>([]);
+  let viewMode = $state<'list' | 'graph'>('list');
+  let branchFromId = $state<string | null>(null);
+  let branchLabelInput = $state('');
+  let shareOpen = $state(false);
 
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
@@ -56,15 +76,17 @@
 
   onMount(async () => {
     try {
-      const [projectRes, trackVersions, tracksRes] = await Promise.all([
+      const [projectRes, trackVersions, tracksRes, treeRes] = await Promise.all([
         api.get<{ project: any; role: string }>(`/projects/${projectId}`),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
         api.get<{ tracks: { id: string; name: string }[] }>(`/tracks/project/${projectId}`),
+        api.get<{ nodes: GraphNode[] }>(`/versions/track/${trackId}/tree`),
       ]);
 
       role = projectRes.role;
       trackName = tracksRes.tracks.find((t) => t.id === trackId)?.name || '';
       versions = trackVersions.versions;
+      graphNodes = treeRes.nodes;
 
       if (versions.length > 0) await selectVersion(versions[0]);
     } finally {
@@ -83,9 +105,26 @@
   }
 
   async function loadVersions() {
-    const res = await api.get<{ versions: Version[] }>(`/versions/track/${trackId}`);
+    const [res, treeRes] = await Promise.all([
+      api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
+      api.get<{ nodes: GraphNode[] }>(`/versions/track/${trackId}/tree`),
+    ]);
     versions = res.versions;
+    graphNodes = treeRes.nodes;
     if (versions.length > 0) await selectVersion(versions[0]);
+  }
+
+  async function handlePromote() {
+    if (!selectedVersion) return;
+    await api.post(`/versions/${selectedVersion.id}/promote`);
+    toastSuccess('Version übernommen');
+    await loadVersions();
+  }
+
+  function startBranch(id: string) {
+    branchFromId = id;
+    branchLabelInput = '';
+    showUpload = true;
   }
 
   async function handleApprove() {
@@ -163,7 +202,7 @@
             id: c.id,
             timestampSeconds: c.timestampSeconds!,
             body: c.body,
-            userName: c.user.name,
+            userName: c.user?.name ?? c.guestName ?? 'Gast',
           }))}
         onTimeClick={(time) => commentTimestamp = Math.round(time * 10) / 10}
       />
@@ -178,13 +217,21 @@
 
     <div class="track-actions">
       {#if canUpload}
-        <Button variant="secondary" size="sm" onclick={() => showUpload = !showUpload}>
+        <Button variant="secondary" size="sm" onclick={() => { branchFromId = null; branchLabelInput = ''; showUpload = !showUpload; }}>
           {showUpload ? 'Cancel' : 'Upload new version'}
         </Button>
       {/if}
       <Button variant="ghost" size="sm" onclick={handleDownload}>
         ↓ Download
       </Button>
+      <Button variant="ghost" size="sm" onclick={() => (shareOpen = true)}>
+        ↗ Share
+      </Button>
+      {#if canApprove && selectedVersion.branchLabel}
+        <Button variant="ghost" size="sm" onclick={handlePromote}>
+          ⤴ Übernehmen (Mainline)
+        </Button>
+      {/if}
       {#if versions.length > 1}
         <select
           class="compare-select"
@@ -218,7 +265,23 @@
   {/if}
 
   {#if showUpload}
-    <UploadDropzone {trackId} onUploaded={() => { showUpload = false; loadVersions(); toastSuccess('Version uploaded'); }} />
+    {#if branchFromId}
+      <div class="branch-banner">
+        <span>Neue Variante von <strong>V{graphNodes.find((n) => n.id === branchFromId)?.versionNumber}</strong></span>
+        <input
+          type="text"
+          bind:value={branchLabelInput}
+          placeholder="Branch-Name (z.B. 'vocals-neu')"
+        />
+        <button class="cancel-branch" onclick={() => (branchFromId = null)}>×</button>
+      </div>
+    {/if}
+    <UploadDropzone
+      {trackId}
+      parentVersionId={branchFromId}
+      branchLabel={branchFromId ? branchLabelInput || 'branch' : null}
+      onUploaded={() => { showUpload = false; branchFromId = null; loadVersions(); toastSuccess('Version uploaded'); }}
+    />
   {/if}
 
   {#if loading}
@@ -248,11 +311,34 @@
     />
   {/if}
 
-  <VersionHistory
-    {versions}
-    selectedId={selectedVersion?.id ?? null}
-    onSelect={selectVersion}
-  />
+  {#if versions.length > 1}
+    <div class="view-toggle">
+      <button class:active={viewMode === 'list'} onclick={() => (viewMode = 'list')}>Liste</button>
+      <button class:active={viewMode === 'graph'} onclick={() => (viewMode = 'graph')}>Graph</button>
+    </div>
+  {/if}
+
+  {#if viewMode === 'graph'}
+    <VersionGraph
+      nodes={graphNodes}
+      selectedId={selectedVersion?.id ?? null}
+      onSelect={(id) => {
+        const v = versions.find((v) => v.id === id);
+        if (v) selectVersion(v);
+      }}
+      onBranch={canUpload ? startBranch : undefined}
+    />
+  {:else}
+    <VersionHistory
+      {versions}
+      selectedId={selectedVersion?.id ?? null}
+      onSelect={selectVersion}
+    />
+  {/if}
+
+  {#if selectedVersion}
+    <ShareModal bind:open={shareOpen} versionId={selectedVersion.id} />
+  {/if}
 </div>
 
 <style>
@@ -288,6 +374,53 @@
     gap: var(--space-2);
     align-items: center;
     flex-wrap: wrap;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: var(--space-1);
+  }
+  .view-toggle button {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .view-toggle button.active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  .branch-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-accent-subtle);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .branch-banner input {
+    flex: 1;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-family: inherit;
+  }
+  .cancel-branch {
+    background: none;
+    border: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    font-size: 1.2rem;
   }
 
   .compare-select {

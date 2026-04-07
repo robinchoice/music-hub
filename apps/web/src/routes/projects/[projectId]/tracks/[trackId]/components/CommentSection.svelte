@@ -11,7 +11,8 @@
     parentId: string | null;
     resolvedAt: string | null;
     createdAt: string;
-    user: { id: string; name: string; avatarUrl: string | null };
+    guestName?: string | null;
+    user: { id: string; name: string; avatarUrl: string | null } | null;
   };
 
   let {
