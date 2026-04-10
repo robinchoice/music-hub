@@ -9,14 +9,14 @@
   onMount(async () => {
     const token = $page.url.searchParams.get('token');
     if (!token) {
-      error = 'No token provided';
+      error = 'Kein Token angegeben';
       return;
     }
     try {
       await verifyToken(token);
       goto('/dashboard');
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Verification failed';
+      error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
     }
   });
 </script>
@@ -24,12 +24,12 @@
 <div class="verify-page">
   {#if error}
     <div class="error-card">
-      <h2>Login Failed</h2>
+      <h2>Login fehlgeschlagen</h2>
       <p>{error}</p>
-      <a href="/">Try again</a>
+      <a href="/login">Erneut versuchen</a>
     </div>
   {:else}
-    <p>Verifying...</p>
+    <p>Login läuft…</p>
   {/if}
 </div>
 

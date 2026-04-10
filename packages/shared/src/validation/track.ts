@@ -6,9 +6,28 @@ export const createTrackSchema = z.object({
   description: z.string().max(2000).optional(),
 });
 
+export const TRACK_STATUSES = ['sketch', 'in_progress', 'final', 'released'] as const;
+export type TrackStatus = (typeof TRACK_STATUSES)[number];
+
+export const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
+  sketch: 'Skizze',
+  in_progress: 'In Arbeit',
+  final: 'Final',
+  released: 'Veröffentlicht',
+};
+
 export const updateTrackSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
+  coverImageUrl: z.string().nullable().optional(),
+  status: z.enum(TRACK_STATUSES).optional(),
+  section: z.string().max(100).nullable().optional(),
+});
+
+export const coverUploadSchema = z.object({
+  fileName: z.string().min(1).max(200),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  fileSize: z.number().int().positive().max(2 * 1024 * 1024),
 });
 
 export const requestUploadUrlSchema = z.object({
@@ -26,6 +45,12 @@ export const createVersionSchema = z.object({
   fileSize: z.number().int().positive(),
   parentVersionId: z.string().uuid().optional(),
   branchLabel: z.string().max(100).optional(),
+});
+
+export const updateVersionSchema = z.object({
+  label: z.string().max(100).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  branchLabel: z.string().max(100).nullable().optional(),
 });
 
 export const createShareLinkSchema = z.object({
@@ -46,5 +71,7 @@ export type CreateTrackInput = z.infer<typeof createTrackSchema>;
 export type UpdateTrackInput = z.infer<typeof updateTrackSchema>;
 export type RequestUploadUrlInput = z.infer<typeof requestUploadUrlSchema>;
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;
+export type UpdateVersionInput = z.infer<typeof updateVersionSchema>;
 export type CreateShareLinkInput = z.infer<typeof createShareLinkSchema>;
+export type CoverUploadInput = z.infer<typeof coverUploadSchema>;
 export type GuestCommentInput = z.infer<typeof guestCommentSchema>;

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
-import { requestUploadUrlSchema, createVersionSchema } from '@music-hub/shared';
+import { requestUploadUrlSchema, createVersionSchema, updateVersionSchema } from '@music-hub/shared';
 import { tracks, versions, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl } from '../storage/s3.js';
@@ -113,6 +113,82 @@ export const versionRoutes = new Hono<AppEnv>()
     );
 
     return c.json({ version }, 201);
+  })
+
+  // Update label/notes/branchLabel
+  .patch('/:id', zValidator('json', updateVersionSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+    const input = c.req.valid('json');
+
+    const [version] = await db
+      .select()
+      .from(versions)
+      .where(eq(versions.id, versionId))
+      .limit(1);
+    if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db
+      .select()
+      .from(tracks)
+      .where(eq(tracks.id, version.trackId))
+      .limit(1);
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(
+        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
+      )
+      .limit(1);
+
+    if (!membership || !membership.canUpload) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const [updated] = await db
+      .update(versions)
+      .set(input)
+      .where(eq(versions.id, versionId))
+      .returning();
+
+    return c.json({ version: updated });
+  })
+
+  // Delete version
+  .delete('/:id', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+
+    const [version] = await db
+      .select()
+      .from(versions)
+      .where(eq(versions.id, versionId))
+      .limit(1);
+    if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db
+      .select()
+      .from(tracks)
+      .where(eq(tracks.id, version.trackId))
+      .limit(1);
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(
+        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
+      )
+      .limit(1);
+
+    if (!membership || membership.role !== 'owner') {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    await db.delete(versions).where(eq(versions.id, versionId));
+    return c.json({ message: 'Version deleted' });
   })
 
   // Get version tree (graph) for a track

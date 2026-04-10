@@ -1,11 +1,12 @@
 <script lang="ts">
   import { toasts, removeToast, type ToastType } from '$lib/stores/toast.js';
+  import Icon from './Icon.svelte';
 
-  const icons: Record<ToastType, string> = {
-    success: '✓',
-    error: '✕',
-    info: 'i',
-    warning: '!',
+  const icons: Record<ToastType, 'check' | 'x' | 'comment' | 'comment'> = {
+    success: 'check',
+    error: 'x',
+    info: 'comment',
+    warning: 'comment',
   };
 </script>
 
@@ -13,9 +14,11 @@
   <div class="toast-container">
     {#each $toasts as t (t.id)}
       <div class="toast {t.type}" role="alert">
-        <span class="toast-icon">{icons[t.type]}</span>
+        <span class="toast-icon"><Icon name={icons[t.type]} size={12} stroke={3} /></span>
         <span class="toast-message">{t.message}</span>
-        <button class="toast-close" onclick={() => removeToast(t.id)}>×</button>
+        <button class="toast-close" onclick={() => removeToast(t.id)} aria-label="Schließen">
+          <Icon name="x" size={14} />
+        </button>
       </div>
     {/each}
   </div>
@@ -38,11 +41,13 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: var(--color-bg-overlay);
+    background: rgba(26, 24, 34, 0.85);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
-    animation: slide-in 0.2s ease;
+    animation: slide-in 280ms var(--ease-spring);
     font-size: var(--text-sm);
   }
 
@@ -85,11 +90,11 @@
   @keyframes slide-in {
     from {
       opacity: 0;
-      transform: translateX(20px);
+      transform: translateY(12px) scale(0.95);
     }
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateY(0) scale(1);
     }
   }
 

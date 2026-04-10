@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
 
   let {
-    icon = '📁',
+    icon,
     title,
     description,
     action,
@@ -15,7 +15,7 @@
 </script>
 
 <div class="empty-state">
-  <span class="icon">{icon}</span>
+  {#if icon}<span class="icon">{icon}</span>{/if}
   <h3>{title}</h3>
   {#if description}
     <p>{description}</p>

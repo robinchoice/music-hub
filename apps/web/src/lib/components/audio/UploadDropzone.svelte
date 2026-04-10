@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SUPPORTED_EXTENSIONS, MAX_FILE_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import Icon from '$lib/components/ui/Icon.svelte';
 
   let {
     trackId,
@@ -47,13 +48,13 @@
     error = '';
 
     if (file.size > MAX_FILE_SIZE) {
-      error = 'File too large (max 500 MB)';
+      error = 'Datei zu groß (max 500 MB)';
       return;
     }
 
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!SUPPORTED_EXTENSIONS.includes(ext as any)) {
-      error = `Unsupported format. Use: ${SUPPORTED_EXTENSIONS.join(', ')}`;
+      error = `Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
       return;
     }
 
@@ -89,7 +90,7 @@
       label = '';
       onUploaded();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Upload failed';
+      error = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
     } finally {
       uploading = false;
       progress = 0;
@@ -124,7 +125,7 @@
     <input
       type="text"
       bind:value={label}
-      placeholder="Version label (e.g. 'Mix V2', 'Master Final')"
+      placeholder="Versions-Bezeichnung (z.B. 'Mix V2', 'Final Master')"
       disabled={uploading}
     />
   </div>
@@ -156,8 +157,8 @@
       </div>
     {:else}
       <div class="dropzone-content">
-        <span class="dropzone-icon">🎵</span>
-        <p>Drop audio file here or click to browse</p>
+        <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
+        <p>Audio-Datei hier ablegen oder klicken zum Auswählen</p>
         <span class="formats">WAV, MP3, FLAC, AIFF — max 500 MB</span>
       </div>
     {/if}
@@ -212,7 +213,9 @@
   }
 
   .dropzone-icon {
-    font-size: 2rem;
+    color: var(--color-text-tertiary);
+    display: inline-flex;
+    margin-bottom: var(--space-2);
   }
 
   .formats {

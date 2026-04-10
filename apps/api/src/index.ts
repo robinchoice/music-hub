@@ -8,6 +8,9 @@ import { trackRoutes } from './routes/tracks.js';
 import { versionRoutes } from './routes/versions.js';
 import { commentRoutes } from './routes/comments.js';
 import { shareRoutes } from './routes/share.js';
+import { uploadRoutes } from './routes/uploads.js';
+import { activityRoutes } from './routes/activity.js';
+import { onboardingRoutes } from './routes/onboarding.js';
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -36,7 +39,10 @@ const app = new Hono<AppEnv>()
   .route('/tracks', trackRoutes)
   .route('/versions', versionRoutes)
   .route('/comments', commentRoutes)
-  .route('/share', shareRoutes);
+  .route('/share', shareRoutes)
+  .route('/uploads', uploadRoutes)
+  .route('/activity', activityRoutes)
+  .route('/onboarding', onboardingRoutes);
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

@@ -44,24 +44,41 @@
 
   .input-label {
     color: var(--color-text-secondary);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   input {
-    padding: var(--space-3) var(--space-4);
+    padding: 0.7rem 0.9rem;
+    height: 42px;
     border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-hover);
-    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-raised);
     color: var(--color-text-primary);
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
     font-family: inherit;
-    transition: border-color var(--transition-fast);
+    transition:
+      border-color var(--transition-fast),
+      background var(--transition-fast),
+      box-shadow var(--transition-fast);
     width: 100%;
+  }
+
+  input::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  input:hover:not(:disabled) {
+    border-color: var(--color-border-hover);
   }
 
   input:focus {
     outline: none;
-    border-color: var(--color-border-focus);
+    border-color: var(--color-accent);
+    background: var(--color-bg-overlay);
+    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
   }
 
   input:disabled {

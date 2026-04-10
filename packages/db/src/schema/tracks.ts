@@ -21,6 +21,13 @@ export const versionStatusEnum = pgEnum('version_status', [
   'rejected',
 ]);
 
+export const trackStatusEnum = pgEnum('track_status', [
+  'sketch',
+  'in_progress',
+  'final',
+  'released',
+]);
+
 export const tracks = pgTable('tracks', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id')
@@ -28,6 +35,9 @@ export const tracks = pgTable('tracks', {
     .notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
+  coverImageUrl: text('cover_image_url'),
+  status: trackStatusEnum('status').default('in_progress').notNull(),
+  section: varchar('section', { length: 100 }),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdById: uuid('created_by_id')
     .references(() => users.id)

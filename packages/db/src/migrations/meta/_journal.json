@@ -15,6 +15,20 @@
       "when": 1775571497577,
       "tag": "0001_many_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775655179619,
+      "tag": "0002_loud_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775723994470,
+      "tag": "0003_huge_mystique",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ export const createProjectSchema = z.object({
 export const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
+  coverImageUrl: z.string().nullable().optional(),
 });
 
 export const inviteMemberSchema = z.object({

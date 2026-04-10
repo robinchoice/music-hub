@@ -1,15 +1,23 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   createProjectSchema,
   updateProjectSchema,
   inviteMemberSchema,
   updateMemberSchema,
 } from '@music-hub/shared';
-import { projects, projectMembers, users } from '@music-hub/db';
+import { projects, projectMembers, users, tracks } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
+import { createDownloadUrl } from '../storage/s3.js';
 import type { AppEnv } from '../types.js';
+
+async function withCoverUrl<T extends { coverImageUrl?: string | null }>(
+  obj: T,
+): Promise<T & { coverUrl: string | null }> {
+  const coverUrl = obj.coverImageUrl ? await createDownloadUrl(obj.coverImageUrl) : null;
+  return { ...obj, coverUrl };
+}
 
 export const projectRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -22,12 +30,19 @@ export const projectRoutes = new Hono<AppEnv>()
       .select({
         project: projects,
         role: projectMembers.role,
+        trackCount: sql<number>`(select count(*)::int from ${tracks} where ${tracks.projectId} = ${projects.id})`,
       })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))
       .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)));
 
-    return c.json({ projects: memberships });
+    const enriched = await Promise.all(
+      memberships.map(async (m) => ({
+        ...m,
+        project: await withCoverUrl(m.project),
+      })),
+    );
+    return c.json({ projects: enriched });
   })
 
   .post('/', zValidator('json', createProjectSchema), async (c) => {
@@ -73,7 +88,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    return c.json({ project, role: membership.role });
+    return c.json({ project: await withCoverUrl(project), role: membership.role });
   })
 
   .patch('/:id', zValidator('json', updateProjectSchema), async (c) => {

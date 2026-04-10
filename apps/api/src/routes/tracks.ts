@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { createTrackSchema, updateTrackSchema } from '@music-hub/shared';
-import { tracks, projectMembers } from '@music-hub/db';
+import { tracks, projectMembers, versions } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
+import { createDownloadUrl } from '../storage/s3.js';
 import type { AppEnv } from '../types.js';
 
 export const trackRoutes = new Hono<AppEnv>()
@@ -24,12 +25,32 @@ export const trackRoutes = new Hono<AppEnv>()
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const projectTracks = await db
-      .select()
+      .select({
+        id: tracks.id,
+        projectId: tracks.projectId,
+        name: tracks.name,
+        description: tracks.description,
+        coverImageUrl: tracks.coverImageUrl,
+        status: tracks.status,
+        section: tracks.section,
+        sortOrder: tracks.sortOrder,
+        createdById: tracks.createdById,
+        createdAt: tracks.createdAt,
+        updatedAt: tracks.updatedAt,
+        versionCount: sql<number>`(select count(*)::int from ${versions} where ${versions.trackId} = ${tracks.id})`,
+        branchCount: sql<number>`(select count(distinct ${versions.branchLabel})::int from ${versions} where ${versions.trackId} = ${tracks.id} and ${versions.branchLabel} is not null)`,
+      })
       .from(tracks)
       .where(eq(tracks.projectId, projectId))
       .orderBy(asc(tracks.sortOrder), asc(tracks.createdAt));
 
-    return c.json({ tracks: projectTracks });
+    const enriched = await Promise.all(
+      projectTracks.map(async (t) => ({
+        ...t,
+        coverUrl: t.coverImageUrl ? await createDownloadUrl(t.coverImageUrl) : null,
+      })),
+    );
+    return c.json({ tracks: enriched });
   })
 
   .post('/:projectId', zValidator('json', createTrackSchema), async (c) => {

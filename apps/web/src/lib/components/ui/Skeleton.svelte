@@ -21,12 +21,12 @@
   .skeleton {
     background: linear-gradient(
       90deg,
-      var(--color-bg-subtle) 25%,
-      var(--color-border) 50%,
-      var(--color-bg-subtle) 75%
+      var(--color-bg-raised) 0%,
+      var(--color-bg-subtle) 50%,
+      var(--color-bg-raised) 100%
     );
     background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
+    animation: shimmer 1.8s ease-in-out infinite;
   }
 
   @keyframes shimmer {

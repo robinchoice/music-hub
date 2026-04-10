@@ -57,12 +57,12 @@
 
 <div class="ab-compare">
   <div class="ab-header">
-    <h2>A/B Compare</h2>
+    <h2>A/B-Vergleich</h2>
     <div class="ab-toggle">
       <button class="toggle-btn" class:active={activePlayer === 'A'} onclick={() => switchTo('A')}>A</button>
       <button class="toggle-btn" class:active={activePlayer === 'B'} onclick={() => switchTo('B')}>B</button>
     </div>
-    <Button variant="ghost" size="sm" onclick={onClose}>Close</Button>
+    <Button variant="ghost" size="sm" onclick={onClose}>Schließen</Button>
   </div>
 
   <div class="players">

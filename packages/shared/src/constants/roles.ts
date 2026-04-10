@@ -12,14 +12,14 @@ export const PROJECT_ROLES = [
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export const ROLE_LABELS: Record<ProjectRole, string> = {
-  owner: 'Owner',
-  recording_engineer: 'Recording Engineer',
-  mixing_engineer: 'Mixing Engineer',
-  mastering_engineer: 'Mastering Engineer',
+  owner: 'Besitzer',
+  recording_engineer: 'Aufnahme',
+  mixing_engineer: 'Mixing',
+  mastering_engineer: 'Mastering',
   artist: 'Artist',
   label: 'Label',
   management: 'Management',
-  viewer: 'Viewer',
+  viewer: 'Nur Zuhören',
 };
 
 export const ENGINEER_ROLES: ProjectRole[] = [

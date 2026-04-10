@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   let {
     open = $bindable(false),
@@ -29,7 +30,9 @@
     <div class="modal">
       <div class="modal-header">
         <h2>{title}</h2>
-        <button class="close-btn" onclick={() => open = false}>×</button>
+        <button class="close-btn" onclick={() => open = false} aria-label="Schließen">
+          <Icon name="x" size={18} />
+        </button>
       </div>
       <div class="modal-body">
         {@render children()}
@@ -47,13 +50,15 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(8, 6, 14, 0.65);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: var(--z-modal);
     padding: var(--space-4);
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    animation: fade-in 200ms var(--ease-out);
   }
 
   .modal {
@@ -65,6 +70,16 @@
     max-height: 85vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
+    animation: pop-in 280ms var(--ease-spring);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
   .modal-header {
