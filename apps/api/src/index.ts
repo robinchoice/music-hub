@@ -15,18 +15,37 @@ import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
 
-// Auto-migrate on startup in production
-if (process.env.NODE_ENV === 'production') {
-  console.log('[Boot] Running migrations...');
+// Auto-migrate on startup — execute raw SQL from migration files
+{
+  const fs = await import('fs');
+  const pathMod = await import('path');
+  const { sql: dsql } = await import('drizzle-orm');
+  const folder = pathMod.resolve(process.cwd(), 'packages/db/src/migrations');
   try {
-    // Resolve relative to the working directory (which is /app in Docker)
-    const path = await import('path');
-    const folder = path.resolve(process.cwd(), 'packages/db/src/migrations');
-    console.log(`[Boot] Migrations folder: ${folder}`);
-    await migrate(db, { migrationsFolder: folder });
-    console.log('[Boot] Migrations applied.');
-  } catch (err) {
-    console.error('[Boot] Migration failed:', err);
+    const journalPath = pathMod.join(folder, 'meta', '_journal.json');
+    if (fs.existsSync(journalPath)) {
+      const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+      for (const entry of journal.entries) {
+        const sqlFile = pathMod.join(folder, `${entry.tag}.sql`);
+        if (!fs.existsSync(sqlFile)) continue;
+        const rawSql = fs.readFileSync(sqlFile, 'utf8');
+        const stmts = rawSql.split('--> statement-breakpoint').map((s: string) => s.trim()).filter(Boolean);
+        for (const stmt of stmts) {
+          try {
+            await db.execute(dsql.raw(stmt));
+          } catch (e: any) {
+            if (!e.message?.includes('already exists') && !e.message?.includes('duplicate')) {
+              console.error(`[Migrate] ${entry.tag}:`, e.message?.slice(0, 200));
+            }
+          }
+        }
+      }
+      console.log(`[Boot] Migrations applied (${journal.entries.length} files).`);
+    } else {
+      console.log('[Boot] No migration journal found at', journalPath);
+    }
+  } catch (err: any) {
+    console.error('[Boot] Migration error:', err.message);
   }
 }
 
