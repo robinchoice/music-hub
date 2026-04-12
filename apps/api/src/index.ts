@@ -49,6 +49,16 @@ const app = new Hono<AppEnv>()
     return c.json({ error: err.message }, 500);
   })
   .get('/health', (c) => c.json({ status: 'ok' }))
+  .post('/migrate', async (c) => {
+    try {
+      const path = await import('path');
+      const folder = path.resolve(process.cwd(), 'packages/db/src/migrations');
+      await migrate(db, { migrationsFolder: folder });
+      return c.json({ status: 'ok', message: 'Migrations applied', folder });
+    } catch (err: any) {
+      return c.json({ status: 'error', message: err.message, stack: err.stack?.slice(0, 500) }, 500);
+    }
+  })
   .basePath('/api/v1')
   .route('/auth', authRoutes)
   .route('/projects', projectRoutes)
