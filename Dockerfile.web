@@ -2,23 +2,28 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 FROM base AS install
-COPY package.json bun.lock ./
+COPY package.json bun.lock turbo.json ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/db/package.json ./packages/db/
+COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 RUN bun install --frozen-lockfile
 
 FROM base AS build
 COPY --from=install /app/node_modules ./node_modules
 COPY --from=install /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=install /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=install /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 RUN cd apps/web && bun run build
 
 FROM base AS production
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/web/build ./build
 COPY --from=build /app/apps/web/package.json .
 COPY --from=build /app/node_modules ./node_modules
 EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000/ || exit 1
 CMD ["bun", "./build/index.js"]

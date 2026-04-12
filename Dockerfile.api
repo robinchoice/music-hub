@@ -2,11 +2,12 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 FROM base AS install
-COPY package.json bun.lock ./
+COPY package.json bun.lock turbo.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 COPY apps/api/package.json ./apps/api/
-RUN bun install --frozen-lockfile --production
+COPY apps/web/package.json ./apps/web/
+RUN bun install --frozen-lockfile
 
 FROM base AS build
 COPY --from=install /app/node_modules ./node_modules
@@ -16,8 +17,9 @@ COPY --from=install /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 
 FROM base AS production
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 3000
 ENV NODE_ENV=production
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000/health || exit 1
 CMD ["bun", "run", "apps/api/src/index.ts"]
