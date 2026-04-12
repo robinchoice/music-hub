@@ -49,7 +49,7 @@ const app = new Hono<AppEnv>()
     return c.json({ error: err.message }, 500);
   })
   .get('/health', (c) => c.json({ status: 'ok' }))
-  .post('/migrate', async (c) => {
+  .get('/migrate', async (c) => {
     try {
       const fs = await import('fs');
       const pathMod = await import('path');
