@@ -11,9 +11,21 @@ import { shareRoutes } from './routes/share.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { activityRoutes } from './routes/activity.js';
 import { onboardingRoutes } from './routes/onboarding.js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
+
+// Auto-migrate on startup in production
+if (process.env.NODE_ENV === 'production') {
+  console.log('[Boot] Running migrations...');
+  try {
+    await migrate(db, { migrationsFolder: './packages/db/src/migrations' });
+    console.log('[Boot] Migrations applied.');
+  } catch (err) {
+    console.error('[Boot] Migration failed:', err);
+  }
+}
 
 const app = new Hono<AppEnv>()
   .use('*', logger())
