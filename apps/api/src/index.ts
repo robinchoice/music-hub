@@ -11,7 +11,6 @@ import { shareRoutes } from './routes/share.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { activityRoutes } from './routes/activity.js';
 import { onboardingRoutes } from './routes/onboarding.js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -90,6 +89,12 @@ const app = new Hono<AppEnv>()
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);
+
+export default {
+  port,
+  fetch: app.fetch,
+};
+${port}`);
 
 export default {
   port,
