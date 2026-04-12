@@ -25,6 +25,7 @@ export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
+  artist: varchar('artist', { length: 255 }),
   coverImageUrl: text('cover_image_url'),
   createdById: uuid('created_by_id')
     .references(() => users.id)

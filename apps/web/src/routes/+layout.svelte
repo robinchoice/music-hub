@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { checkAuth, authLoading } from '$lib/stores/auth.js';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+  // @ts-ignore — no types shipped for fontsource
   import '@fontsource-variable/inter';
 
   let { children } = $props();
@@ -11,7 +12,9 @@
   const isPublic = $derived(
     $page.url.pathname === '/' ||
       $page.url.pathname === '/login' ||
-      $page.url.pathname.startsWith('/listen/'),
+      $page.url.pathname === '/register' ||
+      $page.url.pathname.startsWith('/listen/') ||
+      $page.url.pathname.startsWith('/auth/'),
   );
 
   onMount(() => {

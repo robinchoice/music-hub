@@ -22,6 +22,18 @@ export async function checkAuth() {
   }
 }
 
+export async function register(name: string, email: string, password: string) {
+  const res = await api.post<{ user: User }>('/auth/register', { name, email, password });
+  user.set(res.user);
+  return res.user;
+}
+
+export async function login(email: string, password: string) {
+  const res = await api.post<{ user: User }>('/auth/login', { email, password });
+  user.set(res.user);
+  return res.user;
+}
+
 export async function sendMagicLink(email: string) {
   return api.post('/auth/magic-link', { email });
 }

@@ -7,6 +7,7 @@
   import TopBar from '$lib/components/workspace/TopBar.svelte';
 
   let name = $state('');
+  let artist = $state('');
   let description = $state('');
   let loading = $state(false);
 
@@ -16,6 +17,7 @@
     try {
       const res = await api.post<{ project: { id: string } }>('/projects', {
         name,
+        artist: artist.trim() || null,
         description: description || undefined,
       });
       toastSuccess('Projekt erstellt');
@@ -38,6 +40,7 @@
     <h1>Neues Projekt</h1>
 
     <form onsubmit={handleSubmit}>
+      <Input label="Artist" bind:value={artist} placeholder="z.B. Anna Berger (optional)" />
       <Input label="Name" bind:value={name} placeholder="Mein Album" />
 
       <div class="textarea-group">

@@ -3,7 +3,9 @@ import postgres from 'postgres';
 import * as schema from './schema/index.js';
 
 export function createDb(connectionString: string) {
-  const client = postgres(connectionString);
+  const client = postgres(connectionString, {
+    connection: { timezone: 'UTC' },
+  });
   return drizzle(client, { schema });
 }
 

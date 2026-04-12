@@ -2,13 +2,63 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
-import { magicLinkSchema, verifyTokenSchema } from '@music-hub/shared';
+import { magicLinkSchema, verifyTokenSchema, registerSchema, loginSchema } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { hashToken } from '../middleware/auth.js';
 import { sendMagicLinkEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
 
+async function createSession(c: any, db: any, userId: string) {
+  const sessionToken = generateToken();
+  const tokenHash = await hashToken(sessionToken);
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.insert(sessions).values({ userId, tokenHash, expiresAt });
+  setCookie(c, 'session', sessionToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60,
+  });
+}
+
 export const authRoutes = new Hono<AppEnv>()
+  // Register with password
+  .post('/register', zValidator('json', registerSchema), async (c) => {
+    const { name, email, password } = c.req.valid('json');
+    const db = c.get('db');
+
+    const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (existing) return c.json({ error: 'E-Mail bereits vergeben' }, 409);
+
+    const passwordHash = await Bun.password.hash(password);
+    const [user] = await db
+      .insert(users)
+      .values({ email, name, passwordHash })
+      .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl });
+
+    await createSession(c, db, user.id);
+    return c.json({ user }, 201);
+  })
+
+  // Login with password
+  .post('/login', zValidator('json', loginSchema), async (c) => {
+    const { email, password } = c.req.valid('json');
+    const db = c.get('db');
+
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user || !user.passwordHash) {
+      return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
+    }
+
+    const valid = await Bun.password.verify(password, user.passwordHash);
+    if (!valid) return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
+
+    await createSession(c, db, user.id);
+    return c.json({
+      user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl },
+    });
+  })
+
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
     const { email } = c.req.valid('json');
     const db = c.get('db');
@@ -61,25 +111,7 @@ export const authRoutes = new Hono<AppEnv>()
         .returning();
     }
 
-    // Create session
-    const sessionToken = generateToken();
-    const tokenHash = await hashToken(sessionToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-    await db.insert(sessions).values({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-    });
-
-    setCookie(c, 'session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60,
-    });
-
+    await createSession(c, db, user.id);
     return c.json({ user: { id: user.id, email: user.email, name: user.name } });
   })
 

@@ -8,8 +8,9 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
 
-  type Project = { id: string; name: string; coverUrl: string | null };
+  type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
   type ProjectMembership = { project: Project; role: string; trackCount: number };
+  type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
   type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
   type Track = { id: string; name: string; coverUrl: string | null; status: TrackStatus };
 
@@ -37,16 +38,52 @@
   const activeProjectId = $derived(($page.params as Record<string, string>).projectId ?? null);
   const activeTrackId = $derived(($page.params as Record<string, string>).trackId ?? null);
 
-  // Filtered projects: a project matches if its name matches OR any of its loaded tracks match
+  // Filtered projects: a project matches if its name matches, artist matches, OR any of its loaded tracks match
   const filtered = $derived.by(() => {
     const q = query.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter(({ project }) => {
       if (project.name.toLowerCase().includes(q)) return true;
+      if (project.artist?.toLowerCase().includes(q)) return true;
       const tracks = tracksByProject[project.id];
       return tracks?.some((t) => t.name.toLowerCase().includes(q));
     });
   });
+
+  // Group filtered projects by artist
+  const artistGroups = $derived.by(() => {
+    const groups = new Map<string, ProjectMembership[]>();
+    for (const m of filtered) {
+      const key = m.project.artist?.trim() || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(m);
+    }
+    const sorted: ArtistGroup[] = [];
+    for (const [artist, memberships] of groups) {
+      if (artist) sorted.push({ artist, memberships });
+    }
+    sorted.sort((a, b) => a.artist.localeCompare(b.artist));
+    const ungrouped = groups.get('');
+    if (ungrouped) sorted.push({ artist: '', memberships: ungrouped });
+    return sorted;
+  });
+
+  // Artist group collapsed state
+  let collapsedArtists = $state<Set<string>>(new Set());
+  function toggleArtist(artist: string) {
+    const next = new Set(collapsedArtists);
+    if (next.has(artist)) next.delete(artist);
+    else next.add(artist);
+    collapsedArtists = next;
+  }
+  function isArtistExpanded(artist: string) {
+    if (collapsedArtists.has(artist)) return false;
+    // Auto-expand if active project is in this group or search is active
+    if (query.trim()) return true;
+    return artistGroups.some(
+      (g) => g.artist === artist && g.memberships.some((m) => m.project.id === activeProjectId),
+    );
+  }
 
   function trackMatches(track: Track) {
     const q = query.trim().toLowerCase();
@@ -133,44 +170,65 @@
         <Icon name="plus" size={14} />
       </a>
     </div>
-    <ul class="projects">
-      {#each filtered as { project, trackCount } (project.id)}
-        <li>
-          <a
-            href="/projects/{project.id}"
-            class="project"
-            class:active={activeProjectId === project.id}
-            onclick={handleNavClick}
-          >
-            <CoverImage src={project.coverUrl} name={project.name} size="xs" rounded="sm" />
-            <span class="name">{project.name}</span>
-            <span class="count">{trackCount}</span>
-          </a>
-          {#if shouldExpand(project.id) && tracksByProject[project.id]}
-            <ul class="tracks">
-              {#each tracksByProject[project.id].filter(trackMatches) as track (track.id)}
+    <div class="artist-groups">
+      {#each artistGroups as group (group.artist)}
+        {@const expanded = group.artist === '' || isArtistExpanded(group.artist) || !collapsedArtists.has(group.artist)}
+        <div class="artist-group">
+          {#if group.artist}
+            <button class="artist-head" onclick={() => toggleArtist(group.artist)}>
+              <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
+              <span class="artist-name">{group.artist}</span>
+              <span class="count">{group.memberships.length}</span>
+            </button>
+          {:else}
+            <div class="artist-head ungrouped">
+              <span class="artist-name">Ohne Zuordnung</span>
+            </div>
+          {/if}
+
+          {#if expanded}
+            <ul class="projects">
+              {#each group.memberships as { project, trackCount } (project.id)}
                 <li>
                   <a
-                    href="/projects/{project.id}/tracks/{track.id}"
-                    class="track"
-                    class:active={activeTrackId === track.id}
+                    href="/projects/{project.id}"
+                    class="project"
+                    class:active={activeProjectId === project.id}
                     onclick={handleNavClick}
                   >
-                    <span class="status-dot" style="background: {STATUS_COLORS[track.status]}"></span>
-                    {track.name}
+                    <CoverImage src={project.coverUrl} name={project.name} size="xs" rounded="sm" />
+                    <span class="name">{project.name}</span>
+                    <span class="count">{trackCount}</span>
                   </a>
+                  {#if shouldExpand(project.id) && tracksByProject[project.id]}
+                    <ul class="tracks">
+                      {#each tracksByProject[project.id].filter(trackMatches) as track (track.id)}
+                        <li>
+                          <a
+                            href="/projects/{project.id}/tracks/{track.id}"
+                            class="track"
+                            class:active={activeTrackId === track.id}
+                            onclick={handleNavClick}
+                          >
+                            <span class="status-dot" style="background: {STATUS_COLORS[track.status]}"></span>
+                            {track.name}
+                          </a>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
                 </li>
               {/each}
             </ul>
           {/if}
-        </li>
+        </div>
       {/each}
       {#if filtered.length === 0 && query}
-        <li class="empty">Nichts gefunden für "{query}"</li>
+        <p class="empty">Nichts gefunden für "{query}"</p>
       {:else if projects.length === 0}
-        <li class="empty">Noch keine Projekte</li>
+        <p class="empty">Noch keine Projekte</p>
       {/if}
-    </ul>
+    </div>
   </div>
 
   <div class="user-block">
@@ -312,6 +370,45 @@
   .add:hover {
     background: var(--color-bg-overlay);
     color: var(--color-accent);
+  }
+
+  .artist-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .artist-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-1) var(--space-3);
+    background: none;
+    border: none;
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+  }
+  .artist-head:hover {
+    color: var(--color-text-secondary);
+  }
+  .artist-head.ungrouped {
+    cursor: default;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-1);
+    border-radius: 0;
+  }
+  .artist-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .projects {

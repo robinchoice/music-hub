@@ -19,7 +19,7 @@
     user: { id: string; email: string; name: string; avatarUrl: string | null };
   };
 
-  type Project = { id: string; name: string; description: string | null; coverUrl: string | null; coverImageUrl: string | null };
+  type Project = { id: string; name: string; description: string | null; artist: string | null; coverUrl: string | null; coverImageUrl: string | null };
 
   const projectId = $page.params.projectId!;
 
@@ -30,6 +30,7 @@
 
   // Edit project
   let editName = $state('');
+  let editArtist = $state('');
   let editDesc = $state('');
   let saving = $state(false);
 
@@ -52,6 +53,7 @@
       project = projectRes.project;
       role = projectRes.role;
       editName = project.name;
+      editArtist = project.artist || '';
       editDesc = project.description || '';
       members = membersRes.members;
     } finally {
@@ -70,6 +72,7 @@
     try {
       await api.patch(`/projects/${projectId}`, {
         name: editName,
+        artist: editArtist.trim() || null,
         description: editDesc || undefined,
       });
       toastSuccess('Projekt gespeichert');
@@ -135,6 +138,7 @@
       <div class="cover-row">
         <CoverUpload currentUrl={project.coverUrl} name={project.name} onUploaded={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
+          <Input label="Artist" bind:value={editArtist} placeholder="z.B. Anna Berger (optional)" />
           <Input label="Name" bind:value={editName} />
           <div class="textarea-group">
             <label class="textarea-label">Beschreibung</label>

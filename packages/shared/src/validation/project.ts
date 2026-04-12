@@ -4,11 +4,13 @@ import { PROJECT_ROLES } from '../constants/roles.js';
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
+  artist: z.string().max(255).nullable().optional(),
 });
 
 export const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
+  artist: z.string().max(255).nullable().optional(),
   coverImageUrl: z.string().nullable().optional(),
 });
 

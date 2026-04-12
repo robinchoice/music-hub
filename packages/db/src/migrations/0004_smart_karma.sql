@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "artist" varchar(255);

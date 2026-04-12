@@ -29,6 +29,20 @@
       "when": 1775723994470,
       "tag": "0003_huge_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776008240052,
+      "tag": "0004_smart_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776012912970,
+      "tag": "0005_rare_triathlon",
+      "breakpoints": true
     }
   ]
 }
