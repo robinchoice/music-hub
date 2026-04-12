@@ -20,7 +20,11 @@ const db = createDb(process.env.DATABASE_URL!);
 if (process.env.NODE_ENV === 'production') {
   console.log('[Boot] Running migrations...');
   try {
-    await migrate(db, { migrationsFolder: './packages/db/src/migrations' });
+    // Resolve relative to the working directory (which is /app in Docker)
+    const path = await import('path');
+    const folder = path.resolve(process.cwd(), 'packages/db/src/migrations');
+    console.log(`[Boot] Migrations folder: ${folder}`);
+    await migrate(db, { migrationsFolder: folder });
     console.log('[Boot] Migrations applied.');
   } catch (err) {
     console.error('[Boot] Migration failed:', err);
