@@ -23,7 +23,7 @@
   import VersionGraph from './components/VersionGraph.svelte';
   import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
-  import StemList from './components/StemList.svelte';
+  import StemList, { type Stem } from './components/StemList.svelte';
 
   type Version = {
     id: string;
@@ -86,7 +86,6 @@
   let branchFromId = $state<string | null>(null);
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
-  type Stem = { id: string; name: string; originalFileName: string; mimeType: string; fileSize: number; createdAt: string; createdById: string };
   let stems = $state<Stem[]>([]);
   let panelTab = $state<'versions' | 'comments' | 'stems'>('versions');
   let panelOpen = $state(true);

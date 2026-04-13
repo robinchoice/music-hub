@@ -72,7 +72,7 @@
 
       step = 'S3';
       await uploadWithProgress(uploadUrl, file, mimeType, (p) => {
-        files[idx] = { ...files[idx], progress: p };
+        files[idx].progress = p;
       });
 
       step = 'DB';

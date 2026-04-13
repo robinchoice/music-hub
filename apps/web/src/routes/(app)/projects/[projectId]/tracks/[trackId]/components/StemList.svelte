@@ -1,11 +1,12 @@
 <script lang="ts">
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
+  import { formatFileSize } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
 
-  type Stem = {
+  export type Stem = {
     id: string;
     name: string;
     originalFileName: string;
@@ -31,11 +32,6 @@
 
   let showUpload = $state(false);
   let deleting = $state<string | null>(null);
-
-  function formatSize(bytes: number) {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
 
   async function loadStems() {
     const res = await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`);
@@ -105,7 +101,7 @@
           <span class="stem-icon"><Icon name="music" size={14} /></span>
           <div class="stem-info">
             <span class="stem-name">{stem.name}</span>
-            <span class="stem-meta">{stem.originalFileName} · {formatSize(stem.fileSize)}</span>
+            <span class="stem-meta">{stem.originalFileName} · {formatFileSize(stem.fileSize)}</span>
           </div>
           {#if role === 'owner' || stem.createdById === currentUserId}
             <button
