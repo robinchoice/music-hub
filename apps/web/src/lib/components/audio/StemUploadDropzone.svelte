@@ -62,35 +62,39 @@
   }
 
   async function uploadOne(file: File, idx: number) {
+    let step = 'URL';
     try {
+      const mimeType = file.type || 'audio/wav';
       const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(
         `/stems/track/${trackId}/upload-url`,
-        { fileName: file.name, mimeType: file.type || 'audio/wav', fileSize: file.size },
+        { fileName: file.name, mimeType, fileSize: file.size },
       );
 
-      await uploadWithProgress(uploadUrl, file, (p) => {
+      step = 'S3';
+      await uploadWithProgress(uploadUrl, file, mimeType, (p) => {
         files[idx] = { ...files[idx], progress: p };
       });
 
+      step = 'DB';
       await api.post(`/stems/track/${trackId}`, {
         fileKey,
         name: stemNameFromFile(file.name),
         originalFileName: file.name,
-        mimeType: file.type || 'audio/wav',
+        mimeType,
         fileSize: file.size,
       });
 
       files[idx] = { ...files[idx], progress: 100 };
     } catch (err) {
-      files[idx] = { ...files[idx], error: err instanceof Error ? err.message : 'Fehler' };
+      files[idx] = { ...files[idx], error: `[${step}] ${err instanceof Error ? err.message : 'Fehler'}` };
     }
   }
 
-  function uploadWithProgress(url: string, file: File, onProgress: (p: number) => void): Promise<void> {
+  function uploadWithProgress(url: string, file: File, mimeType: string, onProgress: (p: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', url);
-      xhr.setRequestHeader('Content-Type', file.type || 'audio/wav');
+      xhr.setRequestHeader('Content-Type', mimeType);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
       };
@@ -117,7 +121,7 @@
     <input
       id="stem-input-{trackId}"
       type="file"
-      accept=".wav,.mp3,.flac,.aiff,.aif"
+      accept="audio/*"
       multiple
       onchange={handleFileSelect}
       hidden
@@ -125,7 +129,7 @@
     <div class="dropzone-content">
       <span class="icon"><Icon name="upload" size={24} /></span>
       <p>STEMs hier ablegen oder klicken</p>
-      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, FLAC, AIFF · max 500 MB</span>
+      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max 500 MB</span>
     </div>
   </div>
 

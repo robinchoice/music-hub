@@ -21,13 +21,12 @@ const bucket = process.env.S3_BUCKET!;
 export async function createUploadUrl(
   key: string,
   contentType: string,
-  maxSize: number,
+  _maxSize?: number,
 ): Promise<string> {
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: contentType,
-    ContentLength: maxSize,
   });
   return getSignedUrl(s3, command, { expiresIn: 900 }); // 15 min
 }
