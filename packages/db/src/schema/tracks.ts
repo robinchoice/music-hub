@@ -77,3 +77,20 @@ export const versions = pgTable('versions', {
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const stems = pgTable('stems', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  trackId: uuid('track_id')
+    .references(() => tracks.id, { onDelete: 'cascade' })
+    .notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  originalFileName: varchar('original_file_name', { length: 500 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  fileKey: text('file_key').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdById: uuid('created_by_id')
+    .references(() => users.id)
+    .notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

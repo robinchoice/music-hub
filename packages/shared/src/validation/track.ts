@@ -53,6 +53,20 @@ export const updateVersionSchema = z.object({
   branchLabel: z.string().max(100).nullable().optional(),
 });
 
+export const requestStemUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  mimeType: z.string().min(1),
+  fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
+});
+
+export const createStemSchema = z.object({
+  fileKey: z.string().min(1),
+  name: z.string().min(1).max(255),
+  originalFileName: z.string().min(1),
+  mimeType: z.string().min(1),
+  fileSize: z.number().int().positive(),
+});
+
 export const createShareLinkSchema = z.object({
   expiresAt: z.string().datetime().optional(),
   allowComments: z.boolean().optional(),
@@ -75,3 +89,5 @@ export type UpdateVersionInput = z.infer<typeof updateVersionSchema>;
 export type CreateShareLinkInput = z.infer<typeof createShareLinkSchema>;
 export type CoverUploadInput = z.infer<typeof coverUploadSchema>;
 export type GuestCommentInput = z.infer<typeof guestCommentSchema>;
+export type RequestStemUploadUrlInput = z.infer<typeof requestStemUploadUrlSchema>;
+export type CreateStemInput = z.infer<typeof createStemSchema>;

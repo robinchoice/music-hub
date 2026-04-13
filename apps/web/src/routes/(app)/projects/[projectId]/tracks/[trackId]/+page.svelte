@@ -23,6 +23,7 @@
   import VersionGraph from './components/VersionGraph.svelte';
   import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
+  import StemList from './components/StemList.svelte';
 
   type Version = {
     id: string;
@@ -85,7 +86,9 @@
   let branchFromId = $state<string | null>(null);
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
-  let panelTab = $state<'versions' | 'comments'>('versions');
+  type Stem = { id: string; name: string; originalFileName: string; mimeType: string; fileSize: number; createdAt: string; createdById: string };
+  let stems = $state<Stem[]>([]);
+  let panelTab = $state<'versions' | 'comments' | 'stems'>('versions');
   let panelOpen = $state(true);
   let editVersionOpen = $state(false);
   let editVersionLabel = $state('');
@@ -98,11 +101,12 @@
 
   onMount(async () => {
     try {
-      const [projectRes, trackVersions, tracksRes, treeRes] = await Promise.all([
+      const [projectRes, trackVersions, tracksRes, treeRes, stemsRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
         api.get<{ tracks: { id: string; name: string; coverUrl: string | null; status: TrackStatus; section: string | null }[] }>(`/tracks/project/${projectId}`),
         api.get<{ nodes: GraphNode[] }>(`/versions/track/${trackId}/tree`),
+        api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`),
       ]);
 
       projectName = projectRes.project.name;
@@ -114,6 +118,7 @@
       trackSection = t?.section ?? null;
       versions = trackVersions.versions;
       graphNodes = treeRes.nodes;
+      stems = stemsRes.stems;
 
       if (versions.length > 0) await selectVersion(versions[0]);
     } finally {
@@ -502,6 +507,9 @@
         <button class:active={panelTab === 'comments'} onclick={() => (panelTab = 'comments')}>
           Kommentare <span class="badge">{comments.length}</span>
         </button>
+        <button class:active={panelTab === 'stems'} onclick={() => (panelTab = 'stems')}>
+          STEMs <span class="badge">{stems.length}</span>
+        </button>
       </div>
 
       <div class="panel-body">
@@ -519,6 +527,14 @@
               onBranch={canUpload ? startBranch : undefined}
             />
           {/if}
+        {:else if panelTab === 'stems'}
+          <StemList
+            {trackId}
+            bind:stems
+            {canUpload}
+            currentUserId={$user?.id ?? null}
+            {role}
+          />
         {:else if selectedVersion}
           <CommentSection
             {comments}

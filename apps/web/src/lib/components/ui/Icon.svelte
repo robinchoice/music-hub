@@ -7,7 +7,7 @@
     | 'download' | 'upload' | 'share' | 'plus' | 'check' | 'x' | 'close'
     | 'chevron-down' | 'chevron-right' | 'more' | 'home' | 'panel' | 'panel-off'
     | 'git-branch' | 'arrow-up' | 'compare' | 'comment' | 'lock' | 'link'
-    | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search';
+    | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music';
 
   let {
     name,
@@ -134,6 +134,10 @@
   {:else if name === 'search'}
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  {:else if name === 'music'}
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
   {/if}
 </svg>
 
