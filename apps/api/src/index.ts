@@ -113,9 +113,3 @@ export default {
   port,
   fetch: app.fetch,
 };
-${port}`);
-
-export default {
-  port,
-  fetch: app.fetch,
-};
