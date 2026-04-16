@@ -65,37 +65,9 @@ const app = new Hono<AppEnv>()
   })
   .onError((err, c) => {
     console.error('Unhandled error:', err);
-    return c.json({ error: err.message }, 500);
+    return c.json({ error: 'Internal server error' }, 500);
   })
   .get('/health', (c) => c.json({ status: 'ok' }))
-  .get('/migrate', async (c) => {
-    try {
-      const fs = await import('fs');
-      const pathMod = await import('path');
-      const { sql: dsql } = await import('drizzle-orm');
-      const folder = pathMod.resolve(process.cwd(), 'packages/db/src/migrations');
-      const journal = JSON.parse(fs.readFileSync(pathMod.join(folder, 'meta', '_journal.json'), 'utf8'));
-      const results: string[] = [];
-      for (const entry of journal.entries) {
-        const sqlFile = pathMod.join(folder, `${entry.tag}.sql`);
-        if (!fs.existsSync(sqlFile)) { results.push(`skip: ${entry.tag} (not found)`); continue; }
-        const rawSql = fs.readFileSync(sqlFile, 'utf8');
-        const statements = rawSql.split('--> statement-breakpoint').map((s: string) => s.trim()).filter(Boolean);
-        for (const stmt of statements) {
-          try {
-            await db.execute(dsql.raw(stmt));
-          } catch (err: any) {
-            if (err.message?.includes('already exists') || err.message?.includes('duplicate')) continue;
-            results.push(`error in ${entry.tag}: ${err.message?.slice(0, 150)}`);
-          }
-        }
-        results.push(`ok: ${entry.tag}`);
-      }
-      return c.json({ status: 'ok', results });
-    } catch (err: any) {
-      return c.json({ status: 'error', message: err.message }, 500);
-    }
-  })
   .basePath('/api/v1')
   .route('/auth', authRoutes)
   .route('/projects', projectRoutes)

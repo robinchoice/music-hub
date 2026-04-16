@@ -81,6 +81,23 @@ export const versionRoutes = new Hono<AppEnv>()
     const [track] = await db.select().from(tracks).where(eq(tracks.id, trackId)).limit(1);
     if (!track) return c.json({ error: 'Not found' }, 404);
 
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(
+        and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)),
+      )
+      .limit(1);
+
+    if (!membership || !membership.canUpload) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const expectedPrefix = `projects/${track.projectId}/tracks/${trackId}/`;
+    if (!input.fileKey.startsWith(expectedPrefix)) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
     // Get next version number
     const [latest] = await db
       .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
@@ -269,15 +286,19 @@ export const versionRoutes = new Hono<AppEnv>()
   // Get stream URL
   .get('/:id/stream-url', async (c) => {
     const db = c.get('db');
+    const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const [version] = await db
-      .select()
-      .from(versions)
-      .where(eq(versions.id, versionId))
-      .limit(1);
-
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
     if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const key = version.streamFileKey || version.originalFileKey;
     const url = await createDownloadUrl(key);
@@ -288,15 +309,19 @@ export const versionRoutes = new Hono<AppEnv>()
   // Get download URL
   .get('/:id/download-url', async (c) => {
     const db = c.get('db');
+    const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const [version] = await db
-      .select()
-      .from(versions)
-      .where(eq(versions.id, versionId))
-      .limit(1);
-
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
     if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(version.originalFileKey);
     return c.json({ url });
@@ -305,17 +330,19 @@ export const versionRoutes = new Hono<AppEnv>()
   // Get waveform data
   .get('/:id/waveform', async (c) => {
     const db = c.get('db');
+    const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const [version] = await db
-      .select()
-      .from(versions)
-      .where(eq(versions.id, versionId))
-      .limit(1);
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
+    if (!version || !version.waveformDataKey) return c.json({ error: 'Not found' }, 404);
 
-    if (!version || !version.waveformDataKey) {
-      return c.json({ error: 'Not found' }, 404);
-    }
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(version.waveformDataKey);
     return c.json({ url });

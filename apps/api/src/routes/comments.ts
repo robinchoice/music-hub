@@ -158,15 +158,29 @@ export const commentRoutes = new Hono<AppEnv>()
   // Resolve comment
   .post('/:id/resolve', async (c) => {
     const db = c.get('db');
+    const userId = c.get('userId');
     const commentId = c.req.param('id');
+
+    const [comment] = await db.select().from(comments).where(eq(comments.id, commentId)).limit(1);
+    if (!comment) return c.json({ error: 'Not found' }, 404);
+
+    const [version] = await db.select().from(versions).where(eq(versions.id, comment.versionId)).limit(1);
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version!.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+
+    if (!membership || (!membership.canComment && !membership.canApprove)) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
 
     const [updated] = await db
       .update(comments)
       .set({ resolvedAt: new Date() })
       .where(eq(comments.id, commentId))
       .returning();
-
-    if (!updated) return c.json({ error: 'Not found' }, 404);
 
     return c.json({ comment: updated });
   });

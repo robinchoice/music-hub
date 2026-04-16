@@ -266,7 +266,7 @@ export const projectRoutes = new Hono<AppEnv>()
     const [updated] = await db
       .update(projectMembers)
       .set({ role: newRole, ...defaults })
-      .where(eq(projectMembers.id, memberId))
+      .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
       .returning();
 
     return c.json({ member: updated });
@@ -294,7 +294,7 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    await db.delete(projectMembers).where(eq(projectMembers.id, memberId));
+    await db.delete(projectMembers).where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)));
     return c.json({ message: 'Member removed' });
   });
 

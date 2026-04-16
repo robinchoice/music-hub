@@ -16,6 +16,7 @@ async function createSession(c: any, db: any, userId: string) {
   setCookie(c, 'session', sessionToken, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 30 * 24 * 60 * 60,
   });
@@ -64,11 +65,12 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
 
     const token = generateToken();
+    const tokenHash = await hashToken(token);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
     await db.insert(magicLinks).values({
       email,
-      token,
+      token: tokenHash,
       expiresAt,
     });
 
@@ -81,10 +83,11 @@ export const authRoutes = new Hono<AppEnv>()
     const { token } = c.req.valid('json');
     const db = c.get('db');
 
+    const tokenHash = await hashToken(token);
     const [link] = await db
       .select()
       .from(magicLinks)
-      .where(eq(magicLinks.token, token))
+      .where(eq(magicLinks.token, tokenHash))
       .limit(1);
 
     if (!link || link.expiresAt < new Date() || link.usedAt) {

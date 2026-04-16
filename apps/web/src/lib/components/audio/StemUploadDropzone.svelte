@@ -124,7 +124,7 @@
       accept="audio/*"
       multiple
       onchange={handleFileSelect}
-      hidden
+      style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"
     />
     <div class="dropzone-content">
       <span class="icon"><Icon name="upload" size={24} /></span>
