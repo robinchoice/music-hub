@@ -4,23 +4,28 @@ Webapp für Label-Kollaboration. Stack: SvelteKit + Hono + Postgres.
 
 ## Aktueller Stand
 
-<!-- Zuletzt aktualisiert: 2026-04-13 via /save -->
+<!-- Zuletzt aktualisiert: 2026-04-16 via /save -->
 
-**Sprint / Phase:** STEM-Feature + Bugfixes
+**Sprint / Phase:** Full PWA — Phase 1 deployed, Phase 2+3 ausstehend
 
 **Zuletzt implementiert:**
-- STEM-Support: Multi-File-Upload, ZIP-Download, StemList-Tab in Track-View
-- Presigned URL fix: `ContentLength` entfernt (S3-Upload-Fehler)
-- macOS Multi-Select fix: `accept="audio/*"` statt Extensions
-- `/simplify`-Cleanup: async zip(), Null-Check, formatFileSize, Typ-Dedup
+- PWA Phase 1: Offline-Audio-Download + Playback (commit `e58a7c2`)
+  - API: `GET /versions/:id/audio?quality=stream|original` + `GET /versions/:id/waveform-data` (Server-Proxy)
+  - SW: cache-first aus `musichub-offline-v1` für Proxy-Routen; Cache überlebt SW-Updates
+  - IDB-Store (`idb` lib), Svelte 5 Runes Store mit Progress-Tracking
+  - Track-Seite: Offline-Button mit Stream/Original-Picker, Cloud-Check wenn gecacht
+  - `/offline`-Seite mit Speicheranzeige + Entfernen
+  - Manifest: `shortcuts` für Dashboard + Offline-Tracks
+- Security-Hardening (8 Issues), STEM Multi-Select Fix, S3-CORS gesetzt (frühere Session)
 
 **Als nächstes:**
-- STEM-Upload testen (Deploy läuft, noch nicht vom User bestätigt)
-- RESEND_API_KEY setzen → echter E-Mail-Versand
-- DB `is_public` nach Tests wieder deaktivieren
+- Phase 1 verifizieren: SW unregistrieren, Track offline cachen, Flugmodus testen
+- Phase 2: Push Notifications (`push_subscriptions`-Tabelle, `web-push`, VAPID-Keys)
+- Phase 3: Background Sync für Uploads (IDB-Queue, SW sync-Handler)
 
 **Offene Punkte:**
-- Upload-Fehler könnte noch S3-CORS sein (noch nicht ausgeschlossen)
+- RESEND_API_KEY noch nicht gesetzt (echter E-Mail-Versand)
+- DB `is_public` nach STEM-Tests wieder deaktivieren
 
 ## Decisions
 
