@@ -18,6 +18,15 @@
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
   import { snapshotForTrack, continuationFor } from '$lib/stores/player.js';
+  import {
+    offlineVersions,
+    downloadForOffline,
+    removeOffline,
+    getOfflineAudioUrl,
+    initOfflineStore,
+    isOffline,
+    type OfflineQuality,
+  } from '$lib/stores/offline.js';
   import { TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import VersionInfo from './components/VersionInfo.svelte';
   import VersionGraph from './components/VersionGraph.svelte';
@@ -93,12 +102,16 @@
   let editVersionLabel = $state('');
   let editVersionNotes = $state('');
   let savingVersion = $state(false);
+  let offlineDropdownOpen = $state(false);
+  let offlineDownloading = $state(false);
+  let offlineProgress = $state(0);
 
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
   const canComment = $derived(role !== 'viewer');
 
   onMount(async () => {
+    await initOfflineStore();
     try {
       const [projectRes, trackVersions, tracksRes, treeRes, stemsRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
@@ -135,6 +148,17 @@
     nextAutoPlay = cont?.autoPlay ?? false;
 
     selectedVersion = version;
+
+    // Use cached audio if offline and version is downloaded
+    if (!navigator.onLine && isOffline(version.id)) {
+      const blobUrl = await getOfflineAudioUrl(version.id);
+      if (blobUrl) {
+        streamUrl = blobUrl;
+        comments = [];
+        return;
+      }
+    }
+
     const [streamRes, commentRes] = await Promise.all([
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
       api.get<{ comments: Comment[] }>(`/comments/version/${version.id}`),
@@ -312,6 +336,33 @@
     },
   });
 
+  async function handleOfflineDownload(quality: OfflineQuality) {
+    if (!selectedVersion) return;
+    offlineDropdownOpen = false;
+    offlineDownloading = true;
+    offlineProgress = 0;
+    try {
+      await downloadForOffline(
+        selectedVersion.id,
+        quality,
+        { trackId, projectId, title: trackName, versionNumber: selectedVersion.versionNumber },
+        (pct) => { offlineProgress = pct; },
+      );
+      toastSuccess('Offline verfügbar');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Fehler';
+      toastSuccess(`Download fehlgeschlagen: ${msg}`);
+    } finally {
+      offlineDownloading = false;
+    }
+  }
+
+  async function handleOfflineRemove() {
+    if (!selectedVersion) return;
+    await removeOffline(selectedVersion.id);
+    toastSuccess('Offline-Version entfernt');
+  }
+
   async function deleteVersion() {
     if (!selectedVersion) return;
     if (!confirm(`Version V${selectedVersion.versionNumber} wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
@@ -418,6 +469,31 @@
         <Button variant="ghost" size="sm" onclick={handleDownload}>
           <Icon name="download" size={14} /> Download Original
         </Button>
+        {#if selectedVersion}
+          <div class="offline-btn-wrap">
+            {#if isOffline(selectedVersion.id)}
+              <Button variant="ghost" size="sm" onclick={handleOfflineRemove}>
+                <Icon name="cloud-check" size={14} /> Offline
+              </Button>
+            {:else if offlineDownloading}
+              <span class="offline-progress">{offlineProgress}%</span>
+            {:else}
+              <Button variant="ghost" size="sm" onclick={() => (offlineDropdownOpen = !offlineDropdownOpen)}>
+                <Icon name="cloud-download" size={14} /> Offline
+              </Button>
+            {/if}
+            {#if offlineDropdownOpen}
+              <div class="offline-dropdown" role="menu">
+                <button onclick={() => handleOfflineDownload('stream')}>
+                  <Icon name="music" size={13} /> Stream (MP3, ~3–5 MB)
+                </button>
+                <button onclick={() => handleOfflineDownload('original')}>
+                  <Icon name="download" size={13} /> Original (WAV/FLAC)
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/if}
         {#if canUpload}
           <Button variant="ghost" size="sm" onclick={openVersionEdit}>
             <Icon name="settings" size={14} /> Bearbeiten
@@ -935,5 +1011,52 @@
       border-left: none;
       border-top: 1px solid var(--color-border);
     }
+  }
+
+  .offline-btn-wrap {
+    position: relative;
+  }
+
+  .offline-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 20;
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: var(--shadow-md);
+    white-space: nowrap;
+  }
+
+  .offline-dropdown button {
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .offline-dropdown button:hover {
+    background: var(--color-bg-raised);
+    color: var(--color-text-primary);
+  }
+
+  .offline-progress {
+    font-size: var(--text-sm);
+    color: var(--color-text-tertiary);
+    padding: 0 var(--space-2);
+    font-variant-numeric: tabular-nums;
   }
 </style>

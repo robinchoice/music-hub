@@ -4,7 +4,7 @@ import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { requestUploadUrlSchema, createVersionSchema, updateVersionSchema } from '@music-hub/shared';
 import { tracks, versions, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, createDownloadUrl } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectBuffer } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 import type { AppEnv } from '../types.js';
 
@@ -387,6 +387,67 @@ export const versionRoutes = new Hono<AppEnv>()
       .returning();
 
     return c.json({ version: updated });
+  })
+
+  // Proxy audio for offline download
+  .get('/:id/audio', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+    const quality = c.req.query('quality') === 'original' ? 'original' : 'stream';
+
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
+    if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
+
+    const useOriginal = quality === 'original' || !version.streamFileKey;
+    const key = useOriginal ? version.originalFileKey : version.streamFileKey!;
+    const contentType = useOriginal ? (version.mimeType || 'audio/wav') : 'audio/mpeg';
+
+    const buffer = await getObjectBuffer(key);
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(buffer.byteLength),
+        'Cache-Control': 'private, max-age=3600',
+        'ETag': `"${versionId}-${quality}"`,
+      },
+    });
+  })
+
+  // Proxy waveform peaks for offline
+  .get('/:id/waveform-data', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
+    if (!version || !version.waveformDataKey) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
+
+    const buffer = await getObjectBuffer(version.waveformDataKey);
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': String(buffer.byteLength),
+        'Cache-Control': 'private, max-age=86400',
+        'ETag': `"${versionId}-waveform"`,
+      },
+    });
   })
 
   // Reject version

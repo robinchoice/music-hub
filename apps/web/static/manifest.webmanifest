@@ -10,6 +10,20 @@
   "theme_color": "#f43f5e",
   "lang": "de",
   "categories": ["music", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Offline-Tracks",
+      "short_name": "Offline",
+      "url": "/offline",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

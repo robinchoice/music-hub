@@ -7,7 +7,8 @@
     | 'download' | 'upload' | 'share' | 'plus' | 'check' | 'x' | 'close'
     | 'chevron-down' | 'chevron-right' | 'more' | 'home' | 'panel' | 'panel-off'
     | 'git-branch' | 'arrow-up' | 'compare' | 'comment' | 'lock' | 'link'
-    | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music';
+    | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music'
+    | 'cloud-download' | 'cloud-check';
 
   let {
     name,
@@ -138,6 +139,13 @@
     <path d="M9 18V5l12-2v13" />
     <circle cx="6" cy="18" r="3" />
     <circle cx="18" cy="16" r="3" />
+  {:else if name === 'cloud-download'}
+    <polyline points="8 17 12 21 16 17" />
+    <line x1="12" y1="12" x2="12" y2="21" />
+    <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" />
+  {:else if name === 'cloud-check'}
+    <polyline points="20 6 9 17 4 12" />
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z" />
   {/if}
 </svg>
 

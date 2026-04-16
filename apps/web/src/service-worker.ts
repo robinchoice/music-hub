@@ -11,6 +11,7 @@ import { build, files, version } from '$service-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `musichub-${version}`;
+const OFFLINE_CACHE = 'musichub-offline-v1';
 const ASSETS = [...build, ...files];
 
 sw.addEventListener('install', (event) => {
@@ -23,7 +24,12 @@ sw.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(
+          // Keep the offline cache across version updates
+          keys.filter((k) => k !== CACHE && k !== OFFLINE_CACHE).map((k) => caches.delete(k)),
+        ),
+      )
       .then(() => sw.clients.claim()),
   );
 });
@@ -34,8 +40,27 @@ sw.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // Don't intercept API or S3 traffic
-  if (url.pathname.startsWith('/api/') || url.hostname !== sw.location.hostname) return;
+  // Don't intercept S3 or other cross-origin traffic
+  if (url.hostname !== sw.location.hostname) return;
+
+  // Cache-first from offline cache for proxied audio/waveform endpoints
+  const isOfflineAsset =
+    /^\/api\/v1\/versions\/[^/]+\/audio/.test(url.pathname) ||
+    /^\/api\/v1\/versions\/[^/]+\/waveform-data$/.test(url.pathname);
+
+  if (isOfflineAsset) {
+    event.respondWith(
+      caches.open(OFFLINE_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        return fetch(req);
+      }),
+    );
+    return;
+  }
+
+  // Don't intercept other API traffic
+  if (url.pathname.startsWith('/api/')) return;
 
   // Cache-first for built assets, network-first for everything else
   if (ASSETS.includes(url.pathname)) {
