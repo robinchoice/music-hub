@@ -53,6 +53,10 @@ export const updateVersionSchema = z.object({
   branchLabel: z.string().max(100).nullable().optional(),
 });
 
+export const rejectVersionSchema = z.object({
+  reason: z.string().min(1, 'Begründung erforderlich').max(2000),
+});
+
 export const requestStemUploadUrlSchema = z.object({
   fileName: z.string().min(1),
   mimeType: z.string().min(1),

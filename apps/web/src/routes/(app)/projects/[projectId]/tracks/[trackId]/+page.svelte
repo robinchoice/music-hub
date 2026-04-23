@@ -16,8 +16,10 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
+  import { onDestroy } from 'svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
   import { snapshotForTrack, continuationFor } from '$lib/stores/player.js';
+  import { connectTrackSse } from '$lib/stores/sse.js';
   import {
     offlineVersions,
     downloadForOffline,
@@ -106,6 +108,9 @@
   let offlineDropdownOpen = $state(false);
   let offlineDownloading = $state(false);
   let offlineProgress = $state(0);
+  let rejectOpen = $state(false);
+  let rejectReason = $state('');
+  let rejecting = $state(false);
 
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
@@ -137,6 +142,19 @@
     } finally {
       loading = false;
     }
+
+    const disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
+      if (type === 'version:new') {
+        await loadVersions();
+      } else if (type === 'version:status') {
+        const v = versions.find((v) => v.id === data.versionId);
+        if (v) { v.status = data.status; versions = [...versions]; }
+      } else if (type === 'comment:new' && selectedVersion?.id === data.versionId) {
+        const res = await api.get<{ comments: Comment[] }>(`/comments/version/${data.versionId}`);
+        comments = res.comments;
+      }
+    });
+    onDestroy(disconnectSse);
   });
 
   async function selectVersion(version: Version) {
@@ -205,11 +223,22 @@
     await loadVersions();
   }
 
-  async function handleReject() {
-    if (!selectedVersion) return;
-    await api.post(`/versions/${selectedVersion.id}/reject`);
-    toastSuccess('Version abgelehnt');
-    await loadVersions();
+  function handleReject() {
+    rejectReason = '';
+    rejectOpen = true;
+  }
+
+  async function submitReject() {
+    if (!selectedVersion || !rejectReason.trim()) return;
+    rejecting = true;
+    try {
+      await api.post(`/versions/${selectedVersion.id}/reject`, { reason: rejectReason.trim() });
+      rejectOpen = false;
+      toastSuccess('Version abgelehnt');
+      await loadVersions();
+    } finally {
+      rejecting = false;
+    }
   }
 
   async function handleComment(body: string, timestamp: number | null, parentId?: string) {
@@ -637,6 +666,26 @@
 {#if selectedVersion}
   <ShareModal bind:open={shareOpen} versionId={selectedVersion.id} />
 {/if}
+
+<Modal bind:open={rejectOpen} title="Version ablehnen">
+  <div class="edit-form">
+    <label>
+      <span class="lbl">Begründung <span style="color: var(--color-error)">*</span></span>
+      <textarea
+        bind:value={rejectReason}
+        rows="4"
+        placeholder="Was muss geändert werden? (Pflichtfeld)"
+        autofocus
+      ></textarea>
+    </label>
+  </div>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (rejectOpen = false)}>Abbrechen</Button>
+    <Button onclick={submitReject} loading={rejecting} disabled={!rejectReason.trim()}>
+      Ablehnen
+    </Button>
+  {/snippet}
+</Modal>
 
 <Modal bind:open={coverEditOpen} title="Track-Cover ändern">
   <div class="cover-modal">

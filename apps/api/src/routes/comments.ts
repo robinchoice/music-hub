@@ -4,6 +4,7 @@ import { eq, and, asc } from 'drizzle-orm';
 import { createCommentSchema, updateCommentSchema } from '@music-hub/shared';
 import { comments, versions, tracks, projectMembers, users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
+import { publish } from '../services/sse.js';
 import type { AppEnv } from '../types.js';
 
 export const commentRoutes = new Hono<AppEnv>()
@@ -108,6 +109,8 @@ export const commentRoutes = new Hono<AppEnv>()
           parentId: input.parentId,
         })
         .returning();
+
+      publish(track!.id, { type: 'comment:new', data: { versionId, commentId: comment.id } });
 
       return c.json({ comment }, 201);
     },

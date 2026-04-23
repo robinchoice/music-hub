@@ -14,6 +14,7 @@ import {
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
+import { sendListenAlertEmail } from '../services/email.js';
 
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + 'musichub-salt'));
@@ -315,15 +316,47 @@ export const shareRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!event) return c.json({ error: 'Not found' }, 404);
 
+    const isFirstPlay = input.firstPlay && !event.firstPlayAt;
+
     await db
       .update(listenEvents)
       .set({
         ...(input.listenerName !== undefined ? { listenerName: input.listenerName } : {}),
-        ...(input.firstPlay && !event.firstPlayAt ? { firstPlayAt: new Date() } : {}),
+        ...(isFirstPlay ? { firstPlayAt: new Date() } : {}),
         ...(input.listenSeconds !== undefined ? { listenSeconds: input.listenSeconds } : {}),
         ...(input.completed !== undefined ? { completed: input.completed } : {}),
       })
       .where(eq(listenEvents.id, eventId));
+
+    if (isFirstPlay) {
+      // Fire-and-forget: alert link creator by email
+      Promise.resolve().then(async () => {
+        try {
+          const [fullLink] = await db
+            .select({ createdById: shareLinks.createdById, versionId: shareLinks.versionId })
+            .from(shareLinks)
+            .where(eq(shareLinks.id, link.id))
+            .limit(1);
+          if (!fullLink) return;
+
+          const [creator] = await db
+            .select({ email: users.email, name: users.name })
+            .from(users)
+            .where(eq(users.id, fullLink.createdById))
+            .limit(1);
+          if (!creator) return;
+
+          const [version] = await db.select().from(versions).where(eq(versions.id, fullLink.versionId)).limit(1);
+          const [track] = version ? await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1) : [null];
+          const [project] = track ? await db.select().from(projects).where(eq(projects.id, track.projectId)).limit(1) : [null];
+          if (!track || !project) return;
+
+          const listenerName = input.listenerName ?? event.listenerName;
+          const trackUrl = `${process.env.APP_URL}/projects/${track.projectId}/tracks/${track.id}`;
+          await sendListenAlertEmail(creator.email, listenerName ?? null, track.name, project.name, trackUrl);
+        } catch { /* non-critical */ }
+      });
+    }
 
     return c.json({ ok: true });
   })

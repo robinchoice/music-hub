@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
-import { requestUploadUrlSchema, createVersionSchema, updateVersionSchema } from '@music-hub/shared';
-import { tracks, versions, projectMembers } from '@music-hub/db';
+import { requestUploadUrlSchema, createVersionSchema, updateVersionSchema, rejectVersionSchema } from '@music-hub/shared';
+import { tracks, versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
+import { publish } from '../services/sse.js';
 import type { AppEnv } from '../types.js';
 
 export const versionRoutes = new Hono<AppEnv>()
@@ -130,12 +131,13 @@ export const versionRoutes = new Hono<AppEnv>()
       console.error(`[Worker] Failed: ${err.message}`),
     );
 
-    // Push: notify other project members
     notifyProjectMembers(db, track.projectId, userId, {
       title: 'Neue Version',
       body: `${track.name} — V${versionNumber} hochgeladen`,
       url: `/projects/${track.projectId}/tracks/${trackId}`,
     }).catch(() => {});
+
+    publish(trackId, { type: 'version:new', data: { versionId: version.id, versionNumber, trackId } });
 
     return c.json({ version }, 201);
   })
@@ -400,6 +402,8 @@ export const versionRoutes = new Hono<AppEnv>()
       url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
     }).catch(() => {});
 
+    publish(version.trackId, { type: 'version:status', data: { versionId, status: 'approved' } });
+
     return c.json({ version: updated });
   })
 
@@ -464,11 +468,12 @@ export const versionRoutes = new Hono<AppEnv>()
     });
   })
 
-  // Reject version
-  .post('/:id/reject', async (c) => {
+  // Reject version (requires reason — posted as a comment)
+  .post('/:id/reject', zValidator('json', rejectVersionSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
     const versionId = c.req.param('id');
+    const { reason } = c.req.valid('json');
 
     const [version] = await db
       .select()
@@ -502,11 +507,21 @@ export const versionRoutes = new Hono<AppEnv>()
       .where(eq(versions.id, versionId))
       .returning();
 
+    await db.insert(comments).values({
+      versionId,
+      userId,
+      body: `❌ Abgelehnt: ${reason}`,
+      timestampSeconds: null,
+      parentId: null,
+    });
+
     notifyUser(db, version.createdById, {
       title: 'Version abgelehnt',
-      body: `${track!.name} V${version.versionNumber} wurde abgelehnt`,
+      body: `${track!.name} V${version.versionNumber}: ${reason.slice(0, 80)}`,
       url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
     }).catch(() => {});
+
+    publish(version.trackId, { type: 'version:status', data: { versionId, status: 'rejected' } });
 
     return c.json({ version: updated });
   });
