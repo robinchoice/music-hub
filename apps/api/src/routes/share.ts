@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc } from 'drizzle-orm';
-import { createShareLinkSchema, guestCommentSchema } from '@music-hub/shared';
+import { eq, and, asc, desc, inArray } from 'drizzle-orm';
+import { createShareLinkSchema, guestCommentSchema, updateListenEventSchema } from '@music-hub/shared';
 import {
   shareLinks,
+  listenEvents,
   versions,
   tracks,
   projects,
@@ -13,6 +14,11 @@ import {
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
+
+async function hashIp(ip: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + 'musichub-salt'));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
 import type { AppEnv } from '../types.js';
 
 function generateToken(): string {
@@ -262,4 +268,122 @@ export const shareRoutes = new Hono<AppEnv>()
       .returning();
 
     return c.json({ comment }, 201);
+  })
+
+  // --- Listen tracking (public, no auth) ---
+  .post('/public/:token/listen', async (c) => {
+    const db = c.get('db');
+    const token = c.req.param('token');
+
+    const [link] = await db
+      .select({ id: shareLinks.id, expiresAt: shareLinks.expiresAt })
+      .from(shareLinks)
+      .where(eq(shareLinks.token, token))
+      .limit(1);
+    if (!link) return c.json({ error: 'Not found' }, 404);
+    if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
+
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('cf-connecting-ip') ?? 'unknown';
+    const ipHash = await hashIp(ip);
+    const userAgent = (c.req.header('user-agent') ?? '').slice(0, 500);
+
+    const [event] = await db
+      .insert(listenEvents)
+      .values({ shareLinkId: link.id, ipHash, userAgent })
+      .returning({ id: listenEvents.id });
+
+    return c.json({ eventId: event.id }, 201);
+  })
+
+  .patch('/public/:token/listen/:eventId', zValidator('json', updateListenEventSchema), async (c) => {
+    const db = c.get('db');
+    const token = c.req.param('token');
+    const eventId = c.req.param('eventId');
+    const input = c.req.valid('json');
+
+    const [link] = await db
+      .select({ id: shareLinks.id })
+      .from(shareLinks)
+      .where(eq(shareLinks.token, token))
+      .limit(1);
+    if (!link) return c.json({ error: 'Not found' }, 404);
+
+    const [event] = await db
+      .select()
+      .from(listenEvents)
+      .where(and(eq(listenEvents.id, eventId), eq(listenEvents.shareLinkId, link.id)))
+      .limit(1);
+    if (!event) return c.json({ error: 'Not found' }, 404);
+
+    await db
+      .update(listenEvents)
+      .set({
+        ...(input.listenerName !== undefined ? { listenerName: input.listenerName } : {}),
+        ...(input.firstPlay && !event.firstPlayAt ? { firstPlayAt: new Date() } : {}),
+        ...(input.listenSeconds !== undefined ? { listenSeconds: input.listenSeconds } : {}),
+        ...(input.completed !== undefined ? { completed: input.completed } : {}),
+      })
+      .where(eq(listenEvents.id, eventId));
+
+    return c.json({ ok: true });
+  })
+
+  // --- Analytics (authenticated) ---
+  .get('/version/:versionId/analytics', requireAuth, async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('versionId');
+
+    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
+    if (!version) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Forbidden' }, 403);
+
+    const links = await db
+      .select({ id: shareLinks.id })
+      .from(shareLinks)
+      .where(eq(shareLinks.versionId, versionId));
+
+    if (links.length === 0) return c.json({ totalOpens: 0, totalPlays: 0, uniqueListeners: 0, avgListenSeconds: 0, completionRate: 0, events: [] });
+
+    const linkIds = links.map((l) => l.id);
+
+    const events = await db
+      .select()
+      .from(listenEvents)
+      .where(inArray(listenEvents.shareLinkId, linkIds))
+      .orderBy(desc(listenEvents.openedAt));
+
+    const totalOpens = events.length;
+    const played = events.filter((e) => e.firstPlayAt !== null);
+    const totalPlays = played.length;
+    const uniqueListeners = new Set(events.map((e) => e.ipHash)).size;
+    const avgListenSeconds = played.length > 0
+      ? Math.round(played.reduce((s, e) => s + e.listenSeconds, 0) / played.length)
+      : 0;
+    const completionRate = totalPlays > 0
+      ? Math.round((events.filter((e) => e.completed).length / totalPlays) * 100)
+      : 0;
+
+    return c.json({
+      totalOpens,
+      totalPlays,
+      uniqueListeners,
+      avgListenSeconds,
+      completionRate,
+      events: events.map((e) => ({
+        id: e.id,
+        listenerName: e.listenerName,
+        openedAt: e.openedAt,
+        firstPlayAt: e.firstPlayAt,
+        listenSeconds: e.listenSeconds,
+        completed: e.completed,
+      })),
+    });
   });

@@ -33,6 +33,7 @@
   import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem } from './components/StemList.svelte';
+  import AnalyticsPanel from './components/AnalyticsPanel.svelte';
 
   type Version = {
     id: string;
@@ -96,7 +97,7 @@
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
   let stems = $state<Stem[]>([]);
-  let panelTab = $state<'versions' | 'comments' | 'stems'>('versions');
+  let panelTab = $state<'versions' | 'comments' | 'stems' | 'analytics'>('versions');
   let panelOpen = $state(true);
   let editVersionOpen = $state(false);
   let editVersionLabel = $state('');
@@ -585,6 +586,9 @@
         <button class:active={panelTab === 'stems'} onclick={() => (panelTab = 'stems')}>
           STEMs <span class="badge">{stems.length}</span>
         </button>
+        <button class:active={panelTab === 'analytics'} onclick={() => (panelTab = 'analytics')}>
+          Analytik
+        </button>
       </div>
 
       <div class="panel-body">
@@ -610,6 +614,8 @@
             currentUserId={$user?.id ?? null}
             {role}
           />
+        {:else if panelTab === 'analytics' && selectedVersion}
+          <AnalyticsPanel versionId={selectedVersion.id} />
         {:else if selectedVersion}
           <CommentSection
             {comments}

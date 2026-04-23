@@ -22,6 +22,9 @@
     onTimeClick,
     onReady,
     onSeek,
+    onPlay,
+    onPause,
+    onFinish,
   }: {
     url: string;
     markers?: CommentMarker[];
@@ -33,6 +36,9 @@
     onTimeClick?: (time: number) => void;
     onReady?: (duration: number) => void;
     onSeek?: (time: number) => void;
+    onPlay?: () => void;
+    onPause?: () => void;
+    onFinish?: () => void;
   } = $props();
 
   let container: HTMLDivElement;
@@ -86,8 +92,9 @@
       onSeek?.(time);
     });
 
-    ws.on('play', () => (isPlaying = true));
-    ws.on('pause', () => (isPlaying = false));
+    ws.on('play', () => { isPlaying = true; onPlay?.(); });
+    ws.on('pause', () => { isPlaying = false; onPause?.(); });
+    ws.on('finish', () => { isPlaying = false; onFinish?.(); });
 
     ws.on('click', (relativeX) => {
       if (onTimeClick) {

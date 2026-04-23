@@ -47,6 +47,18 @@
   let submitting = $state(false);
   let playerRef = $state<WaveformPlayer>();
 
+  // Analytics tracking
+  let eventId = $state<string | null>(null);
+  let listenSeconds = $state(0);
+  let playStartedAt = $state<number | null>(null);
+  let firstPlayFired = $state(false);
+  let progressInterval = $state<ReturnType<typeof setInterval> | null>(null);
+
+  // Name prompt
+  let showNamePrompt = $state(false);
+  let nameInput = $state('');
+  let nameDismissed = $state(false);
+
   async function load() {
     loading = true;
     error = '';
@@ -56,11 +68,7 @@
       });
       if (res.status === 401) {
         const j = await res.json();
-        if (j.passwordRequired) {
-          passwordRequired = true;
-          loading = false;
-          return;
-        }
+        if (j.passwordRequired) { passwordRequired = true; loading = false; return; }
       }
       if (!res.ok) {
         error = (await res.json().catch(() => ({}))).error || 'Link nicht verfügbar';
@@ -74,7 +82,93 @@
     }
   }
 
-  onMount(load);
+  async function createListenEvent() {
+    try {
+      const res = await fetch(`/api/v1/share/public/${token}/listen`, { method: 'POST' });
+      if (res.ok) {
+        const j = await res.json();
+        eventId = j.eventId;
+      }
+    } catch { /* fire and forget */ }
+  }
+
+  async function patchEvent(patch: Record<string, unknown>) {
+    if (!eventId) return;
+    try {
+      await fetch(`/api/v1/share/public/${token}/listen/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    } catch { /* fire and forget */ }
+  }
+
+  function onPlay() {
+    playStartedAt = Date.now();
+    if (!firstPlayFired) {
+      firstPlayFired = true;
+      patchEvent({ firstPlay: true });
+      // Show name prompt after first play, if name not yet set
+      const saved = localStorage.getItem('listenName');
+      if (saved) {
+        guestName = saved;
+        patchEvent({ listenerName: saved });
+      } else if (!nameDismissed) {
+        showNamePrompt = true;
+      }
+    }
+    progressInterval = setInterval(() => {
+      if (playStartedAt !== null) {
+        listenSeconds += 1;
+        if (listenSeconds % 30 === 0) patchEvent({ listenSeconds });
+      }
+    }, 1000);
+  }
+
+  function onPause() {
+    if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+    patchEvent({ listenSeconds });
+  }
+
+  function onFinish() {
+    if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+    const duration = data?.version.duration ?? 0;
+    const pct = duration > 0 ? listenSeconds / duration : 0;
+    patchEvent({ listenSeconds, completed: pct >= 0.8 });
+  }
+
+  function submitName() {
+    const name = nameInput.trim();
+    if (name) {
+      guestName = name;
+      localStorage.setItem('listenName', name);
+      patchEvent({ listenerName: name });
+    }
+    showNamePrompt = false;
+    nameDismissed = true;
+  }
+
+  function dismissName() {
+    showNamePrompt = false;
+    nameDismissed = true;
+  }
+
+  onMount(() => {
+    load().then(() => createListenEvent());
+
+    const saved = localStorage.getItem('listenName');
+    if (saved) guestName = saved;
+
+    const handleUnload = () => {
+      if (!eventId) return;
+      navigator.sendBeacon(
+        `/api/v1/share/public/${token}/listen/${eventId}`,
+        new Blob([JSON.stringify({ listenSeconds })], { type: 'application/json' }),
+      );
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  });
 
   async function submitComment(e: Event) {
     e.preventDefault();
@@ -87,16 +181,9 @@
           'Content-Type': 'application/json',
           ...(password ? { 'X-Share-Password': password } : {}),
         },
-        body: JSON.stringify({
-          body,
-          guestName,
-          timestampSeconds: commentTimestamp ?? undefined,
-        }),
+        body: JSON.stringify({ body, guestName, timestampSeconds: commentTimestamp ?? undefined }),
       });
-      if (!res.ok) {
-        error = 'Kommentar fehlgeschlagen';
-        return;
-      }
+      if (!res.ok) { error = 'Kommentar fehlgeschlagen'; return; }
       body = '';
       commentTimestamp = null;
       await load();
@@ -142,7 +229,27 @@
           userName: c.user?.name ?? c.guestName ?? 'Gast',
         }))}
       onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
+      onPlay={onPlay}
+      onPause={onPause}
+      onFinish={onFinish}
     />
+
+    {#if showNamePrompt}
+      <div class="name-prompt">
+        <p>Wie heißt du? So wissen die Künstler, wer zugehört hat.</p>
+        <div class="name-prompt-row">
+          <input
+            type="text"
+            bind:value={nameInput}
+            placeholder="Dein Name"
+            onkeydown={(e) => e.key === 'Enter' && submitName()}
+            autofocus
+          />
+          <Button size="sm" onclick={submitName} disabled={!nameInput.trim()}>OK</Button>
+          <button class="skip-btn" onclick={dismissName}>Überspringen</button>
+        </div>
+      </div>
+    {/if}
 
     {#if data.downloadUrl}
       <div class="actions">
@@ -210,30 +317,49 @@
     flex-direction: column;
     gap: var(--space-5);
   }
-  header {
-    text-align: center;
+  header { text-align: center; }
+  .project { color: var(--color-text-tertiary); font-size: var(--text-sm); margin: 0; }
+  h1 { margin: var(--space-1) 0; font-size: var(--text-2xl); }
+  .version-label { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+  .muted { color: var(--color-text-tertiary); font-size: var(--text-sm); }
+  .error { color: var(--color-error, #ef4444); }
+
+  .name-prompt {
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
-  .project {
+  .name-prompt p { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+  .name-prompt-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .name-prompt-row input {
+    flex: 1;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+  }
+  .skip-btn {
+    background: none;
+    border: none;
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
-    margin: 0;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
   }
-  h1 {
-    margin: var(--space-1) 0;
-    font-size: var(--text-2xl);
-  }
-  .version-label {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    margin: 0;
-  }
-  .muted {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-sm);
-  }
-  .error {
-    color: var(--color-error, #ef4444);
-  }
+  .skip-btn:hover { color: var(--color-text-secondary); }
+
   .password-gate {
     text-align: center;
     padding: var(--space-8);
@@ -254,10 +380,7 @@
     font-size: var(--text-sm);
     width: 100%;
   }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-  }
+  .actions { display: flex; justify-content: flex-end; }
   .comment-form {
     display: flex;
     flex-direction: column;
@@ -267,10 +390,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
   }
-  .comment-form h2 {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-base);
-  }
+  .comment-form h2 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
   .ts-badge {
     align-self: flex-start;
     background: rgba(251, 191, 36, 0.15);
@@ -280,22 +400,9 @@
     padding: 0.15rem var(--space-2);
     font-size: var(--text-xs);
   }
-  .ts-badge button {
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    margin-left: var(--space-1);
-  }
-  .comments {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .comments h2 {
-    font-size: var(--text-base);
-    margin: 0 0 var(--space-2);
-  }
+  .ts-badge button { background: none; border: none; color: inherit; cursor: pointer; margin-left: var(--space-1); }
+  .comments { display: flex; flex-direction: column; gap: var(--space-2); }
+  .comments h2 { font-size: var(--text-base); margin: 0 0 var(--space-2); }
   .comment {
     padding: var(--space-3);
     background: var(--color-bg-raised);
@@ -327,10 +434,7 @@
     cursor: pointer;
     font-family: inherit;
   }
-  .comment p {
-    margin: 0;
-    font-size: var(--text-sm);
-  }
+  .comment p { margin: 0; font-size: var(--text-sm); }
   footer {
     text-align: center;
     padding-top: var(--space-4);
