@@ -6,7 +6,7 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import ActivityItem from '$lib/components/dashboard/ActivityItem.svelte';
-  import WelcomeModal from '$lib/components/dashboard/WelcomeModal.svelte';
+  import OnboardingFlow from '$lib/components/dashboard/OnboardingFlow.svelte';
   import { timeAgo } from '$lib/utils/format.js';
 
   type ProjectMembership = {
@@ -44,8 +44,8 @@
       events = aRes.events;
 
       if (projects.length === 0) {
-        const dismissed = typeof localStorage !== 'undefined' && localStorage.getItem('welcome-dismissed') === '1';
-        if (!dismissed) welcomeOpen = true;
+        const done = typeof localStorage !== 'undefined' && localStorage.getItem('onboarding-done') === '1';
+        if (!done) welcomeOpen = true;
       }
     } finally {
       loading = false;
@@ -148,7 +148,7 @@
   {/if}
 </div>
 
-<WelcomeModal bind:open={welcomeOpen} />
+<OnboardingFlow bind:open={welcomeOpen} />
 
 <style>
   .content {

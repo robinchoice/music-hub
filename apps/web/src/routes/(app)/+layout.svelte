@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import Sidebar from '$lib/components/workspace/Sidebar.svelte';
+  import BottomNav from '$lib/components/workspace/BottomNav.svelte';
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
 
@@ -43,6 +44,7 @@
     <main class="main">
       {@render children()}
     </main>
+    <BottomNav />
   </div>
 
   <ShortcutsModal bind:open={shortcutsOpen} />
@@ -77,6 +79,12 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  @media (max-width: 640px) {
+    .main {
+      padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    }
   }
 
   .backdrop {

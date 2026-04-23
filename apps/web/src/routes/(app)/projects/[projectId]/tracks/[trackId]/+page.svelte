@@ -412,11 +412,11 @@
   {#snippet actions()}
     {#if canUpload}
       <Button size="sm" variant="ghost" onclick={() => { branchFromId = null; branchLabelInput = ''; showUpload = !showUpload; }}>
-        <Icon name="upload" size={14} /> Hochladen
+        <Icon name="upload" size={14} /> <span class="btn-label">Hochladen</span>
       </Button>
     {/if}
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
-      <Icon name="share" size={14} /> Teilen
+      <Icon name="share" size={14} /> <span class="btn-label">Teilen</span>
     </Button>
     <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
       <Icon name="panel" size={16} />
@@ -983,9 +983,16 @@
   .tabs {
     display: flex;
     border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
   .tabs button {
     flex: 1;
+    min-width: max-content;
     background: none;
     border: none;
     color: var(--color-text-secondary);
@@ -1000,6 +1007,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
+    white-space: nowrap;
   }
   .tabs button:hover {
     color: var(--color-text-primary);
@@ -1029,6 +1037,12 @@
   .muted {
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
+  }
+
+  @media (max-width: 480px) {
+    .btn-label {
+      display: none;
+    }
   }
 
   .panel-toggle {
