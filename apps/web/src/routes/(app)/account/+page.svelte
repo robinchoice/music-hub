@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { user } from '$lib/stores/auth.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -6,9 +7,12 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.js';
 
   let name = $state('');
   let saving = $state(false);
+
+  onMount(() => initPush());
 
   $effect(() => {
     if ($user && !name) name = $user.name;
@@ -34,6 +38,25 @@
     <h1>Konto</h1>
     <p class="sub">Dein Profil — sichtbar für andere im Projekt.</p>
   </header>
+
+  {#if pushStore.state !== 'unsupported'}
+    <section class="card">
+      <h2>Benachrichtigungen</h2>
+      {#if pushStore.state === 'denied'}
+        <p class="push-hint">Push-Benachrichtigungen wurden im Browser blockiert. Bitte in den Browser-Einstellungen erlauben.</p>
+      {:else if pushStore.state === 'subscribed'}
+        <div class="push-row">
+          <span class="push-active">Push-Benachrichtigungen aktiv</span>
+          <Button size="sm" variant="ghost" onclick={unsubscribePush} loading={pushStore.loading}>Deaktivieren</Button>
+        </div>
+      {:else}
+        <div class="push-row">
+          <span class="push-desc">Werde benachrichtigt wenn neue Versionen hochgeladen oder freigegeben werden.</span>
+          <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>Aktivieren</Button>
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   {#if $user}
     <section class="card">
@@ -111,5 +134,29 @@
   .email-line span {
     color: var(--color-text-primary);
     font-family: var(--font-mono);
+  }
+  .push-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .push-active {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    flex: 1;
+  }
+  .push-desc {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-sm);
+    flex: 1;
+  }
+  .push-hint {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-sm);
+    margin: 0;
+  }
+  .card + .card {
+    margin-top: var(--space-5);
   }
 </style>

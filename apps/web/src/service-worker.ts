@@ -34,6 +34,42 @@ sw.addEventListener('activate', (event) => {
   );
 });
 
+sw.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload: { title?: string; body?: string; url?: string } = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'Music Hub', body: event.data.text() };
+  }
+  event.waitUntil(
+    sw.registration.showNotification(payload.title ?? 'Music Hub', {
+      body: payload.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-72.png',
+      data: { url: payload.url ?? '/' },
+    }),
+  );
+});
+
+sw.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/';
+  event.waitUntil(
+    sw.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(sw.location.origin) && 'focus' in client) {
+            (client as WindowClient).navigate(url);
+            return client.focus();
+          }
+        }
+        return sw.clients.openWindow(url);
+      }),
+  );
+});
+
 sw.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;

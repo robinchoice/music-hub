@@ -6,6 +6,7 @@ import { tracks, versions, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
+import { notifyProjectMembers, notifyUser } from '../services/push.js';
 import type { AppEnv } from '../types.js';
 
 export const versionRoutes = new Hono<AppEnv>()
@@ -128,6 +129,13 @@ export const versionRoutes = new Hono<AppEnv>()
     processVersion(db, version.id).catch((err) =>
       console.error(`[Worker] Failed: ${err.message}`),
     );
+
+    // Push: notify other project members
+    notifyProjectMembers(db, track.projectId, userId, {
+      title: 'Neue Version',
+      body: `${track.name} — V${versionNumber} hochgeladen`,
+      url: `/projects/${track.projectId}/tracks/${trackId}`,
+    }).catch(() => {});
 
     return c.json({ version }, 201);
   })
@@ -386,6 +394,12 @@ export const versionRoutes = new Hono<AppEnv>()
       .where(eq(versions.id, versionId))
       .returning();
 
+    notifyUser(db, version.createdById, {
+      title: 'Version freigegeben',
+      body: `${track!.name} V${version.versionNumber} wurde freigegeben`,
+      url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
+    }).catch(() => {});
+
     return c.json({ version: updated });
   })
 
@@ -487,6 +501,12 @@ export const versionRoutes = new Hono<AppEnv>()
       .set({ status: 'rejected' })
       .where(eq(versions.id, versionId))
       .returning();
+
+    notifyUser(db, version.createdById, {
+      title: 'Version abgelehnt',
+      body: `${track!.name} V${version.versionNumber} wurde abgelehnt`,
+      url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
+    }).catch(() => {});
 
     return c.json({ version: updated });
   });
