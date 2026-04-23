@@ -4,28 +4,27 @@ Webapp für Label-Kollaboration. Stack: SvelteKit + Hono + Postgres.
 
 ## Aktueller Stand
 
-<!-- Zuletzt aktualisiert: 2026-04-16 via /save -->
+<!-- Zuletzt aktualisiert: 2026-04-23 via /save -->
 
-**Sprint / Phase:** Full PWA — Phase 1 deployed, Phase 2+3 ausstehend
+**Sprint / Phase:** UX-Qualität — Onboarding + Mobile abgeschlossen, deployed
 
 **Zuletzt implementiert:**
-- PWA Phase 1: Offline-Audio-Download + Playback (commit `e58a7c2`)
-  - API: `GET /versions/:id/audio?quality=stream|original` + `GET /versions/:id/waveform-data` (Server-Proxy)
-  - SW: cache-first aus `musichub-offline-v1` für Proxy-Routen; Cache überlebt SW-Updates
-  - IDB-Store (`idb` lib), Svelte 5 Runes Store mit Progress-Tracking
-  - Track-Seite: Offline-Button mit Stream/Original-Picker, Cloud-Check wenn gecacht
-  - `/offline`-Seite mit Speicheranzeige + Entfernen
-  - Manifest: `shortcuts` für Dashboard + Offline-Tracks
-- Security-Hardening (8 Issues), STEM Multi-Select Fix, S3-CORS gesetzt (frühere Session)
+- PWA Phase 2: Push Notifications (VAPID, `push_subscriptions`-Tabelle, SW push-Handler)
+- Listen Analytics (`listen_events`-Tabelle, IP-Hashing, sendBeacon, AnalyticsPanel)
+- Reject with Feedback (Modal mit Pflichtbegründung → Auto-Kommentar `❌`)
+- SSE Real-time (`EventSource`, In-Memory Pub/Sub, `version:new`/`version:status`/`comment:new`)
+- Onboarding Flow (`OnboardingFlow.svelte`): 3-Step Overlay mit Rollen-Picker, Demo/Projekt-Wahl, Invite
+- Bottom Navigation (`BottomNav.svelte`): Nur ≤640px, safe-area-aware, öffnet Sidebar-Drawer
+- Mobile-Polish: scrollbare Tabs, TopBar-Labels auf ≤480px ausgeblendet
 
 **Als nächstes:**
-- Phase 1 verifizieren: SW unregistrieren, Track offline cachen, Flugmodus testen
-- Phase 2: Push Notifications (`push_subscriptions`-Tabelle, `web-push`, VAPID-Keys)
 - Phase 3: Background Sync für Uploads (IDB-Queue, SW sync-Handler)
+- RESEND_API_KEY setzen für echten E-Mail-Versand
+- Onboarding-Role für Backend-Personalisierung nutzen (aktuell nur localStorage)
 
 **Offene Punkte:**
-- RESEND_API_KEY noch nicht gesetzt (echter E-Mail-Versand)
-- DB `is_public` nach STEM-Tests wieder deaktivieren
+- RESEND_API_KEY fehlt noch (E-Mails nur geloggt)
+- DB `is_public` nach STEM-Tests wieder auf privat
 
 ## Decisions
 
