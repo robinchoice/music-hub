@@ -4,27 +4,22 @@ Webapp für Label-Kollaboration. Stack: SvelteKit + Hono + Postgres.
 
 ## Aktueller Stand
 
-<!-- Zuletzt aktualisiert: 2026-04-23 via /save -->
+<!-- Zuletzt aktualisiert: 2026-05-20 via /save -->
 
-**Sprint / Phase:** UX-Qualität — Onboarding + Mobile abgeschlossen, deployed
+**Aktive Spec:** `specs/mastering-delivery-live-ep.md`
+**Sprint / Phase:** Audio-Mastering-Experiment fuer Live-Delivery
 
 **Zuletzt implementiert:**
-- PWA Phase 2: Push Notifications (VAPID, `push_subscriptions`-Tabelle, SW push-Handler)
-- Listen Analytics (`listen_events`-Tabelle, IP-Hashing, sendBeacon, AnalyticsPanel)
-- Reject with Feedback (Modal mit Pflichtbegründung → Auto-Kommentar `❌`)
-- SSE Real-time (`EventSource`, In-Memory Pub/Sub, `version:new`/`version:status`/`comment:new`)
-- Onboarding Flow (`OnboardingFlow.svelte`): 3-Step Overlay mit Rollen-Picker, Demo/Projekt-Wahl, Invite
-- Bottom Navigation (`BottomNav.svelte`): Nur ≤640px, safe-area-aware, öffnet Sidebar-Drawer
-- Mobile-Polish: scrollbare Tabs, TopBar-Labels auf ≤480px ausgeblendet
+- Spec `specs/mastering-delivery-live-ep.md` angelegt und fuer warmen, analogen Live-Mastering-Flow genutzt.
+- Externen Master fuer `S-Bahn.wav` gerendert und stream-sichere Version auf `-13.6 LUFS` / `-1.3 dBFS TP` gebracht.
 
 **Als nächstes:**
-- Phase 3: Background Sync für Uploads (IDB-Queue, SW sync-Handler)
-- RESEND_API_KEY setzen für echten E-Mail-Versand
-- Onboarding-Role für Backend-Personalisierung nutzen (aktuell nur localStorage)
+- Finalen Master auf mehreren Abhoeren pruefen.
+- Optional dunklere oder dichtere Alternative rendern.
+- Danach wieder App-Backlog fortsetzen (`Background Sync`, `RESEND_API_KEY`, Onboarding-Role).
 
 **Offene Punkte:**
-- RESEND_API_KEY fehlt noch (E-Mails nur geloggt)
-- DB `is_public` nach STEM-Tests wieder auf privat
+- Erster Testexport war zu heiss; nur `S-Bahn_warm-analog-master_streamsafe_24b44k1.wav` verwenden.
 
 ## Decisions
 
