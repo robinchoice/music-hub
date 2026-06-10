@@ -4,22 +4,23 @@ Webapp für Label-Kollaboration. Stack: SvelteKit + Hono + Postgres.
 
 ## Aktueller Stand
 
-<!-- Zuletzt aktualisiert: 2026-05-20 via /save -->
+<!-- Zuletzt aktualisiert: 2026-06-10 via /save -->
 
-**Aktive Spec:** `specs/mastering-delivery-live-ep.md`
-**Sprint / Phase:** Audio-Mastering-Experiment fuer Live-Delivery
+**Aktive Spec:** `specs/production-hardening.md`
+**Sprint / Phase:** Production Hardening — App produktionsreif fuer externe Klienten
 
 **Zuletzt implementiert:**
-- Spec `specs/mastering-delivery-live-ep.md` angelegt und fuer warmen, analogen Live-Mastering-Flow genutzt.
-- Externen Master fuer `S-Bahn.wav` gerendert und stream-sichere Version auf `-13.6 LUFS` / `-1.3 dBFS TP` gebracht.
+- DB privat gestellt: Production-`DATABASE_URL` auf internen Hostname (`qwcokswkccws04c08cko4c8w:5432` + Passwort) umgestellt, API redeployed (`running:healthy`), DB `is_public: false`, Port 15432 von aussen dicht (verifiziert).
+- Geklaert: die „zwei DATABASE_URL" waren Production (preview=False) vs. Preview (preview=True) — kein Netzwerkproblem, nur falsch befuellte URL.
+- Production-Hardening-Spec angelegt, Mastering-Experiment abgeloest.
 
 **Als nächstes:**
-- Finalen Master auf mehreren Abhoeren pruefen.
-- Optional dunklere oder dichtere Alternative rendern.
-- Danach wieder App-Backlog fortsetzen (`Background Sync`, `RESEND_API_KEY`, Onboarding-Role).
+- RESEND scharf schalten: Resend-Domain `mydrugismusic.com` verifizieren (SPF/DKIM, braucht Robin), `RESEND_API_KEY` in Coolify-API-App setzen, Magic-Link-Flow E2E testen.
+- Nutzer-Flows (Login/Upload/Share) nach DB-URL-Wechsel gegenpruefen.
 
 **Offene Punkte:**
-- Erster Testexport war zu heiss; nur `S-Bahn_warm-analog-master_streamsafe_24b44k1.wav` verwenden.
+- RESEND braucht Robins Account-Login + DNS — einziger verbleibender Prod-Blocker.
+- Danach App-Backlog: `Background Sync` (PWA Phase 3), Onboarding-Role.
 
 ## Decisions
 
