@@ -5,7 +5,7 @@ import { requestStemUploadUrlSchema, createStemSchema } from '@music-hub/shared'
 import { tracks, stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, getObjectBuffer, deleteObject } from '../storage/s3.js';
-import { zip } from 'fflate';
+import { zipSync } from 'fflate';
 import type { AppEnv } from '../types.js';
 
 export const stemRoutes = new Hono<AppEnv>()
@@ -147,9 +147,7 @@ export const stemRoutes = new Hono<AppEnv>()
     );
     const files = Object.fromEntries(fileEntries) as Record<string, Uint8Array>;
 
-    const zipped = await new Promise<Uint8Array>((resolve, reject) => {
-      zip(files, (err, data) => (err ? reject(err) : resolve(data)));
-    });
+    const zipped = zipSync(files, { level: 0 });
     const zipName = `${track.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-stems.zip`;
     const body = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
 
