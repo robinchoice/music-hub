@@ -276,9 +276,8 @@
     </p>
     <div class="hero-cta center">
       <Button href="/register" size="lg">Account anlegen</Button>
-      <!-- TODO: GitHub-Link sobald Repo öffentlich -->
-      <a href="https://git.mydrugismusic.com/robin/music-hub" target="_blank" rel="noopener" class="cta-secondary">
-        Auf Git anschauen <span class="arrow">→</span>
+      <a href="https://github.com/robinchoice/music-hub" target="_blank" rel="noopener" class="cta-secondary">
+        Auf GitHub anschauen <span class="arrow">→</span>
       </a>
     </div>
   </section>

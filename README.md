@@ -75,9 +75,9 @@ bun db:migrate
 
 ## Deployment
 
-Läuft auf [Coolify](https://coolify.mydrugismusic.com) via GitHub-Mirror (`robinchoice/music-hub`).
+Läuft auf [Coolify](https://coolify.diespaetzles.lol) via GitHub-Mirror (`robinchoice/music-hub`).
 
-- **Web:** [hub.mydrugismusic.com](https://hub.mydrugismusic.com)
+- **Web:** [hub.diespaetzles.lol](https://hub.diespaetzles.lol)
 - **API:** intern via `API_INTERNAL_URL`
 
 Deploy wird per Webhook getriggert (siehe `reference_coolify.md` in den Projekt-Notizen).
