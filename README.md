@@ -22,7 +22,7 @@ Music Hub ist eine kollaborative Plattform für Produzenten, Engineers und Label
 | Backend | Hono (Bun) |
 | Datenbank | PostgreSQL + Drizzle ORM |
 | Storage | S3-kompatibel (Hetzner / MinIO) |
-| Email | Resend |
+| Email | SMTP (z. B. Proton Mail) |
 | Deploy | Coolify, Docker |
 
 Monorepo mit Turborepo: `apps/web`, `apps/api`, `packages/db`, `packages/shared`.
@@ -59,7 +59,10 @@ APP_URL=http://localhost:5173
 
 Für E-Mail-Versand (optional, ohne läuft Magic Link in der Konsole):
 ```env
-RESEND_API_KEY=re_...
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=noreply@example.com
+SMTP_PASS=...
 EMAIL_FROM=Music Hub <noreply@example.com>
 ```
 

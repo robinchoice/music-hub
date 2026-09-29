@@ -1,7 +1,14 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+
+const transport = process.env.SMTP_HOST
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    })
   : null;
 
 const fromEmail = process.env.EMAIL_FROM || 'Music Hub <noreply@musichub.de>';
@@ -9,12 +16,12 @@ const fromEmail = process.env.EMAIL_FROM || 'Music Hub <noreply@musichub.de>';
 export async function sendMagicLinkEmail(email: string, token: string) {
   const url = `${process.env.APP_URL}/auth/verify?token=${token}`;
 
-  if (!resend) {
+  if (!transport) {
     console.log(`[DEV] Magic link for ${email}: ${url}`);
     return;
   }
 
-  await resend.emails.send({
+  await transport.sendMail({
     from: fromEmail,
     to: email,
     subject: 'Dein Login-Link für Music Hub',
@@ -48,12 +55,12 @@ export async function sendListenAlertEmail(
 ) {
   const who = listenerName ?? 'Jemand';
 
-  if (!resend) {
+  if (!transport) {
     console.log(`[DEV] Listen alert: ${who} hat "${trackName}" gehört — ${to}`);
     return;
   }
 
-  await resend.emails.send({
+  await transport.sendMail({
     from: fromEmail,
     to,
     subject: `${who} hat "${trackName}" gehört`,
@@ -82,12 +89,12 @@ export async function sendListenAlertEmail(
 export async function sendInviteEmail(email: string, projectName: string, inviterName: string) {
   const url = `${process.env.APP_URL}`;
 
-  if (!resend) {
+  if (!transport) {
     console.log(`[DEV] Invite ${email} to project "${projectName}" by ${inviterName}`);
     return;
   }
 
-  await resend.emails.send({
+  await transport.sendMail({
     from: fromEmail,
     to: email,
     subject: `${inviterName} hat dich zu "${projectName}" eingeladen`,

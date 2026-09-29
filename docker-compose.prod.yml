@@ -27,7 +27,10 @@ services:
       - S3_BUCKET=${S3_BUCKET:-music-hub}
       - APP_URL=${APP_URL}
       - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET}
-      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
       - EMAIL_FROM=${EMAIL_FROM:-Music Hub <noreply@example.com>}
       - NODE_ENV=production
     depends_on:
