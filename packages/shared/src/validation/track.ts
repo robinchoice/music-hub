@@ -16,10 +16,12 @@ export const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
   released: 'Veröffentlicht',
 };
 
+export const coverKeySchema = z.string().regex(/^covers\/[0-9a-f-]{36}\.(jpg|png|webp)$/);
+
 export const updateTrackSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
-  coverImageUrl: z.string().nullable().optional(),
+  coverImageUrl: coverKeySchema.nullable().optional(),
   status: z.enum(TRACK_STATUSES).optional(),
   section: z.string().max(100).nullable().optional(),
 });

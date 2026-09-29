@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PROJECT_ROLES } from '../constants/roles.js';
+import { coverKeySchema } from './track.js';
 
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -11,7 +12,7 @@ export const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional(),
   artist: z.string().max(255).nullable().optional(),
-  coverImageUrl: z.string().nullable().optional(),
+  coverImageUrl: coverKeySchema.nullable().optional(),
 });
 
 export const inviteMemberSchema = z.object({
