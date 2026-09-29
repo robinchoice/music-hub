@@ -1,4 +1,9 @@
 import type { Handle } from '@sveltejs/kit';
+import dns from 'node:dns';
+
+// Docker's embedded DNS doesn't answer AAAA queries, which otherwise stalls
+// the AAAA-before-A lookup order until it times out.
+dns.setDefaultResultOrder('ipv4first');
 
 /**
  * Proxy /api requests to the API service in production.
