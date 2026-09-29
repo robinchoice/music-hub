@@ -74,6 +74,9 @@ export const stemRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!membership || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
 
+    const expectedPrefix = `projects/${track.projectId}/tracks/${trackId}/stems/`;
+    if (!input.fileKey.startsWith(expectedPrefix)) return c.json({ error: 'Forbidden' }, 403);
+
     const [stem] = await db
       .insert(stems)
       .values({
