@@ -29,10 +29,17 @@ export const handle: Handle = async ({ event, resolve }) => {
       duplex: 'half',
     });
 
+    // fetch() already decompresses the body, so forwarding the upstream's
+    // content-encoding/content-length would mismatch the actual bytes sent
+    // and abort the client's HTTP/2 stream mid-response.
+    const headers = new Headers(res.headers);
+    headers.delete('content-encoding');
+    headers.delete('content-length');
+
     return new Response(res.body, {
       status: res.status,
       statusText: res.statusText,
-      headers: res.headers,
+      headers,
     });
   }
 
