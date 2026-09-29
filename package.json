@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "check": "bun run --filter '@music-hub/*' check",
     "db:generate": "turbo db:generate --filter=@music-hub/db",
     "db:migrate": "turbo db:migrate --filter=@music-hub/db",
     "db:seed": "turbo db:seed --filter=@music-hub/db"
