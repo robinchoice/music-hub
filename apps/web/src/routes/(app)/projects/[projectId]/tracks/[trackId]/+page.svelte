@@ -28,7 +28,7 @@
     initOfflineStore,
     isOffline,
     type OfflineQuality,
-  } from '$lib/stores/offline.js';
+  } from '$lib/stores/offline.svelte.js';
   import { TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import VersionInfo from './components/VersionInfo.svelte';
   import VersionGraph from './components/VersionGraph.svelte';

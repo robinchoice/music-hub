@@ -7,7 +7,7 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
-  import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.js';
+  import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
 
   let name = $state('');
   let saving = $state(false);

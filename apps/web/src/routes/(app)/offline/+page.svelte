@@ -4,7 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
-  import { offlineVersions, removeOffline, initOfflineStore } from '$lib/stores/offline.js';
+  import { offlineVersions, removeOffline, initOfflineStore } from '$lib/stores/offline.svelte.js';
 
   let storageUsed = $state(0);
   let storageQuota = $state(0);
