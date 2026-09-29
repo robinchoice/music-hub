@@ -1,6 +1,10 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import path from 'path';
+import { sql } from 'drizzle-orm';
+import { readMigrationFiles } from 'drizzle-orm/migrator';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { createDb } from '@music-hub/db';
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
@@ -18,38 +22,30 @@ import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
 
-// Auto-migrate on startup — execute raw SQL from migration files
+// Auto-migrate on startup. A failed migration aborts the boot.
 {
-  const fs = await import('fs');
-  const pathMod = await import('path');
-  const { sql: dsql } = await import('drizzle-orm');
-  const folder = pathMod.resolve(process.cwd(), 'packages/db/src/migrations');
-  try {
-    const journalPath = pathMod.join(folder, 'meta', '_journal.json');
-    if (fs.existsSync(journalPath)) {
-      const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
-      for (const entry of journal.entries) {
-        const sqlFile = pathMod.join(folder, `${entry.tag}.sql`);
-        if (!fs.existsSync(sqlFile)) continue;
-        const rawSql = fs.readFileSync(sqlFile, 'utf8');
-        const stmts = rawSql.split('--> statement-breakpoint').map((s: string) => s.trim()).filter(Boolean);
-        for (const stmt of stmts) {
-          try {
-            await db.execute(dsql.raw(stmt));
-          } catch (e: any) {
-            if (!e.message?.includes('already exists') && !e.message?.includes('duplicate')) {
-              console.error(`[Migrate] ${entry.tag}:`, e.message?.slice(0, 200));
-            }
-          }
-        }
-      }
-      console.log(`[Boot] Migrations applied (${journal.entries.length} files).`);
-    } else {
-      console.log('[Boot] No migration journal found at', journalPath);
+  const migrationsFolder = path.resolve(import.meta.dir, '../../../packages/db/src/migrations');
+
+  // Databases set up by the former raw-SQL runner contain migrations 0000–0008
+  // but no drizzle bookkeeping; record those as applied before migrating.
+  await db.execute(sql`CREATE SCHEMA IF NOT EXISTS drizzle`);
+  await db.execute(
+    sql`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`,
+  );
+  const [{ tracked, legacy }] = await db.execute<{ tracked: number; legacy: boolean }>(
+    sql`SELECT (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS tracked, to_regclass('public.users') IS NOT NULL AS legacy`,
+  );
+  if (tracked === 0 && legacy) {
+    for (const m of readMigrationFiles({ migrationsFolder }).slice(0, 9)) {
+      await db.execute(
+        sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${m.hash}, ${m.folderMillis})`,
+      );
     }
-  } catch (err: any) {
-    console.error('[Boot] Migration error:', err.message);
+    console.log('[Boot] Recorded legacy migrations 0000–0008 as applied.');
   }
+
+  await migrate(db, { migrationsFolder });
+  console.log('[Boot] Migrations up to date.');
 }
 
 const app = new Hono<AppEnv>()
