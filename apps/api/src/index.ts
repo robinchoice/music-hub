@@ -18,6 +18,7 @@ import { onboardingRoutes } from './routes/onboarding.js';
 import { stemRoutes } from './routes/stems.js';
 import { pushRoutes } from './routes/push.js';
 import { sseRoutes } from './routes/sse.js';
+import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -46,6 +47,13 @@ const db = createDb(process.env.DATABASE_URL!);
 
   await migrate(db, { migrationsFolder });
   console.log('[Boot] Migrations up to date.');
+}
+
+{
+  const origin = process.env.APP_URL || 'http://localhost:5173';
+  allowBrowserAccess(origin)
+    .then(() => console.log(`[Boot] Bucket CORS allows ${origin}.`))
+    .catch((err) => console.error(`[Boot] Bucket CORS not updated: ${err.message}`));
 }
 
 const app = new Hono<AppEnv>()

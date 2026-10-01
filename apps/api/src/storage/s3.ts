@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -44,6 +45,24 @@ export async function getObjectBuffer(key: string): Promise<Uint8Array<ArrayBuff
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   const response = await s3.send(command);
   return response.Body!.transformToByteArray() as Promise<Uint8Array<ArrayBuffer>>;
+}
+
+// Browsers upload to and stream from presigned URLs directly, so the bucket
+// must allow the app's origin. Replaces any existing CORS rules.
+export async function allowBrowserAccess(origin: string): Promise<void> {
+  const command = new PutBucketCorsCommand({
+    Bucket: bucket,
+    CORSConfiguration: {
+      CORSRules: [
+        {
+          AllowedOrigins: [origin],
+          AllowedMethods: ['GET', 'HEAD', 'PUT'],
+          AllowedHeaders: ['*'],
+        },
+      ],
+    },
+  });
+  await s3.send(command);
 }
 
 export async function deleteObject(key: string): Promise<void> {
