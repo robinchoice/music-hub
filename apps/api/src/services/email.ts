@@ -101,10 +101,10 @@ export async function sendListenAlertEmail(
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
         <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
         <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 0.5rem;">
-          <strong style="color: #f4f0ec;">${who}</strong> hat deinen Track gehört:
+          <strong style="color: #f4f0ec;">${escapeHtml(who)}</strong> hat deinen Track gehört:
         </p>
-        <p style="color: #f4f0ec; font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem;">${trackName}</p>
-        <p style="color: #5e596b; font-size: 0.85rem; margin: 0 0 1.5rem;">${projectName}</p>
+        <p style="color: #f4f0ec; font-size: 1.1rem; font-weight: 600; margin: 0 0 0.25rem;">${escapeHtml(trackName)}</p>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0 0 1.5rem;">${escapeHtml(projectName)}</p>
         <a href="${trackUrl}" style="
           display: inline-block;
           padding: 0.8rem 1.6rem;
