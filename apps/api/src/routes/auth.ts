@@ -6,8 +6,17 @@ import { magicLinkSchema, verifyTokenSchema, registerSchema, loginSchema } from 
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
+import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
+
+const MINUTE = 60 * 1000;
+// Failed password logins per IP and per account. Each attempt counts before the
+// password check, so parallel requests can't overshoot; a success takes it back.
+const failedLogins = rateLimit(10, 15 * MINUTE);
+// Magic link and registration emails
+const mailsPerAddress = rateLimit(5, 60 * MINUTE);
+const mailsPerIp = rateLimit(20, 60 * MINUTE);
 
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
@@ -29,10 +38,16 @@ export const authRoutes = new Hono<AppEnv>()
     const { name, email, password } = c.req.valid('json');
     const db = c.get('db');
 
+    if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+
     const existing = await findUserByEmail(db, email);
     if (existing?.passwordHash) {
       return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
     }
+
+    // Only count towards the address once a mail goes out, so 409s can't
+    // block magic links for an existing account
+    if (!mailsPerAddress.hit(email.toLowerCase())) return tooManyRequests(c);
 
     const token = generateToken();
     await db.insert(magicLinks).values({
@@ -53,13 +68,14 @@ export const authRoutes = new Hono<AppEnv>()
     const { email, password } = c.req.valid('json');
     const db = c.get('db');
 
+    const attempt = [clientIp(c), email.toLowerCase()];
+    if (!attempt.every((key) => failedLogins.hit(key))) return tooManyRequests(c);
+
     const user = await findUserByEmail(db, email);
-    if (!user || !user.passwordHash) {
+    if (!user?.passwordHash || !(await Bun.password.verify(password, user.passwordHash))) {
       return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
     }
-
-    const valid = await Bun.password.verify(password, user.passwordHash);
-    if (!valid) return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
+    for (const key of attempt) failedLogins.undo(key);
 
     await createSession(c, db, user.id);
     return c.json({
@@ -70,6 +86,10 @@ export const authRoutes = new Hono<AppEnv>()
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
     const { email } = c.req.valid('json');
     const db = c.get('db');
+
+    if (!mailsPerIp.hit(clientIp(c)) || !mailsPerAddress.hit(email.toLowerCase())) {
+      return tooManyRequests(c);
+    }
 
     const token = generateToken();
     const tokenHash = await hashToken(token);
