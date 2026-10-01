@@ -40,10 +40,10 @@ export async function createDownloadUrl(key: string, expiresIn = 3600): Promise<
   return getSignedUrl(s3, command, { expiresIn });
 }
 
-export async function getObjectBuffer(key: string): Promise<Uint8Array> {
+export async function getObjectBuffer(key: string): Promise<Uint8Array<ArrayBuffer>> {
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   const response = await s3.send(command);
-  return response.Body!.transformToByteArray();
+  return response.Body!.transformToByteArray() as Promise<Uint8Array<ArrayBuffer>>;
 }
 
 export async function deleteObject(key: string): Promise<void> {
