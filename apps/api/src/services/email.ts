@@ -86,11 +86,24 @@ export async function sendListenAlertEmail(
   });
 }
 
-export async function sendInviteEmail(email: string, projectName: string, inviterName: string) {
-  const url = `${process.env.APP_URL}`;
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+export async function sendInviteEmail(
+  email: string,
+  projectId: string,
+  projectName: string,
+  inviterName: string,
+) {
+  const url = `${process.env.APP_URL}/projects/${projectId}`;
 
   if (!transport) {
-    console.log(`[DEV] Invite ${email} to project "${projectName}" by ${inviterName}`);
+    console.log(`[DEV] Invite ${email} to project "${projectName}" by ${inviterName}: ${url}`);
     return;
   }
 
@@ -101,7 +114,7 @@ export async function sendInviteEmail(email: string, projectName: string, invite
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
         <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
-        <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 1.5rem;"><strong style="color: #f4f0ec;">${inviterName}</strong> hat dich eingeladen, am Projekt <strong style="color: #f4f0ec;">"${projectName}"</strong> mitzuarbeiten.</p>
+        <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 1.5rem;"><strong style="color: #f4f0ec;">${escapeHtml(inviterName)}</strong> hat dich eingeladen, am Projekt <strong style="color: #f4f0ec;">"${escapeHtml(projectName)}"</strong> mitzuarbeiten.</p>
         <a href="${url}" style="
           display: inline-block;
           padding: 0.8rem 1.6rem;
@@ -110,7 +123,9 @@ export async function sendInviteEmail(email: string, projectName: string, invite
           border-radius: 10px;
           text-decoration: none;
           font-weight: 600;
+          margin: 0 0 1.5rem;
         ">Projekt öffnen</a>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Noch kein Konto? Dann melde dich per Magic Link mit dieser E-Mail-Adresse an.</p>
       </div>
     `,
   });

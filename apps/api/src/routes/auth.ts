@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { magicLinkSchema, verifyTokenSchema, registerSchema, loginSchema } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { hashToken } from '../middleware/auth.js';
+import { findUserByEmail } from '../lib/users.js';
 import { sendMagicLinkEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
 
@@ -28,8 +29,8 @@ export const authRoutes = new Hono<AppEnv>()
     const { name, email, password } = c.req.valid('json');
     const db = c.get('db');
 
-    const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (existing) return c.json({ error: 'E-Mail bereits vergeben' }, 409);
+    const existing = await findUserByEmail(db, email);
+    if (existing) return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
 
     const passwordHash = await Bun.password.hash(password);
     const [user] = await db
@@ -46,7 +47,7 @@ export const authRoutes = new Hono<AppEnv>()
     const { email, password } = c.req.valid('json');
     const db = c.get('db');
 
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const user = await findUserByEmail(db, email);
     if (!user || !user.passwordHash) {
       return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
     }
@@ -100,11 +101,7 @@ export const authRoutes = new Hono<AppEnv>()
       .where(eq(magicLinks.id, link.id));
 
     // Find or create user
-    let [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, link.email))
-      .limit(1);
+    let user = await findUserByEmail(db, link.email);
 
     if (!user) {
       const name = link.email.split('@')[0];

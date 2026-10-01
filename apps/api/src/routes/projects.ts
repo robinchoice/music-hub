@@ -9,6 +9,8 @@ import {
 } from '@music-hub/shared';
 import { projects, projectMembers, users, tracks } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
+import { findUserByEmail } from '../lib/users.js';
+import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import type { AppEnv } from '../types.js';
 
@@ -207,11 +209,7 @@ export const projectRoutes = new Hono<AppEnv>()
     }
 
     // Find or create user
-    let [invitedUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    let invitedUser = await findUserByEmail(db, email);
 
     if (!invitedUser) {
       [invitedUser] = await db
@@ -235,6 +233,14 @@ export const projectRoutes = new Hono<AppEnv>()
     if (!member) {
       return c.json({ error: 'User already a member' }, 409);
     }
+
+    const [[project], [inviter]] = await Promise.all([
+      db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId)).limit(1),
+      db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1),
+    ]);
+    sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name).catch((err) =>
+      console.error('[Email] Invite failed:', err),
+    );
 
     return c.json({ member }, 201);
   })
