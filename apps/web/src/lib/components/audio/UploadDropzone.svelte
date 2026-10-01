@@ -12,12 +12,14 @@
     trackId: string;
     parentVersionId?: string | null;
     branchLabel?: string | null;
-    onUploaded: () => void;
+    onUploaded: (count: number) => void;
   } = $props();
 
   let dragOver = $state(false);
   let uploading = $state(false);
   let progress = $state(0);
+  let current = $state(0);
+  let total = $state(0);
   let error = $state('');
   let label = $state('');
 
@@ -33,68 +35,85 @@
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;
-    const file = e.dataTransfer?.files[0];
-    if (file) uploadFile(file);
+    if (uploading) return;
+    const dropped = e.dataTransfer?.files;
+    if (dropped && dropped.length > 0) uploadFiles(Array.from(dropped));
   }
 
   function handleFileSelect(e: Event) {
     const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) uploadFile(file);
+    if (input.files && input.files.length > 0) uploadFiles(Array.from(input.files));
     input.value = '';
   }
 
-  async function uploadFile(file: File) {
+  async function uploadFiles(selected: File[]) {
     error = '';
 
-    if (file.size > MAX_FILE_SIZE) {
-      error = 'Datei zu groß (max 500 MB)';
+    const tooBig = selected.filter((f) => f.size > MAX_FILE_SIZE);
+    if (tooBig.length > 0) {
+      error = `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
       return;
     }
 
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.includes(ext as any)) {
-      error = `Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
+    const unsupported = selected.filter(
+      (f) => !SUPPORTED_EXTENSIONS.includes(('.' + f.name.split('.').pop()?.toLowerCase()) as any),
+    );
+    if (unsupported.length > 0) {
+      error = `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
       return;
     }
 
+    selected.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     uploading = true;
-    progress = 0;
+    total = selected.length;
 
     try {
-      // 1. Get presigned upload URL
-      const { uploadUrl, fileKey } = await api.post<{
-        uploadUrl: string;
-        fileKey: string;
-        versionId: string;
-      }>(`/versions/track/${trackId}/upload-url`, {
-        fileName: file.name,
-        mimeType: file.type || 'audio/wav',
-        fileSize: file.size,
-      });
-
-      // 2. Upload directly to S3
-      await uploadWithProgress(uploadUrl, file);
-
-      // 3. Register version
-      await api.post(`/versions/track/${trackId}`, {
-        fileKey,
-        label: label || undefined,
-        originalFileName: file.name,
-        mimeType: file.type || 'audio/wav',
-        fileSize: file.size,
-        parentVersionId: parentVersionId ?? undefined,
-        branchLabel: branchLabel ?? undefined,
-      });
+      // One after another: the API assigns version numbers as max + 1
+      for (const [i, file] of selected.entries()) {
+        current = i + 1;
+        progress = 0;
+        await uploadFile(file);
+      }
 
       label = '';
-      onUploaded();
+      onUploaded(total);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
+      const message = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
+      error =
+        total > 1
+          ? `${selected[current - 1].name}: ${message} (${current - 1} von ${total} hochgeladen)`
+          : message;
     } finally {
       uploading = false;
       progress = 0;
     }
+  }
+
+  async function uploadFile(file: File) {
+    // 1. Get presigned upload URL
+    const { uploadUrl, fileKey } = await api.post<{
+      uploadUrl: string;
+      fileKey: string;
+      versionId: string;
+    }>(`/versions/track/${trackId}/upload-url`, {
+      fileName: file.name,
+      mimeType: file.type || 'audio/wav',
+      fileSize: file.size,
+    });
+
+    // 2. Upload directly to S3
+    await uploadWithProgress(uploadUrl, file);
+
+    // 3. Register version
+    await api.post(`/versions/track/${trackId}`, {
+      fileKey,
+      label: label || undefined,
+      originalFileName: file.name,
+      mimeType: file.type || 'audio/wav',
+      fileSize: file.size,
+      parentVersionId: parentVersionId ?? undefined,
+      branchLabel: branchLabel ?? undefined,
+    });
   }
 
   function uploadWithProgress(url: string, file: File): Promise<void> {
@@ -146,6 +165,7 @@
       id="file-input-{trackId}"
       type="file"
       accept=".wav,.mp3,.flac,.aiff,.aif"
+      multiple
       onchange={handleFileSelect}
       hidden
     />
@@ -153,13 +173,13 @@
     {#if uploading}
       <div class="progress-container">
         <div class="progress-bar" style="width: {progress}%"></div>
-        <span class="progress-text">{progress}%</span>
+        <span class="progress-text">{total > 1 ? `${current}/${total} · ` : ''}{progress}%</span>
       </div>
     {:else}
       <div class="dropzone-content">
         <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
-        <p>Audio-Datei hier ablegen oder klicken zum Auswählen</p>
-        <span class="formats">WAV, MP3, FLAC, AIFF — max 500 MB</span>
+        <p>Audio-Dateien hier ablegen oder klicken zum Auswählen</p>
+        <span class="formats">Jede Datei wird eine eigene Version · WAV, MP3, FLAC, AIFF — max 500 MB</span>
       </div>
     {/if}
   </div>

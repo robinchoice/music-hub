@@ -580,11 +580,11 @@
           {trackId}
           parentVersionId={branchFromId}
           branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
-          onUploaded={() => {
+          onUploaded={(count) => {
             showUpload = false;
             branchFromId = null;
             loadVersions();
-            toastSuccess('Version hochgeladen');
+            toastSuccess(count === 1 ? 'Version hochgeladen' : `${count} Versionen hochgeladen`);
           }}
         />
       </div>
