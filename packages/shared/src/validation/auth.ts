@@ -6,6 +6,7 @@ export const magicLinkSchema = z.object({
 
 export const verifyTokenSchema = z.object({
   token: z.string().min(1),
+  password: z.string().min(1).max(200).optional(),
 });
 
 export const registerSchema = z.object({

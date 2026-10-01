@@ -64,6 +64,13 @@
       "when": 1776988800000,
       "tag": "0008_listen_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790864787156,
+      "tag": "0009_registration_links",
+      "breakpoints": true
     }
   ]
 }

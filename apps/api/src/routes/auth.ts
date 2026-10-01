@@ -6,7 +6,7 @@ import { magicLinkSchema, verifyTokenSchema, registerSchema, loginSchema } from 
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
-import { sendMagicLinkEmail } from '../services/email.js';
+import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
 
 async function createSession(c: any, db: any, userId: string) {
@@ -30,16 +30,22 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
 
     const existing = await findUserByEmail(db, email);
-    if (existing) return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
+    if (existing?.passwordHash) {
+      return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
+    }
 
-    const passwordHash = await Bun.password.hash(password);
-    const [user] = await db
-      .insert(users)
-      .values({ email, name, passwordHash })
-      .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl });
+    const token = generateToken();
+    await db.insert(magicLinks).values({
+      email,
+      token: await hashToken(token),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 h
+      name,
+      passwordHash: await Bun.password.hash(password),
+    });
 
-    await createSession(c, db, user.id);
-    return c.json({ user }, 201);
+    await sendRegistrationEmail(email, token);
+
+    return c.json({ user: null, verificationRequired: true }, 202);
   })
 
   // Login with password
@@ -81,7 +87,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/verify', zValidator('json', verifyTokenSchema), async (c) => {
-    const { token } = c.req.valid('json');
+    const { token, password } = c.req.valid('json');
     const db = c.get('db');
 
     const tokenHash = await hashToken(token);
@@ -93,6 +99,14 @@ export const authRoutes = new Hono<AppEnv>()
 
     if (!link || link.expiresAt < new Date() || link.usedAt) {
       return c.json({ error: 'Invalid or expired token' }, 400);
+    }
+
+    let registration: { name: string; passwordHash: string } | null = null;
+    if (link.passwordHash && password !== undefined) {
+      if (!(await Bun.password.verify(password, link.passwordHash))) {
+        return c.json({ error: 'Passwort falsch' }, 401);
+      }
+      registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
     }
 
     await db
@@ -107,7 +121,13 @@ export const authRoutes = new Hono<AppEnv>()
       const name = link.email.split('@')[0];
       [user] = await db
         .insert(users)
-        .values({ email: link.email, name })
+        .values({ email: link.email, name, ...registration })
+        .returning();
+    } else if (registration) {
+      [user] = await db
+        .update(users)
+        .set({ ...registration, updatedAt: new Date() })
+        .where(eq(users.id, user.id))
         .returning();
     }
 

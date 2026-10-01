@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
 export const magicLinks = pgTable('magic_links', {
@@ -8,6 +8,8 @@ export const magicLinks = pgTable('magic_links', {
   expiresAt: timestamp('expires_at').notNull(),
   usedAt: timestamp('used_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  name: varchar('name', { length: 255 }),
+  passwordHash: text('password_hash'),
 });
 
 export const sessions = pgTable('sessions', {

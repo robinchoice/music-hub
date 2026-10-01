@@ -38,8 +38,8 @@ export async function sendMagicLink(email: string) {
   return api.post('/auth/magic-link', { email });
 }
 
-export async function verifyToken(token: string) {
-  const res = await api.post<{ user: User }>('/auth/verify', { token });
+export async function verifyToken(token: string, password?: string) {
+  const res = await api.post<{ user: User }>('/auth/verify', { token, password });
   user.set(res.user);
   return res.user;
 }

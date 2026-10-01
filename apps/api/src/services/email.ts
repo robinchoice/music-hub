@@ -46,6 +46,39 @@ export async function sendMagicLinkEmail(email: string, token: string) {
   });
 }
 
+export async function sendRegistrationEmail(email: string, token: string) {
+  const url = `${process.env.APP_URL}/auth/verify?token=${token}&register=1`;
+
+  if (!transport) {
+    console.log(`[DEV] Registration link for ${email}: ${url}`);
+    return;
+  }
+
+  await transport.sendMail({
+    from: fromEmail,
+    to: email,
+    subject: 'Bestätige deine E-Mail-Adresse für Music Hub',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
+        <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
+        <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 1.5rem;">Klick auf den Button und bestätige mit deinem Passwort, um die Registrierung abzuschließen:</p>
+        <a href="${url}" style="
+          display: inline-block;
+          padding: 0.8rem 1.6rem;
+          background: linear-gradient(135deg, #f43f5e, #fb923c);
+          color: #fff;
+          border-radius: 10px;
+          text-decoration: none;
+          font-weight: 600;
+          margin: 0 0 1.5rem;
+        ">Registrierung abschließen</a>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0 0 0.5rem;">Der Link läuft in 24 Stunden ab.</p>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Wenn du dich nicht registriert hast, ignorier diese Mail einfach.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendListenAlertEmail(
   to: string,
   listenerName: string | null,

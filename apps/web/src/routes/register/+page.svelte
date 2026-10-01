@@ -10,6 +10,7 @@
   let passwordConfirm = $state('');
   let loading = $state(false);
   let error = $state('');
+  let sent = $state(false);
 
   $effect(() => {
     if ($user) goto('/dashboard');
@@ -30,8 +31,9 @@
 
     loading = true;
     try {
-      await register(name, email, password);
-      goto('/dashboard');
+      const registered = await register(name, email, password);
+      if (registered) goto('/dashboard');
+      else sent = true;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Registrierung fehlgeschlagen';
     } finally {
@@ -48,20 +50,27 @@
     <h1>Konto erstellen</h1>
     <p class="card-sub">Kostenlos. Kein Abo, keine Kreditkarte.</p>
 
-    <form onsubmit={handleSubmit}>
-      <Input label="Name" bind:value={name} placeholder="Dein Name" />
-      <Input label="E-Mail" type="email" bind:value={email} placeholder="deine@email.de" />
-      <Input label="Passwort" type="password" bind:value={password} placeholder="Mindestens 8 Zeichen" />
-      <Input label="Passwort wiederholen" type="password" bind:value={passwordConfirm} placeholder="Nochmal eingeben" />
+    {#if sent}
+      <p class="success">
+        Fast geschafft! Wir haben dir einen Link an <strong>{email}</strong> geschickt. Klick darauf und
+        bestätige mit deinem Passwort.
+      </p>
+    {:else}
+      <form onsubmit={handleSubmit}>
+        <Input label="Name" bind:value={name} placeholder="Dein Name" />
+        <Input label="E-Mail" type="email" bind:value={email} placeholder="deine@email.de" />
+        <Input label="Passwort" type="password" bind:value={password} placeholder="Mindestens 8 Zeichen" />
+        <Input label="Passwort wiederholen" type="password" bind:value={passwordConfirm} placeholder="Nochmal eingeben" />
 
-      {#if error}
-        <p class="error">{error}</p>
-      {/if}
+        {#if error}
+          <p class="error">{error}</p>
+        {/if}
 
-      <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
-        Registrieren
-      </Button>
-    </form>
+        <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
+          Registrieren
+        </Button>
+      </form>
+    {/if}
 
     <p class="switch">Schon ein Konto? <a href="/login">Einloggen</a></p>
   </div>
@@ -125,6 +134,12 @@
   .error {
     color: var(--color-error);
     font-size: var(--text-sm);
+    margin: 0;
+  }
+
+  .success {
+    color: var(--color-text-primary);
+    line-height: 1.55;
     margin: 0;
   }
 
