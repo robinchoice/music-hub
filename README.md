@@ -78,12 +78,13 @@ bun db:migrate
 
 ## Deployment
 
-Läuft auf [Coolify](https://coolify.diespaetzles.lol) via GitHub-Mirror (`robinchoice/music-hub`).
+Läuft auf [Coolify](https://coolify.diespaetzles.lol), gebaut aus `robinchoice/music-hub` (Branch `main`).
 
-- **Web:** [hub.diespaetzles.lol](https://hub.diespaetzles.lol)
-- **API:** intern via `API_INTERNAL_URL`
+- **Web** (`Dockerfile.web`): [hub.diespaetzles.lol](https://hub.diespaetzles.lol)
+- **API** (`Dockerfile.api`): intern via `API_INTERNAL_URL`, führt Migrationen beim Start aus
+- **Datenbank:** Postgres als eigene Coolify-Ressource
 
-Deploy wird per Webhook getriggert (siehe `reference_coolify.md` in den Projekt-Notizen).
+Jeder Push auf `main` deployt automatisch: Ein GitHub-Webhook ruft Coolify auf, Coolify baut Web und API neu. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
 ## Projektstruktur
 
