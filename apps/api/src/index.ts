@@ -19,6 +19,7 @@ import { onboardingRoutes } from './routes/onboarding.js';
 import { stemRoutes } from './routes/stems.js';
 import { pushRoutes } from './routes/push.js';
 import { sseRoutes } from './routes/sse.js';
+import { deviceRoutes } from './routes/device.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
 
@@ -82,6 +83,7 @@ const app = new Hono<AppEnv>()
   .get('/health', (c) => c.json({ status: 'ok' }))
   .basePath('/api/v1')
   .route('/auth', authRoutes)
+  .route('/auth/device', deviceRoutes)
   .route('/projects', projectRoutes)
   .route('/tracks', trackRoutes)
   .route('/versions', versionRoutes)

@@ -10,7 +10,7 @@ import {
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
-import { generateToken, hashToken } from '../middleware/auth.js';
+import { generateToken, hashToken, bearerToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
@@ -162,7 +162,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/logout', async (c) => {
-    const sessionToken = getCookie(c, 'session');
+    const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
     if (sessionToken) {
       const db = c.get('db');
       const tokenHash = await hashToken(sessionToken);
@@ -173,7 +173,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .get('/me', async (c) => {
-    const sessionToken = getCookie(c, 'session');
+    const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
     if (!sessionToken) {
       return c.json({ user: null });
     }
@@ -201,7 +201,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .patch('/me', async (c) => {
-    const sessionToken = getCookie(c, 'session');
+    const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
     if (!sessionToken) return c.json({ error: 'Unauthorized' }, 401);
 
     const db = c.get('db');

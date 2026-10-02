@@ -1,11 +1,12 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
+import type { Context } from 'hono';
 import { eq, gt } from 'drizzle-orm';
 import { sessions } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
 
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
-  const sessionToken = getCookie(c, 'session');
+  const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
   if (!sessionToken) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
@@ -42,4 +43,12 @@ export async function hashToken(token: string): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// Native clients such as the DAW plugin have no cookie jar and send the
+// session token as a bearer token instead.
+export function bearerToken(c: Context): string | undefined {
+  const header = c.req.header('authorization');
+  if (!header?.startsWith('Bearer ')) return undefined;
+  return header.slice('Bearer '.length).trim() || undefined;
 }

@@ -67,6 +67,7 @@ export const versions = pgTable('versions', {
   duration: real('duration'),
   sampleRate: integer('sample_rate'),
   bitDepth: integer('bit_depth'),
+  integratedLufs: real('integrated_lufs'),
 
   originalFileKey: text('original_file_key').notNull(),
   streamFileKey: text('stream_file_key'),
