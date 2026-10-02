@@ -20,8 +20,8 @@ const s3 = new S3Client({
 
 const bucket = process.env.S3_BUCKET!;
 
-// The signed Content-Length makes the bucket reject uploads of any other size,
-// so the size checked when issuing the URL is the size that gets stored.
+// The signed Content-Length and Content-Type make the bucket reject uploads of any
+// other size or type, so what was checked when issuing the URL is what gets stored.
 export async function createUploadUrl(
   key: string,
   contentType: string,
@@ -33,7 +33,7 @@ export async function createUploadUrl(
     ContentType: contentType,
     ContentLength: contentLength,
   });
-  return getSignedUrl(s3, command, { expiresIn: 900 }); // 15 min
+  return getSignedUrl(s3, command, { expiresIn: 900, signableHeaders: new Set(['content-type']) }); // 15 min
 }
 
 export async function createDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
