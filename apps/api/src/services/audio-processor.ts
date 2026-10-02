@@ -29,11 +29,12 @@ export async function processVersion(db: Database, versionId: string) {
     const waveformKey = version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json');
 
     // Upload waveform data to S3
-    const waveformUploadUrl = await createUploadUrl(waveformKey, 'application/json', 10 * 1024 * 1024);
+    const waveform = JSON.stringify(peaks);
+    const waveformUploadUrl = await createUploadUrl(waveformKey, 'application/json', Buffer.byteLength(waveform));
     await fetch(waveformUploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(peaks),
+      body: waveform,
     });
 
     // Transcode to MP3 for streaming
