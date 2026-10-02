@@ -50,6 +50,16 @@ export async function getObjectBuffer(key: string): Promise<Uint8Array<ArrayBuff
   return response.Body!.transformToByteArray() as Promise<Uint8Array<ArrayBuffer>>;
 }
 
+export async function putObject(key: string, body: string | Uint8Array, contentType: string): Promise<void> {
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+  await s3.send(command);
+}
+
 // Browsers upload to and stream from presigned URLs directly, so the bucket
 // must allow the app's origin. Replaces any existing CORS rules.
 export async function allowBrowserAccess(origin: string): Promise<void> {

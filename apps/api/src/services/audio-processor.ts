@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
-import { createUploadUrl, createDownloadUrl } from '../storage/s3.js';
+import { putObject, createDownloadUrl } from '../storage/s3.js';
 import type { Database } from '@music-hub/db';
 
 export async function processVersion(db: Database, versionId: string) {
@@ -29,13 +29,7 @@ export async function processVersion(db: Database, versionId: string) {
     const waveformKey = version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json');
 
     // Upload waveform data to S3
-    const waveform = JSON.stringify(peaks);
-    const waveformUploadUrl = await createUploadUrl(waveformKey, 'application/json', Buffer.byteLength(waveform));
-    await fetch(waveformUploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: waveform,
-    });
+    await putObject(waveformKey, JSON.stringify(peaks), 'application/json');
 
     // Transcode to MP3 for streaming
     const streamKey = version.originalFileKey.replace(/\/original\/.*$/, '/stream/audio.mp3');
@@ -144,17 +138,8 @@ async function transcodeToMp3(inputUrl: string, outputKey: string) {
 
   await proc.exited;
 
-  // Upload to S3
-  const file = Bun.file(tmpFile);
-  const fileSize = file.size;
-  const uploadUrl = await createUploadUrl(outputKey, 'audio/mpeg', fileSize);
+  const mp3 = await Bun.file(tmpFile).bytes();
+  await Bun.spawn(['rm', tmpFile]).exited;
 
-  await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'audio/mpeg' },
-    body: file,
-  });
-
-  // Cleanup
-  await Bun.file(tmpFile).exists() && (await Bun.spawn(['rm', tmpFile]).exited);
+  await putObject(outputKey, mp3, 'audio/mpeg');
 }

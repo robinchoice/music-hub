@@ -20,7 +20,7 @@ import {
   comments,
   shareLinks,
 } from '@music-hub/db';
-import { createUploadUrl } from '../storage/s3.js';
+import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 
 const email = process.argv[2];
@@ -31,10 +31,10 @@ if (!email) {
 
 const ASSET_DIR = '/tmp/musichub-seed';
 
-async function readBytes(name: string): Promise<ArrayBuffer> {
+async function readBytes(name: string): Promise<Uint8Array> {
   const f = Bun.file(`${ASSET_DIR}/${name}`);
   if (!(await f.exists())) throw new Error(`Missing asset: ${name}`);
-  return await f.arrayBuffer();
+  return await f.bytes();
 }
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -69,13 +69,7 @@ console.log(`→ ${memberDefs.length} Mitwirkende vorbereitet`);
 async function uploadCover(filename: string): Promise<string> {
   const bytes = await readBytes(filename);
   const key = `covers/${crypto.randomUUID()}.png`;
-  const url = await createUploadUrl(key, 'image/png', bytes.byteLength);
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'image/png' },
-    body: bytes,
-  });
-  if (!res.ok) throw new Error(`Cover upload failed: ${res.status}`);
+  await putObject(key, bytes, 'image/png');
   return key;
 }
 
@@ -168,13 +162,7 @@ async function createProject(spec: ProjectSpec) {
       const versionId = crypto.randomUUID();
       const fileName = `${v.audio}`;
       const fileKey = `projects/${project.id}/tracks/${track.id}/versions/${versionId}/original/${fileName}`;
-      const uploadUrl = await createUploadUrl(fileKey, 'audio/wav', audioBytes.byteLength);
-      const res = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'audio/wav' },
-        body: audioBytes,
-      });
-      if (!res.ok) throw new Error(`Audio upload failed: ${res.status}`);
+      await putObject(fileKey, audioBytes, 'audio/wav');
 
       const parentVersionId = v.parentLabel ? versionMap.get(v.parentLabel) ?? null : null;
       const createdById = v.createdBy

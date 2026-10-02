@@ -10,7 +10,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { createDb, users, projects, projectMembers, tracks, versions, comments, shareLinks } from '@music-hub/db';
-import { createUploadUrl } from '../storage/s3.js';
+import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 
 const email = process.argv[2];
@@ -28,7 +28,7 @@ if (!(await audioFile.exists())) {
   console.error(`  ffmpeg -f lavfi -i "sine=frequency=440:duration=8" -ac 2 ${audioPath}`);
   process.exit(1);
 }
-const audioBytes = await audioFile.arrayBuffer();
+const audioBytes = await audioFile.bytes();
 const audioSize = audioBytes.byteLength;
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -82,13 +82,7 @@ async function uploadVersion(opts: {
   const fileName = `demo-v${opts.versionNumber}.wav`;
   const fileKey = `projects/${project.id}/tracks/${track.id}/versions/${versionId}/original/${fileName}`;
 
-  const uploadUrl = await createUploadUrl(fileKey, 'audio/wav', audioSize);
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'audio/wav' },
-    body: audioBytes,
-  });
-  if (!res.ok) throw new Error(`S3 upload failed: ${res.status} ${await res.text()}`);
+  await putObject(fileKey, audioBytes, 'audio/wav');
 
   const [version] = await db
     .insert(versions)

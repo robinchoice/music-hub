@@ -14,14 +14,14 @@ import {
   shareLinks,
   type Database,
 } from '@music-hub/db';
-import { createUploadUrl } from '../storage/s3.js';
+import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 
 const ASSET_DIR = '/tmp/musichub-seed';
 
-async function getDemoAudio(name: string, frequency: number, duration: number): Promise<ArrayBuffer> {
+async function getDemoAudio(name: string, frequency: number, duration: number): Promise<Uint8Array> {
   const f = Bun.file(`${ASSET_DIR}/${name}`);
-  if (await f.exists()) return await f.arrayBuffer();
+  if (await f.exists()) return await f.bytes();
 
   // Synthesize on the fly with ffmpeg
   const tmp = `/tmp/musichub-onb-${crypto.randomUUID()}.wav`;
@@ -35,26 +35,20 @@ async function getDemoAudio(name: string, frequency: number, duration: number): 
     tmp,
   ]);
   await proc.exited;
-  const bytes = await Bun.file(tmp).arrayBuffer();
+  const bytes = await Bun.file(tmp).bytes();
   await Bun.spawn(['rm', tmp]).exited;
   return bytes;
 }
 
 async function uploadAudio(
-  bytes: ArrayBuffer,
+  bytes: Uint8Array,
   projectId: string,
   trackId: string,
   versionId: string,
   filename: string,
 ): Promise<string> {
   const fileKey = `projects/${projectId}/tracks/${trackId}/versions/${versionId}/original/${filename}`;
-  const uploadUrl = await createUploadUrl(fileKey, 'audio/wav', bytes.byteLength);
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'audio/wav' },
-    body: bytes,
-  });
-  if (!res.ok) throw new Error(`Audio upload failed: ${res.status}`);
+  await putObject(fileKey, bytes, 'audio/wav');
   return fileKey;
 }
 
