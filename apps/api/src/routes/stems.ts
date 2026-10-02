@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, ne } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema } from '@music-hub/shared';
 import { tracks, stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
@@ -114,7 +114,12 @@ export const stemRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    await deleteObject(stem.fileKey);
+    const [stillReferenced] = await db
+      .select({ id: stems.id })
+      .from(stems)
+      .where(and(eq(stems.fileKey, stem.fileKey), ne(stems.id, stemId)))
+      .limit(1);
+    if (!stillReferenced) await deleteObject(stem.fileKey);
     await db.delete(stems).where(eq(stems.id, stemId));
     return c.json({ message: 'Stem deleted' });
   })
