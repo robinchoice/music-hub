@@ -47,8 +47,8 @@
 
   <div class="card">
     <p class="brand">Music Hub</p>
-    <h1>Konto erstellen</h1>
-    <p class="card-sub">Kostenlos. Kein Abo, keine Kreditkarte.</p>
+    <h1>Passwort festlegen</h1>
+    <p class="card-sub">Für Adressen, die zu einem Projekt eingeladen wurden.</p>
 
     {#if sent}
       <p class="success">
@@ -67,7 +67,7 @@
         {/if}
 
         <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
-          Registrieren
+          Passwort festlegen
         </Button>
       </form>
     {/if}

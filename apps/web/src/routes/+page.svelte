@@ -24,7 +24,6 @@
         <Button href="/dashboard" size="sm">Zum Dashboard</Button>
       {:else}
         <a href="/login" class="nav-link">Einloggen</a>
-        <Button href="/register" size="sm">Kostenlos starten</Button>
       {/if}
     </div>
   </nav>
@@ -43,7 +42,7 @@
         ohne Account, ohne Anmeldung, ohne Stress.
       </p>
       <div class="hero-cta">
-        <Button href="/register" size="lg">Kostenlos starten</Button>
+        <Button href="/login" size="lg">Einloggen</Button>
         <a href="/listen/{DEMO_SHARE_TOKEN}" target="_blank" rel="noopener" class="cta-secondary">
           Live-Demo ansehen <span class="arrow">→</span>
         </a>
@@ -275,7 +274,7 @@
       präg die Roadmap mit. Gratis, ohne Verpflichtung.
     </p>
     <div class="hero-cta center">
-      <Button href="/register" size="lg">Account anlegen</Button>
+      <Button href="/login" size="lg">Einloggen</Button>
       <a href="https://github.com/robinchoice/music-hub" target="_blank" rel="noopener" class="cta-secondary">
         Auf GitHub anschauen <span class="arrow">→</span>
       </a>

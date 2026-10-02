@@ -100,7 +100,7 @@
       {/if}
     {/if}
 
-    <p class="switch">Noch kein Konto? <a href="/register">Registrieren</a></p>
+    <p class="switch">Eingeladen, aber noch kein Passwort? <a href="/register">Passwort festlegen</a></p>
   </div>
 </div>
 

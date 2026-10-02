@@ -24,6 +24,9 @@ const failedLogins = rateLimit(10, 15 * MINUTE);
 const mailsPerAddress = rateLimit(5, 60 * MINUTE);
 const mailsPerIp = rateLimit(20, 60 * MINUTE);
 
+// Accounts only come from project invites
+const NO_ACCESS = 'Für diese Adresse gibt es keinen Zugang. Music Hub ist nur auf Einladung nutzbar.';
+
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
@@ -46,8 +49,10 @@ export const authRoutes = new Hono<AppEnv>()
 
     if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
 
+    // Registering only sets a password on an invited account
     const existing = await findUserByEmail(db, email);
-    if (existing?.passwordHash) {
+    if (!existing) return c.json({ error: NO_ACCESS }, 403);
+    if (existing.passwordHash) {
       return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
     }
 
@@ -93,9 +98,9 @@ export const authRoutes = new Hono<AppEnv>()
     const { email, next } = c.req.valid('json');
     const db = c.get('db');
 
-    if (!mailsPerIp.hit(clientIp(c)) || !mailsPerAddress.hit(email.toLowerCase())) {
-      return tooManyRequests(c);
-    }
+    if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+    if (!(await findUserByEmail(db, email))) return c.json({ error: NO_ACCESS }, 403);
+    if (!mailsPerAddress.hit(email.toLowerCase())) return tooManyRequests(c);
 
     const token = generateToken();
     const tokenHash = await hashToken(token);
@@ -135,21 +140,16 @@ export const authRoutes = new Hono<AppEnv>()
       registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
     }
 
+    // Also rejects links for unknown addresses sent before registration closed
+    let user = await findUserByEmail(db, link.email);
+    if (!user) return c.json({ error: NO_ACCESS }, 403);
+
     await db
       .update(magicLinks)
       .set({ usedAt: new Date() })
       .where(eq(magicLinks.id, link.id));
 
-    // Find or create user
-    let user = await findUserByEmail(db, link.email);
-
-    if (!user) {
-      const name = link.email.split('@')[0];
-      [user] = await db
-        .insert(users)
-        .values({ email: link.email, name, ...registration })
-        .returning();
-    } else if (registration) {
+    if (registration) {
       [user] = await db
         .update(users)
         .set({ ...registration, updatedAt: new Date() })
