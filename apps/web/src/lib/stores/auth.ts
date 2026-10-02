@@ -38,8 +38,9 @@ export async function sendMagicLink(email: string, next?: string) {
   return api.post('/auth/magic-link', { email, next });
 }
 
+// Silent: the verify page shows the error itself
 export async function verifyToken(token: string, password?: string) {
-  const res = await api.post<{ user: User }>('/auth/verify', { token, password });
+  const res = await api.post<{ user: User }>('/auth/verify', { token, password }, true);
   user.set(res.user);
   return res.user;
 }

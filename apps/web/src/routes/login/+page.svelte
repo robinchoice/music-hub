@@ -9,7 +9,9 @@
   // Page that sent us here, e.g. a track link opened while logged out
   const next = safeNextPath($page.url.searchParams.get('next'));
 
-  let tab = $state<'password' | 'magic'>('password');
+  let tab = $state<'password' | 'magic'>(
+    $page.url.searchParams.get('tab') === 'magic' ? 'magic' : 'password',
+  );
 
   // Password
   let email = $state('');

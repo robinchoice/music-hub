@@ -132,8 +132,12 @@ export async function sendInviteEmail(
   projectId: string,
   projectName: string,
   inviterName: string,
+  loginToken: string | null,
 ) {
-  const url = `${process.env.APP_URL}/projects/${projectId}`;
+  const projectPath = `/projects/${projectId}`;
+  const url = loginToken
+    ? `${process.env.APP_URL}/auth/verify?token=${loginToken}&next=${encodeURIComponent(projectPath)}`
+    : `${process.env.APP_URL}${projectPath}`;
 
   if (!transport) {
     console.log(`[DEV] Invite ${email} to project "${projectName}" by ${inviterName}: ${url}`);
@@ -158,7 +162,7 @@ export async function sendInviteEmail(
           font-weight: 600;
           margin: 0 0 1.5rem;
         ">Projekt öffnen</a>
-        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Noch kein Konto? Dann melde dich per Magic Link mit dieser E-Mail-Adresse an.</p>
+        ${loginToken ? '<p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Der Button meldet dich direkt an und gilt 7 Tage.</p>' : ''}
       </div>
     `,
   });

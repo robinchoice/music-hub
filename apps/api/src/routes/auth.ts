@@ -10,7 +10,7 @@ import {
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
-import { hashToken } from '../middleware/auth.js';
+import { generateToken, hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
@@ -124,7 +124,7 @@ export const authRoutes = new Hono<AppEnv>()
       .limit(1);
 
     if (!link || link.expiresAt < new Date() || link.usedAt) {
-      return c.json({ error: 'Invalid or expired token' }, 400);
+      return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
     }
 
     let registration: { name: string; passwordHash: string } | null = null;
@@ -227,11 +227,3 @@ export const authRoutes = new Hono<AppEnv>()
 
     return c.json({ user });
   });
-
-function generateToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}

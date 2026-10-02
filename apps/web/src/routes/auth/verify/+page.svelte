@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { safeNextPath } from '@music-hub/shared';
-  import { verifyToken } from '$lib/stores/auth.js';
+  import { user, checkAuth, verifyToken } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
 
@@ -26,6 +26,13 @@
       await verifyToken(token);
       goto(next ?? '/dashboard');
     } catch (err) {
+      // Links are single-use. Someone opening their invite again is usually
+      // still logged in, so take them where the link points.
+      await checkAuth();
+      if ($user) {
+        goto(next ?? '/dashboard');
+        return;
+      }
       error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
     }
   });
@@ -50,7 +57,7 @@
     <div class="error-card">
       <h2>Login fehlgeschlagen</h2>
       <p>{error}</p>
-      <a href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}>Erneut versuchen</a>
+      <a href={`/login?tab=magic${next ? `&next=${encodeURIComponent(next)}` : ''}`}>Neuen Login-Link anfordern</a>
     </div>
   {:else if isRegistration}
     <form class="card" onsubmit={confirmRegistration}>

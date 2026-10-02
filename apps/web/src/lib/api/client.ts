@@ -32,7 +32,8 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
 
 export const api = {
   get: <T>(path: string, silent = false) => request<T>(path, { silent }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  post: <T>(path: string, body?: unknown, silent = false) =>
+    request<T>(path, { method: 'POST', body, silent }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
 };

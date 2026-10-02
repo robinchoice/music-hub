@@ -7,8 +7,8 @@ import {
   inviteMemberSchema,
   updateMemberSchema,
 } from '@music-hub/shared';
-import { projects, projectMembers, users, tracks } from '@music-hub/db';
-import { requireAuth } from '../middleware/auth.js';
+import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
+import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
 import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
@@ -234,12 +234,25 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'User already a member' }, 409);
     }
 
+    // Without a password the only way in is a link by mail, so the invite
+    // doubles as one. Accounts with a password log in as usual instead of
+    // getting a week-long login link.
+    let loginToken: string | null = null;
+    if (!invitedUser.passwordHash) {
+      loginToken = generateToken();
+      await db.insert(magicLinks).values({
+        email: invitedUser.email,
+        token: await hashToken(loginToken),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      });
+    }
+
     const [[project], [inviter]] = await Promise.all([
       db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId)).limit(1),
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1),
     ]);
-    sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name).catch((err) =>
-      console.error('[Email] Invite failed:', err),
+    sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name, loginToken).catch(
+      (err) => console.error('[Email] Invite failed:', err),
     );
 
     return c.json({ member }, 201);
