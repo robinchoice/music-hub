@@ -149,7 +149,23 @@ export const shareRoutes = new Hono<AppEnv>()
       .where(eq(shareLinks.id, linkId))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
-    if (link.createdById !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+    if (link.createdById !== userId) {
+      const [owner] = await db
+        .select({ id: projectMembers.id })
+        .from(versions)
+        .innerJoin(tracks, eq(tracks.id, versions.trackId))
+        .innerJoin(projectMembers, eq(projectMembers.projectId, tracks.projectId))
+        .where(
+          and(
+            eq(versions.id, link.versionId),
+            eq(projectMembers.userId, userId),
+            eq(projectMembers.role, 'owner'),
+          ),
+        )
+        .limit(1);
+      if (!owner) return c.json({ error: 'Forbidden' }, 403);
+    }
 
     await db.delete(shareLinks).where(eq(shareLinks.id, linkId));
     return c.json({ message: 'Revoked' });
