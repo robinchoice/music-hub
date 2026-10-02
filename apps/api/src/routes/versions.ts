@@ -101,10 +101,18 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const expectedPrefix = `projects/${track.projectId}/tracks/${trackId}/`;
-    if (!input.fileKey.startsWith(expectedPrefix)) {
+    const expectedPrefix = `projects/${track.projectId}/tracks/${trackId}/versions/`;
+    const keySuffix = input.fileKey.slice(expectedPrefix.length);
+    if (!input.fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/original\/[^/]+$/.test(keySuffix)) {
       return c.json({ error: 'Forbidden' }, 403);
     }
+
+    const [registered] = await db
+      .select({ id: versions.id })
+      .from(versions)
+      .where(eq(versions.originalFileKey, input.fileKey))
+      .limit(1);
+    if (registered) return c.json({ error: 'Forbidden' }, 403);
 
     // Get next version number
     const [latest] = await db
