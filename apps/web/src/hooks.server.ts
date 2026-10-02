@@ -1,4 +1,5 @@
-import type { Handle } from '@sveltejs/kit';
+import { captureException } from './monitoring.server';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
 import dns from 'node:dns';
 
 // Docker's embedded DNS doesn't answer AAAA queries, which otherwise stalls
@@ -44,4 +45,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   return resolve(event);
+};
+
+export const handleError: HandleServerError = ({ error }) => {
+  captureException(error);
 };

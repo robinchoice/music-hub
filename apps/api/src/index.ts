@@ -1,3 +1,4 @@
+import { captureException } from './monitoring';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -71,6 +72,7 @@ const app = new Hono<AppEnv>()
   })
   .onError((err, c) => {
     console.error('Unhandled error:', err);
+    captureException(err);
     return c.json({ error: 'Internal server error' }, 500);
   })
   .get('/health', (c) => c.json({ status: 'ok' }))
