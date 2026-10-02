@@ -1,7 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
-import { requestUploadUrlSchema, createVersionSchema, updateVersionSchema, rejectVersionSchema } from '@music-hub/shared';
+import {
+  requestUploadUrlSchema,
+  createVersionSchema,
+  updateVersionSchema,
+  rejectVersionSchema,
+  SUPPORTED_AUDIO_FORMATS,
+} from '@music-hub/shared';
 import { tracks, versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer } from '../storage/s3.js';
@@ -427,7 +433,9 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const useOriginal = quality === 'original' || !version.streamFileKey;
     const key = useOriginal ? version.originalFileKey : version.streamFileKey!;
-    const contentType = useOriginal ? (version.mimeType || 'audio/wav') : 'audio/mpeg';
+    const contentType = useOriginal
+      ? (SUPPORTED_AUDIO_FORMATS.find((type) => type === version.mimeType) ?? 'application/octet-stream')
+      : 'audio/mpeg';
 
     const buffer = await getObjectBuffer(key);
     return new Response(buffer, {
@@ -436,6 +444,8 @@ export const versionRoutes = new Hono<AppEnv>()
         'Content-Length': String(buffer.byteLength),
         'Cache-Control': 'private, max-age=3600',
         'ETag': `"${versionId}-${quality}"`,
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': 'sandbox',
       },
     });
   })
