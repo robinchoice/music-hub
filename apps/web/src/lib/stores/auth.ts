@@ -34,8 +34,8 @@ export async function login(email: string, password: string) {
   return res.user;
 }
 
-export async function sendMagicLink(email: string) {
-  return api.post('/auth/magic-link', { email });
+export async function sendMagicLink(email: string, next?: string) {
+  return api.post('/auth/magic-link', { email, next });
 }
 
 export async function verifyToken(token: string, password?: string) {

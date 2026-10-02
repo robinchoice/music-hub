@@ -2,7 +2,22 @@ import { z } from 'zod';
 
 export const magicLinkSchema = z.object({
   email: z.string().email(),
+  // Page to return to after login, see safeNextPath
+  next: z.string().max(2000).optional(),
 });
+
+// A path on this site to return to after login. Anything that would resolve to
+// another origin (//host, /\host, or tabs and newlines that browsers strip) is
+// dropped, so a crafted link can't redirect elsewhere.
+export function safeNextPath(value: string | null | undefined): string | null {
+  if (!value?.startsWith('/')) return null;
+  try {
+    const url = new URL(value, 'http://localhost');
+    return url.origin === 'http://localhost' ? url.pathname + url.search + url.hash : null;
+  } catch {
+    return null;
+  }
+}
 
 export const verifyTokenSchema = z.object({
   token: z.string().min(1),

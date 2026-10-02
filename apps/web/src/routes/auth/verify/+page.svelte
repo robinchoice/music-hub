@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { safeNextPath } from '@music-hub/shared';
   import { verifyToken } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
 
   const token = $page.url.searchParams.get('token');
   const isRegistration = $page.url.searchParams.has('register');
+  const next = safeNextPath($page.url.searchParams.get('next'));
 
   let error = $state('');
   let password = $state('');
@@ -22,7 +24,7 @@
     if (isRegistration) return;
     try {
       await verifyToken(token);
-      goto('/dashboard');
+      goto(next ?? '/dashboard');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
     }
@@ -48,7 +50,7 @@
     <div class="error-card">
       <h2>Login fehlgeschlagen</h2>
       <p>{error}</p>
-      <a href="/login">Erneut versuchen</a>
+      <a href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}>Erneut versuchen</a>
     </div>
   {:else if isRegistration}
     <form class="card" onsubmit={confirmRegistration}>

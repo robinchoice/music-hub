@@ -13,8 +13,8 @@ const transport = process.env.SMTP_HOST
 
 const fromEmail = process.env.EMAIL_FROM || 'Music Hub <noreply@musichub.de>';
 
-export async function sendMagicLinkEmail(email: string, token: string) {
-  const url = `${process.env.APP_URL}/auth/verify?token=${token}`;
+export async function sendMagicLinkEmail(email: string, token: string, next: string | null) {
+  const url = `${process.env.APP_URL}/auth/verify?token=${token}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 
   if (!transport) {
     console.log(`[DEV] Magic link for ${email}: ${url}`);

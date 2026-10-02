@@ -2,7 +2,13 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
-import { magicLinkSchema, verifyTokenSchema, registerSchema, loginSchema } from '@music-hub/shared';
+import {
+  magicLinkSchema,
+  verifyTokenSchema,
+  registerSchema,
+  loginSchema,
+  safeNextPath,
+} from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
@@ -84,7 +90,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
-    const { email } = c.req.valid('json');
+    const { email, next } = c.req.valid('json');
     const db = c.get('db');
 
     if (!mailsPerIp.hit(clientIp(c)) || !mailsPerAddress.hit(email.toLowerCase())) {
@@ -101,7 +107,7 @@ export const authRoutes = new Hono<AppEnv>()
       expiresAt,
     });
 
-    await sendMagicLinkEmail(email, token);
+    await sendMagicLinkEmail(email, token, safeNextPath(next));
 
     return c.json({ message: 'Magic link sent' });
   })

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import Sidebar from '$lib/components/workspace/Sidebar.svelte';
   import BottomNav from '$lib/components/workspace/BottomNav.svelte';
@@ -15,13 +16,18 @@
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
 
+  // Come back to the requested page after logging in
+  function toLogin() {
+    goto(`/login?next=${encodeURIComponent($page.url.pathname + $page.url.search)}`);
+  }
+
   onMount(async () => {
     if ($user === null && !$authLoading) {
-      goto('/login');
+      toLogin();
       return;
     }
     if ($authLoading) await checkAuth();
-    if (!$user) goto('/login');
+    if (!$user) toLogin();
   });
 
   onKey({

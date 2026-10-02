@@ -1,8 +1,13 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { safeNextPath } from '@music-hub/shared';
   import { user, login, sendMagicLink } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
+
+  // Page that sent us here, e.g. a track link opened while logged out
+  const next = safeNextPath($page.url.searchParams.get('next'));
 
   let tab = $state<'password' | 'magic'>('password');
 
@@ -19,7 +24,7 @@
   let magicError = $state('');
 
   $effect(() => {
-    if ($user) goto('/dashboard');
+    if ($user) goto(next ?? '/dashboard');
   });
 
   async function handleLogin(e: Event) {
@@ -28,7 +33,7 @@
     loading = true;
     try {
       await login(email, password);
-      goto('/dashboard');
+      goto(next ?? '/dashboard');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
     } finally {
@@ -41,7 +46,7 @@
     magicError = '';
     magicLoading = true;
     try {
-      await sendMagicLink(magicEmail);
+      await sendMagicLink(magicEmail, next ?? undefined);
       magicSent = true;
     } catch (err) {
       magicError = err instanceof Error ? err.message : 'Fehler beim Senden';
