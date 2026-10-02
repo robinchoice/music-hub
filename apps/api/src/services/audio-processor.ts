@@ -24,6 +24,9 @@ export async function processVersion(db: Database, versionId: string) {
     // Extract metadata with ffprobe
     const metadata = await extractMetadata(originalUrl);
 
+    // Integrated loudness, so the DAW plugin can level-match versions
+    const integratedLufs = await measureLoudness(originalUrl);
+
     // Generate waveform peaks
     const peaks = await generateWaveformPeaks(originalUrl, metadata.duration);
     const waveformKey = version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json');
@@ -43,6 +46,7 @@ export async function processVersion(db: Database, versionId: string) {
         duration: metadata.duration,
         sampleRate: metadata.sampleRate,
         bitDepth: metadata.bitDepth,
+        integratedLufs,
         streamFileKey: streamKey,
         waveformDataKey: waveformKey,
       })
@@ -84,6 +88,24 @@ async function extractMetadata(url: string): Promise<{
     sampleRate: parseInt(audioStream?.sample_rate || '44100'),
     bitDepth: parseInt(audioStream?.bits_per_raw_sample || audioStream?.bits_per_sample || '16'),
   };
+}
+
+// EBU R128 integrated loudness in LUFS. ffmpeg reports -70 for silence,
+// which is "nothing to match", so that becomes null.
+async function measureLoudness(url: string): Promise<number | null> {
+  const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128', '-f', 'null', '-'], {
+    stdout: 'ignore',
+    stderr: 'pipe',
+  });
+
+  const log = await new Response(proc.stderr).text();
+  await proc.exited;
+
+  // Per-second lines carry the running value; the summary at the end is the last match
+  const last = [...log.matchAll(/\bI:\s+(-?[\d.]+) LUFS/g)].at(-1);
+  if (!last) return null;
+  const lufs = parseFloat(last[1]);
+  return lufs <= -70 ? null : lufs;
 }
 
 async function generateWaveformPeaks(url: string, duration: number): Promise<number[]> {
