@@ -59,9 +59,11 @@ export const rejectVersionSchema = z.object({
   reason: z.string().min(1, 'Begründung erforderlich').max(2000),
 });
 
+export const STEM_MIME_TYPE = /^((audio|video)\/[\w.+-]+|application\/(ogg|octet-stream))$/;
+
 export const requestStemUploadUrlSchema = z.object({
   fileName: z.string().min(1),
-  mimeType: z.string().min(1),
+  mimeType: z.string().regex(STEM_MIME_TYPE),
   fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
 });
 
@@ -69,7 +71,7 @@ export const createStemSchema = z.object({
   fileKey: z.string().min(1),
   name: z.string().min(1).max(255),
   originalFileName: z.string().min(1),
-  mimeType: z.string().min(1),
+  mimeType: z.string().regex(STEM_MIME_TYPE),
   fileSize: z.number().int().positive(),
 });
 

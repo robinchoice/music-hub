@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MAX_FILE_SIZE } from '@music-hub/shared';
+  import { MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -41,6 +41,11 @@
     const tooBig = selected.filter((f) => f.size > MAX_FILE_SIZE);
     if (tooBig.length > 0) {
       globalError = `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
+      return;
+    }
+    const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(f.type || 'audio/wav'));
+    if (notAudio.length > 0) {
+      globalError = `Kein Audio: ${notAudio.map((f) => f.name).join(', ')}`;
       return;
     }
 
