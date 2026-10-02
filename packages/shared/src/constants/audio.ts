@@ -13,6 +13,8 @@ export const SUPPORTED_EXTENSIONS = ['.wav', '.mp3', '.flac', '.aiff', '.aif'] a
 
 export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
+export const MAX_STORAGE_PER_USER = 20 * 1024 * 1024 * 1024; // 20 GB
+
 export const VERSION_STATUSES = [
   'uploaded',
   'processing',

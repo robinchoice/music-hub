@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, ne } from 'drizzle-orm';
-import { requestStemUploadUrlSchema, createStemSchema } from '@music-hub/shared';
+import { requestStemUploadUrlSchema, createStemSchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import { tracks, stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, getObjectBuffer, deleteObject } from '../storage/s3.js';
+import { createUploadUrl, getObjectBuffer, getObjectSize, deleteObject } from '../storage/s3.js';
+import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { zipSync } from 'fflate';
 import type { AppEnv } from '../types.js';
 
@@ -51,6 +52,10 @@ export const stemRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!membership || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
 
+    const used = await storageUsed(db, userId);
+    if (used + fileSize > MAX_STORAGE_PER_USER) return storageFull(c, used);
+    if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
+
     const stemId = crypto.randomUUID();
     const fileKey = `projects/${track.projectId}/tracks/${trackId}/stems/${stemId}/${fileName}`;
     const uploadUrl = await createUploadUrl(fileKey, mimeType, fileSize);
@@ -87,18 +92,29 @@ export const stemRoutes = new Hono<AppEnv>()
       .limit(1);
     if (registered) return c.json({ error: 'Forbidden' }, 403);
 
-    const [stem] = await db
-      .insert(stems)
-      .values({
-        trackId,
-        name: input.name,
-        originalFileName: input.originalFileName,
-        mimeType: input.mimeType,
-        fileSize: input.fileSize,
-        fileKey: input.fileKey,
-        createdById: userId,
-      })
-      .returning();
+    // The stored file decides the size, not what the client claims
+    const fileSize = await getObjectSize(input.fileKey);
+    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
+
+    const stem = await db.transaction(async (tx) => {
+      await lockStorage(tx, userId);
+      if ((await storageUsed(tx, userId)) + fileSize > MAX_STORAGE_PER_USER) return null;
+
+      const [stem] = await tx
+        .insert(stems)
+        .values({
+          trackId,
+          name: input.name,
+          originalFileName: input.originalFileName,
+          mimeType: input.mimeType,
+          fileSize,
+          fileKey: input.fileKey,
+          createdById: userId,
+        })
+        .returning();
+      return stem;
+    });
+    if (!stem) return storageFull(c, await storageUsed(db, userId));
 
     return c.json({ stem }, 201);
   })

@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
   PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
@@ -58,6 +59,18 @@ export async function putObject(key: string, body: string | Uint8Array, contentT
     ContentType: contentType,
   });
   await s3.send(command);
+}
+
+// Size of a stored object, or null if there is none.
+export async function getObjectSize(key: string): Promise<number | null> {
+  const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
+  try {
+    const head = await s3.send(command);
+    return head.ContentLength ?? null;
+  } catch (err) {
+    if ((err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return null;
+    throw err;
+  }
 }
 
 // Browsers upload to and stream from presigned URLs directly, so the bucket

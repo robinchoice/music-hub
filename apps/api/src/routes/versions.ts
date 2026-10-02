@@ -7,10 +7,12 @@ import {
   updateVersionSchema,
   rejectVersionSchema,
   SUPPORTED_AUDIO_FORMATS,
+  MAX_STORAGE_PER_USER,
 } from '@music-hub/shared';
 import { tracks, versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, createDownloadUrl, getObjectBuffer } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
+import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { processVersion } from '../services/audio-processor.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
 import { publish } from '../services/sse.js';
@@ -70,6 +72,10 @@ export const versionRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Forbidden' }, 403);
       }
 
+      const used = await storageUsed(db, userId);
+      if (used + fileSize > MAX_STORAGE_PER_USER) return storageFull(c, used);
+      if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
+
       const versionId = crypto.randomUUID();
       const fileKey = `projects/${track.projectId}/tracks/${trackId}/versions/${versionId}/original/${fileName}`;
 
@@ -114,31 +120,41 @@ export const versionRoutes = new Hono<AppEnv>()
       .limit(1);
     if (registered) return c.json({ error: 'Forbidden' }, 403);
 
-    // Get next version number
-    const [latest] = await db
-      .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
-      .from(versions)
-      .where(eq(versions.trackId, trackId));
+    // The stored file decides the size, not what the client claims
+    const fileSize = await getObjectSize(input.fileKey);
+    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
 
-    const versionNumber = (latest?.maxVersion ?? 0) + 1;
+    const version = await db.transaction(async (tx) => {
+      await lockStorage(tx, userId);
+      if ((await storageUsed(tx, userId)) + fileSize > MAX_STORAGE_PER_USER) return null;
 
-    const [version] = await db
-      .insert(versions)
-      .values({
-        trackId,
-        versionNumber,
-        label: input.label,
-        notes: input.notes,
-        status: 'uploaded',
-        parentVersionId: input.parentVersionId,
-        branchLabel: input.branchLabel,
-        originalFileName: input.originalFileName,
-        mimeType: input.mimeType,
-        fileSize: input.fileSize,
-        originalFileKey: input.fileKey,
-        createdById: userId,
-      })
-      .returning();
+      // Get next version number
+      const [latest] = await tx
+        .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
+        .from(versions)
+        .where(eq(versions.trackId, trackId));
+
+      const [version] = await tx
+        .insert(versions)
+        .values({
+          trackId,
+          versionNumber: (latest?.maxVersion ?? 0) + 1,
+          label: input.label,
+          notes: input.notes,
+          status: 'uploaded',
+          parentVersionId: input.parentVersionId,
+          branchLabel: input.branchLabel,
+          originalFileName: input.originalFileName,
+          mimeType: input.mimeType,
+          fileSize,
+          originalFileKey: input.fileKey,
+          createdById: userId,
+        })
+        .returning();
+      return version;
+    });
+    if (!version) return storageFull(c, await storageUsed(db, userId));
+    const { versionNumber } = version;
 
     // Background processing (fire and forget)
     processVersion(db, version.id).catch((err) =>

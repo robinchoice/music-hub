@@ -17,17 +17,17 @@ export function rateLimit(limit: number, windowMs: number) {
   }
 
   return {
-    // Counts a hit for `key`; false once it goes over the limit.
-    hit(key: string) {
+    // Counts `amount` hits for `key`; false once it goes over the limit.
+    hit(key: string, amount = 1) {
       const w = current(key);
-      if (w) return ++w.count <= limit;
-      windows.set(key, { count: 1, resetAt: Date.now() + windowMs });
-      return true;
+      if (w) return (w.count += amount) <= limit;
+      windows.set(key, { count: amount, resetAt: Date.now() + windowMs });
+      return amount <= limit;
     },
-    // Takes a hit back, e.g. once a counted attempt turned out to be valid.
-    undo(key: string) {
+    // Takes hits back, e.g. once a counted attempt turned out to be valid.
+    undo(key: string, amount = 1) {
       const w = current(key);
-      if (w && w.count > 0) w.count--;
+      if (w) w.count = Math.max(0, w.count - amount);
     },
   };
 }
