@@ -68,6 +68,13 @@
     total = selected.length;
 
     try {
+      const readable = await Promise.all(selected.map((f) => f.slice(0, 1).arrayBuffer().then(() => true, () => false)));
+      const unreadable = selected.filter((_, i) => !readable[i]);
+      if (unreadable.length > 0) {
+        error = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
+        return;
+      }
+
       // One after another: the API assigns version numbers as max + 1
       for (const [i, file] of selected.entries()) {
         current = i + 1;

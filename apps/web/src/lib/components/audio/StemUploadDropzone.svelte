@@ -50,6 +50,14 @@
     }
 
     uploading = true;
+    const readable = await Promise.all(selected.map((f) => f.slice(0, 1).arrayBuffer().then(() => true, () => false)));
+    const unreadable = selected.filter((_, i) => !readable[i]);
+    if (unreadable.length > 0) {
+      globalError = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
+      uploading = false;
+      return;
+    }
+
     files = selected.map((f) => ({ name: f.name, progress: 0, error: '' }));
 
     // Upload in batches of 3
