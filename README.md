@@ -78,9 +78,9 @@ bun db:migrate
 
 ## Deployment
 
-Läuft auf [Coolify](https://coolify.diespaetzles.lol), gebaut aus `robinchoice/music-hub` (Branch `main`).
+Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/music-hub` (Branch `main`).
 
-- **Web** (`Dockerfile.web`): [hub.diespaetzles.lol](https://hub.diespaetzles.lol)
+- **Web** (`Dockerfile.web`): [hub.pleasance.org](https://hub.pleasance.org), alte Domain hub.diespaetzles.lol parallel
 - **API** (`Dockerfile.api`): intern via `API_INTERNAL_URL`, führt Migrationen beim Start aus
 - **Datenbank:** Postgres als eigene Coolify-Ressource
 

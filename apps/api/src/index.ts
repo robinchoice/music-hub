@@ -50,10 +50,14 @@ const db = createDb(process.env.DATABASE_URL!);
   console.log('[Boot] Migrations up to date.');
 }
 
+const allowedOrigins = [
+  process.env.APP_URL || 'http://localhost:5173',
+  ...(process.env.ADDITIONAL_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+];
+
 {
-  const origin = process.env.APP_URL || 'http://localhost:5173';
-  allowBrowserAccess(origin)
-    .then(() => console.log(`[Boot] Bucket CORS allows ${origin}.`))
+  allowBrowserAccess(allowedOrigins)
+    .then(() => console.log(`[Boot] Bucket CORS allows ${allowedOrigins.join(', ')}.`))
     .catch((err) => console.error(`[Boot] Bucket CORS not updated: ${err.message}`));
 }
 
@@ -62,7 +66,7 @@ const app = new Hono<AppEnv>()
   .use(
     '*',
     cors({
-      origin: process.env.APP_URL || 'http://localhost:5173',
+      origin: allowedOrigins,
       credentials: true,
     }),
   )

@@ -1,6 +1,6 @@
 # Music Hub – Live-Betrieb
 
-Music Hub läuft produktiv auf https://hub.diespaetzles.lol. Stabilität, Sicherheit und Datenerhalt gehen vor neuen Features.
+Music Hub läuft produktiv auf https://hub.pleasance.org (bisher https://hub.diespaetzles.lol, bleibt parallel erreichbar). Stabilität, Sicherheit und Datenerhalt gehen vor neuen Features.
 
 ## Rückwärtskompatibilität
 

@@ -75,13 +75,13 @@ export async function getObjectSize(key: string): Promise<number | null> {
 
 // Browsers upload to and stream from presigned URLs directly, so the bucket
 // must allow the app's origin. Replaces any existing CORS rules.
-export async function allowBrowserAccess(origin: string): Promise<void> {
+export async function allowBrowserAccess(origins: string[]): Promise<void> {
   const command = new PutBucketCorsCommand({
     Bucket: bucket,
     CORSConfiguration: {
       CORSRules: [
         {
-          AllowedOrigins: [origin],
+          AllowedOrigins: origins,
           AllowedMethods: ['GET', 'HEAD', 'PUT'],
           AllowedHeaders: ['*'],
         },
