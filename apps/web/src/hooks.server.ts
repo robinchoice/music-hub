@@ -47,6 +47,6 @@ export const handle: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-export const handleError: HandleServerError = ({ error }) => {
-  captureException(error);
+export const handleError: HandleServerError = ({ error, status }) => {
+  if (status >= 500) captureException(error);
 };

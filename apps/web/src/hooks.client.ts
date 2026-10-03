@@ -30,6 +30,6 @@ Sentry.init({
   },
 });
 
-export const handleError: HandleClientError = ({ error }) => {
-  Sentry.captureException(error);
+export const handleError: HandleClientError = ({ error, status }) => {
+  if (status >= 500) Sentry.captureException(error);
 };
