@@ -12,7 +12,8 @@ import { build, files, version } from '$service-worker';
 const sw = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `musichub-${version}`;
 const OFFLINE_CACHE = 'musichub-offline-v1';
-const ASSETS = [...build, ...files];
+// The demo recordings of the landing page stay out of the install download
+const ASSETS = [...build, ...files.filter((file) => !file.startsWith('/demo/'))];
 
 sw.addEventListener('install', (event) => {
   event.waitUntil(

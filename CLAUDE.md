@@ -14,6 +14,10 @@ Gilt für Daten, API und URLs. Interner Code darf weiterhin direkt umgebaut werd
 - Bestehende URLs (Share-Links, Projekt- und Track-Seiten) bleiben erreichbar.
 - Secrets, an denen Daten hängen, bleiben unverändert: `MAGIC_LINK_SECRET` (Sessions), VAPID-Keys (Push-Abos), S3-Bucket.
 
+## Landingpage
+
+- Die Landingpage zeigt die echte Track-Seite im Demo-Modus und ihre Komponenten mit Beispieldaten (`apps/web/src/lib/demo`). Nutzt eine Seite einen neuen API-Endpunkt, braucht `backend.ts` dafür eine Antwort, sonst meldet die Demo „In der Demo nicht verfügbar“.
+
 ## Deploy
 
 - Jeder Push auf `main` geht sofort live. Vorher `bun run check` und `bun --bun run build` ausführen, keine neuen Fehler.

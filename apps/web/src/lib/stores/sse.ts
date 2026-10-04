@@ -1,3 +1,5 @@
+import { demoMode } from '$lib/demo/mode.js';
+
 type SseHandler = (event: { type: string; data: unknown }) => void;
 
 let es: EventSource | null = null;
@@ -5,6 +7,7 @@ let currentTrackId: string | null = null;
 let handler: SseHandler | null = null;
 
 export function connectTrackSse(trackId: string, onEvent: SseHandler): () => void {
+  if (demoMode) return () => {};
   if (currentTrackId === trackId && es?.readyState === EventSource.OPEN) {
     handler = onEvent;
     return () => disconnect();

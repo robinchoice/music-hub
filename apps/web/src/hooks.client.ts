@@ -1,8 +1,11 @@
 import type { HandleClientError } from '@sveltejs/kit';
 import * as Sentry from '@sentry/browser';
 import { env } from '$env/dynamic/public';
+import { demoMode } from '$lib/demo/mode.js';
 
 Sentry.init({
+  // The demo on the landing page answers unsupported actions with errors on purpose
+  enabled: !demoMode,
   dsn: env.PUBLIC_SENTRY_DSN,
   environment: env.PUBLIC_SENTRY_ENVIRONMENT || 'production',
   dataCollection: {

@@ -1,4 +1,5 @@
 import { toastError } from '$lib/stores/toast.js';
+import { demoMode } from '$lib/demo/mode.js';
 
 type FetchOptions = {
   method?: string;
@@ -9,6 +10,16 @@ type FetchOptions = {
 
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {}, silent = false } = options;
+
+  if (demoMode) {
+    const { demoRequest } = await import('$lib/demo/backend.js');
+    try {
+      return await demoRequest<T>(method, path, body);
+    } catch (e) {
+      if (!silent) toastError((e as Error).message);
+      throw e;
+    }
+  }
 
   const res = await fetch(`/api/v1${path}`, {
     method,
