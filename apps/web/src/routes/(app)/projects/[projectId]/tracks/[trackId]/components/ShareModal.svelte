@@ -5,6 +5,7 @@
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import { timeAgo } from '$lib/utils/format.js';
+  import AnalyticsPanel from './AnalyticsPanel.svelte';
 
   type ShareLink = {
     id: string;
@@ -149,6 +150,10 @@
         {/each}
       </ul>
     {/if}
+    <section class="listeners">
+      <h3>Hörer</h3>
+      <AnalyticsPanel {versionId} />
+    </section>
   {/if}
 
   {#snippet actions()}
@@ -318,5 +323,16 @@
   .icon-btn.danger:hover {
     color: var(--color-error);
     border-color: var(--color-error);
+  }
+
+  .listeners {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .listeners h3 {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
   }
 </style>

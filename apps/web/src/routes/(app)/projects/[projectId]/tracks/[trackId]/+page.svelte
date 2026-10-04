@@ -1,27 +1,26 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
+  import ABCompare from '$lib/components/audio/ABCompare.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import Sheet from '$lib/components/ui/Sheet.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
-  import ABCompare from '$lib/components/audio/ABCompare.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
-  import { onDestroy } from 'svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
   import { snapshotForTrack, continuationFor } from '$lib/stores/player.js';
   import { connectTrackSse } from '$lib/stores/sse.js';
   import {
-    offlineVersions,
     downloadForOffline,
     removeOffline,
     getOfflineAudioUrl,
@@ -30,46 +29,12 @@
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
   import { TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
-  import VersionInfo from './components/VersionInfo.svelte';
-  import VersionGraph from './components/VersionGraph.svelte';
+  import { predecessorOf, type Version, type TrackComment } from '$lib/utils/track.js';
+  import VersionCard from './components/VersionCard.svelte';
+  import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem } from './components/StemList.svelte';
-  import AnalyticsPanel from './components/AnalyticsPanel.svelte';
-
-  type Version = {
-    id: string;
-    versionNumber: number;
-    label: string | null;
-    notes: string | null;
-    status: string;
-    originalFileName: string;
-    duration: number | null;
-    createdAt: string;
-    parentVersionId?: string | null;
-    branchLabel?: string | null;
-  };
-
-  type GraphNode = {
-    id: string;
-    parentVersionId: string | null;
-    branchLabel: string | null;
-    versionNumber: number;
-    label: string | null;
-    status: string;
-    createdAt: string;
-  };
-
-  type Comment = {
-    id: string;
-    body: string;
-    timestampSeconds: number | null;
-    parentId: string | null;
-    resolvedAt: string | null;
-    createdAt: string;
-    guestName?: string | null;
-    user: { id: string; name: string; avatarUrl: string | null } | null;
-  };
 
   const projectId = ($page.params as Record<string, string>).projectId;
   const trackId = ($page.params as Record<string, string>).trackId;
@@ -81,12 +46,18 @@
   let trackCoverUrl = $state<string | null>(null);
   let coverEditOpen = $state(false);
   let statusMenuOpen = $state(false);
+  let trackMenuOpen = $state(false);
+  let renameOpen = $state(false);
+  let renameValue = $state('');
   let nextInitialTime = $state(0);
   let nextAutoPlay = $state(false);
   let versions = $state<Version[]>([]);
   let selectedVersion = $state<Version | null>(null);
   let streamUrl = $state('');
-  let comments = $state<Comment[]>([]);
+  let comments = $state<TrackComment[]>([]);
+  let predecessorComments = $state<TrackComment[]>([]);
+  let currentTime = $state(0);
+  let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
   let role = $state('');
   let loading = $state(true);
@@ -94,48 +65,66 @@
   let playerRef = $state<WaveformPlayer>();
   let compareVersion = $state<Version | null>(null);
   let compareStreamUrl = $state('');
-  let graphNodes = $state<GraphNode[]>([]);
   let branchFromId = $state<string | null>(null);
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
   let stems = $state<Stem[]>([]);
-  let panelTab = $state<'versions' | 'comments' | 'stems' | 'analytics'>('versions');
   let panelOpen = $state(true);
+  let isNarrow = $state(false);
+  let versionsSheetOpen = $state(false);
+  let spurenSheetOpen = $state(false);
   let editVersionOpen = $state(false);
   let editVersionLabel = $state('');
   let editVersionNotes = $state('');
   let savingVersion = $state(false);
-  let offlineDropdownOpen = $state(false);
   let offlineDownloading = $state(false);
   let offlineProgress = $state(0);
   let rejectOpen = $state(false);
   let rejectReason = $state('');
   let rejecting = $state(false);
+  let disconnectSse: (() => void) | null = null;
+  let selectSeq = 0;
 
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
   const canComment = $derived(role !== 'viewer');
+  const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
+
+  // Phones and narrow windows get one column; versions and raw tracks open as sheets there.
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)');
+    isNarrow = mq.matches;
+    const onChange = (e: MediaQueryListEvent) => {
+      isNarrow = e.matches;
+      if (!e.matches) {
+        versionsSheetOpen = false;
+        spurenSheetOpen = false;
+      }
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
+
+  onDestroy(() => disconnectSse?.());
 
   onMount(async () => {
     await initOfflineStore();
     try {
-      const [projectRes, trackVersions, tracksRes, treeRes, stemsRes] = await Promise.all([
+      const [projectRes, trackVersions, tracksRes, stemsRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
         api.get<{ tracks: { id: string; name: string; coverUrl: string | null; status: TrackStatus; section: string | null }[] }>(`/tracks/project/${projectId}`),
-        api.get<{ nodes: GraphNode[] }>(`/versions/track/${trackId}/tree`),
         api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`),
       ]);
 
       projectName = projectRes.project.name;
       role = projectRes.role;
-      const t = tracksRes.tracks.find((t) => t.id === trackId) as any;
+      const t = tracksRes.tracks.find((t) => t.id === trackId);
       trackName = t?.name || '';
       trackCoverUrl = t?.coverUrl ?? null;
-      trackStatus = (t?.status ?? 'in_progress') as TrackStatus;
+      trackStatus = t?.status ?? 'in_progress';
       trackSection = t?.section ?? null;
       versions = trackVersions.versions;
-      graphNodes = treeRes.nodes;
       stems = stemsRes.stems;
 
       if (versions.length > 0) await selectVersion(versions[0]);
@@ -143,18 +132,16 @@
       loading = false;
     }
 
-    const disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
+    disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
       if (type === 'version:new') {
         await loadVersions();
       } else if (type === 'version:status') {
-        const v = versions.find((v) => v.id === data.versionId);
-        if (v) { v.status = data.status; versions = [...versions]; }
-      } else if (type === 'comment:new' && selectedVersion?.id === data.versionId) {
-        const res = await api.get<{ comments: Comment[] }>(`/comments/version/${data.versionId}`);
-        comments = res.comments;
+        await refreshVersions();
+      } else if (type === 'comment:new') {
+        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
+        else await refreshVersions();
       }
     });
-    onDestroy(disconnectSse);
   });
 
   async function selectVersion(version: Version) {
@@ -167,23 +154,68 @@
     nextAutoPlay = cont?.autoPlay ?? false;
 
     selectedVersion = version;
+    // Only the latest selection may apply its responses, so fast switching can't mix versions
+    const seq = ++selectSeq;
 
     // Use cached audio if offline and version is downloaded
     if (!navigator.onLine && isOffline(version.id)) {
       const blobUrl = await getOfflineAudioUrl(version.id);
+      if (seq !== selectSeq) return;
       if (blobUrl) {
         streamUrl = blobUrl;
         comments = [];
+        predecessorComments = [];
         return;
       }
     }
 
-    const [streamRes, commentRes] = await Promise.all([
+    const pred = predecessorOf(version, versions);
+    const [streamRes, commentRes, predRes] = await Promise.all([
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
-      api.get<{ comments: Comment[] }>(`/comments/version/${version.id}`),
+      api.get<{ comments: TrackComment[] }>(`/comments/version/${version.id}`),
+      pred
+        ? api
+            .get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`, true)
+            .catch(() => ({ comments: [] as TrackComment[] }))
+        : Promise.resolve({ comments: [] as TrackComment[] }),
     ]);
+    if (seq !== selectSeq) return;
     streamUrl = streamRes.url;
     comments = commentRes.comments;
+    predecessorComments = predRes.comments;
+  }
+
+  // Reloads the list and selects the newest version, e.g. after an upload
+  async function loadVersions() {
+    const res = await api.get<{ versions: Version[] }>(`/versions/track/${trackId}`);
+    versions = res.versions;
+    if (versions.length > 0) await selectVersion(versions[0]);
+  }
+
+  // Reloads the list (counts, status) and keeps the current selection
+  async function refreshVersions() {
+    const res = await api.get<{ versions: Version[] }>(`/versions/track/${trackId}`);
+    versions = res.versions;
+    const id = selectedVersion?.id;
+    if (id) selectedVersion = versions.find((v) => v.id === id) ?? selectedVersion;
+  }
+
+  async function reloadComments() {
+    if (!selectedVersion) return;
+    const id = selectedVersion.id;
+    const pred = predecessor;
+    const [res, predRes] = await Promise.all([
+      api.get<{ comments: TrackComment[] }>(`/comments/version/${id}`),
+      pred
+        ? api.get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`)
+        : Promise.resolve({ comments: [] as TrackComment[] }),
+    ]);
+    // Skip if the user switched versions meanwhile; selectVersion loads the new comments
+    if (selectedVersion?.id === id) {
+      comments = res.comments;
+      predecessorComments = predRes.comments;
+    }
+    await refreshVersions();
   }
 
   async function setTrackStatus(s: TrackStatus) {
@@ -193,34 +225,55 @@
     toastSuccess(`Status: ${TRACK_STATUS_LABELS[s]}`);
   }
 
-  async function loadVersions() {
-    const [res, treeRes] = await Promise.all([
-      api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
-      api.get<{ nodes: GraphNode[] }>(`/versions/track/${trackId}/tree`),
-    ]);
-    versions = res.versions;
-    graphNodes = treeRes.nodes;
-    if (versions.length > 0) await selectVersion(versions[0]);
-  }
-
   async function handlePromote() {
     if (!selectedVersion) return;
     await api.post(`/versions/${selectedVersion.id}/promote`);
     toastSuccess('Als Hauptversion festgelegt');
-    await loadVersions();
+    await refreshVersions();
   }
 
-  function startBranch(id: string) {
-    branchFromId = id;
+  async function scrollToUpload() {
+    await tick();
+    document.querySelector('.upload-zone')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function openUpload() {
+    branchFromId = null;
     branchLabelInput = '';
     showUpload = true;
+    versionsSheetOpen = false;
+    scrollToUpload();
+  }
+
+  function startBranch() {
+    if (!selectedVersion) return;
+    branchFromId = selectedVersion.id;
+    branchLabelInput = '';
+    showUpload = true;
+    scrollToUpload();
+  }
+
+  async function revealPanel(id: string) {
+    panelOpen = true;
+    await tick();
+    document.getElementById(id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function openVersions() {
+    if (isNarrow) versionsSheetOpen = true;
+    else revealPanel('panel-versions');
+  }
+
+  function openSpuren() {
+    if (isNarrow) spurenSheetOpen = true;
+    else revealPanel('panel-spuren');
   }
 
   async function handleApprove() {
     if (!selectedVersion) return;
     await api.post(`/versions/${selectedVersion.id}/approve`);
     toastSuccess('Version freigegeben');
-    await loadVersions();
+    await refreshVersions();
   }
 
   function handleReject() {
@@ -235,47 +288,48 @@
       await api.post(`/versions/${selectedVersion.id}/reject`, { reason: rejectReason.trim() });
       rejectOpen = false;
       toastSuccess('Version abgelehnt');
-      await loadVersions();
+      await reloadComments();
     } finally {
       rejecting = false;
     }
   }
 
-  async function handleComment(body: string, timestamp: number | null, parentId?: string) {
+  async function handleComment(body: string, timestamp: number | null) {
     if (!selectedVersion) return;
     await api.post(`/comments/version/${selectedVersion.id}`, {
       body,
       timestampSeconds: timestamp ?? undefined,
-      parentId,
     });
-    const res = await api.get<{ comments: Comment[] }>(`/comments/version/${selectedVersion.id}`);
-    comments = res.comments;
+    await reloadComments();
     toastSuccess('Kommentar gespeichert');
+  }
+
+  async function handleReply(parentId: string, body: string, onCarry: boolean) {
+    const target = onCarry ? predecessor : selectedVersion;
+    if (!target) return;
+    await api.post(`/comments/version/${target.id}`, { body, parentId });
+    await reloadComments();
+  }
+
+  async function handleResolve(id: string) {
+    await api.post(`/comments/${id}/resolve`);
+    await reloadComments();
+  }
+
+  async function handleReopen(id: string) {
+    await api.post(`/comments/${id}/reopen`);
+    await reloadComments();
   }
 
   async function handleEditComment(id: string, body: string) {
     await api.patch(`/comments/${id}`, { body });
-    if (selectedVersion) {
-      const res = await api.get<{ comments: Comment[] }>(`/comments/version/${selectedVersion.id}`);
-      comments = res.comments;
-    }
+    await reloadComments();
   }
 
   async function handleDeleteComment(id: string) {
     if (!confirm('Diesen Kommentar wirklich löschen?')) return;
     await api.delete(`/comments/${id}`);
-    if (selectedVersion) {
-      const res = await api.get<{ comments: Comment[] }>(`/comments/version/${selectedVersion.id}`);
-      comments = res.comments;
-    }
-  }
-
-  async function handleResolve(commentId: string) {
-    await api.post(`/comments/${commentId}/resolve`);
-    if (selectedVersion) {
-      const res = await api.get<{ comments: Comment[] }>(`/comments/version/${selectedVersion.id}`);
-      comments = res.comments;
-    }
+    await reloadComments();
   }
 
   function handleDownload() {
@@ -297,12 +351,26 @@
   }
 
   async function saveTrackCover(key: string) {
-    const res = await api.patch<{ track: { coverImageUrl: string | null } }>(`/tracks/${trackId}`, { coverImageUrl: key });
+    await api.patch(`/tracks/${trackId}`, { coverImageUrl: key });
     // Reload list to refresh signed URL via /tracks/project/:id
     const tracksRes = await api.get<{ tracks: { id: string; coverUrl: string | null }[] }>(`/tracks/project/${projectId}`);
     trackCoverUrl = tracksRes.tracks.find((t) => t.id === trackId)?.coverUrl ?? null;
     coverEditOpen = false;
     toastSuccess('Cover gespeichert');
+  }
+
+  function openRename() {
+    renameValue = trackName;
+    renameOpen = true;
+  }
+
+  async function saveRename() {
+    const name = renameValue.trim();
+    if (!name) return;
+    await api.patch(`/tracks/${trackId}`, { name });
+    trackName = name;
+    renameOpen = false;
+    toastSuccess('Track umbenannt');
   }
 
   function openVersionEdit() {
@@ -322,7 +390,7 @@
       });
       toastSuccess('Version aktualisiert');
       editVersionOpen = false;
-      await loadVersions();
+      await refreshVersions();
     } finally {
       savingVersion = false;
     }
@@ -345,12 +413,7 @@
   function focusComment() {
     if (!playerRef) return;
     commentTimestamp = Math.round(playerRef.getCurrentTime() * 10) / 10;
-    panelTab = 'comments';
-    panelOpen = true;
-    setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement>('.comments-section input[type="text"]');
-      input?.focus();
-    }, 50);
+    commentSection?.focusComposer();
   }
 
   onKey({
@@ -368,7 +431,6 @@
 
   async function handleOfflineDownload(quality: OfflineQuality) {
     if (!selectedVersion) return;
-    offlineDropdownOpen = false;
     offlineDownloading = true;
     offlineProgress = 0;
     try {
@@ -400,7 +462,13 @@
     toastSuccess('Version gelöscht');
     await loadVersions();
   }
+
+  function handleWindowClick(e: MouseEvent) {
+    if (!(e.target as Element).closest('.track-menu-root')) trackMenuOpen = false;
+  }
 </script>
+
+<svelte:window onclick={handleWindowClick} />
 
 <TopBar
   crumbs={[
@@ -410,17 +478,14 @@
   ]}
 >
   {#snippet actions()}
-    {#if canUpload}
-      <Button size="sm" variant="ghost" onclick={() => { branchFromId = null; branchLabelInput = ''; showUpload = !showUpload; }}>
-        <Icon name="upload" size={14} /> <span class="btn-label">Hochladen</span>
-      </Button>
-    {/if}
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
       <Icon name="share" size={14} /> <span class="btn-label">Teilen</span>
     </Button>
-    <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
-      <Icon name="panel" size={16} />
-    </button>
+    {#if !isNarrow}
+      <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
+        <Icon name="panel" size={16} />
+      </button>
+    {/if}
   {/snippet}
 </TopBar>
 
@@ -431,18 +496,7 @@
         <Skeleton width="60%" height="2rem" />
         <Skeleton height="120px" variant="rect" />
       </div>
-    {:else if versions.length === 0}
-      <EmptyState
-        title="Noch keine Version"
-        description="Lade dein erstes Audio hoch — wir kümmern uns um Wellenform und Vorschau."
-      >
-        {#snippet action()}
-          {#if canUpload}
-            <Button onclick={() => (showUpload = true)}>Audio hochladen</Button>
-          {/if}
-        {/snippet}
-      </EmptyState>
-    {:else if selectedVersion && streamUrl}
+    {:else}
       <div class="track-head">
         <button class="track-cover-btn" onclick={() => canUpload && (coverEditOpen = true)} disabled={!canUpload} aria-label="Cover ändern">
           <CoverImage src={trackCoverUrl} name={trackName} size="lg" rounded="lg" />
@@ -465,129 +519,138 @@
             {#if trackSection}
               <span class="section-tag">{trackSection}</span>
             {/if}
+            <button class="chip" onclick={openVersions}>
+              <Icon name="list" size={13} /><b>{versions.length}</b> {versions.length === 1 ? 'Version' : 'Versionen'}
+            </button>
+            <button class="chip" onclick={openSpuren}>
+              <Icon name="music" size={13} /><b>{stems.length}</b> {stems.length === 1 ? 'Spur' : 'Spuren'}
+            </button>
           </div>
         </div>
-        <VersionInfo
-          version={selectedVersion}
-          {canApprove}
-          onApprove={handleApprove}
-          onReject={handleReject}
-        />
-      </div>
-
-      <div class="player-card">
-        {#key streamUrl}
-          <WaveformPlayer
-            bind:this={playerRef}
-            url={streamUrl}
-            initialTime={nextInitialTime}
-            autoPlay={nextAutoPlay}
-            markers={comments
-              .filter((c) => c.timestampSeconds !== null)
-              .map((c) => ({
-                id: c.id,
-                timestampSeconds: c.timestampSeconds!,
-                body: c.body,
-                userName: c.user?.name ?? c.guestName ?? 'Gast',
-              }))}
-            onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
-          />
-        {/key}
-      </div>
-
-      <div class="toolbar">
-        <Button variant="ghost" size="sm" onclick={handleDownload}>
-          <Icon name="download" size={14} /> Download Original
-        </Button>
-        {#if selectedVersion}
-          <div class="offline-btn-wrap">
-            {#if isOffline(selectedVersion.id)}
-              <Button variant="ghost" size="sm" onclick={handleOfflineRemove}>
-                <Icon name="cloud-check" size={14} /> Offline
-              </Button>
-            {:else if offlineDownloading}
-              <span class="offline-progress">{offlineProgress}%</span>
-            {:else}
-              <Button variant="ghost" size="sm" onclick={() => (offlineDropdownOpen = !offlineDropdownOpen)}>
-                <Icon name="cloud-download" size={14} /> Offline
-              </Button>
-            {/if}
-            {#if offlineDropdownOpen}
-              <div class="offline-dropdown" role="menu">
-                <button onclick={() => handleOfflineDownload('stream')}>
-                  <Icon name="music" size={13} /> Stream (MP3, ~3–5 MB)
-                </button>
-                <button onclick={() => handleOfflineDownload('original')}>
-                  <Icon name="download" size={13} /> Original (WAV/FLAC)
-                </button>
+        {#if canUpload || role === 'owner'}
+          <div class="track-menu-root">
+            <button class="icon-btn" title="Track-Aktionen" aria-label="Track-Aktionen" onclick={() => (trackMenuOpen = !trackMenuOpen)}>
+              <Icon name="more" size={18} />
+            </button>
+            {#if trackMenuOpen}
+              <div class="menu" role="menu">
+                {#if canUpload}
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; coverEditOpen = true; }}><Icon name="upload" size={14} /> Cover ändern</button>
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; openRename(); }}><Icon name="edit" size={14} /> Umbenennen</button>
+                {/if}
+                {#if role === 'owner'}
+                  <hr />
+                  <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> Track löschen</button>
+                {/if}
               </div>
             {/if}
           </div>
         {/if}
-        {#if canUpload}
-          <Button variant="ghost" size="sm" onclick={openVersionEdit}>
-            <Icon name="settings" size={14} /> Bearbeiten
-          </Button>
-        {/if}
-        {#if role === 'owner'}
-          <Button variant="ghost" size="sm" onclick={deleteVersion}>
-            <span class="danger-text"><Icon name="x" size={14} /> Version löschen</span>
-          </Button>
-          <Button variant="ghost" size="sm" onclick={deleteTrack}>
-            <span class="danger-text"><Icon name="x" size={14} /> Track löschen</span>
-          </Button>
-        {/if}
-        {#if canApprove && selectedVersion.branchLabel}
-          <Button variant="ghost" size="sm" onclick={handlePromote}>
-            <Icon name="arrow-up" size={14} /> Als Hauptversion
-          </Button>
-        {/if}
-        {#if versions.length > 1}
-          <select
-            class="compare-select"
-            onchange={(e) => {
-              const id = (e.target as HTMLSelectElement).value;
-              if (id) {
-                const v = versions.find((v) => v.id === id);
-                if (v) startCompare(v);
-              }
-              (e.target as HTMLSelectElement).value = '';
-            }}
-          >
-            <option value="">Vergleichen mit…</option>
-            {#each versions.filter((v) => v.id !== selectedVersion?.id) as v}
-              <option value={v.id}>V{v.versionNumber}{v.label ? ` — ${v.label}` : ''}</option>
-            {/each}
-          </select>
-        {/if}
       </div>
-    {/if}
 
-    {#if showUpload}
-      <div class="upload-zone">
-        {#if branchFromId}
-          <div class="branch-banner">
-            <span>Variante von <strong>V{graphNodes.find((n) => n.id === branchFromId)?.versionNumber}</strong></span>
-            <input
-              type="text"
-              bind:value={branchLabelInput}
-              placeholder="Name der Variante (z.B. 'andere Vocals')"
-            />
-            <button class="cancel-branch" onclick={() => (branchFromId = null)}>×</button>
-          </div>
-        {/if}
-        <UploadDropzone
-          {trackId}
-          parentVersionId={branchFromId}
-          branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
-          onUploaded={(count) => {
-            showUpload = false;
-            branchFromId = null;
-            loadVersions();
-            toastSuccess(count === 1 ? 'Version hochgeladen' : `${count} Versionen hochgeladen`);
-          }}
+      {#if showUpload}
+        <div class="upload-zone">
+          <button class="close-upload" onclick={() => { showUpload = false; branchFromId = null; }} title="Schließen" aria-label="Upload schließen">
+            <Icon name="x" size={16} />
+          </button>
+          {#if branchFromId}
+            <div class="branch-banner">
+              <span>Variante von <strong>V{versions.find((v) => v.id === branchFromId)?.versionNumber}</strong></span>
+              <input type="text" bind:value={branchLabelInput} placeholder="Name der Variante (z.B. 'andere Vocals')" />
+              <button class="cancel-branch" onclick={() => (branchFromId = null)} aria-label="Variante abbrechen">×</button>
+            </div>
+          {/if}
+          <UploadDropzone
+            {trackId}
+            parentVersionId={branchFromId}
+            branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
+            onUploaded={(count) => {
+              showUpload = false;
+              branchFromId = null;
+              loadVersions();
+              toastSuccess(count === 1 ? 'Version hochgeladen' : `${count} Versionen hochgeladen`);
+            }}
+          />
+        </div>
+      {/if}
+
+      {#if versions.length === 0}
+        <EmptyState
+          title="Noch keine Version"
+          description="Lade dein erstes Audio hoch — wir kümmern uns um Wellenform und Vorschau."
+        >
+          {#snippet action()}
+            {#if canUpload}
+              <Button onclick={openUpload}>Audio hochladen</Button>
+            {/if}
+          {/snippet}
+        </EmptyState>
+      {:else if selectedVersion && streamUrl}
+        <VersionCard
+          version={selectedVersion}
+          {versions}
+          narrow={isNarrow}
+          {canApprove}
+          {canUpload}
+          isOwner={role === 'owner'}
+          offlineAvailable={isOffline(selectedVersion.id)}
+          {offlineDownloading}
+          {offlineProgress}
+          onSelect={selectVersion}
+          onOpenVersions={() => (versionsSheetOpen = true)}
+          onUpload={openUpload}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onCompare={startCompare}
+          onEdit={openVersionEdit}
+          onDownload={handleDownload}
+          onOfflineDownload={handleOfflineDownload}
+          onOfflineRemove={handleOfflineRemove}
+          onBranch={startBranch}
+          onPromote={handlePromote}
+          onDelete={deleteVersion}
+        >
+          {#snippet player()}
+            {#key streamUrl}
+              <WaveformPlayer
+                bind:this={playerRef}
+                url={streamUrl}
+                initialTime={nextInitialTime}
+                autoPlay={nextAutoPlay}
+                markers={comments
+                  .filter((c) => c.timestampSeconds !== null)
+                  .map((c) => ({
+                    id: c.id,
+                    timestampSeconds: c.timestampSeconds!,
+                    body: c.body,
+                    userName: c.user?.name ?? c.guestName ?? 'Gast',
+                  }))}
+                onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
+                onSeek={(time) => (currentTime = time)}
+              />
+            {/key}
+          {/snippet}
+        </VersionCard>
+
+        <CommentSection
+          bind:this={commentSection}
+          versionLabel={`V${selectedVersion.versionNumber}`}
+          {comments}
+          carryLabel={predecessor ? `V${predecessor.versionNumber}` : null}
+          carryComments={predecessorComments}
+          {canComment}
+          currentUserId={$user?.id ?? null}
+          {currentTime}
+          bind:commentTimestamp
+          onSubmit={handleComment}
+          onReply={handleReply}
+          onResolve={handleResolve}
+          onReopen={handleReopen}
+          onEdit={handleEditComment}
+          onDelete={handleDeleteComment}
+          onSeek={(time) => playerRef?.seekToTime(time)}
         />
-      </div>
+      {/if}
     {/if}
 
     {#if compareVersion && compareStreamUrl && selectedVersion && streamUrl}
@@ -603,65 +666,38 @@
     {/if}
   </main>
 
-  {#if panelOpen}
+  {#if panelOpen && !isNarrow}
     <aside class="side-panel">
-      <div class="tabs">
-        <button class:active={panelTab === 'versions'} onclick={() => (panelTab = 'versions')}>
-          Versionen <span class="badge">{versions.length}</span>
-        </button>
-        <button class:active={panelTab === 'comments'} onclick={() => (panelTab = 'comments')}>
-          Kommentare <span class="badge">{comments.length}</span>
-        </button>
-        <button class:active={panelTab === 'stems'} onclick={() => (panelTab = 'stems')}>
-          STEMs <span class="badge">{stems.length}</span>
-        </button>
-        <button class:active={panelTab === 'analytics'} onclick={() => (panelTab = 'analytics')}>
-          Analytik
-        </button>
-      </div>
-
-      <div class="panel-body">
-        {#if panelTab === 'versions'}
-          {#if graphNodes.length === 0}
-            <p class="muted">Noch keine Versionen.</p>
-          {:else}
-            <VersionGraph
-              nodes={graphNodes}
-              selectedId={selectedVersion?.id ?? null}
-              onSelect={(id) => {
-                const v = versions.find((v) => v.id === id);
-                if (v) selectVersion(v);
-              }}
-              onBranch={canUpload ? startBranch : undefined}
-            />
-          {/if}
-        {:else if panelTab === 'stems'}
-          <StemList
-            {trackId}
-            bind:stems
-            {canUpload}
-            currentUserId={$user?.id ?? null}
-            {role}
-          />
-        {:else if panelTab === 'analytics' && selectedVersion}
-          <AnalyticsPanel versionId={selectedVersion.id} />
-        {:else if selectedVersion}
-          <CommentSection
-            {comments}
-            {canComment}
-            currentUserId={$user?.id ?? null}
-            bind:commentTimestamp
-            onSubmit={handleComment}
-            onResolve={handleResolve}
-            onEdit={handleEditComment}
-            onDelete={handleDeleteComment}
-            onSeek={(time) => playerRef?.seekToTime(time)}
-          />
-        {/if}
-      </div>
+      <section id="panel-versions" class="panel-section versions">
+        <VersionList
+          {versions}
+          selectedId={selectedVersion?.id ?? null}
+          {canUpload}
+          onSelect={selectVersion}
+          onUpload={openUpload}
+        />
+      </section>
+      <section id="panel-spuren" class="panel-section spuren">
+        <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+      </section>
     </aside>
   {/if}
 </div>
+
+{#if isNarrow}
+  <Sheet bind:open={versionsSheetOpen} title="Versionen">
+    <VersionList
+      {versions}
+      selectedId={selectedVersion?.id ?? null}
+      {canUpload}
+      onSelect={(v) => { versionsSheetOpen = false; selectVersion(v); }}
+      onUpload={openUpload}
+    />
+  </Sheet>
+  <Sheet bind:open={spurenSheetOpen} title="Spuren">
+    <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+  </Sheet>
+{/if}
 
 {#if selectedVersion}
   <ShareModal bind:open={shareOpen} versionId={selectedVersion.id} />
@@ -671,19 +707,12 @@
   <div class="edit-form">
     <label>
       <span class="lbl">Begründung <span style="color: var(--color-error)">*</span></span>
-      <textarea
-        bind:value={rejectReason}
-        rows="4"
-        placeholder="Was muss geändert werden? (Pflichtfeld)"
-        autofocus
-      ></textarea>
+      <textarea bind:value={rejectReason} rows="4" placeholder="Was muss geändert werden? (Pflichtfeld)"></textarea>
     </label>
   </div>
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (rejectOpen = false)}>Abbrechen</Button>
-    <Button onclick={submitReject} loading={rejecting} disabled={!rejectReason.trim()}>
-      Ablehnen
-    </Button>
+    <Button onclick={submitReject} loading={rejecting} disabled={!rejectReason.trim()}>Ablehnen</Button>
   {/snippet}
 </Modal>
 
@@ -693,6 +722,19 @@
   </div>
   {#snippet actions()}
     <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={renameOpen} title="Track umbenennen">
+  <form class="edit-form" onsubmit={(e) => { e.preventDefault(); saveRename(); }}>
+    <label>
+      <span class="lbl">Name</span>
+      <input type="text" bind:value={renameValue} maxlength="255" />
+    </label>
+  </form>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (renameOpen = false)}>Abbrechen</Button>
+    <Button onclick={saveRename} disabled={!renameValue.trim()}>Speichern</Button>
   {/snippet}
 </Modal>
 
@@ -746,7 +788,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-4);
-    flex-wrap: wrap;
   }
   .track-head h1 {
     margin: 0;
@@ -768,6 +809,7 @@
   .meta-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
     position: relative;
   }
@@ -817,6 +859,29 @@
     padding: 3px 8px;
     border-radius: var(--radius-full);
   }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-raised);
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chip b {
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+  .chip:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-focus);
+  }
   .track-cover-btn {
     background: none;
     border: none;
@@ -837,40 +902,66 @@
     padding: var(--space-3) 0;
   }
 
-  .player-card {
-    background: var(--color-bg-raised);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-5);
+  .track-menu-root {
+    position: relative;
+    align-self: flex-start;
   }
-  @media (max-width: 540px) {
-    .player-card {
-      padding: var(--space-3);
-    }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
   }
-
-  .toolbar {
+  .icon-btn:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+  }
+  .menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: var(--z-dropdown);
+    min-width: 220px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+  .menu button {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    flex-wrap: wrap;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
   }
-  @media (max-width: 640px) {
-    .toolbar :global(.btn) {
-      flex: 1 0 calc(50% - var(--space-1));
-      min-width: 0;
-      justify-content: center;
-    }
-    .toolbar .compare-select {
-      flex: 1 0 100%;
-    }
+  .menu button:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
   }
-
-  .danger-text {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  .menu .danger {
     color: var(--color-error);
+  }
+  .menu hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 4px;
   }
 
   .edit-form {
@@ -907,25 +998,32 @@
     box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
   }
 
-  .compare-select {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-raised);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .compare-select:hover {
-    border-color: var(--color-border-hover);
-  }
-
   .upload-zone {
+    position: relative;
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-5);
+    /* scrollIntoView stops below the sticky TopBar (65px) instead of under it */
+    scroll-margin-top: calc(65px + var(--space-4));
+  }
+  .close-upload {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+  }
+  .close-upload:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
   }
   .branch-banner {
     display: flex;
@@ -969,74 +1067,41 @@
     padding: var(--space-6);
   }
 
-  /* SIDE PANEL */
+  /* The page scrolls as a whole; the panel sticks below the TopBar (65px high) so the raw tracks stay in view. */
   .side-panel {
+    position: sticky;
+    top: 65px;
+    align-self: flex-start;
+    height: calc(100vh - 65px);
     width: 320px;
     flex-shrink: 0;
     border-left: 1px solid var(--color-border);
     background: var(--color-bg-raised);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-section {
+    padding: var(--space-5) var(--space-4) var(--space-4);
+  }
+  .panel-section + .panel-section {
+    border-top: 1px solid var(--color-border);
+  }
+  .panel-section.versions {
+    flex: 0 1 auto;
     min-height: 0;
-  }
-
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid var(--color-border);
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tabs::-webkit-scrollbar {
-    display: none;
-  }
-  .tabs button {
-    flex: 1;
-    min-width: max-content;
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    padding: var(--space-4) var(--space-3);
-    cursor: pointer;
-    font-family: inherit;
-    font-size: var(--text-sm);
-    font-weight: 500;
-    border-bottom: 2px solid transparent;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    white-space: nowrap;
-  }
-  .tabs button:hover {
-    color: var(--color-text-primary);
-  }
-  .tabs button.active {
-    color: var(--color-text-primary);
-    border-bottom-color: var(--color-accent);
-  }
-  .badge {
-    background: var(--color-bg-subtle);
-    color: var(--color-text-tertiary);
-    padding: 0.05rem 0.45rem;
-    border-radius: var(--radius-full);
-    font-size: var(--text-xs);
-    font-variant-numeric: tabular-nums;
-  }
-  .tabs button.active .badge {
-    background: var(--color-accent-subtle);
-    color: var(--color-accent);
-  }
-
-  .panel-body {
-    flex: 1;
     overflow-y: auto;
-    padding: var(--space-5);
   }
-  .muted {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-sm);
+  .panel-section.spuren {
+    flex: 1 1 auto;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 1180px) {
+    .side-panel {
+      width: 280px;
+    }
   }
 
   @media (max-width: 480px) {
@@ -1064,68 +1129,5 @@
     color: var(--color-accent);
     border-color: var(--color-accent);
     background: var(--color-accent-subtle);
-  }
-
-  @media (max-width: 1180px) {
-    .side-panel {
-      width: 280px;
-    }
-  }
-  @media (max-width: 1024px) {
-    .track-workspace {
-      flex-direction: column;
-    }
-    .side-panel {
-      width: 100%;
-      border-left: none;
-      border-top: 1px solid var(--color-border);
-    }
-  }
-
-  .offline-btn-wrap {
-    position: relative;
-  }
-
-  .offline-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    z-index: 20;
-    background: var(--color-bg-overlay);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    box-shadow: var(--shadow-md);
-    white-space: nowrap;
-  }
-
-  .offline-dropdown button {
-    background: none;
-    border: none;
-    padding: 8px 12px;
-    text-align: left;
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .offline-dropdown button:hover {
-    background: var(--color-bg-raised);
-    color: var(--color-text-primary);
-  }
-
-  .offline-progress {
-    font-size: var(--text-sm);
-    color: var(--color-text-tertiary);
-    padding: 0 var(--space-2);
-    font-variant-numeric: tabular-nums;
   }
 </style>

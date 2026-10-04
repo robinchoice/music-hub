@@ -15,16 +15,16 @@ export function timeAgo(dateStr: string): string {
   const diff = now - then;
 
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return 'gerade eben';
 
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `vor ${minutes} Min.`;
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `vor ${hours} Std.`;
 
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return days === 1 ? 'gestern' : `vor ${days} Tagen`;
 
   return new Date(dateStr).toLocaleDateString('de-DE', {
     day: '2-digit',

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
-  import { formatFileSize } from '$lib/utils/format.js';
+  import { formatFileSize, timeAgo } from '$lib/utils/format.js';
+  import { spurDisplayName, compareSpurNames } from '$lib/utils/track.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
@@ -18,12 +19,14 @@
 
   let {
     trackId,
+    trackName,
     stems = $bindable<Stem[]>([]),
     canUpload,
     currentUserId,
     role,
   }: {
     trackId: string;
+    trackName: string;
     stems: Stem[];
     canUpload: boolean;
     currentUserId: string | null;
@@ -32,6 +35,16 @@
 
   let showUpload = $state(false);
   let deleting = $state<string | null>(null);
+
+  const rows = $derived(
+    stems
+      .map((stem) => ({ stem, label: spurDisplayName(stem.name, trackName) }))
+      .sort((a, b) => compareSpurNames(a.label, b.label)),
+  );
+  const totalSize = $derived(stems.reduce((sum, s) => sum + s.fileSize, 0));
+  const lastUpload = $derived(
+    stems.reduce<string | null>((latest, s) => (!latest || s.createdAt > latest ? s.createdAt : latest), null),
+  );
 
   async function loadStems() {
     const res = await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`);
@@ -52,32 +65,46 @@
     URL.revokeObjectURL(url);
   }
 
-  async function deleteStem(id: string, name: string) {
-    if (!confirm(`Stem "${name}" wirklich löschen?`)) return;
-    deleting = id;
+  async function downloadStem(stem: Stem) {
+    const res = await api.get<{ url: string }>(`/stems/${stem.id}/download-url`);
+    window.location.href = res.url;
+  }
+
+  async function deleteStem(stem: Stem, label: string) {
+    if (!confirm(`Spur „${label}“ wirklich löschen?`)) return;
+    deleting = stem.id;
     try {
-      await api.delete(`/stems/${id}`);
-      stems = stems.filter((s) => s.id !== id);
-      toastSuccess('Stem gelöscht');
+      await api.delete(`/stems/${stem.id}`);
+      stems = stems.filter((s) => s.id !== stem.id);
+      toastSuccess('Spur gelöscht');
     } finally {
       deleting = null;
     }
   }
 </script>
 
-<div class="stems">
-  <div class="stems-header">
-    {#if stems.length > 0}
-      <Button variant="ghost" size="sm" onclick={downloadZip}>
-        <Icon name="download" size={14} /> Alle als ZIP
-      </Button>
-    {/if}
+<div class="spuren">
+  <div class="head">
+    <h2>Spuren</h2>
+    <span class="count">{stems.length}</span>
     {#if canUpload}
-      <Button variant="ghost" size="sm" onclick={() => (showUpload = !showUpload)}>
-        <Icon name="upload" size={14} /> {showUpload ? 'Schließen' : 'STEMs hochladen'}
-      </Button>
+      <button
+        class="icon-btn"
+        onclick={() => (showUpload = !showUpload)}
+        title={showUpload ? 'Upload schließen' : 'Spuren hochladen'}
+        aria-label={showUpload ? 'Upload schließen' : 'Spuren hochladen'}
+      >
+        <Icon name={showUpload ? 'x' : 'upload'} size={15} />
+      </button>
     {/if}
   </div>
+
+  {#if stems.length > 0}
+    <p class="summary">{formatFileSize(totalSize)}{lastUpload ? ` · zuletzt ${timeAgo(lastUpload)}` : ''}</p>
+    <div class="zip">
+      <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP laden</Button>
+    </div>
+  {/if}
 
   {#if showUpload}
     <div class="upload-box">
@@ -85,7 +112,7 @@
         {trackId}
         onUploaded={async () => {
           await loadStems();
-          toastSuccess('STEMs hochgeladen');
+          toastSuccess('Spuren hochgeladen');
           showUpload = false;
         }}
       />
@@ -93,24 +120,31 @@
   {/if}
 
   {#if stems.length === 0 && !showUpload}
-    <p class="empty">Noch keine STEMs hochgeladen.</p>
+    <div class="empty">
+      <p>Noch keine Spuren.</p>
+      {#if canUpload}
+        <Button size="sm" onclick={() => (showUpload = true)}><Icon name="upload" size={14} /> Spuren hochladen</Button>
+      {/if}
+    </div>
   {:else}
-    <ul class="stem-list">
-      {#each stems as stem (stem.id)}
-        <li class="stem-item">
-          <span class="stem-icon"><Icon name="music" size={14} /></span>
-          <div class="stem-info">
-            <span class="stem-name">{stem.name}</span>
-            <span class="stem-meta">{stem.originalFileName} · {formatFileSize(stem.fileSize)}</span>
-          </div>
+    <ul class="list">
+      {#each rows as { stem, label } (stem.id)}
+        <li title={stem.originalFileName}>
+          <Icon name="music" size={13} />
+          <span class="name">{label}</span>
+          <span class="size">{formatFileSize(stem.fileSize)}</span>
+          <button class="row-btn" onclick={() => downloadStem(stem)} title="Herunterladen" aria-label={`${label} herunterladen`}>
+            <Icon name="download" size={13} />
+          </button>
           {#if role === 'owner' || stem.createdById === currentUserId}
             <button
-              class="delete-btn"
-              onclick={() => deleteStem(stem.id, stem.name)}
+              class="row-btn delete"
+              onclick={() => deleteStem(stem, label)}
               disabled={deleting === stem.id}
-              title="Stem löschen"
+              title="Löschen"
+              aria-label={`${label} löschen`}
             >
-              <Icon name="x" size={12} />
+              <Icon name="trash" size={13} />
             </button>
           {/if}
         </li>
@@ -120,103 +154,164 @@
 </div>
 
 <style>
-  .stems {
+  .spuren {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
+    min-height: 0;
+    height: 100%;
   }
 
-  .stems-header {
+  .head {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
-    flex-wrap: wrap;
+  }
+
+  .head h2 {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+
+  .count {
+    padding: 1px 8px;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-full);
+  }
+
+  .icon-btn {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+
+  .icon-btn:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  .summary {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .zip :global(.btn) {
+    width: 100%;
+    justify-content: center;
   }
 
   .upload-box {
+    padding: var(--space-4);
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: var(--space-4);
   }
 
   .empty {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-sm);
-  }
-
-  .stem-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--color-text-tertiary);
   }
 
-  .stem-item {
+  .empty p {
+    margin: 0;
+  }
+
+  .list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0 calc(-1 * var(--space-2));
+    padding: 0;
+  }
+
+  .list li {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    transition: border-color var(--transition-fast);
+    padding: 6px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
   }
 
-  .stem-item:hover {
-    border-color: var(--color-border-hover);
+  .list li:hover {
+    background: var(--color-bg-subtle);
   }
 
-  .stem-icon {
-    color: var(--color-text-tertiary);
+  .list li > :global(svg) {
     flex-shrink: 0;
+    color: var(--color-text-tertiary);
   }
 
-  .stem-info {
+  .name {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .stem-name {
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--color-text-primary);
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .stem-meta {
+  .size {
     font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
     color: var(--color-text-tertiary);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .delete-btn {
-    background: none;
+  .row-btn {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: inline-grid;
+    place-items: center;
     border: none;
+    border-radius: var(--radius-sm);
+    background: none;
     color: var(--color-text-tertiary);
     cursor: pointer;
-    padding: var(--space-1);
-    border-radius: var(--radius-sm);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    transition: color var(--transition-fast);
   }
 
-  .delete-btn:hover {
+  .row-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-overlay);
+  }
+
+  .row-btn.delete {
+    opacity: 0;
+  }
+
+  .list li:hover .row-btn.delete,
+  .row-btn.delete:focus-visible {
+    opacity: 1;
+  }
+
+  .row-btn.delete:hover {
     color: var(--color-error);
   }
 
-  .delete-btn:disabled {
-    opacity: 0.5;
+  .row-btn:disabled {
+    opacity: 0.4;
     cursor: default;
+  }
+
+  @media (hover: none) {
+    .row-btn.delete {
+      opacity: 1;
+    }
   }
 </style>

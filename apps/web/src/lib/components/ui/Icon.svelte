@@ -8,7 +8,7 @@
     | 'chevron-down' | 'chevron-right' | 'more' | 'home' | 'panel' | 'panel-off'
     | 'git-branch' | 'arrow-up' | 'compare' | 'comment' | 'lock' | 'link'
     | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music'
-    | 'cloud-download' | 'cloud-check';
+    | 'cloud-download' | 'cloud-check' | 'trash' | 'clock' | 'edit';
 
   let {
     name,
@@ -146,6 +146,18 @@
   {:else if name === 'cloud-check'}
     <polyline points="20 6 9 17 4 12" />
     <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z" />
+  {:else if name === 'trash'}
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  {:else if name === 'clock'}
+    <circle cx="12" cy="12" r="9" />
+    <polyline points="12 7 12 12 15 14" />
+  {:else if name === 'edit'}
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
   {/if}
 </svg>
 
