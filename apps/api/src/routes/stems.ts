@@ -4,7 +4,7 @@ import { eq, and, asc, ne } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import { tracks, stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, getObjectBuffer, getObjectSize, deleteObject } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, deleteObject } from '../storage/s3.js';
 import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { zipSync } from 'fflate';
 import type { AppEnv } from '../types.js';
@@ -117,6 +117,28 @@ export const stemRoutes = new Hono<AppEnv>()
     if (!stem) return storageFull(c, await storageUsed(db, userId));
 
     return c.json({ stem }, 201);
+  })
+
+  .get('/:id/download-url', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const stemId = c.req.param('id');
+
+    const [stem] = await db.select().from(stems).where(eq(stems.id, stemId)).limit(1);
+    if (!stem) return c.json({ error: 'Not found' }, 404);
+
+    const [track] = await db.select().from(tracks).where(eq(tracks.id, stem.trackId)).limit(1);
+    if (!track) return c.json({ error: 'Not found' }, 404);
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
+
+    const url = await createDownloadUrl(stem.fileKey, 3600, stem.originalFileName);
+    return c.json({ url });
   })
 
   .delete('/:id', async (c) => {

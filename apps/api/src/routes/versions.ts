@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray, isNull } from 'drizzle-orm';
 import {
   requestUploadUrlSchema,
   createVersionSchema,
@@ -17,6 +17,9 @@ import { processVersion } from '../services/audio-processor.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
 import { publish } from '../services/sse.js';
 import type { AppEnv } from '../types.js';
+
+// The reject route stores the reason as a comment with this prefix; the version list reads it back.
+const REJECTION_PREFIX = '❌ Abgelehnt: ';
 
 export const versionRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -44,7 +47,37 @@ export const versionRoutes = new Hono<AppEnv>()
       .where(eq(versions.trackId, trackId))
       .orderBy(desc(versions.versionNumber));
 
-    return c.json({ versions: trackVersions });
+    const versionIds = trackVersions.map((v) => v.id);
+    const topLevel = versionIds.length
+      ? await db
+          .select({
+            versionId: comments.versionId,
+            body: comments.body,
+            resolvedAt: comments.resolvedAt,
+          })
+          .from(comments)
+          .where(and(inArray(comments.versionId, versionIds), isNull(comments.parentId)))
+          .orderBy(desc(comments.createdAt))
+      : [];
+
+    const openCount = new Map<string, number>();
+    const rejectionReason = new Map<string, string>();
+    for (const comment of topLevel) {
+      if (!comment.resolvedAt) {
+        openCount.set(comment.versionId, (openCount.get(comment.versionId) ?? 0) + 1);
+      }
+      if (comment.body.startsWith(REJECTION_PREFIX) && !rejectionReason.has(comment.versionId)) {
+        rejectionReason.set(comment.versionId, comment.body.slice(REJECTION_PREFIX.length));
+      }
+    }
+
+    return c.json({
+      versions: trackVersions.map((v) => ({
+        ...v,
+        openCommentCount: openCount.get(v.id) ?? 0,
+        rejectionReason: v.status === 'rejected' ? (rejectionReason.get(v.id) ?? null) : null,
+      })),
+    });
   })
 
   // Request presigned upload URL
@@ -544,7 +577,7 @@ export const versionRoutes = new Hono<AppEnv>()
     await db.insert(comments).values({
       versionId,
       userId,
-      body: `❌ Abgelehnt: ${reason}`,
+      body: `${REJECTION_PREFIX}${reason}`,
       timestampSeconds: null,
       parentId: null,
     });

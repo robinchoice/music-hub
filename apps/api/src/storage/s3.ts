@@ -37,10 +37,14 @@ export async function createUploadUrl(
   return getSignedUrl(s3, command, { expiresIn: 900, signableHeaders: new Set(['content-type']) }); // 15 min
 }
 
-export async function createDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+export async function createDownloadUrl(key: string, expiresIn = 3600, downloadName?: string): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
+    // Makes the browser save the file instead of playing it in a new tab
+    ResponseContentDisposition: downloadName
+      ? `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+      : undefined,
   });
   return getSignedUrl(s3, command, { expiresIn });
 }
