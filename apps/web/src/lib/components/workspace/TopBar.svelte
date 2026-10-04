@@ -68,6 +68,9 @@
     color: var(--color-text-tertiary);
     text-decoration: none;
     transition: color var(--transition-fast);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .crumbs a:hover {
     color: var(--color-text-primary);
@@ -128,6 +131,9 @@
     .topbar {
       padding: var(--space-3);
       gap: var(--space-2);
+    }
+    .crumbs a:last-of-type {
+      display: none;
     }
   }
 </style>

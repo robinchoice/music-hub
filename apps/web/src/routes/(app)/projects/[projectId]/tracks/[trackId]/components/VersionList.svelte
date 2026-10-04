@@ -7,42 +7,37 @@
     versions,
     selectedId,
     canUpload = false,
+    head = false,
     onSelect,
     onUpload,
   }: {
     versions: Version[];
     selectedId: string | null;
     canUpload?: boolean;
+    head?: boolean;
     onSelect: (version: Version) => void;
     onUpload?: () => void;
   } = $props();
-
-  // From six versions on only the five newest stay visible, so the raw tracks below stay in view.
-  const VISIBLE = 5;
-  let showOlder = $state(false);
-  const collapsible = $derived(versions.length > VISIBLE);
-  const selectedIsOlder = $derived(versions.findIndex((v) => v.id === selectedId) >= VISIBLE);
-  const shown = $derived(
-    collapsible && !showOlder && !selectedIsOlder ? versions.slice(0, VISIBLE) : versions,
-  );
 
   const numberOf = (id: string | null) => versions.find((v) => v.id === id)?.versionNumber;
 </script>
 
 <div class="version-list">
-  <div class="head">
-    <span class="cap">Versionen</span>
-    <span class="count">{versions.length}</span>
-    {#if canUpload && onUpload}
-      <button class="text-btn" onclick={onUpload}><Icon name="upload" size={13} /> Neue Version</button>
-    {/if}
-  </div>
+  {#if head}
+    <div class="head">
+      <span class="cap">Versionen</span>
+      <span class="count">{versions.length}</span>
+      {#if canUpload && onUpload}
+        <button class="text-btn" onclick={onUpload}><Icon name="upload" size={13} /> Neue Version</button>
+      {/if}
+    </div>
+  {/if}
 
   {#if versions.length === 0}
     <p class="empty">Noch keine Versionen.</p>
   {:else}
     <ul>
-      {#each shown as v (v.id)}
+      {#each versions as v (v.id)}
         <li>
           <button
             class="row"
@@ -73,12 +68,10 @@
         </li>
       {/each}
     </ul>
-    {#if collapsible && !selectedIsOlder}
-      <button class="older" onclick={() => (showOlder = !showOlder)}>
-        <Icon name={showOlder ? 'chevron-down' : 'chevron-right'} size={13} />
-        {showOlder ? 'Ältere ausblenden' : `${versions.length - VISIBLE} ältere Versionen`}
-      </button>
-    {/if}
+  {/if}
+
+  {#if !head && canUpload && onUpload}
+    <button class="add" onclick={onUpload}><Icon name="upload" size={14} /> Neue Version hochladen</button>
   {/if}
 </div>
 
@@ -257,21 +250,24 @@
     white-space: nowrap;
   }
 
-  .older {
-    display: inline-flex;
+  .add {
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    margin-top: var(--space-1);
-    padding: 6px var(--space-2);
-    border: none;
+    height: 36px;
+    margin-top: var(--space-2);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-md);
     background: none;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
     font-family: inherit;
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     cursor: pointer;
   }
 
-  .older:hover {
+  .add:hover {
+    border-color: var(--color-accent);
     color: var(--color-text-primary);
   }
 </style>

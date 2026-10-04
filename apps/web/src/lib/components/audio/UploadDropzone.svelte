@@ -186,7 +186,7 @@
       <div class="dropzone-content">
         <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
         <p>Audio-Dateien hier ablegen oder klicken zum Auswählen</p>
-        <span class="formats">Jede Datei wird eine eigene Version · WAV, MP3, FLAC, AIFF — max 500 MB</span>
+        <span class="formats">WAV, MP3, FLAC, AIFF — max 500 MB</span>
       </div>
     {/if}
   </div>

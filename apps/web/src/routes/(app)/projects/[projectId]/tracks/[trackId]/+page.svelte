@@ -70,9 +70,9 @@
   let shareOpen = $state(false);
   let stems = $state<Stem[]>([]);
   let panelOpen = $state(true);
+  let panelTab = $state<'versions' | 'spuren'>('versions');
   let isNarrow = $state(false);
-  let versionsSheetOpen = $state(false);
-  let spurenSheetOpen = $state(false);
+  let sheetOpen = $state(false);
   let editVersionOpen = $state(false);
   let editVersionLabel = $state('');
   let editVersionNotes = $state('');
@@ -89,17 +89,15 @@
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
   const canComment = $derived(role !== 'viewer');
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
+  const nextVersionNumber = $derived(versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1);
 
-  // Phones and narrow windows get one column; versions and raw tracks open as sheets there.
+  // Phones and narrow windows get one column; versions and raw tracks open as a sheet there.
   $effect(() => {
     const mq = window.matchMedia('(max-width: 1024px)');
     isNarrow = mq.matches;
     const onChange = (e: MediaQueryListEvent) => {
       isNarrow = e.matches;
-      if (!e.matches) {
-        versionsSheetOpen = false;
-        spurenSheetOpen = false;
-      }
+      if (!e.matches) sheetOpen = false;
     };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
@@ -241,7 +239,7 @@
     branchFromId = null;
     branchLabelInput = '';
     showUpload = true;
-    versionsSheetOpen = false;
+    sheetOpen = false;
     scrollToUpload();
   }
 
@@ -253,20 +251,10 @@
     scrollToUpload();
   }
 
-  async function revealPanel(id: string) {
-    panelOpen = true;
-    await tick();
-    document.getElementById(id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
-  function openVersions() {
-    if (isNarrow) versionsSheetOpen = true;
-    else revealPanel('panel-versions');
-  }
-
-  function openSpuren() {
-    if (isNarrow) spurenSheetOpen = true;
-    else revealPanel('panel-spuren');
+  function showPanel(tab: 'versions' | 'spuren') {
+    panelTab = tab;
+    if (isNarrow) sheetOpen = true;
+    else panelOpen = true;
   }
 
   async function handleApprove() {
@@ -481,6 +469,11 @@
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
       <Icon name="share" size={14} /> <span class="btn-label">Teilen</span>
     </Button>
+    {#if canUpload}
+      <Button size="sm" onclick={openUpload}>
+        <Icon name="upload" size={14} /> Neue Version
+      </Button>
+    {/if}
     {#if !isNarrow}
       <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
         <Icon name="panel" size={16} />
@@ -519,10 +512,10 @@
             {#if trackSection}
               <span class="section-tag">{trackSection}</span>
             {/if}
-            <button class="chip" onclick={openVersions}>
+            <button class="chip" class:on={!isNarrow && panelOpen && panelTab === 'versions'} onclick={() => showPanel('versions')}>
               <Icon name="list" size={13} /><b>{versions.length}</b> {versions.length === 1 ? 'Version' : 'Versionen'}
             </button>
-            <button class="chip" onclick={openSpuren}>
+            <button class="chip" class:on={!isNarrow && panelOpen && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
               <Icon name="music" size={13} /><b>{stems.length}</b> {stems.length === 1 ? 'Spur' : 'Spuren'}
             </button>
           </div>
@@ -553,6 +546,10 @@
           <button class="close-upload" onclick={() => { showUpload = false; branchFromId = null; }} title="Schließen" aria-label="Upload schließen">
             <Icon name="x" size={16} />
           </button>
+          <p class="upload-title">
+            <b>{branchFromId ? 'Variante hochladen' : 'Neue Version hochladen'}</b>
+            <span>wird V{nextVersionNumber} · jede Datei wird eine eigene Version</span>
+          </p>
           {#if branchFromId}
             <div class="branch-banner">
               <span>Variante von <strong>V{versions.find((v) => v.id === branchFromId)?.versionNumber}</strong></span>
@@ -597,7 +594,7 @@
           {offlineDownloading}
           {offlineProgress}
           onSelect={selectVersion}
-          onOpenVersions={() => (versionsSheetOpen = true)}
+          onOpenVersions={() => showPanel('versions')}
           onUpload={openUpload}
           onApprove={handleApprove}
           onReject={handleReject}
@@ -668,34 +665,49 @@
 
   {#if panelOpen && !isNarrow}
     <aside class="side-panel">
-      <section id="panel-versions" class="panel-section versions">
-        <VersionList
-          {versions}
-          selectedId={selectedVersion?.id ?? null}
-          {canUpload}
-          onSelect={selectVersion}
-          onUpload={openUpload}
-        />
-      </section>
-      <section id="panel-spuren" class="panel-section spuren">
-        <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
-      </section>
+      <div class="panel-tabs">{@render tabSwitch()}</div>
+      <div class="panel-body">
+        {#if panelTab === 'versions'}
+          <VersionList
+            {versions}
+            selectedId={selectedVersion?.id ?? null}
+            {canUpload}
+            onSelect={selectVersion}
+            onUpload={openUpload}
+          />
+        {:else}
+          <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+        {/if}
+      </div>
     </aside>
   {/if}
 </div>
 
+{#snippet tabSwitch()}
+  <div class="tab-switch" role="tablist">
+    <button role="tab" aria-selected={panelTab === 'versions'} class:on={panelTab === 'versions'} onclick={() => (panelTab = 'versions')}>
+      Versionen <i>{versions.length}</i>
+    </button>
+    <button role="tab" aria-selected={panelTab === 'spuren'} class:on={panelTab === 'spuren'} onclick={() => (panelTab = 'spuren')}>
+      Spuren <i>{stems.length}</i>
+    </button>
+  </div>
+{/snippet}
+
 {#if isNarrow}
-  <Sheet bind:open={versionsSheetOpen} title="Versionen">
-    <VersionList
-      {versions}
-      selectedId={selectedVersion?.id ?? null}
-      {canUpload}
-      onSelect={(v) => { versionsSheetOpen = false; selectVersion(v); }}
-      onUpload={openUpload}
-    />
-  </Sheet>
-  <Sheet bind:open={spurenSheetOpen} title="Spuren">
-    <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+  <Sheet bind:open={sheetOpen} title={panelTab === 'versions' ? 'Versionen' : 'Spuren'}>
+    <div class="sheet-tabs">{@render tabSwitch()}</div>
+    {#if panelTab === 'versions'}
+      <VersionList
+        {versions}
+        selectedId={selectedVersion?.id ?? null}
+        {canUpload}
+        onSelect={(v) => { sheetOpen = false; selectVersion(v); }}
+        onUpload={openUpload}
+      />
+    {:else}
+      <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+    {/if}
   </Sheet>
 {/if}
 
@@ -882,6 +894,11 @@
     color: var(--color-text-primary);
     border-color: var(--color-border-focus);
   }
+  .chip.on {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent);
+    background: var(--color-accent-subtle);
+  }
   .track-cover-btn {
     background: none;
     border: none;
@@ -1007,6 +1024,21 @@
     /* scrollIntoView stops below the sticky TopBar (65px) instead of under it */
     scroll-margin-top: calc(65px + var(--space-4));
   }
+  .upload-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--space-3);
+    margin: 0 var(--space-8) var(--space-3) 0;
+  }
+  .upload-title b {
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+  .upload-title span {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
   .close-upload {
     position: absolute;
     top: var(--space-2);
@@ -1067,7 +1099,7 @@
     padding: var(--space-6);
   }
 
-  /* The page scrolls as a whole; the panel sticks below the TopBar (65px high) so the raw tracks stay in view. */
+  /* The page scrolls as a whole; the panel sticks below the TopBar (65px high) and scrolls its tab on its own. */
   .side-panel {
     position: sticky;
     top: 65px;
@@ -1081,22 +1113,51 @@
     flex-direction: column;
     overflow: hidden;
   }
-  .panel-section {
-    padding: var(--space-5) var(--space-4) var(--space-4);
+  .panel-tabs {
+    padding: var(--space-4) var(--space-4) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
   }
-  .panel-section + .panel-section {
-    border-top: 1px solid var(--color-border);
-  }
-  .panel-section.versions {
-    flex: 0 1 auto;
+  .panel-body {
+    flex: 1;
     min-height: 0;
     overflow-y: auto;
+    padding: var(--space-3) var(--space-4) var(--space-4);
   }
-  .panel-section.spuren {
-    flex: 1 1 auto;
-    min-height: 200px;
+  .sheet-tabs {
+    margin-bottom: var(--space-4);
+  }
+  .tab-switch {
     display: flex;
-    flex-direction: column;
+    padding: 2px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .tab-switch button {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .tab-switch button:hover {
+    color: var(--color-text-primary);
+  }
+  .tab-switch button.on {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+  }
+  .tab-switch i {
+    font-style: normal;
+    color: var(--color-text-tertiary);
   }
   @media (max-width: 1180px) {
     .side-panel {

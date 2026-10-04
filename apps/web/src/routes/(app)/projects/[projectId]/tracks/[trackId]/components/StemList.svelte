@@ -84,25 +84,22 @@
 </script>
 
 <div class="spuren">
-  <div class="head">
-    <h2>Spuren</h2>
-    <span class="count">{stems.length}</span>
-    {#if canUpload}
-      <button
-        class="icon-btn"
-        onclick={() => (showUpload = !showUpload)}
-        title={showUpload ? 'Upload schließen' : 'Spuren hochladen'}
-        aria-label={showUpload ? 'Upload schließen' : 'Spuren hochladen'}
-      >
-        <Icon name={showUpload ? 'x' : 'upload'} size={15} />
-      </button>
-    {/if}
-  </div>
-
   {#if stems.length > 0}
-    <p class="summary">{formatFileSize(totalSize)}{lastUpload ? ` · zuletzt ${timeAgo(lastUpload)}` : ''}</p>
-    <div class="zip">
-      <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP laden</Button>
+    <p class="summary">
+      {stems.length} {stems.length === 1 ? 'Datei' : 'Dateien'} · {formatFileSize(totalSize)}{lastUpload ? ` · zuletzt ${timeAgo(lastUpload)}` : ''}
+    </p>
+  {/if}
+
+  {#if stems.length > 0 || showUpload}
+    <div class="tools">
+      {#if stems.length > 0}
+        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
+      {/if}
+      {#if canUpload}
+        <Button variant="secondary" size="sm" onclick={() => (showUpload = !showUpload)}>
+          <Icon name={showUpload ? 'x' : 'upload'} size={14} /> {showUpload ? 'Schließen' : 'Hochladen'}
+        </Button>
+      {/if}
     </div>
   {/if}
 
@@ -162,52 +159,19 @@
     height: 100%;
   }
 
-  .head {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .head h2 {
-    margin: 0;
-    font-size: var(--text-base);
-  }
-
-  .count {
-    padding: 1px 8px;
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-    background: var(--color-bg-subtle);
-    border-radius: var(--radius-full);
-  }
-
-  .icon-btn {
-    margin-left: auto;
-    width: 28px;
-    height: 28px;
-    display: inline-grid;
-    place-items: center;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-  }
-
-  .icon-btn:hover {
-    background: var(--color-bg-subtle);
-    color: var(--color-text-primary);
-  }
-
   .summary {
     margin: 0;
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
   }
 
-  .zip :global(.btn) {
-    width: 100%;
-    justify-content: center;
+  .tools {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .tools :global(.btn) {
+    flex: 1;
   }
 
   .upload-box {

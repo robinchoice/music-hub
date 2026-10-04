@@ -114,6 +114,7 @@
             {versions}
             selectedId={version.id}
             {canUpload}
+            head
             onSelect={(v) => pick(() => onSelect(v))}
             onUpload={() => pick(onUpload)}
           />
@@ -304,6 +305,8 @@
     left: 0;
     right: auto;
     min-width: 300px;
+    max-height: min(480px, 70vh);
+    overflow-y: auto;
     padding: var(--space-3);
   }
 
