@@ -295,8 +295,8 @@
       </div>
       <div>
         <h4>Open Source</h4>
-        <a href="#">Repository</a>
-        <a href="#">Self-Hosting</a>
+        <a href="https://github.com/robinchoice/music-hub" target="_blank" rel="noopener">Repository</a>
+        <a href="https://github.com/robinchoice/music-hub#self-hosting" target="_blank" rel="noopener">Self-Hosting</a>
       </div>
       <div>
         <h4>Rechtliches</h4>

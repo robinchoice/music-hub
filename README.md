@@ -76,6 +76,31 @@ bun db:generate
 bun db:migrate
 ```
 
+## Self-Hosting
+
+Music Hub läuft auf jedem Server mit Docker. Du brauchst:
+
+- eine Domain, z. B. `music.example.com`
+- einen S3-kompatiblen Bucket mit HTTPS-Endpunkt, z. B. Hetzner Object Storage, Backblaze B2 oder Cloudflare R2. Browser laden Audio direkt in den Bucket hoch und streamen von dort.
+- optional einen SMTP-Zugang für die Login-Mails. Ohne `SMTP_HOST` stehen die Login-Links im Log der API (`docker compose -f docker-compose.prod.yml logs api`).
+
+```bash
+git clone https://github.com/robinchoice/music-hub.git
+cd music-hub
+cp .env.production.example .env   # Werte eintragen
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Die App lauscht dann auf `127.0.0.1:3000`. Davor gehört ein Reverse Proxy mit HTTPS, ohne HTTPS funktioniert der Login nicht. Mit [Caddy](https://caddyserver.com) reicht als `Caddyfile`:
+
+```
+music.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+Die API migriert die Datenbank beim Start und erlaubt der App-Domain den Zugriff auf den Bucket (CORS). Update: `git pull`, dann denselben `docker compose`-Befehl noch einmal. Sichern solltest du das Docker-Volume `pgdata` und den Bucket.
+
 ## Deployment
 
 Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/music-hub` (Branch `main`).
