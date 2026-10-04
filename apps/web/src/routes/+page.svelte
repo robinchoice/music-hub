@@ -259,7 +259,7 @@
   <!-- 5. TRUST -->
   <section class="trust">
     <p class="trust-line">
-      <strong>Open Source</strong> · <strong>Self-Hostable</strong> · <strong>Daten in der EU</strong>
+      <strong>Daten in der EU</strong>
     </p>
     <p class="stack">
       Gebaut mit SvelteKit · Hono · PostgreSQL · MinIO · FFmpeg
@@ -275,9 +275,6 @@
     </p>
     <div class="hero-cta center">
       <Button href="/login" size="lg">Einloggen</Button>
-      <a href="https://github.com/robinchoice/music-hub" target="_blank" rel="noopener" class="cta-secondary">
-        Auf GitHub anschauen <span class="arrow">→</span>
-      </a>
     </div>
   </section>
 
@@ -292,11 +289,6 @@
         <h4>Produkt</h4>
         <a href="/login">Einloggen</a>
         <a href="/listen/{DEMO_SHARE_TOKEN}" target="_blank" rel="noopener">Live-Demo</a>
-      </div>
-      <div>
-        <h4>Open Source</h4>
-        <a href="#">Repository</a>
-        <a href="#">Self-Hosting</a>
       </div>
       <div>
         <h4>Rechtliches</h4>
@@ -615,7 +607,7 @@
   }
   .footer-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: 2fr 1fr 1fr;
     gap: var(--space-8);
     margin-bottom: var(--space-8);
   }
