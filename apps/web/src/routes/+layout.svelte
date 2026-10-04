@@ -13,6 +13,8 @@
     $page.url.pathname === '/' ||
       $page.url.pathname === '/login' ||
       $page.url.pathname === '/register' ||
+      $page.url.pathname === '/impressum' ||
+      $page.url.pathname === '/datenschutz' ||
       $page.url.pathname.startsWith('/listen/') ||
       $page.url.pathname.startsWith('/auth/'),
   );

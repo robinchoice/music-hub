@@ -306,6 +306,7 @@
       <p class="muted">Geteilt über Music Hub</p>
     </footer>
   {/if}
+  <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
 </div>
 
 <style>
@@ -439,5 +440,17 @@
     text-align: center;
     padding-top: var(--space-4);
     border-top: 1px solid var(--color-border);
+  }
+  .legal {
+    margin: var(--space-4) 0 0;
+    text-align: center;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .legal a {
+    color: var(--color-text-tertiary);
+  }
+  .legal a:hover {
+    color: var(--color-text-primary);
   }
 </style>

@@ -102,6 +102,8 @@
 
     <p class="switch">Eingeladen, aber noch kein Passwort? <a href="/register">Passwort festlegen</a></p>
   </div>
+
+  <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
 </div>
 
 <style>
@@ -200,5 +202,16 @@
   }
   .switch a {
     color: var(--color-accent);
+  }
+  .legal {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .legal a {
+    color: var(--color-text-tertiary);
+  }
+  .legal a:hover {
+    color: var(--color-text-primary);
   }
 </style>

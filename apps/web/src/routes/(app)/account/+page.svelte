@@ -73,12 +73,25 @@
       </div>
     </section>
   {/if}
+
+  <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
 </div>
 
 <style>
   .page {
     padding: var(--space-6);
     max-width: 720px;
+  }
+  .legal {
+    margin: var(--space-6) 0 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .legal a {
+    color: var(--color-text-tertiary);
+  }
+  .legal a:hover {
+    color: var(--color-text-primary);
   }
   @media (max-width: 640px) {
     .page {

@@ -7,6 +7,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import DemoFrame from '$lib/components/landing/DemoFrame.svelte';
+  import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
   import { DEMO, demoRequest } from '$lib/demo/backend.js';
   import { predecessorOf, type TrackComment, type Version } from '$lib/utils/track.js';
   // The landing page shows the components of the real track page, filled with the demo data
@@ -458,29 +459,7 @@
       </div>
     </section>
 
-    <footer class="footer">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <p class="wordmark">Music Hub</p>
-          <p class="footer-tag">Versionen für Musik. Ohne Chaos.</p>
-        </div>
-        <div>
-          <h4>Produkt</h4>
-          <a href="/login">Einloggen</a>
-        </div>
-        <div>
-          <h4>Open Source</h4>
-          <a href={REPO} target="_blank" rel="noopener">Repository</a>
-          <a href={SELF_HOSTING} target="_blank" rel="noopener">Selbst hosten</a>
-        </div>
-        <div>
-          <h4>Rechtliches</h4>
-          <a href="#">Datenschutz</a>
-          <a href="#">Impressum</a>
-        </div>
-      </div>
-      <p class="copy">© 2026 Music Hub</p>
-    </footer>
+    <SiteFooter />
   </main>
 </div>
 
@@ -1026,43 +1005,6 @@
     color: #4ade80;
   }
 
-  /* Footer */
-  .footer {
-    border-top: 1px solid var(--color-border);
-    padding: 56px 0 40px;
-  }
-  .footer-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: var(--space-8);
-    margin-bottom: var(--space-8);
-  }
-  .footer-tag {
-    margin: 8px 0 0;
-    font-size: var(--text-sm);
-    color: var(--color-text-tertiary);
-  }
-  .footer h4 {
-    margin: 0 0 12px;
-    font-size: var(--text-sm);
-  }
-  .footer a {
-    display: block;
-    margin-bottom: 8px;
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-  }
-  .footer a:hover {
-    color: var(--color-text-primary);
-  }
-  .copy {
-    margin: 0;
-    padding-top: 24px;
-    border-top: 1px solid var(--color-border);
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-  }
-
   .reject-form {
     display: flex;
     flex-direction: column;
@@ -1187,12 +1129,6 @@
     }
     .term pre {
       font-size: 12px;
-    }
-    .footer-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-    .footer-brand {
-      grid-column: 1 / -1;
     }
   }
 </style>
