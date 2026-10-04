@@ -6,3 +6,4 @@ export * from './comments.js';
 export * from './shareLinks.js';
 export * from './pushSubscriptions.js';
 export * from './deviceCodes.js';
+export * from './taskDismissals.js';

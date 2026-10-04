@@ -55,6 +55,9 @@ export const versions = pgTable('versions', {
   label: varchar('label', { length: 100 }),
   notes: text('notes'),
   status: versionStatusEnum('status').default('uploaded').notNull(),
+  // Who approved or rejected the version and when; null for decisions made before this was stored
+  decidedById: uuid('decided_by_id').references(() => users.id),
+  decidedAt: timestamp('decided_at'),
 
   parentVersionId: uuid('parent_version_id').references((): AnyPgColumn => versions.id, {
     onDelete: 'set null',

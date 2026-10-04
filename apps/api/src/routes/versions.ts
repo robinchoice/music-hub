@@ -455,7 +455,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const [updated] = await db
       .update(versions)
-      .set({ status: 'approved' })
+      .set({ status: 'approved', decidedById: userId, decidedAt: new Date() })
       .where(eq(versions.id, versionId))
       .returning();
 
@@ -570,7 +570,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const [updated] = await db
       .update(versions)
-      .set({ status: 'rejected' })
+      .set({ status: 'rejected', decidedById: userId, decidedAt: new Date() })
       .where(eq(versions.id, versionId))
       .returning();
 
