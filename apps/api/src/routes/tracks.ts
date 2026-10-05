@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, sql } from 'drizzle-orm';
 import { createTrackSchema, updateTrackSchema } from '@music-hub/shared';
-import { tracks, projectMembers, versions } from '@music-hub/db';
+import { tracks, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import type { AppEnv } from '../types.js';
@@ -37,8 +37,9 @@ export const trackRoutes = new Hono<AppEnv>()
         createdById: tracks.createdById,
         createdAt: tracks.createdAt,
         updatedAt: tracks.updatedAt,
-        versionCount: sql<number>`(select count(*)::int from ${versions} where ${versions.trackId} = ${tracks.id})`,
-        branchCount: sql<number>`(select count(distinct ${versions.branchLabel})::int from ${versions} where ${versions.trackId} = ${tracks.id} and ${versions.branchLabel} is not null)`,
+        // Written out: drizzle leaves columns of a single-table select unqualified, which would bind to versions here
+        versionCount: sql<number>`(select count(*)::int from versions v where v.track_id = tracks.id)`,
+        branchCount: sql<number>`(select count(distinct v.branch_label)::int from versions v where v.track_id = tracks.id and v.branch_label is not null)`,
       })
       .from(tracks)
       .where(eq(tracks.projectId, projectId))
