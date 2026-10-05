@@ -1,3 +1,5 @@
+import { TRASH_DAYS } from '@music-hub/shared';
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -87,4 +89,9 @@ export function formatDb(db: number): string {
 export function formatGb(bytes: number): string {
   const gb = bytes / 1024 ** 3;
   return `${decimal(gb, gb < 1 ? 2 : 1)} GB`;
+}
+
+/** Whole days until something deleted at `deletedAt` leaves the trash, at least 1 */
+export function trashDaysLeft(deletedAt: string, now = Date.now()): number {
+  return Math.max(1, TRASH_DAYS - Math.floor((now - new Date(deletedAt).getTime()) / (24 * HOUR)));
 }

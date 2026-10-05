@@ -176,7 +176,8 @@
             {/if}
             {#if isOwner}
               <hr />
-              <button role="menuitem" class="danger" onclick={() => pick(onDelete)}><Icon name="trash" size={14} /> Version löschen</button>
+              <button role="menuitem" class="danger" onclick={() => pick(onDelete)}><Icon name="trash" size={14} /> Version in den Papierkorb</button>
+              <span class="menu-hint">Mit allen Kommentaren, 30 Tage im Papierkorb des Projekts. Freigabelinks pausieren so lange.</span>
             {/if}
           </div>
         {/if}
@@ -344,6 +345,14 @@
   .menu-cap {
     padding: 6px 10px 4px;
     font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .menu-hint {
+    max-width: 260px;
+    padding: 0 10px 6px 32px;
+    font-size: var(--text-xs);
+    line-height: 1.4;
     color: var(--color-text-tertiary);
   }
 

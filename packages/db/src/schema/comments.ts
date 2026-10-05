@@ -15,4 +15,8 @@ export const comments = pgTable('comments', {
   resolvedAt: timestamp('resolved_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // Moved to the project's trash; discardedAt is set when it is deleted for good before its time runs out
+  deletedAt: timestamp('deleted_at'),
+  deletedById: uuid('deleted_by_id').references(() => users.id),
+  discardedAt: timestamp('discarded_at'),
 });

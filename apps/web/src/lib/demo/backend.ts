@@ -198,7 +198,7 @@ function overview() {
       hasActiveShareLink: v.id === uuid(104),
     })),
     comments: db.comments
-      .filter((c) => c.parentId || !c.body.startsWith(REJECTION_PREFIX))
+      .filter((c) => !c.deletedAt && (c.parentId ? !find(db.comments, c.parentId).deletedAt : !c.body.startsWith(REJECTION_PREFIX)))
       .map((c) => ({
         id: c.id,
         versionId: c.versionId,
@@ -248,7 +248,7 @@ const find = <T extends { id: string }>(list: T[], id: string): T => {
 
 function withCounts(v: DemoVersion): Version & DemoVersion {
   const topLevel = db.comments
-    .filter((c) => c.versionId === v.id && !c.parentId)
+    .filter((c) => c.versionId === v.id && !c.parentId && !c.deletedAt)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const rejection = topLevel.find((c) => c.body.startsWith(REJECTION_PREFIX));
   return {
@@ -292,7 +292,7 @@ function activity() {
   const base = { project: { id: project.id, name: project.name }, track: { id: nachtbus.id, name: nachtbus.name } };
   const versionRef = (v: DemoVersion) => ({ id: v.id, versionNumber: v.versionNumber, label: v.label });
   const events = [
-    ...db.comments.map((c) => ({
+    ...db.comments.filter((c) => !c.deletedAt).map((c) => ({
       type: 'comment' as const,
       id: c.id,
       createdAt: c.createdAt,
@@ -369,9 +369,17 @@ const ROUTES: [string, RegExp, Handler][] = [
     if (body && 'notes' in body) v.notes = (body.notes as string | null) ?? null;
     return { version: withCounts(v) };
   }],
-  ['GET', /^\/comments\/version\/([\w-]+)$/, ([id]) => ({
-    comments: db.comments.filter((c) => c.versionId === id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-  })],
+  ['GET', /^\/comments\/version\/([\w-]+)$/, ([id]) => {
+    // Like the API: a deleted comment with replies stays as an empty placeholder
+    const own = db.comments.filter((c) => c.versionId === id);
+    const answered = new Set(own.filter((c) => !c.deletedAt && c.parentId).map((c) => c.parentId));
+    return {
+      comments: own
+        .filter((c) => !c.deletedAt || (!c.parentId && answered.has(c.id)))
+        .map((c) => (c.deletedAt ? { ...c, body: '', guestName: null, restorable: c.user?.id === MARA.id } : c))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    };
+  }],
   ['POST', /^\/comments\/version\/([\w-]+)$/, ([id], body) => ({
     comment: addComment(id, body as { body: string; timestampSeconds?: number; parentId?: string }),
   })],
@@ -391,9 +399,12 @@ const ROUTES: [string, RegExp, Handler][] = [
     return { comment: c };
   }],
   ['DELETE', /^\/comments\/([\w-]+)$/, ([id]) => {
-    find(db.comments, id);
-    db.comments = db.comments.filter((c) => c.id !== id && c.parentId !== id);
-    return { success: true };
+    find(db.comments, id).deletedAt = new Date().toISOString();
+    return { message: 'Comment deleted' };
+  }],
+  ['POST', /^\/trash\/comment\/([\w-]+)\/restore$/, ([id]) => {
+    find(db.comments, id).deletedAt = null;
+    return { ok: true };
   }],
   ['GET', /^\/stems\/track\/([\w-]+)$/, ([id]) => ({ stems: db.stems.filter((s) => s.trackId === id) })],
   ['GET', /^\/activity$/, () => ({ events: activity() })],

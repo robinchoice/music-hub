@@ -11,7 +11,7 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
-  import { timeAgo } from '$lib/utils/format.js';
+  import { timeAgo, trashDaysLeft } from '$lib/utils/format.js';
   import type { TrackStatus } from '@music-hub/shared';
 
   type Track = {
@@ -54,6 +54,8 @@
   };
 
   let project = $state<Project | null>(null);
+  // What the user could restore from the project's trash, newest first
+  let trash = $state<{ deletedAt: string }[]>([]);
   let role = $state('');
   let tracks = $state<Track[]>([]);
   const grouped = $derived(groupBySection(tracks));
@@ -76,6 +78,8 @@
     } finally {
       loading = false;
     }
+    const trashRes = await api.get<{ entries: { deletedAt: string }[] }>(`/trash/project/${projectId}`, true).catch(() => null);
+    trash = trashRes?.entries ?? [];
   });
 
   async function createTrack() {
@@ -177,6 +181,21 @@
         </div>
       </section>
     {/each}
+  {/if}
+
+  {#if trash.length > 0}
+    {@const daysLeft = trashDaysLeft(trash[trash.length - 1].deletedAt)}
+    <a href="/projects/{projectId}/trash" class="trash-link">
+      <span class="trash-icon"><Icon name="trash" size={16} /></span>
+      <span class="trash-text">
+        <b>Papierkorb</b>
+        <small>
+          {trash.length === 1 ? '1 Eintrag · noch' : `${trash.length} Einträge · der älteste noch`}
+          {daysLeft} {daysLeft === 1 ? 'Tag' : 'Tage'}
+        </small>
+      </span>
+      <Icon name="chevron-right" size={16} />
+    </a>
   {/if}
 </div>
 
@@ -328,6 +347,45 @@
   .track-name {
     color: var(--color-text-primary);
     font-weight: 500;
+  }
+
+  .trash-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-md);
+    color: var(--color-text-tertiary);
+    text-decoration: none;
+  }
+  .trash-link:hover {
+    border-color: var(--color-text-tertiary);
+    color: var(--color-text-primary);
+  }
+  .trash-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+  .trash-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .trash-text b {
+    color: var(--color-text-primary);
+    font-weight: 500;
+    font-size: var(--text-sm);
+  }
+  .trash-text small {
+    font-size: var(--text-xs);
   }
 
   .track-item-skeleton {

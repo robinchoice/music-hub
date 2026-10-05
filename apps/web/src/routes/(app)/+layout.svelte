@@ -17,6 +17,7 @@
   let sidebarRef = $state<Sidebar | undefined>();
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
+  setContext('reloadSidebar', () => sidebarRef?.reload());
 
   // The inline player belongs to the page it was started on
   beforeNavigate(() => stopListen());

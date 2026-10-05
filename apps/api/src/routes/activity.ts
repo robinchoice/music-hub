@@ -59,7 +59,7 @@ export const activityRoutes = new Hono<AppEnv>()
         JOIN projects p ON p.id = t.project_id
         JOIN membership m ON m.project_id = p.id
         LEFT JOIN users u ON u.id = v.created_by_id
-        WHERE p.is_archived = false ${projectClause}
+        WHERE p.is_archived = false AND v.deleted_at IS NULL AND t.deleted_at IS NULL ${projectClause}
 
         UNION ALL
 
@@ -88,7 +88,7 @@ export const activityRoutes = new Hono<AppEnv>()
         JOIN projects p ON p.id = t.project_id
         JOIN membership m ON m.project_id = p.id
         LEFT JOIN users u ON u.id = c.user_id
-        WHERE p.is_archived = false ${projectClause}
+        WHERE p.is_archived = false AND c.deleted_at IS NULL AND v.deleted_at IS NULL AND t.deleted_at IS NULL ${projectClause}
       ) events
       ORDER BY created_at DESC
       LIMIT ${limit}

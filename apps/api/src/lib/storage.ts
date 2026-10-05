@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import type { Database } from '@music-hub/db';
 import { rateLimit } from './rate-limit.js';
+import { keptSql } from './trash.js';
 
 type Executor = Pick<Database, 'execute'>;
 
@@ -19,12 +20,14 @@ export function takeUploadVolume(userId: string, bytes: number) {
   return false;
 }
 
-// Originals the user uploaded, in all projects including archived ones.
+// Originals the user uploaded, in all projects including archived ones, also while they are in the trash.
 // Covers and the MP3s and waveforms derived from versions don't count.
 export async function storageUsed(db: Executor, userId: string): Promise<number> {
   const [{ used }] = await db.execute<{ used: string }>(sql`
-    SELECT (SELECT coalesce(sum(file_size), 0) FROM versions WHERE created_by_id = ${userId})
-         + (SELECT coalesce(sum(file_size), 0) FROM stems WHERE created_by_id = ${userId}) AS used
+    SELECT (SELECT coalesce(sum(v.file_size), 0) FROM versions v JOIN tracks t ON t.id = v.track_id
+             WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')})
+         + (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
+             WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS used
   `);
   return Number(used);
 }

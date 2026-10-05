@@ -20,6 +20,7 @@
     onReopen,
     onEdit,
     onDelete,
+    onRestore,
     onSeek,
   }: {
     versionLabel: string;
@@ -36,6 +37,7 @@
     onReopen: (id: string) => Promise<void>;
     onEdit: (id: string, body: string) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
+    onRestore: (id: string) => Promise<void>;
     onSeek: (time: number) => void;
   } = $props();
 
@@ -49,8 +51,11 @@
   const open = $derived(topLevel.filter((c) => !c.resolvedAt).sort(byPosition));
   const done = $derived(topLevel.filter((c) => c.resolvedAt).sort(byPosition));
   const shown = $derived(filter === 'open' ? open : done);
-  const activeId = $derived(activeCommentId(open, currentTime));
-  const carryOpenItems = $derived(carryComments.filter((c) => !c.parentId && !c.resolvedAt).sort(byPosition));
+  // Placeholders of deleted comments are listed for their replies, but don't count
+  const openCount = $derived(open.filter((c) => !c.deletedAt).length);
+  const doneCount = $derived(done.filter((c) => !c.deletedAt).length);
+  const activeId = $derived(activeCommentId(open.filter((c) => !c.deletedAt), currentTime));
+  const carryOpenItems = $derived(carryComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).sort(byPosition));
   const placeholder = $derived(
     commentTimestamp !== null
       ? `Kommentar zu ${versionLabel} bei ${formatTime(commentTimestamp)} …`
@@ -103,8 +108,8 @@
   <div class="list-head">
     <h2>Kommentare <span>zu {versionLabel}</span></h2>
     <div class="filter">
-      <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>Offen <i>{open.length}</i></button>
-      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigt <i>{done.length}</i></button>
+      <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>Offen <i>{openCount}</i></button>
+      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigt <i>{doneCount}</i></button>
     </div>
   </div>
 
@@ -126,6 +131,7 @@
           onReopen={() => onReopen(comment.id)}
           onEdit={(text) => onEdit(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
+          onRestore={() => onRestore(comment.id)}
         />
         {#each repliesOf(comments, comment.id) as reply (reply.id)}
           <div class="replies">

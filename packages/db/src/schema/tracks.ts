@@ -44,6 +44,10 @@ export const tracks = pgTable('tracks', {
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // Moved to the project's trash; discardedAt is set when it is deleted for good before its time runs out
+  deletedAt: timestamp('deleted_at'),
+  deletedById: uuid('deleted_by_id').references(() => users.id),
+  discardedAt: timestamp('discarded_at'),
 });
 
 export const versions = pgTable('versions', {
@@ -80,6 +84,9 @@ export const versions = pgTable('versions', {
     .references(() => users.id)
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedById: uuid('deleted_by_id').references(() => users.id),
+  discardedAt: timestamp('discarded_at'),
 });
 
 export const stems = pgTable('stems', {
@@ -97,4 +104,7 @@ export const stems = pgTable('stems', {
     .references(() => users.id)
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedById: uuid('deleted_by_id').references(() => users.id),
+  discardedAt: timestamp('discarded_at'),
 });

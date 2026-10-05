@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api/client.js';
-  import { toastSuccess } from '$lib/stores/toast.js';
+  import { toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { formatFileSize, timeAgo } from '$lib/utils/format.js';
   import { spurDisplayName, compareSpurNames } from '$lib/utils/track.js';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -71,12 +71,14 @@
   }
 
   async function deleteStem(stem: Stem, label: string) {
-    if (!confirm(`Spur „${label}“ wirklich löschen?`)) return;
     deleting = stem.id;
     try {
       await api.delete(`/stems/${stem.id}`);
       stems = stems.filter((s) => s.id !== stem.id);
-      toastSuccess('Spur gelöscht');
+      toastTrash(`Spur „${label}“ liegt im Papierkorb des Projekts`, async () => {
+        await api.post(`/trash/stem/${stem.id}/restore`);
+        await loadStems();
+      });
     } finally {
       deleting = null;
     }
@@ -138,8 +140,8 @@
               class="row-btn delete"
               onclick={() => deleteStem(stem, label)}
               disabled={deleting === stem.id}
-              title="Löschen"
-              aria-label={`${label} löschen`}
+              title="In den Papierkorb"
+              aria-label={`${label} in den Papierkorb`}
             >
               <Icon name="trash" size={13} />
             </button>

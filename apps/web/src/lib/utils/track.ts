@@ -24,6 +24,10 @@ export type TrackComment = {
   createdAt: string;
   guestName?: string | null;
   user: { id: string; name: string; avatarUrl: string | null } | null;
+  /** Set on a deleted comment that stays as an empty placeholder because it has replies */
+  deletedAt?: string | null;
+  /** Its author may still restore that placeholder from the trash */
+  restorable?: boolean;
 };
 
 type VersionRef = {

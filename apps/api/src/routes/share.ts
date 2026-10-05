@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc, desc, inArray } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray, isNull } from 'drizzle-orm';
 import { createShareLinkSchema, guestCommentSchema, updateListenEventSchema } from '@music-hub/shared';
 import {
   shareLinks,
@@ -16,6 +16,10 @@ import { requireAuth } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
+import { liveVersion } from '../lib/trash.js';
+
+// Links of a version in the trash pause until it is restored
+const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
 
 const MINUTE = 60 * 1000;
 // Wrong passwords per share link, counted like failed logins
@@ -48,18 +52,9 @@ export const shareRoutes = new Hono<AppEnv>()
       const versionId = c.req.param('versionId');
       const input = c.req.valid('json');
 
-      const [version] = await db
-        .select()
-        .from(versions)
-        .where(eq(versions.id, versionId))
-        .limit(1);
-      if (!version) return c.json({ error: 'Not found' }, 404);
-
-      const [track] = await db
-        .select()
-        .from(tracks)
-        .where(eq(tracks.id, version.trackId))
-        .limit(1);
+      const found = await liveVersion(db, versionId);
+      if (!found) return c.json({ error: 'Not found' }, 404);
+      const { track } = found;
 
       const [membership] = await db
         .select()
@@ -97,18 +92,9 @@ export const shareRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('versionId');
 
-    const [version] = await db
-      .select()
-      .from(versions)
-      .where(eq(versions.id, versionId))
-      .limit(1);
-    if (!version) return c.json({ error: 'Not found' }, 404);
-
-    const [track] = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.id, version.trackId))
-      .limit(1);
+    const found = await liveVersion(db, versionId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track } = found;
 
     const [membership] = await db
       .select()
@@ -195,18 +181,9 @@ export const shareRoutes = new Hono<AppEnv>()
       failedPasswords.undo(link.id);
     }
 
-    const [version] = await db
-      .select()
-      .from(versions)
-      .where(eq(versions.id, link.versionId))
-      .limit(1);
-    if (!version) return c.json({ error: 'Not found' }, 404);
-
-    const [track] = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.id, version.trackId))
-      .limit(1);
+    const found = await liveVersion(db, link.versionId);
+    if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    const { version, track } = found;
     const [project] = await db
       .select()
       .from(projects)
@@ -239,7 +216,7 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .from(comments)
       .leftJoin(users, eq(users.id, comments.userId))
-      .where(eq(comments.versionId, version.id))
+      .where(and(eq(comments.versionId, version.id), isNull(comments.deletedAt)))
       .orderBy(asc(comments.createdAt));
 
     return c.json({
@@ -285,6 +262,8 @@ export const shareRoutes = new Hono<AppEnv>()
       }
       failedPasswords.undo(link.id);
     }
+
+    if (!(await liveVersion(db, link.versionId))) return c.json({ error: UNAVAILABLE }, 410);
 
     const [comment] = await db
       .insert(comments)
@@ -398,10 +377,9 @@ export const shareRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('versionId');
 
-    const [version] = await db.select().from(versions).where(eq(versions.id, versionId)).limit(1);
-    if (!version) return c.json({ error: 'Not found' }, 404);
-
-    const [track] = await db.select().from(tracks).where(eq(tracks.id, version.trackId)).limit(1);
+    const found = await liveVersion(db, versionId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track } = found;
     const [membership] = await db
       .select()
       .from(projectMembers)

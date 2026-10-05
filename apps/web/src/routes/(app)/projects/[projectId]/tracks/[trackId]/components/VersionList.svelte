@@ -43,7 +43,7 @@
             class="row"
             class:selected={v.id === selectedId}
             class:variant={!!v.branchLabel}
-            title={v.branchLabel && v.parentVersionId ? `Variante von V${numberOf(v.parentVersionId)}` : undefined}
+            title={v.branchLabel && numberOf(v.parentVersionId) ? `Variante von V${numberOf(v.parentVersionId)}` : undefined}
             onclick={() => onSelect(v)}
           >
             <span class="dot {v.status}" class:current={v.id === selectedId}>

@@ -16,6 +16,7 @@ import {
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
+import { keptSql } from '../lib/trash.js';
 import type { AppEnv } from '../types.js';
 
 // Same prefix the reject route writes; those comments are delivered as rejectionReason instead.
@@ -29,22 +30,24 @@ const DAY_MS = 86_400_000;
 const iso = (value: Date | string | null | undefined) => (value ? new Date(value).toISOString() : null);
 
 // Storage of the user's own uploads, counted like storageUsed() in lib/storage.ts.
+// The biggest tracks leave out what is in the trash, the totals include it.
 async function storageSummary(db: Database, userId: string) {
-  const [{ versionBytes }] = await db
-    .select({ versionBytes: sql<number>`coalesce(sum(${versions.fileSize}), 0)::float8` })
-    .from(versions)
-    .where(eq(versions.createdById, userId));
-  const [{ stemBytes }] = await db.execute<{ stemBytes: number }>(
-    sql`SELECT coalesce(sum(file_size), 0)::float8 AS "stemBytes" FROM stems WHERE created_by_id = ${userId}`,
-  );
+  const [{ versionBytes, stemBytes }] = await db.execute<{ versionBytes: number; stemBytes: number }>(sql`
+    SELECT
+      (SELECT coalesce(sum(v.file_size), 0)::float8 FROM versions v JOIN tracks t ON t.id = v.track_id
+        WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')}) AS "versionBytes",
+      (SELECT coalesce(sum(s.file_size), 0)::float8 FROM stems s JOIN tracks t ON t.id = s.track_id
+        WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes"
+  `);
   const topTracks = await db.execute<{ trackId: string; name: string; bytes: number }>(sql`
     SELECT t.id AS "trackId", t.name AS "name", sum(x.size)::float8 AS "bytes"
     FROM (
-      SELECT track_id, file_size AS size FROM versions WHERE created_by_id = ${userId}
+      SELECT track_id, file_size AS size FROM versions WHERE created_by_id = ${userId} AND deleted_at IS NULL
       UNION ALL
-      SELECT track_id, file_size AS size FROM stems WHERE created_by_id = ${userId}
+      SELECT track_id, file_size AS size FROM stems WHERE created_by_id = ${userId} AND deleted_at IS NULL
     ) x
     JOIN tracks t ON t.id = x.track_id
+    WHERE t.deleted_at IS NULL
     GROUP BY t.id, t.name
     ORDER BY 3 DESC
     LIMIT 3
@@ -103,7 +106,7 @@ export const overviewRoutes = new Hono<AppEnv>()
         createdById: tracks.createdById,
       })
       .from(tracks)
-      .where(inArray(tracks.projectId, projectIds));
+      .where(and(inArray(tracks.projectId, projectIds), isNull(tracks.deletedAt)));
     const trackIds = trackRows.map((t) => t.id);
 
     const versionRows = trackIds.length
@@ -124,7 +127,7 @@ export const overviewRoutes = new Hono<AppEnv>()
             decidedAt: versions.decidedAt,
           })
           .from(versions)
-          .where(inArray(versions.trackId, trackIds))
+          .where(and(inArray(versions.trackId, trackIds), isNull(versions.deletedAt)))
       : [];
     const versionIds = versionRows.map((v) => v.id);
 
@@ -146,6 +149,7 @@ export const overviewRoutes = new Hono<AppEnv>()
           .where(
             and(
               inArray(comments.versionId, versionIds),
+              isNull(comments.deletedAt),
               or(isNull(comments.resolvedAt), gte(comments.createdAt, cutoff)),
             ),
           )
@@ -160,6 +164,7 @@ export const overviewRoutes = new Hono<AppEnv>()
             and(
               inArray(comments.versionId, versionIds),
               isNull(comments.parentId),
+              isNull(comments.deletedAt),
               sql`${comments.body} LIKE ${REJECTION_PREFIX + '%'}`,
             ),
           )

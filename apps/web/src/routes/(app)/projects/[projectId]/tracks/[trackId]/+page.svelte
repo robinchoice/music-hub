@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, getContext } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
-  import { toastSuccess } from '$lib/stores/toast.js';
+  import { toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { loadOverview } from '$lib/stores/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
   import ABCompare from '$lib/components/audio/ABCompare.svelte';
@@ -61,6 +63,9 @@
   let showUpload = $state(false);
   let role = $state('');
   let loading = $state(true);
+  // The track was deleted, or its link is wrong
+  let missing = $state(false);
+  const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
   let commentTimestamp = $state<number | null>(null);
   let playerRef = $state<WaveformPlayer>();
   let compareVersion = $state<Version | null>(null);
@@ -110,14 +115,18 @@
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
-        api.get<{ versions: Version[] }>(`/versions/track/${trackId}`),
+        api.get<{ versions: Version[] }>(`/versions/track/${trackId}`, true).catch(() => null),
         api.get<{ tracks: { id: string; name: string; coverUrl: string | null; status: TrackStatus; section: string | null }[] }>(`/tracks/project/${projectId}`),
-        api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`),
+        api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`, true).catch(() => null),
       ]);
 
       projectName = projectRes.project.name;
       role = projectRes.role;
       const t = tracksRes.tracks.find((t) => t.id === trackId);
+      if (!t || !trackVersions || !stemsRes) {
+        missing = true;
+        return;
+      }
       trackName = t?.name || '';
       trackCoverUrl = t?.coverUrl ?? null;
       trackStatus = t?.status ?? 'in_progress';
@@ -317,9 +326,16 @@
   }
 
   async function handleDeleteComment(id: string) {
-    if (!confirm('Diesen Kommentar wirklich löschen?')) return;
     await api.delete(`/comments/${id}`);
+    toastTrash('Kommentar liegt im Papierkorb des Projekts', () => handleRestoreComment(id));
     await reloadComments();
+    void loadOverview();
+  }
+
+  async function handleRestoreComment(id: string) {
+    await api.post(`/trash/comment/${id}/restore`);
+    await reloadComments();
+    void loadOverview();
   }
 
   function handleDownload() {
@@ -387,10 +403,16 @@
   }
 
   async function deleteTrack() {
-    if (!confirm(`Track "${trackName}" mit allen Versionen und Kommentaren wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
     await api.delete(`/tracks/${trackId}`);
-    toastSuccess('Track gelöscht');
-    window.location.href = `/projects/${projectId}`;
+    toastTrash(`„${trackName}“ liegt im Papierkorb des Projekts`, async () => {
+      await api.post(`/trash/track/${trackId}/restore`);
+      reloadSidebar?.();
+      void loadOverview();
+      goto(`/projects/${projectId}/tracks/${trackId}`);
+    });
+    reloadSidebar?.();
+    void loadOverview();
+    goto(`/projects/${projectId}`);
   }
 
   function jumpVersion(direction: 1 | -1) {
@@ -447,10 +469,17 @@
 
   async function deleteVersion() {
     if (!selectedVersion) return;
-    if (!confirm(`Version V${selectedVersion.versionNumber} wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
-    await api.delete(`/versions/${selectedVersion.id}`);
-    toastSuccess('Version gelöscht');
+    const { id, versionNumber } = selectedVersion;
+    await api.delete(`/versions/${id}`);
+    toastTrash(`V${versionNumber} liegt im Papierkorb des Projekts`, async () => {
+      await api.post(`/trash/version/${id}/restore`);
+      await loadVersions();
+      const restored = versions.find((v) => v.id === id);
+      if (restored) await selectVersion(restored);
+      void loadOverview();
+    });
     await loadVersions();
+    void loadOverview();
   }
 
   function handleWindowClick(e: MouseEvent) {
@@ -491,6 +520,15 @@
         <Skeleton width="60%" height="2rem" />
         <Skeleton height="120px" variant="rect" />
       </div>
+    {:else if missing}
+      <EmptyState
+        title="Diesen Track gibt es hier nicht mehr"
+        description="Er wurde gelöscht. Gelöschte Tracks liegen 30 Tage im Papierkorb des Projekts."
+      >
+        {#snippet action()}
+          <Button href="/projects/{projectId}">Zum Projekt</Button>
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="track-head">
         <button class="track-cover-btn" onclick={() => canUpload && (coverEditOpen = true)} disabled={!canUpload} aria-label="Cover ändern">
@@ -535,7 +573,8 @@
                 {/if}
                 {#if role === 'owner'}
                   <hr />
-                  <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> Track löschen</button>
+                  <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> Track in den Papierkorb</button>
+                  <span class="menu-hint">Mit allen Versionen, Kommentaren und Spuren, 30 Tage im Papierkorb des Projekts</span>
                 {/if}
               </div>
             {/if}
@@ -617,7 +656,7 @@
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
                 markers={comments
-                  .filter((c) => c.timestampSeconds !== null)
+                  .filter((c) => c.timestampSeconds !== null && !c.deletedAt)
                   .map((c) => ({
                     id: c.id,
                     timestampSeconds: c.timestampSeconds!,
@@ -647,6 +686,7 @@
           onReopen={handleReopen}
           onEdit={handleEditComment}
           onDelete={handleDeleteComment}
+          onRestore={handleRestoreComment}
           onSeek={(time) => playerRef?.seekToTime(time)}
         />
       {/if}
@@ -981,6 +1021,13 @@
     border: none;
     border-top: 1px solid var(--color-border);
     margin: 4px;
+  }
+  .menu-hint {
+    max-width: 240px;
+    padding: 0 10px 6px 32px;
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    color: var(--color-text-tertiary);
   }
 
   .edit-form {

@@ -137,6 +137,13 @@
     searchInput?.select();
   }
 
+  // After a track was deleted or restored: fresh counts, and the active project's tracks load again
+  export async function reload() {
+    tracksByProject = {};
+    const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true).catch(() => null);
+    if (res) projects = res.projects;
+  }
+
   function handleNavClick() {
     if (open) onClose?.();
   }

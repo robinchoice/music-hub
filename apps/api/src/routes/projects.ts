@@ -32,7 +32,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .select({
         project: projects,
         role: projectMembers.role,
-        trackCount: sql<number>`(select count(*)::int from ${tracks} where ${tracks.projectId} = ${projects.id})`,
+        trackCount: sql<number>`(select count(*)::int from ${tracks} where ${tracks.projectId} = ${projects.id} and ${tracks.deletedAt} is null)`,
       })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))

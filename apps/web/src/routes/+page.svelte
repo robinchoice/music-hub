@@ -364,6 +364,7 @@
             onReopen={(id) => send('POST', `/comments/${id}/reopen`)}
             onEdit={(id, body) => send('PATCH', `/comments/${id}`, { body })}
             onDelete={(id) => send('DELETE', `/comments/${id}`)}
+            onRestore={(id) => send('POST', `/trash/comment/${id}/restore`)}
             onSeek={(time) => player?.seekToTime(time)}
           />
         {/if}

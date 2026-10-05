@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createTrackSchema, updateTrackSchema } from '@music-hub/shared';
 import { tracks, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
+import { liveTrack } from '../lib/trash.js';
 import type { AppEnv } from '../types.js';
 
 export const trackRoutes = new Hono<AppEnv>()
@@ -38,11 +39,11 @@ export const trackRoutes = new Hono<AppEnv>()
         createdAt: tracks.createdAt,
         updatedAt: tracks.updatedAt,
         // Written out: drizzle leaves columns of a single-table select unqualified, which would bind to versions here
-        versionCount: sql<number>`(select count(*)::int from versions v where v.track_id = tracks.id)`,
-        branchCount: sql<number>`(select count(distinct v.branch_label)::int from versions v where v.track_id = tracks.id and v.branch_label is not null)`,
+        versionCount: sql<number>`(select count(*)::int from versions v where v.track_id = tracks.id and v.deleted_at is null)`,
+        branchCount: sql<number>`(select count(distinct v.branch_label)::int from versions v where v.track_id = tracks.id and v.branch_label is not null and v.deleted_at is null)`,
       })
       .from(tracks)
-      .where(eq(tracks.projectId, projectId))
+      .where(and(eq(tracks.projectId, projectId), isNull(tracks.deletedAt)))
       .orderBy(asc(tracks.sortOrder), asc(tracks.createdAt));
 
     const enriched = await Promise.all(
@@ -84,12 +85,7 @@ export const trackRoutes = new Hono<AppEnv>()
     const trackId = c.req.param('id');
     const input = c.req.valid('json');
 
-    const [track] = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .limit(1);
-
+    const track = await liveTrack(db, trackId);
     if (!track) return c.json({ error: 'Not found' }, 404);
 
     const [membership] = await db
@@ -116,12 +112,7 @@ export const trackRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('id');
 
-    const [track] = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .limit(1);
-
+    const track = await liveTrack(db, trackId);
     if (!track) return c.json({ error: 'Not found' }, 404);
 
     const [membership] = await db
@@ -140,6 +131,7 @@ export const trackRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    await db.delete(tracks).where(eq(tracks.id, trackId));
+    // Into the project's trash, with everything below it
+    await db.update(tracks).set({ deletedAt: new Date(), deletedById: userId }).where(eq(tracks.id, trackId));
     return c.json({ message: 'Track deleted' });
   });

@@ -17,6 +17,7 @@
     onReopen,
     onEdit,
     onDelete,
+    onRestore,
   }: {
     comment: TrackComment;
     versionTag?: string | null;
@@ -30,6 +31,7 @@
     onReopen?: () => Promise<void>;
     onEdit?: (body: string) => Promise<void>;
     onDelete?: () => Promise<void>;
+    onRestore?: () => Promise<void>;
   } = $props();
 
   const displayName = $derived(comment.user?.name ?? comment.guestName ?? 'Gast');
@@ -74,6 +76,25 @@
   }
 </script>
 
+{#if comment.deletedAt}
+  <!-- Deleted, but its replies still need their thread -->
+  <div class="comment gone">
+    <span class="ghost"><Icon name="trash" size={12} /></span>
+    <div class="body">
+      <div class="head">
+        <span class="gone-text">Kommentar gelöscht</span>
+        {#if comment.timestampSeconds !== null}
+          <button class="ts" onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
+        {/if}
+      </div>
+      {#if comment.restorable && onRestore}
+        <div class="actions">
+          <button onclick={() => onRestore && run(onRestore)} disabled={busy}><Icon name="restore" size={12} /> Wiederherstellen</button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{:else}
 <div class="comment" class:active class:reply={isReply} class:resolved={!!comment.resolvedAt}>
   <Avatar name={displayName} src={comment.user?.avatarUrl ?? null} size="sm" />
   <div class="body">
@@ -130,6 +151,7 @@
     {/if}
   </div>
 </div>
+{/if}
 
 <style>
   .comment {
@@ -142,6 +164,22 @@
 
   .comment.reply {
     padding: var(--space-2) 0 0;
+  }
+
+  .ghost {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--color-border-hover);
+    border-radius: 50%;
+    color: var(--color-text-tertiary);
+  }
+
+  .gone-text {
+    font-style: italic;
+    color: var(--color-text-tertiary);
   }
 
   .comment.active {

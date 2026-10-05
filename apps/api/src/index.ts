@@ -21,6 +21,8 @@ import { pushRoutes } from './routes/push.js';
 import { sseRoutes } from './routes/sse.js';
 import { deviceRoutes } from './routes/device.js';
 import { overviewRoutes } from './routes/overview.js';
+import { trashRoutes } from './routes/trash.js';
+import { purgeTrash } from './lib/trash.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
 
@@ -96,7 +98,19 @@ const app = new Hono<AppEnv>()
   .route('/stems', stemRoutes)
   .route('/push', pushRoutes)
   .route('/sse', sseRoutes)
-  .route('/overview', overviewRoutes);
+  .route('/overview', overviewRoutes)
+  .route('/trash', trashRoutes);
+
+// Deletes for good what left the trash long enough ago: a minute after boot, then every six hours
+{
+  const purge = () =>
+    purgeTrash(db).catch((err) => {
+      console.error('[Trash] Purge failed:', err);
+      captureException(err);
+    });
+  setTimeout(purge, 60_000);
+  setInterval(purge, 6 * 60 * 60_000);
+}
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

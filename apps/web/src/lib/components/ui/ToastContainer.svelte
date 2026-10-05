@@ -2,11 +2,12 @@
   import { toasts, removeToast, type ToastType } from '$lib/stores/toast.js';
   import Icon from './Icon.svelte';
 
-  const icons: Record<ToastType, 'check' | 'x' | 'comment' | 'comment'> = {
+  const icons: Record<ToastType, 'check' | 'x' | 'comment' | 'trash'> = {
     success: 'check',
     error: 'x',
     info: 'comment',
     warning: 'comment',
+    trash: 'trash',
   };
 </script>
 
@@ -16,6 +17,11 @@
       <div class="toast {t.type}" role="alert">
         <span class="toast-icon"><Icon name={icons[t.type]} size={12} stroke={3} /></span>
         <span class="toast-message">{t.message}</span>
+        {#if t.action}
+          {@const action = t.action}
+          <button class="toast-action" onclick={() => { removeToast(t.id); action.run(); }}>{action.label}</button>
+          <span class="toast-bar" style="animation-duration: {t.duration}ms"></span>
+        {/if}
         <button class="toast-close" onclick={() => removeToast(t.id)} aria-label="Schließen">
           <Icon name="x" size={14} />
         </button>
@@ -37,6 +43,8 @@
   }
 
   .toast {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -67,6 +75,7 @@
   .error .toast-icon { background: var(--color-error); color: #fff; }
   .info .toast-icon { background: var(--color-accent); color: #fff; }
   .warning .toast-icon { background: var(--color-warning); color: #000; }
+  .trash .toast-icon { background: var(--color-bg-subtle); color: var(--color-text-primary); }
 
   .toast-message {
     flex: 1;
@@ -87,6 +96,38 @@
     color: var(--color-text-primary);
   }
 
+  .toast-action {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-accent);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toast-action:hover {
+    background: var(--color-accent-subtle);
+  }
+
+  /* Runs out with the time left to undo */
+  .toast-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--color-accent);
+    animation: run-out linear forwards;
+  }
+
+  @keyframes run-out {
+    from { width: 100%; }
+    to { width: 0; }
+  }
+
   @keyframes slide-in {
     from {
       opacity: 0;
@@ -99,10 +140,11 @@
   }
 
   @media (max-width: 640px) {
+    /* Above the bottom navigation, so "Rückgängig" stays reachable */
     .toast-container {
       left: var(--space-4);
       right: var(--space-4);
-      bottom: var(--space-4);
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-3));
       max-width: none;
     }
   }

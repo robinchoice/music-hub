@@ -47,8 +47,11 @@
   speichere ich, damit die Mitglieder deines Projekts damit arbeiten können. Sichtbar ist es nur für diese
   Mitglieder und für alle, denen ihr einen Link schickt. Audiodateien wandelt mein Server für die Wiedergabe um und
   misst dabei die Lautheit. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Die Inhalte bleiben gespeichert, bis
-  sie im Projekt gelöscht werden. Gelöschte oder ersetzte Dateien bleiben vorerst im Speicher, auf Anfrage entferne
-  ich sie.
+  sie im Projekt gelöscht werden. Gelöschtes liegt dann 30 Tage im Papierkorb des Projekts und lässt sich dort
+  wiederherstellen. Danach, oder sobald es dort endgültig gelöscht wird, bewahre ich es noch höchstens 60 Tage auf,
+  damit ich versehentlich Gelöschtes auf Anfrage wiederherstellen kann, und lösche es dann samt Dateien. Ersetzte
+  Cover und Dateien, die vor der Einführung des Papierkorbs gelöscht wurden, bleiben vorerst im Speicher. Auf
+  Anfrage lösche ich früher.
 </p>
 
 <h2>5. Teilen per Link</h2>
@@ -59,7 +62,8 @@
   nicht jedes Mal eintippen musst, merkt sich dein Browser diesen Namen. Wer den Link erstellt hat, sieht diese
   Angaben als Hör-Statistik und bekommt höchstens einmal pro Stunde eine E-Mail, dass jemand reingehört hat.
   Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse, Feedback zuzuordnen und zu sehen, ob ein
-  Mix angekommen ist). Die Angaben werden gelöscht, sobald der Link oder die Version gelöscht wird.
+  Mix angekommen ist). Die Angaben werden gelöscht, sobald der Link gelöscht wird oder die Version endgültig
+  gelöscht ist.
 </p>
 
 <h2>6. E-Mails</h2>
