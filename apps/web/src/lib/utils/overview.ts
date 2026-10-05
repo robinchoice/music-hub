@@ -1,4 +1,4 @@
-// Pure helpers for the overview pages: Übersicht, Für dich, Tracks, Timeline and Mischpult.
+// Pure helpers for the overview pages: Übersicht, Für dich, Tracks, Timeline and Mixer.
 // No $lib imports, so they can be checked with Bun like track.ts.
 import { formatDate, formatTime } from './format.js';
 
@@ -489,7 +489,7 @@ export function timelineRange(weeks: number, now = Date.now()) {
 }
 export type TimelineRange = ReturnType<typeof timelineRange>;
 
-// ---------- Mischpult ----------
+// ---------- Mixer ----------
 
 /** Tracks with at least two versions, the most recently active first */
 export function mixerTracks(groups: ProjectGroup[]): TrackInfo[] {

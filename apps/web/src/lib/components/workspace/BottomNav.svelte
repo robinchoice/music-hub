@@ -11,7 +11,7 @@
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
     { href: '/tracks', icon: 'music', label: 'Tracks' },
-    { href: '/mixer', icon: 'sliders', label: 'Pult' },
+    { href: '/mixer', icon: 'sliders', label: 'Mixer' },
   ] as const;
 </script>
 

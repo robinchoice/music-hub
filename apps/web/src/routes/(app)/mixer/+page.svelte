@@ -183,16 +183,16 @@
   );
 </script>
 
-<TopBar crumbs={[{ label: 'Mischpult' }]} />
+<TopBar crumbs={[{ label: 'Mixer' }]} />
 
 <div class="page">
   <div class="head">
-    <h1>Mischpult</h1>
+    <h1>Mixer</h1>
     <span class="sub">Alle Versionen eines Tracks nebeneinander. „Solo“ schaltet an derselben Stelle um.</span>
   </div>
 
   {#if !online}
-    <EmptyState title="Keine Verbindung" description="Das Mischpult braucht eine Verbindung, weil es alle Versionen gleichzeitig streamt." />
+    <EmptyState title="Keine Verbindung" description="Der Mixer braucht eine Verbindung, weil es alle Versionen gleichzeitig streamt." />
   {:else if !ix && $overviewFailed}
     <LoadFailed />
   {:else if !ix}

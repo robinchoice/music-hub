@@ -20,7 +20,7 @@
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
     { href: '/tracks', icon: 'music', label: 'Tracks' },
     { href: '/timeline', icon: 'timeline', label: 'Timeline' },
-    { href: '/mixer', icon: 'sliders', label: 'Mischpult' },
+    { href: '/mixer', icon: 'sliders', label: 'Mixer' },
   ] as const;
 
   const STATUS_COLORS: Record<TrackStatus, string> = {
