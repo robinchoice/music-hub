@@ -97,7 +97,8 @@
 <p>
   Tritt in Music Hub ein Fehler auf, geht ein Bericht an GlitchTip, das auf meinem eigenen Server läuft. Die
   Berichte enthalten technische Angaben zum Fehler, aber keine Kontodaten, Cookies oder Inhalte von Anfragen.
-  Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem fehlerfreien Betrieb).
+  GlitchTip löscht die Berichte nach 90 Tagen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
+  Interesse an einem fehlerfreien Betrieb).
 </p>
 
 <h2>11. Datensicherung</h2>
