@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun --bun run build
+
+  build-and-push:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.service }}
+          push: true
+          platforms: linux/arm64
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ghcr.io/robinchoice/musichub-${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/robinchoice/musichub-${{ matrix.service }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+      COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+      COOLIFY_API: https://coolify.pleasance.org/api/v1
+    steps:
+      - name: Deploy images to Coolify
+        run: |
+          set -euo pipefail
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_API_UUID" ] || [ -z "$COOLIFY_WEB_UUID" ]; then
+            echo '::notice::Coolify secrets are not set, skipping deploy.'
+            exit 0
+          fi
+
+          deploy() {
+            curl --fail-with-body --silent --show-error -X PATCH \
+              -H "Authorization: Bearer $COOLIFY_TOKEN" -H 'Content-Type: application/json' \
+              -d "{\"docker_registry_image_tag\": \"$GITHUB_SHA\"}" \
+              "$COOLIFY_API/applications/$1"
+            echo
+
+            deployment=$(curl --fail-with-body --silent --show-error -X POST \
+              -H "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$COOLIFY_API/deploy?uuid=$1" |
+              jq -er '.deployments[0].deployment_uuid')
+
+            for _ in {1..60}; do
+              status=$(curl --fail-with-body --silent --show-error \
+                -H "Authorization: Bearer $COOLIFY_TOKEN" \
+                "$COOLIFY_API/deployments/$deployment" | jq -er '.status')
+              echo "Deployment $deployment: $status"
+              case "$status" in
+                finished) return 0 ;;
+                failed|cancelled-by-user) return 1 ;;
+              esac
+              sleep 10
+            done
+            echo "Deployment $deployment timed out." >&2
+            return 1
+          }
+
+          deploy "$COOLIFY_API_UUID"
+          deploy "$COOLIFY_WEB_UUID"
