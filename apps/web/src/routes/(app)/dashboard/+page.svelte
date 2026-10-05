@@ -5,8 +5,11 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import ActivityChart from '$lib/components/overview/ActivityChart.svelte';
+  import ListensCard from '$lib/components/overview/ListensCard.svelte';
+  import LoudnessCard from '$lib/components/overview/LoudnessCard.svelte';
   import NewVersionsCard from '$lib/components/overview/NewVersionsCard.svelte';
   import ProjectStagesCard from '$lib/components/overview/ProjectStagesCard.svelte';
+  import StorageCard from '$lib/components/overview/StorageCard.svelte';
   import TurnCard from '$lib/components/overview/TurnCard.svelte';
   import { overviewIndex, tasks, loadOverview } from '$lib/stores/overview.js';
   import { eventsOf, projectGroups, weekSummary } from '$lib/utils/overview.js';
@@ -69,6 +72,12 @@
       <TurnCard {ix} {groups} />
       <ProjectStagesCard {groups} />
       <ActivityChart {events} />
+      <div class="row">
+        <ListensCard {ix} />
+        <LoudnessCard {groups} />
+        <!-- Only for members with uploads of their own -->
+        {#if ix.data.storage.usedBytes > 0}<StorageCard storage={ix.data.storage} />{/if}
+      </div>
     </div>
   {/if}
 </div>
@@ -118,6 +127,13 @@
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: var(--space-4);
     align-items: stretch;
+  }
+  .row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: var(--space-4);
+    align-items: start;
   }
   @media (max-width: 880px) {
     .grid {
