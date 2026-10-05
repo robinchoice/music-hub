@@ -46,7 +46,7 @@
     onUpload: () => void;
     onApprove: () => void;
     onReject: () => void;
-    onCompare: (version: Version) => void;
+    onCompare: () => void;
     onEdit: () => void;
     onDownload: () => void;
     onOfflineDownload: (quality: OfflineQuality) => void;
@@ -71,11 +71,11 @@
     ready: 'accent',
   };
 
-  let menu = $state<'picker' | 'compare' | 'more' | null>(null);
+  let menu = $state<'picker' | 'more' | null>(null);
 
   const showDecision = $derived(canApprove && version.status !== 'approved' && version.status !== 'rejected');
 
-  function toggle(name: 'picker' | 'compare' | 'more') {
+  function toggle(name: 'picker' | 'more') {
     menu = menu === name ? null : name;
   }
 
@@ -135,19 +135,9 @@
       {/if}
 
       {#if versions.length > 1}
-        <div class="menu-root">
-          <button class="icon-btn" title="Vergleichen" aria-label="Vergleichen" onclick={() => toggle('compare')}>
-            <Icon name="compare" size={15} />
-          </button>
-          {#if menu === 'compare'}
-            <div class="menu" role="menu">
-              <span class="menu-cap">Vergleichen mit</span>
-              {#each versions.filter((v) => v.id !== version.id) as v (v.id)}
-                <button role="menuitem" onclick={() => pick(() => onCompare(v))}>V{v.versionNumber} · {versionTitle(v)}</button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <button class="icon-btn" title="Im Mischpult vergleichen" aria-label="Im Mischpult vergleichen" onclick={onCompare}>
+          <Icon name="compare" size={15} />
+        </button>
       {/if}
 
       <div class="menu-root">

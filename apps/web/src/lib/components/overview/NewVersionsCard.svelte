@@ -1,5 +1,7 @@
 <script lang="ts">
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import DashCard from './DashCard.svelte';
   import MiniWave from './MiniWave.svelte';
   import StageLabel from './StageLabel.svelte';
@@ -36,6 +38,11 @@
           {#if versionName(v)}<b>{versionName(v)}</b>{/if}
           <span>von {uploader(v.createdById)}, {formatWhen(v.createdAt)}</span>
           <StageLabel stage={hero.stage} small />
+          {#if hero.versions.length > 1}
+            <Button size="sm" variant="secondary" href={`/mixer?track=${hero.track.id}&v=${v.id}`}>
+              <Icon name="sliders" size={14} /> Mit V{hero.versions[hero.versions.length - 2].versionNumber} vergleichen
+            </Button>
+          {/if}
         </div>
         <MiniWave version={v} markers={markersFor(ix, ix.commentsOf.get(v.id) ?? [], true)} count={150} big />
       </div>

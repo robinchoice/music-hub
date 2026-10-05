@@ -26,6 +26,9 @@
   <div class="wave">
     <MiniWave {version} markers={markersFor(ix, ix.commentsOf.get(version.id) ?? [])} count={120} />
   </div>
+  {#if (ix.versionsOf.get(track.id)?.length ?? 0) > 1}
+    <Button size="sm" variant="ghost" href={`/mixer?track=${track.id}&v=${version.id}`}><Icon name="sliders" size={14} /> Im Mischpult</Button>
+  {/if}
   <Button size="sm" variant="ghost" href={trackHref(project.id, track.id, version.id)} onclick={() => handOff(track.id)}>Öffnen</Button>
   <button type="button" class="close" aria-label="Player schließen" onclick={onclose}><Icon name="x" size={14} /></button>
 </div>

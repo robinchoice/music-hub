@@ -8,7 +8,6 @@
   import { loadOverview } from '$lib/stores/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
-  import ABCompare from '$lib/components/audio/ABCompare.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Sheet from '$lib/components/ui/Sheet.svelte';
@@ -68,8 +67,6 @@
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
   let commentTimestamp = $state<number | null>(null);
   let playerRef = $state<WaveformPlayer>();
-  let compareVersion = $state<Version | null>(null);
-  let compareStreamUrl = $state('');
   let branchFromId = $state<string | null>(null);
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
@@ -345,15 +342,9 @@
     });
   }
 
-  async function startCompare(version: Version) {
-    const res = await api.get<{ url: string }>(`/versions/${version.id}/stream-url`);
-    compareVersion = version;
-    compareStreamUrl = res.url;
-  }
-
-  function closeCompare() {
-    compareVersion = null;
-    compareStreamUrl = '';
+  // "Vergleichen" opens the mixer with this version on solo
+  function openMixer() {
+    if (selectedVersion) goto(`/mixer?track=${trackId}&v=${selectedVersion.id}`);
   }
 
   async function saveTrackCover(key: string) {
@@ -436,9 +427,6 @@
     c: () => focusComment(),
     ArrowLeft: () => jumpVersion(-1),
     ArrowRight: () => jumpVersion(1),
-    Escape: () => {
-      if (compareVersion) closeCompare();
-    },
   });
 
   async function handleOfflineDownload(quality: OfflineQuality) {
@@ -639,7 +627,7 @@
           onUpload={openUpload}
           onApprove={handleApprove}
           onReject={handleReject}
-          onCompare={startCompare}
+          onCompare={openMixer}
           onEdit={openVersionEdit}
           onDownload={handleDownload}
           onOfflineDownload={handleOfflineDownload}
@@ -690,18 +678,6 @@
           onSeek={(time) => playerRef?.seekToTime(time)}
         />
       {/if}
-    {/if}
-
-    {#if compareVersion && compareStreamUrl && selectedVersion && streamUrl}
-      <div class="compare-overlay" role="dialog" aria-modal="true">
-        <ABCompare
-          versionA={selectedVersion}
-          versionB={compareVersion}
-          streamUrlA={streamUrl}
-          streamUrlB={compareStreamUrl}
-          onClose={closeCompare}
-        />
-      </div>
     {/if}
   </main>
 
@@ -1136,17 +1112,6 @@
     font-size: 1.2rem;
   }
 
-  .compare-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(8, 6, 14, 0.7);
-    backdrop-filter: blur(10px);
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-6);
-  }
 
   /* The page scrolls as a whole; the panel sticks below the TopBar (65px high) and scrolls its tab on its own. */
   .side-panel {
