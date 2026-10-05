@@ -125,7 +125,9 @@
       versions = trackVersions.versions;
       stems = stemsRes.stems;
 
-      if (versions.length > 0) await selectVersion(versions[0]);
+      // "Öffnen" from the overview pages names the version to land on
+      const requested = versions.find((v) => v.id === $page.url.searchParams.get('v'));
+      if (versions.length > 0) await selectVersion(requested ?? versions[0]);
     } finally {
       loading = false;
     }
