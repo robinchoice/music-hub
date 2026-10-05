@@ -51,6 +51,7 @@ type DemoVersion = Omit<Version, 'openCommentCount' | 'rejectionReason'> & {
   fileSize: number;
   createdById: string;
   audio: string;
+  integratedLufs: number;
 };
 type DemoComment = TrackComment & { versionId: string };
 type DemoStem = {
@@ -85,7 +86,7 @@ function seed() {
     track(24, uuid(12), 'Jingle', 'final', 0),
   ];
 
-  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, branch?: { of: number; label: string }): DemoVersion => ({
+  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, lufs: number, branch?: { of: number; label: string }): DemoVersion => ({
     id: uuid(n),
     trackId: uuid(20),
     versionNumber,
@@ -101,12 +102,14 @@ function seed() {
     parentVersionId: branch ? uuid(branch.of) : null,
     branchLabel: branch?.label ?? null,
     audio: `/demo/nachtbus-v${versionNumber}.mp3`,
+    // Measured from the files in static/demo with ffmpeg's ebur128 filter
+    integratedLufs: lufs,
   });
   const versions: DemoVersion[] = [
-    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav'),
-    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', { of: 102, label: 'Ohne Shaker' }),
-    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav'),
-    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav'),
+    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', -15.3),
+    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', -15.9, { of: 102, label: 'Ohne Shaker' }),
+    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', -15.9),
+    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', -15.5),
   ];
 
   const comment = (n: number, versionN: number, by: Person | string, body: string, t: number | null, minutesAgo: number, extra: { resolved?: number; parent?: number } = {}): DemoComment => ({
@@ -159,6 +162,78 @@ function seed() {
 
 const db = seed();
 let nextId = 900;
+
+// "Erledigt" and the last visit of "Tracks"; like every change in the demo they stay in this window
+const overviewState = { dismissed: new Set<string>(), tracksSeenAt: null as string | null };
+
+// Roles in the demo projects: Jonas owns them, Kai mixes, Mara and Lisa are the band
+const MEMBERS = [
+  { userId: JONAS.id, role: 'owner' },
+  { userId: MARA.id, role: 'artist' },
+  { userId: LISA.id, role: 'artist' },
+  { userId: KAI.id, role: 'mixing_engineer' },
+];
+
+function overview() {
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  return {
+    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', members: MEMBERS })),
+    users: [MARA, KAI, LISA, JONAS],
+    tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, createdAt: t.createdAt, createdById: JONAS.id })),
+    versions: db.versions.map((v) => ({
+      id: v.id,
+      trackId: v.trackId,
+      versionNumber: v.versionNumber,
+      label: v.label,
+      branchLabel: v.branchLabel,
+      parentVersionId: v.parentVersionId,
+      status: v.status,
+      createdById: v.createdById,
+      createdAt: v.createdAt,
+      duration: v.duration,
+      integratedLufs: v.integratedLufs,
+      decidedById: null,
+      decidedAt: null,
+      rejectionReason: withCounts(v).rejectionReason,
+      hasActiveShareLink: v.id === uuid(104),
+    })),
+    comments: db.comments
+      .filter((c) => c.parentId || !c.body.startsWith(REJECTION_PREFIX))
+      .map((c) => ({
+        id: c.id,
+        versionId: c.versionId,
+        parentId: c.parentId,
+        userId: c.user?.id ?? null,
+        guestName: c.guestName ?? null,
+        timestampSeconds: c.timestampSeconds,
+        resolvedAt: c.resolvedAt,
+        createdAt: c.createdAt,
+        body: c.body.slice(0, 200),
+      })),
+    // The two named listeners of the share link analytics below
+    listens: [
+      { versionId: uuid(104), listenerName: 'Tom (Label)', plays: 1, fullPlays: 1, maxSeconds: DEMO.duration, lastAt: ago(32) },
+      { versionId: uuid(104), listenerName: 'Jonas', plays: 1, fullPlays: 0, maxSeconds: 130, lastAt: ago(70) },
+    ],
+    storage: { usedBytes: 0, versionBytes: 0, stemBytes: 0, limitBytes: 20 * 1024 ** 3, topTracks: [] },
+    dismissedTaskKeys: [...overviewState.dismissed],
+    tracksSeenAt: overviewState.tracksSeenAt,
+  };
+}
+
+// Stand-in for the about 800 peaks the API computes from a recording; the same on every call
+function demoPeaks(id: string): number[] {
+  let seed = [...id].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619), 2166136261);
+  const random = () => ((seed = Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const peaks: number[] = [];
+  let level = 0.4;
+  for (let i = 0; i < 800; i++) {
+    const section = 0.55 + 0.3 * Math.sin((i / 800) * Math.PI * 4);
+    level = level * 0.4 + section * (0.5 + random() * 0.6) * 0.6;
+    peaks.push(Math.round(Math.min(1, level) * 1000) / 1000);
+  }
+  return peaks;
+}
 
 class NotFound extends Error {
   constructor() {
@@ -271,6 +346,7 @@ const ROUTES: [string, RegExp, Handler][] = [
     versions: db.versions.filter((v) => v.trackId === id).sort((a, b) => b.versionNumber - a.versionNumber).map(withCounts),
   })],
   ['GET', /^\/versions\/([\w-]+)\/(?:stream|download)-url$/, ([id]) => ({ url: find(db.versions, id).audio })],
+  ['GET', /^\/versions\/([\w-]+)\/waveform-data$/, ([id]) => demoPeaks(find(db.versions, id).id)],
   ['POST', /^\/versions\/([\w-]+)\/approve$/, ([id]) => {
     const v = find(db.versions, id);
     v.status = 'approved';
@@ -339,6 +415,16 @@ const ROUTES: [string, RegExp, Handler][] = [
       ],
     };
   }],
+  ['GET', /^\/overview$/, () => overview()],
+  ['POST', /^\/overview\/dismissals$/, (_, body) => {
+    overviewState.dismissed.add(String(body?.taskKey));
+    return { ok: true };
+  }],
+  ['DELETE', /^\/overview\/dismissals$/, (_, body) => {
+    overviewState.dismissed.delete(String(body?.taskKey));
+    return { ok: true };
+  }],
+  ['POST', /^\/overview\/seen$/, () => ({ tracksSeenAt: (overviewState.tracksSeenAt = new Date().toISOString()) })],
 ];
 
 /** Answers a request like the API under /api/v1 would, from the sample data. */

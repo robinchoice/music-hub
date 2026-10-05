@@ -8,7 +8,9 @@
     | 'chevron-down' | 'chevron-right' | 'more' | 'home' | 'panel' | 'panel-off'
     | 'git-branch' | 'arrow-up' | 'compare' | 'comment' | 'lock' | 'link'
     | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music'
-    | 'cloud-download' | 'cloud-check' | 'trash' | 'clock' | 'edit';
+    | 'cloud-download' | 'cloud-check' | 'trash' | 'clock' | 'edit'
+    | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
+    | 'users' | 'activity' | 'layers' | 'reply';
 
   let {
     name,
@@ -158,6 +160,51 @@
   {:else if name === 'edit'}
     <path d="M12 20h9" />
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  {:else if name === 'inbox'}
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  {:else if name === 'sliders'}
+    <line x1="4" y1="21" x2="4" y2="14" />
+    <line x1="4" y1="10" x2="4" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12" y2="3" />
+    <line x1="20" y1="21" x2="20" y2="16" />
+    <line x1="20" y1="12" x2="20" y2="3" />
+    <line x1="1" y1="14" x2="7" y2="14" />
+    <line x1="9" y1="8" x2="15" y2="8" />
+    <line x1="17" y1="16" x2="23" y2="16" />
+  {:else if name === 'timeline'}
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+    <rect x="6" y="4" width="5" height="4" rx="1" fill="currentColor" />
+    <rect x="13" y="10" width="5" height="4" rx="1" fill="currentColor" />
+    <rect x="9" y="16" width="5" height="4" rx="1" fill="currentColor" />
+  {:else if name === 'headphones'}
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+  {:else if name === 'drive'}
+    <line x1="22" y1="12" x2="2" y2="12" />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    <line x1="6" y1="16" x2="6.01" y2="16" />
+    <line x1="10" y1="16" x2="10.01" y2="16" />
+  {:else if name === 'gauge'}
+    <path d="m12 14 4-4" />
+    <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+  {:else if name === 'users'}
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  {:else if name === 'activity'}
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  {:else if name === 'layers'}
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  {:else if name === 'reply'}
+    <polyline points="15 10 20 15 15 20" />
+    <path d="M4 4v7a4 4 0 0 0 4 4h12" />
   {/if}
 </svg>
 

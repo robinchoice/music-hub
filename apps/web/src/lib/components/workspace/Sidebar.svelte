@@ -7,12 +7,20 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
+  import { loadOverview, tasks } from '$lib/stores/overview.js';
 
   type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
   type ProjectMembership = { project: Project; role: string; trackCount: number };
   type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
   type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
   type Track = { id: string; name: string; coverUrl: string | null; status: TrackStatus };
+
+  // Teil 3 and 4 add "Timeline" and "Mischpult"
+  const NAV = [
+    { href: '/dashboard', icon: 'home', label: 'Übersicht' },
+    { href: '/for-you', icon: 'inbox', label: 'Für dich' },
+    { href: '/tracks', icon: 'music', label: 'Tracks' },
+  ] as const;
 
   const STATUS_COLORS: Record<TrackStatus, string> = {
     sketch: '#9b96a8',
@@ -98,6 +106,7 @@
   }
 
   onMount(async () => {
+    void loadOverview();
     try {
       const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true);
       projects = res.projects;
@@ -153,14 +162,19 @@
   </div>
 
   <nav class="nav">
-    <a
-      href="/dashboard"
-      class="nav-item"
-      class:active={$page.url.pathname === '/dashboard'}
-      onclick={handleNavClick}
-    >
-      <Icon name="home" size={16} /> Übersicht
-    </a>
+    {#each NAV as item (item.href)}
+      <a
+        href={item.href}
+        class="nav-item"
+        class:active={$page.url.pathname === item.href}
+        onclick={handleNavClick}
+      >
+        <Icon name={item.icon} size={16} /> {item.label}
+        {#if item.href === '/for-you' && $tasks.length}
+          <span class="badge">{$tasks.length}</span>
+        {/if}
+      </a>
+    {/each}
   </nav>
 
   <div class="section">
@@ -317,6 +331,24 @@
   .nav {
     padding: 0 var(--space-3);
     margin-bottom: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .badge {
+    margin-left: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-grid;
+    place-items: center;
+    font-variant-numeric: tabular-nums;
   }
 
   .nav-item {

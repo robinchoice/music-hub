@@ -2,34 +2,33 @@
   import { page } from '$app/stores';
   import { getContext } from 'svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { tasks } from '$lib/stores/overview.js';
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
-  const isActive = (path: string) => $page.url.pathname === path || $page.url.pathname.startsWith(path + '/');
+  // Teil 4 adds "Pult"; Timeline, projects and account sit in the menu
+  const ITEMS = [
+    { href: '/dashboard', icon: 'home', label: 'Übersicht' },
+    { href: '/for-you', icon: 'inbox', label: 'Für dich' },
+    { href: '/tracks', icon: 'music', label: 'Tracks' },
+  ] as const;
 </script>
 
 <nav class="bottom-nav" aria-label="Hauptnavigation">
-  <a href="/dashboard" class="nav-item" class:active={$page.url.pathname === '/dashboard'} aria-label="Übersicht">
-    <Icon name="home" size={22} />
-    <span>Übersicht</span>
-  </a>
+  {#each ITEMS as item (item.href)}
+    <a href={item.href} class="nav-item" class:active={$page.url.pathname === item.href}>
+      <Icon name={item.icon} size={22} />
+      {#if item.href === '/for-you' && $tasks.length}
+        <span class="badge">{$tasks.length}</span>
+      {/if}
+      <span>{item.label}</span>
+    </a>
+  {/each}
 
-  <button class="nav-item" onclick={() => openMobileMenu?.()} aria-label="Projekte">
-    <Icon name="list" size={22} />
-    <span>Projekte</span>
+  <button class="nav-item" onclick={() => openMobileMenu?.()}>
+    <Icon name="menu" size={22} />
+    <span>Menü</span>
   </button>
-
-  <a href="/projects/new" class="nav-item nav-new" aria-label="Neues Projekt">
-    <span class="plus-ring">
-      <Icon name="plus" size={20} />
-    </span>
-    <span>Neu</span>
-  </a>
-
-  <a href="/account" class="nav-item" class:active={isActive('/account')} aria-label="Konto">
-    <Icon name="settings" size={22} />
-    <span>Konto</span>
-  </a>
 </nav>
 
 <style>
@@ -52,6 +51,7 @@
   }
 
   .nav-item {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -72,8 +72,7 @@
     font-family: inherit;
   }
 
-  .nav-item:hover,
-  .nav-item.active {
+  .nav-item:hover {
     color: var(--color-text-primary);
   }
 
@@ -81,30 +80,21 @@
     color: var(--color-accent);
   }
 
-  .nav-new {
-    color: var(--color-text-secondary);
-  }
-
-  .plus-ring {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+  .badge {
+    position: absolute;
+    top: 5px;
+    left: calc(50% + 5px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
     background: var(--color-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    transition: transform var(--transition-fast), opacity var(--transition-fast);
-    margin-bottom: -2px;
-  }
-
-  .nav-new:hover .plus-ring {
-    transform: scale(1.08);
-    opacity: 0.9;
-  }
-
-  .nav-new span:not(.plus-ring) {
-    font-size: 9px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 2px var(--color-bg-base);
   }
 
   @media (max-width: 640px) {
