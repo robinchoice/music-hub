@@ -16,6 +16,7 @@
 
 <DashCard icon="activity" title="Aktivität" sub="pro Kalenderwoche" span={6}>
   {#snippet actions()}
+    <a class="tbtn" href="/timeline">Timeline</a>
     <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
   {/snippet}
   {#if table}
