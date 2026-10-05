@@ -23,7 +23,7 @@
 </script>
 
 {#if href}
-  <a {href} class="btn {variant} {size}" class:disabled>
+  <a {href} class="btn {variant} {size}" class:disabled {onclick}>
     {@render children()}
   </a>
 {:else}

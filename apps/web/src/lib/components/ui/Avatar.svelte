@@ -6,7 +6,7 @@
   }: {
     src?: string | null;
     name: string;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'xs' | 'sm' | 'md' | 'lg';
   } = $props();
 
   const initials = $derived(
@@ -46,6 +46,7 @@
     overflow: hidden;
   }
 
+  .xs { width: 20px; height: 20px; font-size: 0.55rem; }
   .sm { width: 24px; height: 24px; font-size: 0.6rem; }
   .md { width: 32px; height: 32px; font-size: 0.7rem; }
   .lg { width: 40px; height: 40px; font-size: 0.85rem; }

@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount, setContext } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import Sidebar from '$lib/components/workspace/Sidebar.svelte';
   import BottomNav from '$lib/components/workspace/BottomNav.svelte';
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
+  import TooltipLayer from '$lib/components/ui/TooltipLayer.svelte';
+  import { stopListen } from '$lib/stores/listen.js';
   import { onKey } from '$lib/utils/shortcuts.js';
 
   let { children } = $props();
@@ -15,6 +17,9 @@
   let sidebarRef = $state<Sidebar | undefined>();
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
+
+  // The inline player belongs to the page it was started on
+  beforeNavigate(() => stopListen());
 
   // Come back to the requested page after logging in
   function toLogin() {
@@ -54,6 +59,7 @@
   </div>
 
   <ShortcutsModal bind:open={shortcutsOpen} />
+  <TooltipLayer />
 {/if}
 
 <style>
@@ -78,6 +84,38 @@
   .workspace {
     display: flex;
     min-height: 100vh;
+    /* Series colours of the overview charts, checked for contrast on #131119 and #17151f */
+    --color-series-1: #f43f5e;
+    --color-series-2: #8b5cf6;
+    --color-text-axis: #8a8597;
+  }
+
+  /* Version and timestamp chips of the overview pages */
+  :global(.vchip) {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 5px;
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-hover);
+    color: var(--color-text-primary);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  :global(.tchip) {
+    color: var(--color-warning);
+    font-variant-numeric: tabular-nums;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    padding: 0 5px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    line-height: 1.6;
   }
 
   .main {
