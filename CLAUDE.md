@@ -21,4 +21,5 @@ Gilt für Daten, API und URLs. Interner Code darf weiterhin direkt umgebaut werd
 ## Deploy
 
 - Jeder Push auf `main` geht sofort live. Vorher `bun run check` und `bun --bun run build` ausführen, keine neuen Fehler.
+- Push auf `main` → CI baut Images, Coolify zieht sie. Auf VPS 1 wird nicht gebaut.
 - Destruktive Aktionen (Daten oder Volumes löschen, manuelle Änderungen an der Prod-DB) nur nach ausdrücklicher Freigabe.
