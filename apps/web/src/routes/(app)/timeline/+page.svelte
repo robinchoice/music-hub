@@ -5,10 +5,11 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import DashCard from '$lib/components/overview/DashCard.svelte';
   import PlayerDock from '$lib/components/overview/PlayerDock.svelte';
   import TimelineLane from '$lib/components/overview/TimelineLane.svelte';
-  import { overviewIndex, loadOverview } from '$lib/stores/overview.js';
+  import { overviewIndex, overviewFailed, loadOverview } from '$lib/stores/overview.js';
   import { playVersion, stopListen, toggleListen } from '$lib/stores/listen.js';
   import { eventsOf, projectGroups, timelineRange, type OverviewVersion } from '$lib/utils/overview.js';
 
@@ -82,7 +83,9 @@
     </div>
   </div>
 
-  {#if !ix}
+  {#if !ix && $overviewFailed}
+    <LoadFailed />
+  {:else if !ix}
     <Skeleton height="20rem" variant="rect" />
   {:else if !groups.length}
     <EmptyState title="Noch keine Projekte" description="Sobald es Tracks gibt, zeigt die Timeline, wie die Produktion verläuft." />

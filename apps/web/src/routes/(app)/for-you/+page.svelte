@@ -5,8 +5,9 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import TaskCard from '$lib/components/overview/TaskCard.svelte';
-  import { overviewIndex, tasks, loadOverview, dismissTask, restoreTask } from '$lib/stores/overview.js';
+  import { overviewIndex, overviewFailed, tasks, loadOverview, dismissTask, restoreTask } from '$lib/stores/overview.js';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
   import { avatarOf, eventsOf, fullName, personName, type OverviewEvent } from '$lib/utils/overview.js';
 
@@ -47,7 +48,9 @@
   <h1>Für dich {#if $tasks.length}<span class="count">{$tasks.length}</span>{/if}</h1>
   <p class="sub">Was gerade auf dich wartet, das Neueste zuerst.</p>
 
-  {#if !ix}
+  {#if !ix && $overviewFailed}
+    <LoadFailed />
+  {:else if !ix}
     <div class="loading">
       <Skeleton height="9rem" variant="rect" />
       <Skeleton height="9rem" variant="rect" />

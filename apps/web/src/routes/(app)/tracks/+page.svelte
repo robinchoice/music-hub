@@ -6,8 +6,9 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
-  import { overviewIndex, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
+  import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { projectGroups, type ProjectGroup, type TrackInfo } from '$lib/utils/overview.js';
 
   onMount(() => {
@@ -46,7 +47,9 @@
     </div>
   </div>
 
-  {#if !ix}
+  {#if !ix && $overviewFailed}
+    <LoadFailed />
+  {:else if !ix}
     <div class="loading">
       <Skeleton height="4rem" variant="rect" />
       <Skeleton height="4rem" variant="rect" />

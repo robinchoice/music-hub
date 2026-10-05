@@ -1,10 +1,13 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { api } from '$lib/api/client.js';
 import { user } from '$lib/stores/auth.js';
 import { indexOverview, tasksFor, type OverviewData } from '$lib/utils/overview.js';
 
 /** Answer of GET /overview; null until the first load */
 export const overview = writable<OverviewData | null>(null);
+
+/** The last load failed and there is nothing to show */
+export const overviewFailed = writable(false);
 
 /** Lookups for the signed-in user */
 export const overviewIndex = derived([overview, user], ([$overview, $user]) =>
@@ -16,15 +19,38 @@ export const tasks = derived(overviewIndex, ($ix) => ($ix ? tasksFor($ix) : []))
 
 let pending: Promise<void> | null = null;
 let started = false;
+// The account the loaded answer belongs to
+let owner: string | null = null;
+
+// Another account in the same tab never sees the answer of the previous one
+user.subscribe(($user) => {
+  const id = $user?.id ?? null;
+  if (id === owner) return;
+  owner = id;
+  pending = null;
+  overview.set(null);
+  overviewFailed.set(false);
+});
 
 /** Pages load with errors shown, the sidebar loads quietly in the background */
 export function loadOverview(showErrors = false): Promise<void> {
   started = true;
-  pending ??= api
-    .get<OverviewData>('/overview', !showErrors)
-    .then((data) => overview.set(data))
-    .catch(() => {})
-    .finally(() => (pending = null));
+  if (!pending) {
+    const forUser = owner;
+    overviewFailed.set(false);
+    const request: Promise<void> = api
+      .get<OverviewData>('/overview', !showErrors)
+      .then((data) => {
+        if (owner === forUser) overview.set(data);
+      })
+      .catch(() => {
+        if (owner === forUser && !get(overview)) overviewFailed.set(true);
+      })
+      .finally(() => {
+        if (pending === request) pending = null;
+      });
+    pending = request;
+  }
   return pending;
 }
 

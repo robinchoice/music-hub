@@ -4,6 +4,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import ActivityChart from '$lib/components/overview/ActivityChart.svelte';
   import ListensCard from '$lib/components/overview/ListensCard.svelte';
   import LoudnessCard from '$lib/components/overview/LoudnessCard.svelte';
@@ -11,7 +12,7 @@
   import ProjectStagesCard from '$lib/components/overview/ProjectStagesCard.svelte';
   import StorageCard from '$lib/components/overview/StorageCard.svelte';
   import TurnCard from '$lib/components/overview/TurnCard.svelte';
-  import { overviewIndex, tasks, loadOverview } from '$lib/stores/overview.js';
+  import { overviewIndex, overviewFailed, tasks, loadOverview } from '$lib/stores/overview.js';
   import { eventsOf, projectGroups, weekSummary } from '$lib/utils/overview.js';
 
   onMount(() => {
@@ -42,7 +43,9 @@
 </TopBar>
 
 <div class="page">
-  {#if !ix}
+  {#if !ix && $overviewFailed}
+    <LoadFailed />
+  {:else if !ix}
     <div class="loading">
       <Skeleton width="40%" height="1.2rem" />
       <Skeleton height="16rem" variant="rect" />
