@@ -221,18 +221,17 @@ function overview() {
   };
 }
 
-// Stand-in for the about 800 peaks the API computes from a recording; the same on every call
-function demoPeaks(id: string): number[] {
-  let seed = [...id].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619), 2166136261);
-  const random = () => ((seed = Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
-  const peaks: number[] = [];
-  let level = 0.4;
-  for (let i = 0; i < 800; i++) {
-    const section = 0.55 + 0.3 * Math.sin((i / 800) * Math.PI * 4);
-    level = level * 0.4 + section * (0.5 + random() * 0.6) * 0.6;
-    peaks.push(Math.round(Math.min(1, level) * 1000) / 1000);
-  }
-  return peaks;
+// Peaks of the files in static/demo, computed like the API does (ffmpeg, mono at 8 kHz,
+// 800 block maxima), one byte per peak
+const DEMO_PEAKS: Record<number, string> = {
+  1: 'HD08RFFBUk07RFJAVjw8MUw8PjhEPkQzPD00ST81MkI4NzA9L0E2KlVWP15QSkhQTFFVh3RcWllZa391U0pnbJJuZlNJRlGdWFVFOUp9WF9dSliIdWlGUVdlhVp5XW94j4lzYWNwY7CDcYmqbaONh6WYcm6cWFVuroCYd1WnoWuhpF1Wc590inZtqoB0oYJfcIqyZLGBdLagerWqdoCsn3O1f2mylXOpjnZUp4NnmWVorXCPpXBsd6eOf5KLX6lxdpJweZq2kHWsimu1k6i7c3V5noink2eCtnpsnnRkeal5iYxdYap8oJpiboyqioeIgKmehWaPb3yPraWlg3Odo229smN/e7Vur5ZnsKBZbKFaYmuabJqCWa6vX6KWX1ual2eQi4Wpg2WQhINalY97oIdyuI24u7GJn7Cfq8GglbWutbqZhp26vK++n5a0osK7d5S1uMK5usOUv7fAw5+Np8C2trq0oL2tvL50l7S8qLbBiY20qb6+koyzvai/uI2utbO9uZajk8CUvbyWuLS1wMClu6DFnsO+mLe4mLeWeJNlbn1wjqJ1dY11X2p9bHBvZIeDdXBqc0VueH2Ga2V0eFRtYmdZcnKHlY+MkoF7kHKyp2V7rZKErYVnpYd1oIZdjKmGi4poabd0mpdqY2i0eJyQe1uobVykalZ3poG1hGq0oHW7smZpi7KCr5Zysa5zcKJlW3+odpGJhLCWcZqta214qmWam1ytfW+UkmBataCGonx2r4qzu62ajcDAmMOurbSouryXgo+7vpTAp5e4rrfCipWNxLaYw8ievKe+v7XCn8C7sr60kr6xyr6Yf6C/oLu5nYq9pbvAkaKUuqu7u6m0yKK3t5GgncCwucSXurKkucC+tK29u7nAtbuwo7q6kJKxtpzCvbCxuJO8vIyHwLimu7GMx7Skvr6htrq5pcCVm9K4ub+ekKK6wL3MuK+1uLu+fmlUV15qcGtJX1lPXkNVUkFORU9LVkxSQUw0RkhWSEtOUFdKQkBKOW1bRlhhWFVSY0VGTTlDQ1g8PDs9SE40KiEYGRYWDRAOCQoIBAI=',
+  2: 'FCwoMTktOzkoMTorPSorIzcqLCYvLjAlJiskNC0nIy8oKiYrIi4nGz0/LkI7NjQ3NTg4jnNGPz9CUIxfPTNHToxoTz0yM0WnR0IzKDWLW049PDyOeF03Oj9GjlRaQFJXlYNdQ0ZNRatqWH+xaKmDZ6CgW1KhUEJ0qXmbeUqel1ObtUlHeqRolXVetoxfqYlOV4CnVqJ0WbeWYresWmCml2Cwb0+9jGaff10+oIVXqWFOqnGbr3VVhKN/aJJ1SZ51WZVzXZuqkVqnc0imfKmwYFuGqXmkp1xivmlQnXRMjKdumodTSp15oKtUVYixfpWDaaGkdVGYYVmQrYqigmOSmFi1r0lebalfp4ZZq5ZOZJtNS3OZYp1/SJukWaCcT0OjmVube2iigluVfGxHn5Vlq3ZWq46yurSJhbmokLqnga+vuMGYgJWwsp26lJm7msC/jHGaurO5v7iBp66/u4ySpr6wusG7hLClvrmNf622rrfAlI+zrMC6g5Sitae4vo2vuLO+v5J/lMO2urSNt6qswb2Lk4u/oL60pLGxhb2hZGNPVllPa3xVUmRXRE1WSU9WR2BpVlhNUFBbZ2FsUVFZWj9QR0dAT1dlb2Rwa1tYbFWqkFJ6rn9tsGZNoHpcpn5CjaJxl5NaWbZipqVWTXGycp6IYUarXk2UW0B0r3WliU+pmHG2uVNPe6V2ropasqNZWKZWSG6lXpdzY62RXJa5TlJqrl2ThkqpiF+ZiklFsJtooWtbn3q0sq2KhLe5mr+uirqlubydmYrBt5vAp5m6p7DMkIqPsLKZtKSDvqO+vaOIn768tbq3gaiqtb2RgZ27pa28lHDItbu+lHykuLm4vqWywae4u4COqLmpu8CHtbGZvL2umprCqMnBmLGpnbfBhpyxu5m+vW+msJ+7uo1mtLuZwbyKsLieubuMnsDAkcGgira1s8W4e6uvuqfDnJSssbSsflFIST9MSUg1QD43Qi08OCo3MDgxQzg8LT4zPDxKODY5OD04MCw2Kkw+ND9EPT05RDA0PSwxMz8pKCgsMzMmHhgQEhAPCQsKBgcFAwI=',
+  3: 'FCwoMjktOzopMjgrPCorIzcqLSYvLjAkJiokMy0oIi4oKiYsIi8nGz0/LUE6NTY3NTc5jHNFPkBBTo1lPDNLTYxoUD0xMUWcR0EzKTWHXE5ANj2MfF06OkFHllZaP1NXlIJcQ0RNRqVxVYWlZaeIZ52eYFKfUUBxrHSedEqlnVGasUpFe6FqlnVesI9gqIpVTIavWKh0W6GXX7irWV6spWCvb1Gqg2aZiFs+rYhXpVtQq3WbqXdShKCRaJF0SaN0YJlvXJyph1qlckqldbG4YFySpXulmFlgu2lPoXRMkaxzlolUSp5snbVVVYSyeJV+aKaZeVGcW1mOs4qqf1yXq1W1t0lfb6pdpYRZpZhRZ51PSHqaXpl/R5mgWJ2hUEWxol6Ye2irgl2Xf21GqZRlsnlVnYyzs7aGd7Kyk8Cifq2wxbuYfZa1sp29lJ61qcHAkXuntLCvtryBuKm8wIyJlb+wtsLChLSrvraMf6OzrL3Bk5K1n7++hYyivLO7wZWhu6u/vI+Ckr62ub+NtquovsGSkom5or67rrSziMKWYGZOV1dPanpUVWVXR09UTE5PRmBmWVlPVk9cZ2JtUk1cWkBQR0k8UFFebmdpa1dXaFOmkVJ9rX5tp2VLoH5cnXxCiaJwiZVYWLJfn6NXTYCzbqSEZUakXkiVV0F1pXOqiE6mnG21sFNNe7R3rYhYuqJaWKJUSHWpX5Z1ZrCUWpywUFFqrV6TikqriFubjkpAsKJqoGddoYCvuK+MhL65m8GxiLKnvb6hmYK4vZ6/sZq2qL/LjoqQtbiZt6KFsqC/wKKKnrXAu7rAgqeww76PeJ+/qrjDmWbItLy/kXqit624wqWrt5/AvnmeoMOkwcCGs7Cawb+smKa7qL69la2pmrfChpKlw5i8vm6ltp/FvI1pvbuVwrmNrreRvrmHnry/lb+dirS2uce7eqO8taTElpSytrOufFFIRTxOS0Y0Pzo3QC06OSw2LzgxPTc6Kz40Oz1INzY0Nzw2Lyw3KUs9Nj5DPj05RS80PysxNUAoKScsMzMjHRgQEhAPCQsKBgcFAwI=',
+  4: 'FCsnMTwrPDopMjctOyosJDcpLicvLzAmJy4kNS8qJS4nLCcsIy4oGj9BL0M6NTU4MDg5kHRIOz5CTotkPzJJTo5rTz8xM0qZSEE1KDiMaGBXSFuOlW9LXVJWkmBjTFNir4tlU1JXYKiDa4ewgrScebWedVq4Z1mOq3+pileprG2srGhWdayEjJFrqJV8qo9cXnGseaN1dLKaab+6d3e5pGm6jV+glGSzmnZOsZlwpHpjrIOiuHtoaq6Jd5mJZ5xvcaJ6dYW2lXSsg16ofLa7e26EuX2nm3J5pnlrq5BqeLODo55yaqGJrKNrc5Kzi5SZgqalcmCebHGEwaKzjGubpHazvl59frtst5l0o6Bga7prVW2ibLCHY7axYqejZFmpnmqhjICshG6kmXRcqKaFrndupImvtLmjorS1nr+olrC+uryrj5a0t7a6pqy4sb/ImI+bub68v7+duri9vqa3tsa408PHirK0ub6brLa4t7+8p6O2rL69oJyrvK6wv6S0vLW+vpiKocW7urivt8i9wc+uqZDFqsG7tLW3nMajcHZlZ1ZbfoRvZ2dVV15iV1daVW95bWlWW19obHyCVVltakpXSl1TX2JweW97c3BhdVa4lWGIspl2u3NZnIx9uJpcnrmLlJ5vc7d8qaRxanGocqWfd1qqcGmjcF2BrZmykl+5o2+4s3NhlrZ+v5plsZxsZbVvX4SzfKiMfbOnbrOucWturmqmnGWckF+koWBLraJqqX9op4q3s7Ghlba4ssDBnbqyvb6gqoi1ua+/say8sbvGp6OLtcC0uLmnwKq/vb2xvr/EtsK1oLCvur6llLDFssC+tY3Mtrq+uKSyyL3DvsG5xqnEwJqutcayvb+ds8+vvb69uKi8vsm+pa65tr3DnrS+vK6+vJGww67Au6aQscGuv8Cltrirurmntr23sr6rob67tc/Ao6e7uru9paexwLaygGBXY1lfZWVJVE01WEJQUkVIQkxJT1FSLE5OQ1ViPD9QTk1BPC1VO1ZISE5XSUxLUkYzTDw8TVk+NjVETUs4HhgQExAPCQsJBgcFAwI=',
+};
+
+function demoPeaks(v: DemoVersion): number[] {
+  return Array.from(atob(DEMO_PEAKS[v.versionNumber]), (c) => Math.round((c.charCodeAt(0) / 255) * 1000) / 1000);
 }
 
 class NotFound extends Error {
@@ -346,7 +345,7 @@ const ROUTES: [string, RegExp, Handler][] = [
     versions: db.versions.filter((v) => v.trackId === id).sort((a, b) => b.versionNumber - a.versionNumber).map(withCounts),
   })],
   ['GET', /^\/versions\/([\w-]+)\/(?:stream|download)-url$/, ([id]) => ({ url: find(db.versions, id).audio })],
-  ['GET', /^\/versions\/([\w-]+)\/waveform-data$/, ([id]) => demoPeaks(find(db.versions, id).id)],
+  ['GET', /^\/versions\/([\w-]+)\/waveform-data$/, ([id]) => demoPeaks(find(db.versions, id))],
   ['POST', /^\/versions\/([\w-]+)\/approve$/, ([id]) => {
     const v = find(db.versions, id);
     v.status = 'approved';

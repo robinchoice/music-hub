@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
+import { publish } from './sse.js';
 import type { Database } from '@music-hub/db';
 
 export async function processVersion(db: Database, versionId: string) {
@@ -61,6 +62,9 @@ export async function processVersion(db: Database, versionId: string) {
       .set({ status: 'ready' })
       .where(eq(versions.id, versionId));
   }
+
+  // Lets open track pages switch to the MP3 and the waveform
+  publish(version.trackId, { type: 'version:status', data: { versionId, status: 'ready' } });
 }
 
 async function extractMetadata(url: string): Promise<{

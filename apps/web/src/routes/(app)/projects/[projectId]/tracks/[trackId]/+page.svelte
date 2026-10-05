@@ -55,6 +55,7 @@
   let versions = $state<Version[]>([]);
   let selectedVersion = $state<Version | null>(null);
   let streamUrl = $state('');
+  let peaks = $state<number[]>([]);
   let comments = $state<TrackComment[]>([]);
   let predecessorComments = $state<TrackComment[]>([]);
   let currentTime = $state(0);
@@ -143,6 +144,10 @@
         await loadVersions();
       } else if (type === 'version:status') {
         await refreshVersions();
+        // Processing finished: reload so the player gets the MP3 and the waveform
+        if (data.status === 'ready' && selectedVersion && data.versionId === selectedVersion.id) {
+          await selectVersion(selectedVersion);
+        }
       } else if (type === 'comment:new') {
         if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
         else await refreshVersions();
@@ -166,8 +171,10 @@
     // Use cached audio if offline and version is downloaded
     if (!navigator.onLine && isOffline(version.id)) {
       const blobUrl = await getOfflineAudioUrl(version.id);
+      const cachedPeaks = await api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []);
       if (seq !== selectSeq) return;
       if (blobUrl) {
+        peaks = cachedPeaks;
         streamUrl = blobUrl;
         comments = [];
         predecessorComments = [];
@@ -176,8 +183,10 @@
     }
 
     const pred = predecessorOf(version, versions);
-    const [streamRes, commentRes, predRes] = await Promise.all([
+    const [streamRes, peaksRes, commentRes, predRes] = await Promise.all([
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
+      // 404 until the server has processed the upload
+      api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []),
       api.get<{ comments: TrackComment[] }>(`/comments/version/${version.id}`),
       pred
         ? api
@@ -186,6 +195,7 @@
         : Promise.resolve({ comments: [] as TrackComment[] }),
     ]);
     if (seq !== selectSeq) return;
+    peaks = peaksRes;
     streamUrl = streamRes.url;
     comments = commentRes.comments;
     predecessorComments = predRes.comments;
@@ -641,6 +651,8 @@
               <WaveformPlayer
                 bind:this={playerRef}
                 url={streamUrl}
+                {peaks}
+                audioDuration={selectedVersion?.duration}
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
                 markers={comments

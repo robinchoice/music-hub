@@ -36,6 +36,7 @@
 
   const token = ($page.params as Record<string, string>).token;
   let data = $state<ShareData | null>(null);
+  let peaks = $state<number[]>([]);
   let loading = $state(true);
   let error = $state('');
   let passwordRequired = $state(false);
@@ -75,7 +76,12 @@
         loading = false;
         return;
       }
-      data = await res.json();
+      const share: ShareData = await res.json();
+      // Fetched before the player renders, which needs the peaks when it starts
+      peaks = share.waveformUrl
+        ? await fetch(share.waveformUrl).then((r) => (r.ok ? r.json() : [])).catch(() => [])
+        : [];
+      data = share;
       passwordRequired = false;
     } finally {
       loading = false;
@@ -220,6 +226,8 @@
     <WaveformPlayer
       bind:this={playerRef}
       url={data.streamUrl}
+      {peaks}
+      audioDuration={data.version.duration}
       markers={data.comments
         .filter((c) => c.timestampSeconds !== null)
         .map((c) => ({

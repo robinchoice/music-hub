@@ -13,6 +13,8 @@
 
   let {
     url,
+    peaks,
+    audioDuration,
     markers = [],
     muted = false,
     compact = false,
@@ -27,6 +29,8 @@
     onFinish,
   }: {
     url: string;
+    peaks?: number[];
+    audioDuration?: number | null;
     markers?: CommentMarker[];
     muted?: boolean;
     compact?: boolean;
@@ -72,6 +76,10 @@
       height: compact ? 56 : 96,
       normalize: true,
       url,
+      // With peaks wavesurfer streams the audio, without them it downloads and decodes
+      // the whole file before it can play. No peaks yet (empty list) draws a flat line.
+      peaks: peaks && [peaks.length ? peaks : [0]],
+      duration: audioDuration || undefined,
     });
 
     ws.on('ready', () => {
