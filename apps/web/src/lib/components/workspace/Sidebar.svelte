@@ -15,12 +15,12 @@
   type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
   type Track = { id: string; name: string; coverUrl: string | null; status: TrackStatus };
 
-  // Teil 4 adds "Mischpult"
   const NAV = [
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
     { href: '/tracks', icon: 'music', label: 'Tracks' },
     { href: '/timeline', icon: 'timeline', label: 'Timeline' },
+    { href: '/mixer', icon: 'sliders', label: 'Mischpult' },
   ] as const;
 
   const STATUS_COLORS: Record<TrackStatus, string> = {

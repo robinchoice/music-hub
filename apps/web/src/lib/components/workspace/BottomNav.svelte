@@ -6,11 +6,12 @@
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
-  // Teil 4 adds "Pult"; Timeline, projects and account sit in the menu
+  // Timeline, projects and account sit in the menu
   const ITEMS = [
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
     { href: '/tracks', icon: 'music', label: 'Tracks' },
+    { href: '/mixer', icon: 'sliders', label: 'Pult' },
   ] as const;
 </script>
 
