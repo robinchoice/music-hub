@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, isNull } from 'drizzle-orm';
-import { requestStemUploadUrlSchema, createStemSchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { requestStemUploadUrlSchema, createStemSchema, MAX_STORAGE_PER_USER, MAX_ZIP_SIZE } from '@music-hub/shared';
 import { stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { liveTrack } from '../lib/trash.js';
 import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
-import { zipSync } from 'fflate';
+import { Zip, ZipPassThrough } from 'fflate';
 import type { AppEnv } from '../types.js';
 
 export const stemRoutes = new Hono<AppEnv>()
@@ -190,20 +190,61 @@ export const stemRoutes = new Hono<AppEnv>()
       .orderBy(asc(stems.sortOrder), asc(stems.createdAt));
 
     if (trackStems.length === 0) return c.json({ error: 'No stems found' }, 404);
+    if (trackStems.reduce((sum, stem) => sum + stem.fileSize, 0) > MAX_ZIP_SIZE) {
+      return c.json({ error: 'Zu groß für ein ZIP — bitte die Spuren einzeln laden' }, 413);
+    }
 
-    const fileEntries = await Promise.all(
-      trackStems.map(async (stem) => [stem.originalFileName, await getObjectBuffer(stem.fileKey)] as const),
-    );
-    const files = Object.fromEntries(fileEntries) as Record<string, Uint8Array>;
+    // Pulls the next chunk only once the client has taken the last one
+    const chunks = zipStems(trackStems);
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        const { done, value } = await chunks.next();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      },
+      async cancel() {
+        await chunks.return();
+      },
+    });
 
-    const zipped = zipSync(files, { level: 0 });
     const zipName = `${track.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-stems.zip`;
-    const body = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
-
-    return new Response(new Blob([body], { type: 'application/zip' }), {
+    return new Response(body, {
       headers: {
+        'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${zipName}"`,
-        'Content-Length': String(zipped.byteLength),
       },
     });
   });
+
+// Streams one stem after the other from the bucket into the uncompressed ZIP, so
+// memory holds a few chunks however large the stems are
+async function* zipStems(files: { originalFileName: string; fileKey: string }[]) {
+  const out: Uint8Array[] = [];
+  const zip = new Zip((err, chunk) => {
+    if (err) throw err;
+    out.push(chunk);
+  });
+  const names = new Set<string>();
+
+  for (const file of files) {
+    const entry = new ZipPassThrough(uniqueName(file.originalFileName, names));
+    zip.add(entry);
+    for await (const data of await getObjectStream(file.fileKey)) {
+      entry.push(data);
+      yield* out.splice(0);
+    }
+    entry.push(new Uint8Array(0), true);
+  }
+  zip.end();
+  yield* out.splice(0);
+}
+
+// Plain, distinct file names: unpacking would otherwise create folders or overwrite
+// files of the same name
+function uniqueName(fileName: string, taken: Set<string>): string {
+  const base = fileName.replace(/[\\/]/g, '_');
+  let name = base;
+  for (let n = 2; taken.has(name.toLowerCase()); n++) name = base.replace(/(\.[^.]*)?$/, ` (${n})$1`);
+  taken.add(name.toLowerCase());
+  return name;
+}

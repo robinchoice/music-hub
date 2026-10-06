@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { MAX_ZIP_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
-  import { toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { demoMode } from '$lib/demo/mode.js';
+  import { toastError, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { formatFileSize, timeAgo } from '$lib/utils/format.js';
   import { spurDisplayName, compareSpurNames } from '$lib/utils/track.js';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -51,18 +53,14 @@
     stems = res.stems;
   }
 
-  async function downloadZip() {
-    const res = await fetch(`/api/v1/stems/track/${trackId}/download-zip`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+  function downloadZip() {
+    if (demoMode) return toastError('In der Demo nicht verfügbar');
+    if (totalSize > MAX_ZIP_SIZE) return toastError('Zu groß für ein ZIP — bitte die Spuren einzeln laden');
+    // As a plain download the browser writes the stream to disk and shows progress
     const a = document.createElement('a');
-    a.href = url;
-    a.download = res.headers.get('content-disposition')?.match(/filename="(.+?)"/)?.[1] ?? 'stems.zip';
+    a.href = `/api/v1/stems/track/${trackId}/download-zip`;
+    a.download = '';
     a.click();
-    URL.revokeObjectURL(url);
   }
 
   async function downloadStem(stem: Stem) {

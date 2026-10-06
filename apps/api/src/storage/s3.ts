@@ -55,6 +55,13 @@ export async function getObjectBuffer(key: string): Promise<Uint8Array<ArrayBuff
   return response.Body!.transformToByteArray() as Promise<Uint8Array<ArrayBuffer>>;
 }
 
+// Reads the object chunk by chunk, for files too large to hold in memory
+export async function getObjectStream(key: string): Promise<ReadableStream<Uint8Array>> {
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const response = await s3.send(command);
+  return response.Body!.transformToWebStream();
+}
+
 export async function putObject(key: string, body: string | Uint8Array, contentType: string): Promise<void> {
   const command = new PutObjectCommand({
     Bucket: bucket,
