@@ -20,23 +20,13 @@
       .join('')
       .toUpperCase() || '?'
   );
-
-  // Deterministic gradient angle based on name → variation per project
-  const angle = $derived(
-    name
-      ? (Array.from(name).reduce((a, c) => a + c.charCodeAt(0), 0) * 17) % 360
-      : 135
-  );
 </script>
 
 <div class="cover {size} round-{rounded}">
   {#if src}
     <img {src} alt="" loading="lazy" />
   {:else}
-    <div
-      class="fallback"
-      style="background: linear-gradient({angle}deg, #f43f5e 0%, #fb923c 100%)"
-    >
+    <div class="fallback">
       <span>{initials}</span>
     </div>
   {/if}
@@ -61,9 +51,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    box-shadow: inset 0 0 0 1px var(--color-border);
+    color: var(--color-text-tertiary);
+    font-family: var(--font-display);
+    font-weight: 780;
+    font-stretch: 80%;
+    letter-spacing: -0.01em;
   }
 
   .xs { width: 20px; height: 20px; }

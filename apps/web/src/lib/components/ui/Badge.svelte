@@ -34,23 +34,23 @@
   }
 
   .success {
-    background: rgba(34, 197, 94, 0.15);
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
     color: var(--color-success);
   }
 
   .warning {
-    background: rgba(251, 191, 36, 0.15);
+    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
     color: var(--color-warning);
   }
 
   .error {
-    background: rgba(239, 68, 68, 0.15);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
     color: var(--color-error);
   }
 
   .accent {
     background: var(--color-accent-subtle);
-    color: #fb923c;
-    border-color: rgba(244, 63, 94, 0.3);
+    color: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
   }
 </style>

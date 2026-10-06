@@ -17,16 +17,10 @@
       .join('')
       .toUpperCase()
   );
-
-  const colors = [
-    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
-    '#f97316', '#eab308', '#22c55e', '#06b6d4',
-  ];
-
-  const color = $derived(colors[name.charCodeAt(0) % colors.length]);
 </script>
 
-<div class="avatar {size}" style:background={src ? 'none' : color}>
+<!-- Neutral, so colour stays with what can be done -->
+<div class="avatar {size}" class:photo={src}>
   {#if src}
     <img {src} alt={name} />
   {:else}
@@ -41,9 +35,15 @@
     justify-content: center;
     border-radius: var(--radius-full);
     font-weight: 600;
-    color: #fff;
+    color: var(--color-text-primary);
+    background: var(--color-bg-subtle);
+    box-shadow: inset 0 0 0 1px var(--color-border-hover);
     flex-shrink: 0;
     overflow: hidden;
+  }
+  .photo {
+    background: none;
+    box-shadow: none;
   }
 
   .xs { width: 20px; height: 20px; font-size: 0.55rem; }

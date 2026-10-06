@@ -62,10 +62,11 @@
     cursor: pointer;
     transition: background var(--transition-fast), color var(--transition-fast);
   }
+  /* Neutral, the bars carry the gradient */
   .play:hover,
   .playing .play {
-    background: var(--gradient-accent);
-    color: #fff;
+    background: var(--color-text-primary);
+    color: var(--color-bg-base);
   }
   .track {
     position: relative;

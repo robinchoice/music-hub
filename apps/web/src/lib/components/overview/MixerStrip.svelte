@@ -107,8 +107,8 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .strip.solo {
-    border-color: rgba(244, 63, 94, 0.75);
-    box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.45), 0 12px 34px rgba(244, 63, 94, 0.14);
+    border-color: color-mix(in srgb, var(--color-accent) 75%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
   }
   .lcd {
     height: 52px;
@@ -210,13 +210,13 @@
     background: #201d29;
   }
   .led i.g.on {
-    background: #22c55e;
+    background: var(--color-success);
   }
   .led i.y.on {
     background: #fbbf24;
   }
   .led i.r.on {
-    background: #ef4444;
+    background: var(--color-error);
   }
   /* The strips you don't hear show their level dimmed */
   .strip:not(.solo) .led i.on {
@@ -302,7 +302,10 @@
   .solo .solo-btn {
     background: var(--gradient-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--color-on-accent);
+  }
+  .solo .solo-btn kbd {
+    border-color: rgba(23, 23, 26, 0.3);
   }
   .solo-btn kbd {
     font: 600 10px var(--font-sans);

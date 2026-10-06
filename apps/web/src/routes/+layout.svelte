@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { APP_BAND, GLOW, bandColor, bandGradient } from '@music-hub/shared';
   import { page } from '$app/stores';
   import { checkAuth, authLoading } from '$lib/stores/auth.js';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
@@ -29,45 +30,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </svelte:head>
 
-{#if $authLoading && !isPublic}
-  <div class="loading">
-    <div class="loading-spinner"></div>
-  </div>
-{:else}
-  {@render children()}
-{/if}
+<div
+  class="app"
+  style:--gradient-accent={bandGradient(APP_BAND, GLOW)}
+  style:--color-accent={bandColor((APP_BAND.from + APP_BAND.to) / 2, GLOW)}
+  style:--color-accent-2={bandColor(APP_BAND.to, GLOW)}
+  style:--color-accent-hover={bandColor(APP_BAND.to, GLOW)}
+>
+  {#if $authLoading && !isPublic}
+    <div class="loading">
+      <div class="loading-spinner"></div>
+    </div>
+  {:else}
+    {@render children()}
+  {/if}
 
-<ToastContainer />
+  <ToastContainer />
+</div>
 
 <style>
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    font-display: swap;
+    src: url('/fonts/bricolage-grotesque-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+      U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Bricolage Grotesque';
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    font-display: swap;
+    src: url('/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+      U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
   :global(:root) {
-    /* Background — warm neutrals */
-    --color-bg-base: #0a0910;
-    --color-bg-raised: #131119;
-    --color-bg-overlay: #1a1822;
-    --color-bg-subtle: #221f2c;
+    /* Background — the dark neutrals of the Pleasance family, tinted towards Music Hub's colour */
+    --color-bg-base: #120f13;
+    --color-bg-raised: #19171c;
+    --color-bg-overlay: #211e25;
+    --color-bg-subtle: #2a272f;
 
     /* Borders */
-    --color-border: #24222e;
-    --color-border-hover: #32303c;
-    --color-border-focus: #f43f5e;
+    --color-border: #262329;
+    --color-border-hover: #36333b;
 
     /* Text */
-    --color-text-primary: #f4f0ec;
-    --color-text-secondary: #9b96a8;
-    --color-text-tertiary: #5e596b;
+    --color-text-primary: #f2f0ea;
+    --color-text-secondary: #9a98a3;
+    --color-text-tertiary: #6f6c77;
 
-    /* Accent — warm magenta → orange */
-    --color-accent: #f43f5e;
-    --color-accent-2: #fb923c;
-    --color-accent-hover: #e11d48;
-    --color-accent-subtle: #2a121c;
-    --gradient-accent: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%);
+    /* Unplayed part of waveforms */
+    --color-wave-idle: #47444b;
 
-    /* Semantic */
-    --color-success: #22c55e;
+    /* Text and icons on the gradient are always dark */
+    --color-on-accent: #17171a;
+    /* The whole family band, for the line in the sender */
+    --spectrum: linear-gradient(90deg, #f2545b, #fb8c45, #f2c14e, #6ccf8e, #46bfe0, #8e92f8, #c39bf2);
+
+    /* Semantic — rejection and errors in a cooler red than the product colour */
+    --color-success: #6ccf8e;
     --color-warning: #fbbf24;
-    --color-error: #ef4444;
+    --color-error: #f0607a;
 
     /* Spacing — fluid scale */
     --space-1: 0.25rem;
@@ -93,9 +121,9 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
-    --shadow-glow: 0 0 0 1px rgba(244, 63, 94, 0.4), 0 8px 32px rgba(244, 63, 94, 0.18);
 
-    /* Typography — Inter first, system never */
+    /* Typography — Bricolage Grotesque (self-hosted) for the product name, headings and big numbers, Inter for the rest */
+    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
     --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
     --text-xs: 0.75rem;
@@ -126,11 +154,7 @@
   :global(body) {
     margin: 0;
     font-family: var(--font-sans);
-    background:
-      radial-gradient(ellipse 900px 500px at 12% -10%, rgba(244, 63, 94, 0.10), transparent 55%),
-      radial-gradient(ellipse 700px 400px at 92% 110%, rgba(251, 146, 60, 0.06), transparent 60%),
-      var(--color-bg-base);
-    background-attachment: fixed;
+    background: var(--color-bg-base);
     color: var(--color-text-secondary);
     font-size: var(--text-base);
     line-height: 1.55;
@@ -153,8 +177,11 @@
     font-weight: 600;
   }
 
-  :global(h1) {
-    letter-spacing: -0.03em;
+  :global(h1, h2) {
+    font-family: var(--font-display);
+    font-weight: 780;
+    font-stretch: 78%;
+    line-height: 1.05;
   }
 
   :global(a) {
@@ -179,7 +206,7 @@
 
   :global(::selection) {
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-on-accent);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -189,6 +216,12 @@
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
     }
+  }
+
+  .app {
+    display: contents;
+    --color-accent-subtle: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    --color-border-focus: var(--color-accent);
   }
 
   .loading {

@@ -253,7 +253,7 @@
     border-color: var(--color-border-hover);
   }
   .face.on {
-    border-color: rgba(244, 63, 94, 0.45);
+    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
     background: var(--color-accent-subtle);
   }
   .face .t {
@@ -426,7 +426,7 @@
     grid-template-columns: 46px 30px minmax(0, 1fr);
     gap: 10px;
     padding: 10px 0;
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
     align-items: start;
   }
   .tm {

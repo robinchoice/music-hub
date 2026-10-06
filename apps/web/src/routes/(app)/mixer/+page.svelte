@@ -358,7 +358,7 @@
     color: var(--color-text-primary);
   }
   .pill.on {
-    border-color: rgba(244, 63, 94, 0.55);
+    border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
   }
@@ -387,9 +387,9 @@
     place-items: center;
     border: none;
     border-radius: 50%;
-    background: var(--gradient-accent);
-    color: #fff;
-    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.3);
+    /* Neutral like every play button, the gradient belongs to what is playing */
+    background: var(--color-text-primary);
+    color: var(--color-bg-base);
     cursor: pointer;
   }
   .play:disabled {

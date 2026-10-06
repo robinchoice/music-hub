@@ -158,7 +158,7 @@
     flex-wrap: wrap;
   }
   .completed-badge {
-    color: #22c55e;
+    color: var(--color-success);
     font-weight: 500;
   }
 </style>

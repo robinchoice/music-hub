@@ -16,7 +16,7 @@
 
   let { ix, info, expanded = false, ontoggle }: { ix: OverviewIndex; info: TrackInfo; expanded?: boolean; ontoggle: () => void } = $props();
 
-  const STATUS_COLORS = { sketch: '#9b96a8', in_progress: '#fb923c', final: '#22c55e', released: '#f43f5e' };
+  const STATUS_COLORS = { sketch: 'var(--color-text-secondary)', in_progress: 'var(--color-accent)', final: 'var(--color-success)', released: 'var(--color-text-primary)' };
 
   const v = $derived(info.latest);
   const comments = $derived(v ? (ix.commentsOf.get(v.id) ?? []) : []);
@@ -172,7 +172,7 @@
     border-radius: inherit;
   }
   .name a:focus-visible::after {
-    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.5);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 50%, transparent);
   }
   .newdot {
     display: inline-block;
@@ -180,7 +180,7 @@
     height: 7px;
     border-radius: 50%;
     background: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
     margin-left: 8px;
     flex-shrink: 0;
   }

@@ -62,11 +62,11 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: #24222e;
+    background: var(--color-border);
     font-style: normal;
   }
   .grid.base {
-    background: #3a3646;
+    background: var(--color-border-hover);
   }
   .grid span {
     position: absolute;

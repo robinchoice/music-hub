@@ -222,7 +222,10 @@
   }
 
   .picker b {
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 78%;
+    font-size: 1.25rem;
   }
 
   .picker span {
@@ -367,9 +370,9 @@
   .reason {
     margin: var(--space-2) 0 0;
     padding-left: var(--space-2);
-    border-left: 2px solid rgba(239, 68, 68, 0.5);
+    border-left: 2px solid color-mix(in srgb, var(--color-error) 50%, transparent);
     font-size: var(--text-sm);
-    color: #fca5a5;
+    color: var(--color-error);
   }
 
   .player {

@@ -113,8 +113,9 @@
   <div class="bars">
     {#each bars as h}<i style="height: {h}%"></i>{/each}
   </div>
-  <div class="bars played">
-    {#each bars as h}<i style="height: {h}%"></i>{/each}
+  <!-- Every played bar shows its slice of one gradient across the whole width -->
+  <div class="bars played" style="--n: {bars.length}">
+    {#each bars as h, i}<i style="height: {h}%; background-position: {bars.length > 1 ? (i / (bars.length - 1)) * 100 : 0}% 0"></i>{/each}
   </div>
   {#if started}<div class="head"></div>{/if}
   {#each shown as m (m.id)}
@@ -139,7 +140,7 @@
     outline: none;
   }
   .peaks:focus-visible {
-    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.45);
+    box-shadow: 0 0 0 2px var(--color-accent);
     border-radius: 4px;
   }
   .bars {
@@ -157,13 +158,14 @@
     flex: 1 1 0;
     min-width: 1px;
     border-radius: 1px;
-    background: #34303f;
+    background: var(--color-wave-idle);
   }
   .played {
     clip-path: inset(0 calc(100% - var(--p) * 100%) 0 0);
   }
   .played i {
-    background: var(--color-accent);
+    background-image: var(--gradient-accent);
+    background-size: calc(var(--n) * 100%) 100%;
   }
   .head {
     position: absolute;
@@ -185,12 +187,12 @@
     padding: 0;
     border: none;
     border-radius: 50%;
-    background: var(--gradient-accent);
+    background: var(--color-text-primary);
     box-shadow: 0 0 0 2px var(--color-bg-base);
     z-index: 2;
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--color-bg-base);
     font: 700 8px/1 var(--font-sans);
     cursor: pointer;
   }
@@ -201,17 +203,20 @@
     top: calc(var(--marker, 10px) - 1px);
     width: 1px;
     height: var(--marker-line, 25px);
-    background: var(--color-accent);
-    opacity: 0.35;
+    background: var(--color-text-primary);
+    opacity: 0.3;
     pointer-events: none;
   }
   .marker:hover {
-    box-shadow: 0 0 0 2px var(--color-bg-base), 0 0 0 4px rgba(244, 63, 94, 0.35);
+    box-shadow: 0 0 0 2px var(--color-bg-base), 0 0 0 4px var(--color-border-hover);
   }
+  /* Resolved: only outlined */
   .marker.done {
-    background: #4a4658;
+    background: var(--color-bg-base);
+    box-shadow: inset 0 0 0 1.5px var(--color-text-tertiary), 0 0 0 2px var(--color-bg-base);
+    color: var(--color-text-tertiary);
   }
   .marker.done::after {
-    background: #6b6680;
+    background: var(--color-text-tertiary);
   }
 </style>

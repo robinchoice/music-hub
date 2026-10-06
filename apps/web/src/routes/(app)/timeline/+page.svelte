@@ -93,7 +93,7 @@
     <DashCard icon="timeline" title="Verlauf" sub="Klick auf einen Clip spielt ihn unten ab" flush>
       <div class="legend keys">
         <span><i class="clip-key" style="background: var(--color-accent)"></i>neueste Version</span>
-        <span><i class="clip-key" style="background: #2e1420; box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.55)"></i>Version</span>
+        <span><i class="clip-key" style="background: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent)"></i>Version</span>
         <span><Icon name="check" size={12} stroke={3} />freigegeben</span>
         <span><Icon name="x" size={12} stroke={3} />abgelehnt</span>
         <span><i class="dot-key"></i>Kommentar</span>
@@ -254,7 +254,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: #1e1c27;
+    background: var(--color-border);
   }
   .today {
     position: absolute;
@@ -262,7 +262,7 @@
     bottom: 0;
     width: 2px;
     margin-left: -1px;
-    background: rgba(244, 63, 94, 0.5);
+    background: color-mix(in srgb, var(--color-accent) 50%, transparent);
   }
   .wk {
     position: absolute;

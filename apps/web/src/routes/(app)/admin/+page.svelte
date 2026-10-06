@@ -514,7 +514,7 @@
     align-items: center;
     gap: 10px;
     padding: 7px 0;
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
     font-size: var(--text-sm);
   }
   .plist li:last-child {
@@ -636,7 +636,7 @@
     padding: 8px 10px;
     text-align: right;
     color: var(--color-text-primary);
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }

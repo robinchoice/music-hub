@@ -3,6 +3,8 @@
   import { page } from '$app/stores';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
+  import Tile from '$lib/components/ui/Tile.svelte';
   import { formatTime } from '$lib/utils/format.js';
 
   type Comment = {
@@ -203,122 +205,128 @@
   <title>{data ? `${data.track.name} — ${data.project.name}` : 'Music Hub'}</title>
 </svelte:head>
 
-<div class="listen-page">
-  {#if loading}
-    <p class="muted">Lädt…</p>
-  {:else if passwordRequired}
-    <div class="password-gate">
-      <h1>🔒 Geschützter Link</h1>
-      <p>Bitte Passwort eingeben:</p>
-      <input type="password" bind:value={password} placeholder="Passwort" />
-      <Button onclick={load}>Öffnen</Button>
-      {#if error}<p class="error">{error}</p>{/if}
-    </div>
-  {:else if error}
-    <p class="error">{error}</p>
-  {:else if data}
-    <header>
-      <p class="project">{data.project.name}</p>
-      <h1>{data.track.name}</h1>
-      {#if data.version.label}<p class="version-label">{data.version.label}</p>{/if}
-    </header>
-
-    <WaveformPlayer
-      bind:this={playerRef}
-      url={data.streamUrl}
-      {peaks}
-      audioDuration={data.version.duration}
-      markers={data.comments
-        .filter((c) => c.timestampSeconds !== null)
-        .map((c) => ({
-          id: c.id,
-          timestampSeconds: c.timestampSeconds!,
-          body: c.body,
-          userName: c.user?.name ?? c.guestName ?? 'Gast',
-        }))}
-      onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
-      onPlay={onPlay}
-      onPause={onPause}
-      onFinish={onFinish}
-    />
-
-    {#if showNamePrompt}
-      <div class="name-prompt">
-        <p>Wie heißt du? So wissen die Künstler, wer zugehört hat.</p>
-        <div class="name-prompt-row">
-          <input
-            type="text"
-            bind:value={nameInput}
-            placeholder="Dein Name"
-            onkeydown={(e) => e.key === 'Enter' && submitName()}
-            autofocus
-          />
-          <Button size="sm" onclick={submitName} disabled={!nameInput.trim()}>OK</Button>
-          <button class="skip-btn" onclick={dismissName}>Überspringen</button>
-        </div>
+<div class="shell">
+  <div class="listen-page">
+    <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
+    {#if loading}
+      <p class="muted">Lädt…</p>
+    {:else if passwordRequired}
+      <div class="password-gate">
+        <h1>🔒 Geschützter Link</h1>
+        <p>Bitte Passwort eingeben:</p>
+        <input type="password" bind:value={password} placeholder="Passwort" />
+        <Button onclick={load}>Öffnen</Button>
+        {#if error}<p class="error">{error}</p>{/if}
       </div>
-    {/if}
+    {:else if error}
+      <p class="error">{error}</p>
+    {:else if data}
+      <header>
+        <p class="project">{data.project.name}</p>
+        <h1>{data.track.name}</h1>
+        {#if data.version.label}<p class="version-label">{data.version.label}</p>{/if}
+      </header>
 
-    {#if data.downloadUrl}
-      <div class="actions">
-        <a href={data.downloadUrl} target="_blank" rel="noopener">
-          <Button variant="ghost" size="sm">↓ Original herunterladen</Button>
-        </a>
-      </div>
-    {/if}
+      <WaveformPlayer
+        bind:this={playerRef}
+        url={data.streamUrl}
+        {peaks}
+        audioDuration={data.version.duration}
+        markers={data.comments
+          .filter((c) => c.timestampSeconds !== null)
+          .map((c) => ({
+            id: c.id,
+            timestampSeconds: c.timestampSeconds!,
+            body: c.body,
+            userName: c.user?.name ?? c.guestName ?? 'Gast',
+          }))}
+        onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
+        onPlay={onPlay}
+        onPause={onPause}
+        onFinish={onFinish}
+      />
 
-    {#if data.allowComments}
-      <form class="comment-form" onsubmit={submitComment}>
-        <h2>Feedback hinterlassen</h2>
-        <input type="text" bind:value={guestName} placeholder="Dein Name" required />
-        {#if commentTimestamp !== null}
-          <span class="ts-badge">
-            bei {formatTime(commentTimestamp)}
-            <button type="button" onclick={() => (commentTimestamp = null)}>×</button>
-          </span>
-        {/if}
-        <textarea
-          bind:value={body}
-          placeholder="Was denkst du? (Klick auf die Wellenform für Timestamp)"
-          rows="3"
-          required
-        ></textarea>
-        <Button type="submit" loading={submitting} disabled={!body.trim() || !guestName.trim()}>
-          Senden
-        </Button>
-      </form>
-    {/if}
-
-    <section class="comments">
-      <h2>Kommentare ({data.comments.length})</h2>
-      {#each data.comments.filter((c) => !c.parentId) as c}
-        <div class="comment">
-          <div class="comment-head">
-            <strong>{c.user?.name ?? c.guestName ?? 'Gast'}</strong>
-            {#if !c.user}<span class="guest">Gast</span>{/if}
-            {#if c.timestampSeconds !== null}
-              <button class="ts" onclick={() => playerRef?.seekToTime(c.timestampSeconds!)}>
-                {formatTime(c.timestampSeconds)}
-              </button>
-            {/if}
+      {#if showNamePrompt}
+        <div class="name-prompt">
+          <p>Wie heißt du? So wissen die Künstler, wer zugehört hat.</p>
+          <div class="name-prompt-row">
+            <input
+              type="text"
+              bind:value={nameInput}
+              placeholder="Dein Name"
+              onkeydown={(e) => e.key === 'Enter' && submitName()}
+              autofocus
+            />
+            <Button size="sm" onclick={submitName} disabled={!nameInput.trim()}>OK</Button>
+            <button class="skip-btn" onclick={dismissName}>Überspringen</button>
           </div>
-          <p>{c.body}</p>
         </div>
-      {/each}
-      {#if data.comments.length === 0}
-        <p class="muted">Noch keine Kommentare.</p>
       {/if}
-    </section>
 
-    <footer>
-      <p class="muted">Geteilt über Music Hub</p>
-    </footer>
-  {/if}
-  <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+      {#if data.downloadUrl}
+        <div class="actions">
+          <a href={data.downloadUrl} target="_blank" rel="noopener">
+            <Button variant="ghost" size="sm">↓ Original herunterladen</Button>
+          </a>
+        </div>
+      {/if}
+
+      {#if data.allowComments}
+        <form class="comment-form" onsubmit={submitComment}>
+          <h2>Feedback hinterlassen</h2>
+          <input type="text" bind:value={guestName} placeholder="Dein Name" required />
+          {#if commentTimestamp !== null}
+            <span class="ts-badge">
+              bei {formatTime(commentTimestamp)}
+              <button type="button" onclick={() => (commentTimestamp = null)}>×</button>
+            </span>
+          {/if}
+          <textarea
+            bind:value={body}
+            placeholder="Was denkst du? (Klick auf die Wellenform für Timestamp)"
+            rows="3"
+            required
+          ></textarea>
+          <Button type="submit" loading={submitting} disabled={!body.trim() || !guestName.trim()}>
+            Senden
+          </Button>
+        </form>
+      {/if}
+
+      <section class="comments">
+        <h2>Kommentare ({data.comments.length})</h2>
+        {#each data.comments.filter((c) => !c.parentId) as c}
+          <div class="comment">
+            <div class="comment-head">
+              <strong>{c.user?.name ?? c.guestName ?? 'Gast'}</strong>
+              {#if !c.user}<span class="guest">Gast</span>{/if}
+              {#if c.timestampSeconds !== null}
+                <button class="ts" onclick={() => playerRef?.seekToTime(c.timestampSeconds!)}>
+                  {formatTime(c.timestampSeconds)}
+                </button>
+              {/if}
+            </div>
+            <p>{c.body}</p>
+          </div>
+        {/each}
+        {#if data.comments.length === 0}
+          <p class="muted">Noch keine Kommentare.</p>
+        {/if}
+      </section>
+
+      <footer>
+        <p class="muted">Geteilt über Music Hub</p>
+      </footer>
+    {/if}
+    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+  </div>
+  <PleasanceFooter />
 </div>
 
 <style>
   .listen-page {
+    flex: 1;
+    width: 100%;
     max-width: 720px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-4);
@@ -326,12 +334,39 @@
     flex-direction: column;
     gap: var(--space-5);
   }
+  .shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .sender {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    align-self: flex-start;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    font-stretch: 76%;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .sender:hover {
+    color: var(--color-text-primary);
+  }
   header { text-align: center; }
   .project { color: var(--color-text-tertiary); font-size: var(--text-sm); margin: 0; }
-  h1 { margin: var(--space-1) 0; font-size: var(--text-2xl); }
+  h1 { margin: var(--space-1) 0; font-size: 2rem; }
+  header h1 {
+    font-size: clamp(3rem, 12vw, 4.75rem);
+    font-weight: 800;
+    font-stretch: 75%;
+    line-height: 0.9;
+  }
   .version-label { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
   .muted { color: var(--color-text-tertiary); font-size: var(--text-sm); }
-  .error { color: var(--color-error, #ef4444); }
+  .error { color: var(--color-error, var(--color-error)); }
 
   .name-prompt {
     background: var(--color-bg-raised);
@@ -399,19 +434,19 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
   }
-  .comment-form h2 { margin: 0 0 var(--space-2); font-size: var(--text-base); }
+  .comment-form h2 { margin: 0 0 var(--space-2); font-size: 1.5rem; }
   .ts-badge {
     align-self: flex-start;
-    background: rgba(251, 191, 36, 0.15);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    color: var(--color-accent);
     border-radius: var(--radius-sm);
     padding: 0.15rem var(--space-2);
     font-size: var(--text-xs);
   }
   .ts-badge button { background: none; border: none; color: inherit; cursor: pointer; margin-left: var(--space-1); }
   .comments { display: flex; flex-direction: column; gap: var(--space-2); }
-  .comments h2 { font-size: var(--text-base); margin: 0 0 var(--space-2); }
+  .comments h2 { font-size: 1.5rem; margin: 0 0 var(--space-2); }
   .comment {
     padding: var(--space-3);
     background: var(--color-bg-raised);
@@ -434,9 +469,9 @@
     border-radius: var(--radius-sm);
   }
   .ts {
-    background: rgba(251, 191, 36, 0.15);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    color: var(--color-accent);
     border-radius: var(--radius-sm);
     padding: 0.05rem 0.4rem;
     font-size: var(--text-xs);

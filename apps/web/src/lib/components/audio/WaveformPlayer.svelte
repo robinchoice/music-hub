@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import WaveSurfer from 'wavesurfer.js';
+  import { APP_BAND, GLOW, bandColor } from '@music-hub/shared';
   import { formatTime } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -58,22 +59,39 @@
     if (ws) ws.setVolume(muted ? 0 : volume);
   });
 
+  const height = $derived(compact ? 56 : 96);
+
+  // The played part shows the product gradient. It spans the whole waveform from bottom left to top
+  // right like CSS linear-gradient(45deg), so the colour marks the position in the song.
+  function progressGradient(): CanvasGradient | string {
+    const stops = [APP_BAND.from, (APP_BAND.from + APP_BAND.to) / 2, APP_BAND.to].map((p) => bandColor(p, GLOW));
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    const w = container.clientWidth * ratio;
+    const h = height * ratio;
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx || !w) return stops[1];
+    const d = (w + h) / 4;
+    const gradient = ctx.createLinearGradient(w / 2 - d, h / 2 + d, w / 2 + d, h / 2 - d);
+    stops.forEach((color, i) => gradient.addColorStop(i / 2, color));
+    return gradient;
+  }
+
   onMount(() => {
     // Resolve CSS variables to real colors so wavesurfer renders correctly.
-    const styles = getComputedStyle(document.documentElement);
-    const waveColor = styles.getPropertyValue('--color-bg-subtle').trim() || '#262430';
-    const progressColor = styles.getPropertyValue('--color-accent').trim() || '#f43f5e';
+    const styles = getComputedStyle(container);
+    const waveColor = styles.getPropertyValue('--color-wave-idle').trim() || '#47444b';
+    const cursorColor = styles.getPropertyValue('--color-text-primary').trim() || '#f2f0ea';
 
     ws = WaveSurfer.create({
       container,
       waveColor,
-      progressColor,
-      cursorColor: progressColor,
+      progressColor: progressGradient(),
+      cursorColor,
       cursorWidth: 2,
       barWidth: 2,
       barGap: 2,
       barRadius: 3,
-      height: compact ? 56 : 96,
+      height,
       normalize: true,
       url,
       // With peaks wavesurfer streams the audio, without them it downloads and decodes
@@ -110,9 +128,21 @@
         onTimeClick(clickedTime);
       }
     });
+
+    // The gradient is drawn in canvas pixels, so it has to follow the width
+    let width = container.clientWidth;
+    resizeObserver = new ResizeObserver(() => {
+      if (container.clientWidth === width) return;
+      width = container.clientWidth;
+      ws?.setOptions({ progressColor: progressGradient() });
+    });
+    resizeObserver.observe(container);
   });
 
+  let resizeObserver: ResizeObserver | undefined;
+
   onDestroy(() => {
+    resizeObserver?.disconnect();
     ws?.destroy();
   });
 
@@ -249,26 +279,19 @@
     height: 64px;
     border-radius: 50%;
     border: none;
-    background: var(--gradient-accent);
-    color: #fff;
+    /* Neutral, the waveform carries the gradient */
+    background: var(--color-text-primary);
+    color: var(--color-bg-base);
     cursor: pointer;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.2) inset,
-      0 8px 24px rgba(244, 63, 94, 0.32);
-    transition:
-      transform var(--transition-fast),
-      box-shadow var(--transition-fast);
+    transition: transform var(--transition-fast);
     padding-left: 4px; /* visual centering for play triangle */
   }
   .play-btn:hover:not(:disabled) {
     transform: scale(1.05);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.25) inset,
-      0 12px 36px rgba(244, 63, 94, 0.45);
   }
   .play-btn:active:not(:disabled) {
     transform: scale(0.96);
@@ -320,8 +343,8 @@
     transform: translateX(-50%);
     width: 1px;
     height: calc(100% - 22px + 6px);
-    background: var(--color-accent);
-    opacity: 0.35;
+    background: var(--color-text-primary);
+    opacity: 0.3;
     pointer-events: none;
   }
   .marker-dot {
@@ -331,8 +354,8 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: var(--gradient-accent);
-    color: #fff;
+    background: var(--color-text-primary);
+    color: var(--color-bg-base);
     font-size: 9px;
     font-weight: 700;
     border: 2px solid var(--color-bg-raised);

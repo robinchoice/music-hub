@@ -186,13 +186,13 @@
   .dot.approved {
     background: var(--color-success);
     box-shadow: none;
-    color: #06210f;
+    color: var(--color-on-accent);
   }
 
   .dot.rejected {
     background: var(--color-error);
     box-shadow: none;
-    color: #2b0606;
+    color: var(--color-on-accent);
   }
 
   .text {
@@ -210,7 +210,10 @@
   }
 
   .line b {
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 78%;
+    font-size: 1.0625rem;
     flex-shrink: 0;
   }
 
@@ -237,14 +240,14 @@
 
   .meta em {
     font-style: normal;
-    color: var(--color-warning);
+    color: var(--color-accent);
   }
 
   .reason {
     display: block;
     margin-top: 1px;
     font-size: var(--text-xs);
-    color: #fca5a5;
+    color: var(--color-error);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

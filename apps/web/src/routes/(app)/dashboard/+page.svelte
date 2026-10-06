@@ -98,31 +98,37 @@
     margin-bottom: var(--space-5);
   }
   .date {
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--color-text-tertiary);
-    margin: 0 0 4px;
+    margin: 0 0 6px;
   }
+  /* The week in one sentence, the numbers stand out */
   .sum {
     margin: 0;
-    max-width: 820px;
-    font-size: var(--text-lg);
-    line-height: 1.45;
-    letter-spacing: -0.01em;
+    max-width: 860px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 750;
+    font-stretch: 78%;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
     color: var(--color-text-secondary);
   }
   .sum b {
     color: var(--color-text-primary);
-    font-weight: 600;
+    font-weight: 800;
   }
   .sum a {
-    color: var(--color-text-primary);
-    text-decoration: underline;
-    text-decoration-color: rgba(244, 63, 94, 0.6);
-    text-underline-offset: 3px;
-    text-decoration-thickness: 2px;
+    color: var(--color-accent);
+    text-decoration: none;
   }
   .sum a:hover {
-    text-decoration-color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
   }
   /* 12 columns across the full width; one column on narrow screens */
   .grid {
@@ -148,7 +154,7 @@
       padding: var(--space-4) var(--space-4) var(--space-8);
     }
     .sum {
-      font-size: var(--text-base);
+      font-size: 1.5rem;
     }
   }
 </style>

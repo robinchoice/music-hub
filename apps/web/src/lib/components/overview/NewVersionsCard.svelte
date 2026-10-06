@@ -83,8 +83,11 @@
   }
   h3 {
     margin: 0;
-    font-size: 22px;
-    line-height: 1.2;
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 780;
+    font-stretch: 78%;
+    line-height: 1.05;
   }
   h3 a {
     color: inherit;
@@ -92,7 +95,7 @@
   }
   h3 a:hover {
     text-decoration: underline;
-    text-decoration-color: rgba(244, 63, 94, 0.6);
+    text-decoration-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
     text-underline-offset: 3px;
   }
   .meta {

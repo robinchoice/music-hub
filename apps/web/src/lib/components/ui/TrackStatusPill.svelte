@@ -6,26 +6,28 @@
     size = 'sm',
   }: { status: TrackStatus; size?: 'sm' | 'md' } = $props();
 
+  // Sketch neutral, in progress in the product colour, final green, released filled in the text colour
+  const tint = (color: string, alpha: number) => `color-mix(in srgb, ${color} ${alpha}%, transparent)`;
   const COLORS: Record<TrackStatus, { bg: string; fg: string; border: string }> = {
     sketch: {
-      bg: 'rgba(155, 150, 168, 0.12)',
-      fg: '#9b96a8',
-      border: 'rgba(155, 150, 168, 0.3)',
+      bg: tint('var(--color-text-secondary)', 12),
+      fg: 'var(--color-text-secondary)',
+      border: tint('var(--color-text-secondary)', 30),
     },
     in_progress: {
-      bg: 'rgba(251, 146, 60, 0.12)',
-      fg: '#fb923c',
-      border: 'rgba(251, 146, 60, 0.35)',
+      bg: 'var(--color-accent-subtle)',
+      fg: 'var(--color-accent)',
+      border: tint('var(--color-accent)', 40),
     },
     final: {
-      bg: 'rgba(34, 197, 94, 0.12)',
-      fg: '#22c55e',
-      border: 'rgba(34, 197, 94, 0.35)',
+      bg: tint('var(--color-success)', 12),
+      fg: 'var(--color-success)',
+      border: tint('var(--color-success)', 35),
     },
     released: {
-      bg: 'rgba(244, 63, 94, 0.12)',
-      fg: '#f43f5e',
-      border: 'rgba(244, 63, 94, 0.4)',
+      bg: 'var(--color-text-primary)',
+      fg: 'var(--color-bg-base)',
+      border: 'var(--color-text-primary)',
     },
   };
 

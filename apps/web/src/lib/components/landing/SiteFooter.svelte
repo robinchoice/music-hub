@@ -1,12 +1,16 @@
 <script lang="ts">
+  import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
+  import Tile from '$lib/components/ui/Tile.svelte';
+
   const REPO = 'https://github.com/robinchoice/music-hub';
 </script>
 
 <footer class="footer">
   <div class="footer-grid">
     <div class="footer-brand">
-      <a href="/" class="wordmark">Music Hub</a>
+      <a href="/" class="wordmark"><Tile size={28} /> Music Hub</a>
       <p class="footer-tag">Versionen für Musik. Ohne Chaos.</p>
+      <p class="copy">© 2026 Music Hub</p>
     </div>
     <div>
       <h4>Produkt</h4>
@@ -23,13 +27,13 @@
       <a href="/datenschutz">Datenschutz</a>
     </div>
   </div>
-  <p class="copy">© 2026 Music Hub</p>
 </footer>
+<div class="sender"><PleasanceFooter /></div>
 
 <style>
   .footer {
     border-top: 1px solid var(--color-border);
-    padding: 56px 0 40px;
+    padding: 56px 0 32px;
   }
   .footer-grid {
     display: grid;
@@ -38,14 +42,19 @@
     margin-bottom: var(--space-8);
   }
   .wordmark {
-    display: inline-block;
-    font-size: 19px;
-    font-weight: 750;
-    letter-spacing: -0.025em;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    font-stretch: 76%;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .wordmark:hover {
+    color: var(--color-text-primary);
   }
   .footer-tag {
     margin: 8px 0 0;
@@ -66,11 +75,13 @@
     color: var(--color-text-primary);
   }
   .copy {
-    margin: 0;
-    padding-top: 24px;
-    border-top: 1px solid var(--color-border);
+    margin: 6px 0 0;
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+  }
+  /* The sender closes the page, aligned with the columns */
+  .sender :global(footer) {
+    padding-inline: 0;
   }
 
   @media (max-width: 759px) {

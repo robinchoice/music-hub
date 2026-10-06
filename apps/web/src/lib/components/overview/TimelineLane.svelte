@@ -26,7 +26,7 @@
     onplay: (version: OverviewVersion, from?: number) => void;
   } = $props();
 
-  const STATUS_COLORS = { sketch: '#9b96a8', in_progress: '#fb923c', final: '#22c55e', released: '#f43f5e' };
+  const STATUS_COLORS = { sketch: 'var(--color-text-secondary)', in_progress: 'var(--color-accent)', final: 'var(--color-success)', released: 'var(--color-text-primary)' };
 
   const at = (iso: string) => range.pct(Date.parse(iso));
   const inRange = (iso: string) => Date.parse(iso) >= range.start;
@@ -169,7 +169,7 @@
     height: 7px;
     border-radius: 50%;
     background: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
     flex-shrink: 0;
   }
   .lane {
@@ -181,7 +181,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: #1e1c27;
+    background: var(--color-border);
   }
   .today {
     position: absolute;
@@ -189,7 +189,7 @@
     bottom: 0;
     width: 2px;
     margin-left: -1px;
-    background: rgba(244, 63, 94, 0.5);
+    background: color-mix(in srgb, var(--color-accent) 50%, transparent);
   }
   .line {
     position: absolute;
@@ -197,10 +197,10 @@
     height: 2px;
     margin-top: -1px;
     border-radius: 1px;
-    background: #3a3646;
+    background: var(--color-border-hover);
   }
   .line.live {
-    background: linear-gradient(90deg, #3a3646, rgba(58, 54, 70, 0));
+    background: linear-gradient(90deg, var(--color-border-hover), transparent);
   }
   .clip {
     position: absolute;
@@ -230,33 +230,33 @@
     z-index: 3;
   }
   .clip.ready {
-    background: #2e1420;
-    color: #ffe4e6;
-    border: 1px solid rgba(244, 63, 94, 0.55);
+    background: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-raised));
+    color: var(--color-text-primary);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
   }
   .clip.latest {
     background: var(--color-accent);
-    color: #1a0a10;
+    color: var(--color-on-accent);
     border: 1px solid transparent;
   }
   .clip.approved {
-    background: #14261b;
-    color: #dcfce7;
-    border: 1px solid rgba(34, 197, 94, 0.5);
+    background: color-mix(in srgb, var(--color-success) 14%, var(--color-bg-raised));
+    color: var(--color-text-primary);
+    border: 1px solid color-mix(in srgb, var(--color-success) 50%, transparent);
   }
   .clip.approved :global(svg) {
     color: var(--color-success);
   }
   .clip.rejected {
-    background: #2a1418;
-    color: #fee2e2;
-    border: 1px solid rgba(239, 68, 68, 0.55);
+    background: color-mix(in srgb, var(--color-error) 14%, var(--color-bg-raised));
+    color: var(--color-text-primary);
+    border: 1px solid color-mix(in srgb, var(--color-error) 55%, transparent);
   }
   .clip.rejected :global(svg) {
     color: var(--color-error);
   }
   .clip.playing {
-    box-shadow: 0 0 0 2px var(--color-bg-raised), 0 0 0 4px rgba(244, 63, 94, 0.6);
+    box-shadow: 0 0 0 2px var(--color-bg-raised), 0 0 0 4px color-mix(in srgb, var(--color-accent) 60%, transparent);
   }
   .cm {
     position: absolute;

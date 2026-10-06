@@ -2,13 +2,14 @@
   import { user } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
+  import Tile from '$lib/components/ui/Tile.svelte';
 
   let { children } = $props();
 </script>
 
 <div class="page">
   <nav class="nav">
-    <a href="/" class="wordmark">Music Hub</a>
+    <a href="/" class="wordmark"><Tile size={30} /> Music Hub</a>
     {#if $user}
       <Button href="/dashboard" size="sm">Zum Dashboard</Button>
     {:else}
@@ -36,13 +37,19 @@
     padding: 22px 0;
   }
   .wordmark {
-    font-size: 19px;
-    font-weight: 750;
-    letter-spacing: -0.025em;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    font-stretch: 76%;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .wordmark:hover {
+    color: var(--color-text-primary);
   }
 
   .legal {
@@ -54,8 +61,9 @@
   .legal :global(h1) {
     margin: 0 0 var(--space-3);
     font-size: clamp(34px, 5vw, 48px);
-    font-weight: 730;
-    letter-spacing: -0.035em;
+    font-weight: 800;
+    font-stretch: 75%;
+    letter-spacing: -0.03em;
     line-height: 1.05;
     hyphens: manual;
   }
@@ -78,7 +86,7 @@
     color: var(--color-text-primary);
     text-decoration: underline;
     text-underline-offset: 3px;
-    text-decoration-color: rgba(244, 240, 236, 0.3);
+    text-decoration-color: color-mix(in srgb, var(--color-text-primary) 30%, transparent);
   }
   .legal :global(a:hover) {
     color: var(--color-accent);

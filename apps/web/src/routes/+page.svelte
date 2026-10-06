@@ -5,6 +5,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import Tile from '$lib/components/ui/Tile.svelte';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import DemoFrame from '$lib/components/landing/DemoFrame.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
@@ -14,7 +15,6 @@
   import VersionList from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionList.svelte';
   import VersionCard from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionCard.svelte';
   import CommentSection from './(app)/projects/[projectId]/tracks/[trackId]/components/CommentSection.svelte';
-  import interDisplay from '@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2?url';
 
   const REPO = 'https://github.com/robinchoice/music-hub';
   const SELF_HOSTING = `${REPO}#self-hosting`;
@@ -187,8 +187,7 @@
     name="description"
     content="Music Hub hält jeden Stand deines Songs fest. Feedback sitzt auf der Sekunde, um die es geht, und am Ende ist klar, welcher Mix freigegeben ist. Open Source und selbst hostbar."
   />
-  <link rel="preload" href={interDisplay} as="font" type="font/woff2" crossorigin="anonymous" />
-  {@html `<style>@font-face{font-family:'Inter Display';src:url(${interDisplay}) format('woff2-variations');font-weight:100 900;font-display:swap}</style>`}
+  <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
 </svelte:head>
 
 {#snippet noPlayer()}{/snippet}
@@ -212,7 +211,7 @@
 <div class="landing">
   <div class="page">
     <nav class="nav">
-      <a href="/" class="wordmark">Music Hub</a>
+      <a href="/" class="wordmark"><Tile size={32} /> Music Hub</a>
       <div class="nav-right">
         <a class="nav-link" href={SELF_HOSTING} target="_blank" rel="noopener">Selbst hosten</a>
         {#if $user}
@@ -494,14 +493,20 @@
     padding: 22px 0;
   }
   .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     margin: 0;
-    font-size: 19px;
-    font-weight: 750;
-    letter-spacing: -0.025em;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+    font-stretch: 76%;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .wordmark:hover {
+    color: var(--color-text-primary);
   }
   .nav-right {
     display: flex;
@@ -518,9 +523,10 @@
 
   h1,
   h2,
-  .feat-text h3 {
-    font-family: 'Inter Display', var(--font-sans);
-    font-optical-sizing: auto;
+  .feat-text h3,
+  .side h3 {
+    font-family: var(--font-display);
+    font-stretch: 78%;
     text-wrap: balance;
   }
 
@@ -534,17 +540,18 @@
   }
   .hero h1 {
     margin: 0;
-    font-size: clamp(46px, 6.6vw, 96px);
-    font-weight: 760;
-    letter-spacing: -0.048em;
-    line-height: 0.95;
+    font-size: clamp(52px, 7vw, 100px);
+    font-weight: 800;
+    font-stretch: 75%;
+    letter-spacing: -0.03em;
+    line-height: 0.9;
   }
   .lede {
     margin: 0;
     max-width: 36ch;
     font-size: 19px;
     line-height: 1.55;
-    color: #b4afc0;
+    color: #b5b3bb;
   }
   .ctas {
     display: flex;
@@ -564,20 +571,6 @@
     margin: 56px auto 0;
     padding: 0 var(--space-10);
   }
-  .stage::before {
-    content: '';
-    position: absolute;
-    z-index: -1;
-    left: 50%;
-    top: -140px;
-    width: 1500px;
-    height: 900px;
-    margin-left: -750px;
-    pointer-events: none;
-    background:
-      radial-gradient(ellipse 46% 40% at 50% 46%, rgba(244, 63, 94, 0.24), transparent 70%),
-      radial-gradient(ellipse 30% 30% at 74% 62%, rgba(251, 146, 60, 0.16), transparent 70%);
-  }
   .window {
     max-width: 1320px;
     margin: 0 auto;
@@ -595,14 +588,14 @@
     align-items: center;
     gap: 8px;
     padding: 0 14px;
-    background: #0e0c14;
-    border-bottom: 1px solid #1d1b25;
+    background: #0f0d10;
+    border-bottom: 1px solid #211f25;
   }
   .window-bar i {
     width: 11px;
     height: 11px;
     border-radius: 50%;
-    background: #2a2733;
+    background: #2d2a31;
   }
   .url {
     display: flex;
@@ -612,8 +605,8 @@
     margin: 0 auto;
     padding: 0 14px;
     border-radius: 7px;
-    background: #16141d;
-    color: #7c7689;
+    background: #19171c;
+    color: #7d7a83;
     font-size: 12.5px;
   }
   .try {
@@ -634,8 +627,8 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--color-warning);
-    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15);
+    background: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-accent-subtle);
   }
 
   /* Phone hero: preview, opens fullscreen */
@@ -644,8 +637,8 @@
     height: 600px;
     border-radius: 26px;
     overflow: hidden;
-    border: 1px solid #23202c;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 80px rgba(244, 63, 94, 0.12);
+    border: 1px solid #26232a;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
   }
   .phone-demo-frame {
     height: 100%;
@@ -660,11 +653,11 @@
     border: none;
     border-radius: var(--radius-full);
     background: var(--gradient-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     font-family: inherit;
     font-size: var(--text-base);
     font-weight: 600;
-    box-shadow: 0 10px 30px rgba(244, 63, 94, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     cursor: pointer;
   }
   .phone-demo.open {
@@ -709,10 +702,11 @@
   }
   .sec h2 {
     margin: 0;
-    font-size: clamp(34px, 4.2vw, 58px);
-    font-weight: 730;
-    letter-spacing: -0.036em;
-    line-height: 1.02;
+    font-size: clamp(40px, 4.6vw, 64px);
+    font-weight: 800;
+    font-stretch: 75%;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
   }
   .body {
     margin: 18px 0 0;
@@ -743,8 +737,8 @@
   }
   .before {
     overflow: hidden;
-    background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.012) 0 12px, transparent 12px 24px), #0e0c13;
-    border: 1px solid #1b1922;
+    background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.012) 0 12px, transparent 12px 24px), #0f0d10;
+    border: 1px solid #1f1d22;
   }
   .after {
     background: var(--color-bg-raised);
@@ -763,10 +757,10 @@
     gap: 10px;
     padding: 10px 14px;
     border-radius: 10px;
-    background: #16141d;
-    border: 1px solid #23202c;
+    background: #19171c;
+    border: 1px solid #26232a;
     font-size: 14px;
-    color: #c9c4d3;
+    color: #cac8cf;
     white-space: nowrap;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   }
@@ -839,10 +833,10 @@
   }
   .feat-text h3 {
     margin: 0;
-    font-size: clamp(28px, 2.8vw, 40px);
-    font-weight: 720;
-    letter-spacing: -0.035em;
-    line-height: 1.05;
+    font-size: clamp(30px, 3vw, 44px);
+    font-weight: 780;
+    letter-spacing: -0.02em;
+    line-height: 1;
   }
   .feat-text p {
     margin: 14px 0 0;
@@ -859,16 +853,8 @@
     min-width: 0;
     padding: 26px;
     border-radius: 22px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)), #0d0b12;
-    border: 1px solid #1d1b25;
-  }
-  .frag::after {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: 22px;
-    pointer-events: none;
-    background: radial-gradient(ellipse 60% 50% at 80% 0%, rgba(244, 63, 94, 0.1), transparent 70%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)), #0d0b0e;
+    border: 1px solid #211f25;
   }
   .frag-versions {
     display: grid;
@@ -902,9 +888,9 @@
   }
   .side h3 {
     margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
+    font-size: 28px;
+    font-weight: 780;
+    letter-spacing: -0.02em;
   }
   .side ul {
     list-style: none;
@@ -929,11 +915,11 @@
     width: 412px;
     height: 866px;
     margin: -60px -29px;
-    border: 11px solid #1c1a23;
+    border: 11px solid #201e24;
     border-radius: 54px;
     overflow: hidden;
     background: var(--color-bg-base);
-    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.65), 0 0 0 1px #2a2733;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.65), 0 0 0 1px #2d2a31;
     transform: scale(0.86);
   }
 
@@ -970,8 +956,8 @@
   .term {
     min-width: 0;
     border-radius: 16px;
-    background: #0c0a10;
-    border: 1px solid #221f2a;
+    background: #0d0b0e;
+    border: 1px solid #252229;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
     overflow: hidden;
   }
@@ -981,20 +967,20 @@
     align-items: center;
     gap: 7px;
     padding: 0 14px;
-    border-bottom: 1px solid #1b1922;
+    border-bottom: 1px solid #1f1d22;
   }
   .term-bar i {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #2a2733;
+    background: #2d2a31;
   }
   .term pre {
     margin: 0;
     padding: 20px 22px 24px;
     overflow-x: auto;
     font: 13.5px/1.75 var(--font-mono);
-    color: #d9d4e2;
+    color: #dad8dd;
   }
   .term .c {
     color: var(--color-text-tertiary);
@@ -1003,7 +989,7 @@
     color: var(--color-accent-2);
   }
   .term .ok {
-    color: #4ade80;
+    color: var(--color-success);
   }
 
   .reject-form {

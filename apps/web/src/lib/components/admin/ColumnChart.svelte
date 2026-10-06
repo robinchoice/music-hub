@@ -73,7 +73,7 @@
     text-align: right;
     color: var(--color-text-primary);
     font-variant-numeric: tabular-nums;
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
   }
   .mini-table :is(th, td):first-child {
     text-align: left;
@@ -88,11 +88,11 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: #24222e;
+    background: var(--color-border);
     font-style: normal;
   }
   .grid.base {
-    background: #3a3646;
+    background: var(--color-border-hover);
   }
   .grid span {
     position: absolute;

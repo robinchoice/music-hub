@@ -98,14 +98,14 @@
     right: 0;
     top: 50%;
     height: 1px;
-    background: #24222e;
+    background: var(--color-border);
   }
   .ref {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 1px;
-    background: #6b6680;
+    background: var(--color-text-tertiary);
   }
   .reflbl {
     position: absolute;

@@ -102,26 +102,26 @@
     text-decoration: none;
   }
   .unit:hover {
-    border-color: #4a4658;
+    border-color: var(--color-text-tertiary);
   }
   .unit.s-open {
-    background: rgba(251, 191, 36, 0.07);
-    border-color: rgba(251, 191, 36, 0.28);
+    background: var(--color-accent-subtle);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
   }
   .unit.s-rejected {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: rgba(239, 68, 68, 0.3);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+    border-color: color-mix(in srgb, var(--color-error) 30%, transparent);
   }
   .unit.s-approved {
-    background: rgba(34, 197, 94, 0.07);
-    border-color: rgba(34, 197, 94, 0.28);
+    background: color-mix(in srgb, var(--color-success) 7%, transparent);
+    border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
   }
   .unit.s-none,
   .unit.s-processing {
     color: var(--color-text-secondary);
   }
   .s-open :global(svg) {
-    color: var(--color-warning);
+    color: var(--color-accent);
   }
   .s-rejected :global(svg) {
     color: var(--color-error);

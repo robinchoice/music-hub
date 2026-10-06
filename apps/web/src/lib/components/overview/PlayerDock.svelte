@@ -43,7 +43,7 @@
     align-items: center;
     gap: 14px;
     padding: 10px var(--space-6);
-    background: rgba(19, 17, 25, 0.97);
+    background: color-mix(in srgb, var(--color-bg-raised) 97%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--color-border-hover);

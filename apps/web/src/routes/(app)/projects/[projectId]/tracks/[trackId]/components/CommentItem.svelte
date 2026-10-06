@@ -183,7 +183,7 @@
   }
 
   .comment.active {
-    background: linear-gradient(90deg, rgba(244, 63, 94, 0.09), rgba(244, 63, 94, 0) 75%);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 9%, transparent), rgba(244, 63, 94, 0) 75%);
   }
 
   .comment.active::before {
@@ -231,15 +231,15 @@
     font-family: inherit;
     font-size: var(--text-xs);
     font-variant-numeric: tabular-nums;
-    color: var(--color-warning);
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.25);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
     border-radius: var(--radius-sm);
     cursor: pointer;
   }
 
   .ts:hover {
-    background: rgba(251, 191, 36, 0.2);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
   }
 
   .when {

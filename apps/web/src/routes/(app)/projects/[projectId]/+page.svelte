@@ -321,8 +321,8 @@
 
   .branch-pill {
     background: var(--color-accent-subtle);
-    border: 1px solid rgba(244, 63, 94, 0.4);
-    color: #fb923c;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+    color: var(--color-accent);
     padding: 0.1rem 0.5rem;
     border-radius: var(--radius-full);
     font-size: var(--text-xs);

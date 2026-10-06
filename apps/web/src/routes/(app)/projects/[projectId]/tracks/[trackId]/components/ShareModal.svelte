@@ -195,7 +195,7 @@
   }
   .tabs button.active {
     color: var(--color-text-primary);
-    border-bottom-color: var(--color-accent);
+    border-image: var(--gradient-accent) 1;
   }
 
   .form {

@@ -368,7 +368,7 @@
 
   /* Danger Zone */
   .danger-zone {
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: color-mix(in srgb, var(--color-error) 30%, transparent);
   }
 
   .danger-zone h2 {

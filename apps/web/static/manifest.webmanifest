@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0a0910",
-  "theme_color": "#f43f5e",
+  "background_color": "#120f13",
+  "theme_color": "#120f13",
   "lang": "de",
   "categories": ["music", "productivity"],
   "shortcuts": [
@@ -38,7 +38,7 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

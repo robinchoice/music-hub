@@ -24,7 +24,7 @@
     font-size: var(--text-xs);
   }
   .s-open {
-    color: var(--color-warning);
+    color: var(--color-accent);
   }
   .s-feedback {
     color: var(--color-text-primary);

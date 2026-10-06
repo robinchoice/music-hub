@@ -278,7 +278,7 @@
     border-radius: var(--radius-full);
     background: var(--color-accent-subtle);
     color: var(--color-accent-2);
-    border: 1px solid rgba(244, 63, 94, 0.3);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
     letter-spacing: 0;
   }
   .mail {
@@ -462,7 +462,7 @@
     align-items: center;
     gap: 10px;
     padding: 8px 0;
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
   }

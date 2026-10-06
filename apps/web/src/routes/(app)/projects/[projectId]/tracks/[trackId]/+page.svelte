@@ -833,12 +833,13 @@
   }
   .track-head h1 {
     margin: 0;
-    font-size: var(--text-2xl);
+    font-size: 2.75rem;
+    line-height: 0.95;
     word-break: break-word;
   }
   @media (max-width: 540px) {
     .track-head h1 {
-      font-size: var(--text-xl);
+      font-size: 2.125rem;
     }
   }
   .title-block {
@@ -1049,7 +1050,7 @@
   .edit-form textarea:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 
   .upload-zone {
@@ -1100,7 +1101,7 @@
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     background: var(--color-accent-subtle);
-    border: 1px solid rgba(244, 63, 94, 0.3);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
     border-radius: var(--radius-md);
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
@@ -1154,32 +1155,40 @@
   }
   .tab-switch {
     display: flex;
-    padding: 2px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    gap: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
   }
   .tab-switch button {
-    flex: 1;
+    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
-    height: 30px;
+    height: 38px;
+    padding: 0;
     border: none;
-    border-radius: var(--radius-sm);
     background: none;
     color: var(--color-text-secondary);
     font-family: inherit;
     font-size: var(--text-sm);
+    font-weight: 600;
     cursor: pointer;
   }
   .tab-switch button:hover {
     color: var(--color-text-primary);
   }
   .tab-switch button.on {
-    background: var(--color-bg-subtle);
     color: var(--color-text-primary);
+  }
+  /* The active tab carries the gradient as a 2px line */
+  .tab-switch button.on::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--gradient-accent);
   }
   .tab-switch i {
     font-style: normal;

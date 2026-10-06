@@ -30,6 +30,7 @@
   <button
     {type}
     class="btn {variant} {size}"
+    class:loading
     disabled={disabled || loading}
     {onclick}
   >
@@ -58,7 +59,7 @@
       border-color var(--transition-fast),
       color var(--transition-fast),
       transform var(--transition-fast),
-      box-shadow var(--transition-fast);
+      filter var(--transition-fast);
     text-decoration: none;
     border: 1px solid transparent;
     position: relative;
@@ -84,16 +85,19 @@
   /* Variants */
   .primary {
     background: var(--gradient-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     border-color: transparent;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 4px 14px rgba(244, 63, 94, 0.25);
+    font-weight: 600;
   }
   .primary:hover:not(:disabled) {
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 8px 24px rgba(244, 63, 94, 0.35);
-    transform: translateY(-1px);
+    filter: brightness(1.06) saturate(1.05);
   }
-  .primary:active:not(:disabled) {
-    transform: scale(0.97) translateY(0);
+  /* Without anything to do there is no gradient */
+  .primary:disabled:not(.loading),
+  .primary.disabled {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-tertiary);
+    opacity: 1;
   }
 
   .secondary {
@@ -118,10 +122,10 @@
   .danger {
     background: transparent;
     color: var(--color-error);
-    border-color: rgba(239, 68, 68, 0.4);
+    border-color: color-mix(in srgb, var(--color-error) 40%, transparent);
   }
   .danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
     border-color: var(--color-error);
   }
 

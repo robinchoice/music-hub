@@ -199,7 +199,7 @@
 
   .composer:focus-within {
     border-color: var(--color-border-focus);
-    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.08);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 8%, transparent);
   }
 
   .composer input {
@@ -224,9 +224,9 @@
     height: 28px;
     padding: 0 6px;
     flex-shrink: 0;
-    color: var(--color-warning);
-    background: rgba(251, 191, 36, 0.12);
-    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
     border-radius: var(--radius-sm);
   }
 
@@ -266,7 +266,7 @@
 
   .list-head h2 {
     margin: 0;
-    font-size: var(--text-base);
+    font-size: 1.5rem;
     white-space: nowrap;
   }
 
@@ -355,8 +355,8 @@
     padding: 0 7px;
     font-style: normal;
     font-size: var(--text-xs);
-    color: var(--color-warning);
-    background: rgba(251, 191, 36, 0.12);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
     border-radius: var(--radius-full);
   }
 

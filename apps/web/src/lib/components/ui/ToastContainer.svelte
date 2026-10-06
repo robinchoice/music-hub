@@ -49,7 +49,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: rgba(26, 24, 34, 0.85);
+    background: color-mix(in srgb, var(--color-bg-overlay) 88%, transparent);
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     border: 1px solid var(--color-border);
@@ -72,8 +72,8 @@
   }
 
   .success .toast-icon { background: var(--color-success); color: #000; }
-  .error .toast-icon { background: var(--color-error); color: #fff; }
-  .info .toast-icon { background: var(--color-accent); color: #fff; }
+  .error .toast-icon { background: var(--color-error); color: var(--color-on-accent); }
+  .info .toast-icon { background: var(--color-accent); color: var(--color-on-accent); }
   .warning .toast-icon { background: var(--color-warning); color: #000; }
   .trash .toast-icon { background: var(--color-bg-subtle); color: var(--color-text-primary); }
 
@@ -119,7 +119,7 @@
     left: 0;
     bottom: 0;
     height: 2px;
-    background: var(--color-accent);
+    background: var(--gradient-accent);
     animation: run-out linear forwards;
   }
 

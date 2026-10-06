@@ -177,19 +177,19 @@
   }
 
   .dropzone {
-    border: 2px dashed #333;
+    border: 2px dashed var(--color-border-hover);
     border-radius: 12px;
     padding: 1.5rem;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
-    background: #111;
+    background: var(--color-bg-base);
   }
 
   .dropzone:hover,
   .dropzone.dragover {
-    border-color: #6366f1;
-    background: #1a1a2e;
+    border-color: var(--color-accent);
+    background: var(--color-accent-subtle);
   }
 
   .dropzone.uploading {
@@ -199,7 +199,7 @@
 
   .dropzone-content p {
     margin: 0.4rem 0 0.2rem;
-    color: #ccc;
+    color: var(--color-text-primary);
     font-size: 0.9rem;
   }
 
@@ -210,7 +210,7 @@
 
   .hint {
     font-size: 0.78rem;
-    color: #666;
+    color: var(--color-text-tertiary);
   }
 
   .file-list {
@@ -238,7 +238,7 @@
   .file-progress {
     width: 80px;
     height: 4px;
-    background: #222;
+    background: var(--color-bg-overlay);
     border-radius: 2px;
     overflow: hidden;
     flex-shrink: 0;
@@ -246,12 +246,12 @@
 
   .file-bar {
     height: 100%;
-    background: #6366f1;
+    background: var(--gradient-accent);
     transition: width 0.2s;
   }
 
   .file-row.done .file-bar {
-    background: #22c55e;
+    background: var(--color-success);
   }
 
   .file-pct {
@@ -262,12 +262,12 @@
   }
 
   .file-error {
-    color: #ef4444;
+    color: var(--color-error);
     font-size: 0.78rem;
   }
 
   .error {
-    color: #ef4444;
+    color: var(--color-error);
     font-size: 0.85rem;
   }
 </style>

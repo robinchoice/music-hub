@@ -56,7 +56,7 @@
   }
   h2 {
     margin: 0;
-    font-size: var(--text-base);
+    font-size: 1.1875rem;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -134,7 +134,7 @@
     text-align: right;
     color: var(--color-text-primary);
     font-variant-numeric: tabular-nums;
-    border-bottom: 1px solid rgba(36, 34, 46, 0.6);
+    border-bottom: 1px solid var(--color-border);
   }
   .card :global(.mini-table :is(th, td):first-child) {
     text-align: left;

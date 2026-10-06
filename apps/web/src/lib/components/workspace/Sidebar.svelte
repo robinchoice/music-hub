@@ -7,6 +7,7 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
+  import Tile from '$lib/components/ui/Tile.svelte';
   import { loadOverview, tasks } from '$lib/stores/overview.js';
 
   type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
@@ -31,10 +32,10 @@
   ] as const;
 
   const STATUS_COLORS: Record<TrackStatus, string> = {
-    sketch: '#9b96a8',
-    in_progress: '#fb923c',
-    final: '#22c55e',
-    released: '#f43f5e',
+    sketch: 'var(--color-text-secondary)',
+    in_progress: 'var(--color-accent)',
+    final: 'var(--color-success)',
+    released: 'var(--color-text-primary)',
   };
 
   let {
@@ -158,7 +159,7 @@
 
 <aside class="sidebar" class:open>
   <div class="sb-head">
-    <a href="/dashboard" class="logo" onclick={handleNavClick}>Music Hub</a>
+    <a href="/dashboard" class="logo" onclick={handleNavClick}><Tile size={28} /> Music Hub</a>
     {#if open}
       <button class="close" onclick={onClose} aria-label="Schließen">
         <Icon name="x" size={18} />
@@ -298,9 +299,7 @@
     width: 240px;
     flex-shrink: 0;
     height: 100vh;
-    background:
-      radial-gradient(circle at 0% 0%, rgba(244, 63, 94, 0.08), transparent 70%),
-      var(--color-bg-raised);
+    background: var(--color-bg-raised);
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
@@ -317,14 +316,20 @@
     margin-bottom: var(--space-4);
   }
   .logo {
-    font-size: var(--text-lg);
-    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    font-weight: 800;
+    font-stretch: 76%;
     letter-spacing: -0.02em;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    line-height: 1;
     text-decoration: none;
+  }
+  .logo:hover {
+    color: var(--color-text-primary);
   }
   .close {
     background: none;
@@ -356,7 +361,7 @@
   .search input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+    box-shadow: 0 0 0 4px var(--color-accent-subtle);
   }
 
   .nav {
@@ -383,7 +388,7 @@
     padding: 0 6px;
     border-radius: 10px;
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     font-size: 11px;
     font-weight: 700;
     display: inline-grid;
@@ -409,6 +414,10 @@
   .nav-item.active {
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
+    font-weight: 600;
+  }
+  .nav-item.active :global(svg) {
+    color: var(--color-accent);
   }
 
   .section {

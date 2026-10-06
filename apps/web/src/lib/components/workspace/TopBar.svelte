@@ -46,7 +46,7 @@
     gap: var(--space-3);
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--color-border);
-    background: rgba(10, 9, 16, 0.85);
+    background: color-mix(in srgb, var(--color-bg-base) 88%, transparent);
     position: sticky;
     top: 0;
     z-index: 10;

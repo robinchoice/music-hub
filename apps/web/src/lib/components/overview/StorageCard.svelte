@@ -33,15 +33,18 @@
 
 <style>
   .num {
-    font-size: 24px;
-    font-weight: 600;
+    font-family: var(--font-display);
+    font-size: 44px;
+    font-weight: 800;
+    font-stretch: 78%;
     color: var(--color-text-primary);
     letter-spacing: -0.02em;
-    line-height: 1.2;
+    line-height: 1;
   }
   .num span {
     font-size: var(--text-sm);
     color: var(--color-text-tertiary);
+    font-family: var(--font-sans);
     font-weight: 500;
     letter-spacing: 0;
   }

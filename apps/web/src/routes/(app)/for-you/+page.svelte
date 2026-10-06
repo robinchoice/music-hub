@@ -159,7 +159,7 @@
     margin: 0 auto var(--space-3);
     display: grid;
     place-items: center;
-    background: rgba(34, 197, 94, 0.12);
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
     color: var(--color-success);
   }
   .empty h2 {

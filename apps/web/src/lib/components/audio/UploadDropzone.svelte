@@ -207,36 +207,36 @@
     width: 100%;
     padding: 0.6rem 1rem;
     border-radius: 8px;
-    border: 1px solid #333;
-    background: #0a0a0a;
-    color: #e0e0e0;
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
     font-size: 0.9rem;
   }
 
   .dropzone {
-    border: 2px dashed #333;
+    border: 2px dashed var(--color-border-hover);
     border-radius: 12px;
     padding: 2rem;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
-    background: #111;
+    background: var(--color-bg-base);
   }
 
   .dropzone:hover,
   .dropzone.dragover {
-    border-color: #6366f1;
-    background: #1a1a2e;
+    border-color: var(--color-accent);
+    background: var(--color-accent-subtle);
   }
 
   .dropzone.uploading {
     cursor: default;
-    border-color: #6366f1;
+    border-color: var(--color-border-hover);
   }
 
   .dropzone-content p {
     margin: 0.5rem 0 0.25rem;
-    color: #ccc;
+    color: var(--color-text-primary);
   }
 
   .dropzone-icon {
@@ -247,22 +247,25 @@
 
   .formats {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-text-tertiary);
   }
 
   .progress-container {
     position: relative;
     height: 40px;
-    background: #222;
+    background: var(--color-bg-overlay);
     border-radius: 8px;
     overflow: hidden;
   }
 
+  /* Progress carries the gradient as a line, the number stays readable on the neutral ground */
   .progress-bar {
-    height: 100%;
-    background: #6366f1;
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 4px;
+    background: var(--gradient-accent);
     transition: width 0.2s;
-    border-radius: 8px;
   }
 
   .progress-text {
@@ -270,13 +273,14 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: #fff;
+    color: var(--color-text-primary);
     font-weight: 500;
     font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .error {
-    color: #ef4444;
+    color: var(--color-error);
     font-size: 0.9rem;
   }
 </style>

@@ -40,7 +40,7 @@
     left: 0;
     right: 0;
     z-index: 90;
-    background: rgba(10, 9, 16, 0.92);
+    background: color-mix(in srgb, var(--color-bg-raised) 94%, transparent);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--color-border);
@@ -78,7 +78,19 @@
   }
 
   .nav-item.active {
-    color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+
+  /* The active tab carries the gradient as a 2px line */
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 24%;
+    right: 24%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--gradient-accent);
   }
 
   .badge {
@@ -90,7 +102,7 @@
     padding: 0 4px;
     border-radius: 8px;
     background: var(--color-accent);
-    color: #fff;
+    color: var(--color-on-accent);
     font-size: 10px;
     font-weight: 700;
     display: grid;

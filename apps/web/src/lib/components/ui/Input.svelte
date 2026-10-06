@@ -78,7 +78,7 @@
     outline: none;
     border-color: var(--color-accent);
     background: var(--color-bg-overlay);
-    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+    box-shadow: 0 0 0 4px var(--color-accent-subtle);
   }
 
   input:disabled {

@@ -5,6 +5,7 @@
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import Sidebar from '$lib/components/workspace/Sidebar.svelte';
   import BottomNav from '$lib/components/workspace/BottomNav.svelte';
+  import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
   import TooltipLayer from '$lib/components/ui/TooltipLayer.svelte';
   import { stopListen } from '$lib/stores/listen.js';
@@ -54,7 +55,8 @@
       <button class="backdrop" onclick={() => (mobileMenuOpen = false)} aria-label="Menü schließen"></button>
     {/if}
     <main class="main">
-      {@render children()}
+      <div class="page">{@render children()}</div>
+      <PleasanceFooter />
     </main>
     <BottomNav />
   </div>
@@ -85,10 +87,10 @@
   .workspace {
     display: flex;
     min-height: 100vh;
-    /* Series colours of the overview charts, checked for contrast on #131119 and #17151f */
-    --color-series-1: #f43f5e;
-    --color-series-2: #8b5cf6;
-    --color-text-axis: #8a8597;
+    /* Series colours of the overview charts: the product colour and a neutral grey */
+    --color-series-1: var(--color-accent);
+    --color-series-2: #67646e;
+    --color-text-axis: #8a8793;
   }
 
   /* Version and timestamp chips of the overview pages */
@@ -107,10 +109,10 @@
     white-space: nowrap;
   }
   :global(.tchip) {
-    color: var(--color-warning);
+    color: var(--color-accent);
     font-variant-numeric: tabular-nums;
-    background: rgba(251, 191, 36, 0.12);
-    border: 1px solid rgba(251, 191, 36, 0.3);
+    background: var(--color-accent-subtle);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
     padding: 0 5px;
     border-radius: var(--radius-sm);
     font-size: 11px;
@@ -122,6 +124,12 @@
   .main {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .page {
+    flex: 1;
     display: flex;
     flex-direction: column;
   }
