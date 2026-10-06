@@ -8,6 +8,8 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   // Last visit of the "Tracks" page; marks newer activity as new on every device
   tracksSeenAt: timestamp('tracks_seen_at'),
+  // Last authenticated request, written at most every few minutes; the admin pages show who is online
+  lastSeenAt: timestamp('last_seen_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

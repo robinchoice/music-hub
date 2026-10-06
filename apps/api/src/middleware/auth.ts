@@ -2,8 +2,20 @@ import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { eq, gt } from 'drizzle-orm';
-import { sessions } from '@music-hub/db';
+import { sessions, users, type Database } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
+
+// users.last_seen_at is written at most this often per user; the admin pages count
+// someone as online for a while longer than that
+const SEEN_INTERVAL = 2 * 60 * 1000;
+const lastSeenWrites = new Map<string, number>();
+
+export async function markSeen(db: Database, userId: string) {
+  const now = Date.now();
+  if (now - (lastSeenWrites.get(userId) ?? 0) < SEEN_INTERVAL) return;
+  lastSeenWrites.set(userId, now);
+  await db.update(users).set({ lastSeenAt: new Date(now) }).where(eq(users.id, userId));
+}
 
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
@@ -25,6 +37,7 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   c.set('userId', session.userId);
+  await markSeen(db, session.userId);
   await next();
 });
 

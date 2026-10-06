@@ -22,6 +22,7 @@ import { sseRoutes } from './routes/sse.js';
 import { deviceRoutes } from './routes/device.js';
 import { overviewRoutes } from './routes/overview.js';
 import { trashRoutes } from './routes/trash.js';
+import { adminRoutes } from './routes/admin.js';
 import { purgeTrash } from './lib/trash.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -100,7 +101,8 @@ const app = new Hono<AppEnv>()
   .route('/push', pushRoutes)
   .route('/sse', sseRoutes)
   .route('/overview', overviewRoutes)
-  .route('/trash', trashRoutes);
+  .route('/trash', trashRoutes)
+  .route('/admin', adminRoutes);
 
 // Deletes for good what left the trash long enough ago: a minute after boot, then every six hours
 {

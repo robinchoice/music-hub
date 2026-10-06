@@ -10,7 +10,8 @@ import {
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
-import { generateToken, hashToken, bearerToken } from '../middleware/auth.js';
+import { generateToken, hashToken, bearerToken, markSeen } from '../middleware/auth.js';
+import { isAdminEmail } from '../lib/admin.js';
 import { findUserByEmail } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
@@ -90,7 +91,13 @@ export const authRoutes = new Hono<AppEnv>()
 
     await createSession(c, db, user.id);
     return c.json({
-      user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        isAdmin: isAdminEmail(user.email),
+      },
     });
   })
 
@@ -158,7 +165,7 @@ export const authRoutes = new Hono<AppEnv>()
     }
 
     await createSession(c, db, user.id);
-    return c.json({ user: { id: user.id, email: user.email, name: user.name } });
+    return c.json({ user: { id: user.id, email: user.email, name: user.name, isAdmin: isAdminEmail(user.email) } });
   })
 
   .post('/logout', async (c) => {
@@ -196,8 +203,10 @@ export const authRoutes = new Hono<AppEnv>()
       .from(users)
       .where(eq(users.id, session.userId))
       .limit(1);
+    if (!user) return c.json({ user: null });
 
-    return c.json({ user: user || null });
+    await markSeen(db, user.id);
+    return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
   })
 
   .patch('/me', async (c) => {
@@ -225,5 +234,5 @@ export const authRoutes = new Hono<AppEnv>()
       .where(eq(users.id, session.userId))
       .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl });
 
-    return c.json({ user });
+    return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
   });

@@ -27,6 +27,7 @@ services:
       - S3_BUCKET=${S3_BUCKET}
       - APP_URL=${APP_URL}
       - ADDITIONAL_ORIGINS=${ADDITIONAL_ORIGINS:-}
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
