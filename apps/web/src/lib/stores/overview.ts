@@ -69,7 +69,7 @@ export async function restoreTask(taskKey: string) {
   await api.delete('/overview/dismissals', { taskKey }).catch(() => loadOverview());
 }
 
-/** Leaving "Tracks": newer activity of others counts as new from now on, on every device */
+/** Leaving a project page: newer activity of others counts as new from now on, on every device */
 export async function markTracksSeen() {
   const res = await api.post<{ tracksSeenAt: string }>('/overview/seen', undefined, true).catch(() => null);
   if (res) overview.update((o) => o && { ...o, tracksSeenAt: res.tracksSeenAt });

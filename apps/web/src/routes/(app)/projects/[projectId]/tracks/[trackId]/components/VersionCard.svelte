@@ -135,7 +135,7 @@
       {/if}
 
       {#if versions.length > 1}
-        <button class="icon-btn" title="Im Mixer vergleichen" aria-label="Im Mixer vergleichen" onclick={onCompare}>
+        <button class="icon-btn" title="Alle Versionen vergleichen" aria-label="Alle Versionen vergleichen" onclick={onCompare}>
           <Icon name="compare" size={15} />
         </button>
       {/if}

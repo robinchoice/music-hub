@@ -5,7 +5,8 @@
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
   import { toastSuccess, toastTrash } from '$lib/stores/toast.js';
-  import { loadOverview } from '$lib/stores/overview.js';
+  import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
+  import { trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -18,6 +19,8 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
+  import TabBar from '$lib/components/ui/TabBar.svelte';
+  import TrackMixer from '$lib/components/overview/TrackMixer.svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
   import { snapshotForTrack, continuationFor } from '$lib/stores/player.js';
   import { connectTrackSse } from '$lib/stores/sse.js';
@@ -92,6 +95,13 @@
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
   const canComment = $derived(role !== 'viewer');
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
+  // "Vergleichen" plays all versions side by side; it needs at least two
+  const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
+  // Loudness and stage of every version come from the overview
+  const mixerInfo = $derived.by(() => {
+    const t = $overviewIndex?.tracks.get(trackId);
+    return $overviewIndex && t ? trackInfo($overviewIndex, t) : null;
+  });
   const nextVersionNumber = $derived(versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1);
 
   // Phones and narrow windows get one column; versions and raw tracks open as a sheet there.
@@ -270,6 +280,7 @@
   }
 
   function showPanel(tab: 'versions' | 'spuren') {
+    if (view === 'compare') setView('listen');
     panelTab = tab;
     if (isNarrow) sheetOpen = true;
     else panelOpen = true;
@@ -352,9 +363,17 @@
     });
   }
 
-  // "Vergleichen" opens the mixer with this version on solo
-  function openMixer() {
-    if (selectedVersion) goto(`/mixer?track=${trackId}&v=${selectedVersion.id}`);
+  // The tab and the version stay in the URL, so a reload lands on the same view
+  function setView(id: string) {
+    if (id === 'compare') void loadOverview();
+    const v = selectedVersion ? `v=${selectedVersion.id}` : '';
+    void goto(id === 'compare' ? `?view=compare${v && `&${v}`}` : `?${v}`, { replaceState: true, noScroll: true, keepFocus: true });
+  }
+
+  // "Solo" in the mixer selects that version for "Hören" as well
+  function soloVersion(id: string) {
+    const v = versions.find((v) => v.id === id);
+    if (v) void selectVersion(v);
   }
 
   async function saveTrackCover(key: string) {
@@ -503,7 +522,7 @@
         <Icon name="upload" size={14} /> Neue Version
       </Button>
     {/if}
-    {#if !isNarrow}
+    {#if !isNarrow && view === 'listen'}
       <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
         <Icon name="panel" size={16} />
       </button>
@@ -550,10 +569,10 @@
             {#if trackSection}
               <span class="section-tag">{trackSection}</span>
             {/if}
-            <button class="chip" class:on={!isNarrow && panelOpen && panelTab === 'versions'} onclick={() => showPanel('versions')}>
+            <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'versions'} onclick={() => showPanel('versions')}>
               <Icon name="list" size={13} /><b>{versions.length}</b> {versions.length === 1 ? 'Version' : 'Versionen'}
             </button>
-            <button class="chip" class:on={!isNarrow && panelOpen && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
+            <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
               <Icon name="music" size={13} /><b>{stems.length}</b> {stems.length === 1 ? 'Spur' : 'Spuren'}
             </button>
           </div>
@@ -579,6 +598,21 @@
           </div>
         {/if}
       </div>
+
+      <TabBar
+        tabs={[
+          { id: 'listen', label: 'Hören' },
+          {
+            id: 'compare',
+            label: 'Vergleichen',
+            count: versions.length > 1 ? versions.length : undefined,
+            disabled: versions.length < 2,
+            title: versions.length < 2 ? 'Vergleichen geht ab 2 Versionen' : undefined,
+          },
+        ]}
+        active={view}
+        onselect={setView}
+      />
 
       {#if showUpload}
         <div class="upload-zone">
@@ -610,7 +644,13 @@
         </div>
       {/if}
 
-      {#if versions.length === 0}
+      {#if view === 'compare'}
+        {#if $overviewIndex && mixerInfo}
+          <TrackMixer ix={$overviewIndex} info={mixerInfo} soloId={selectedVersion?.id ?? null} onsolo={soloVersion} />
+        {:else}
+          <Skeleton height="24rem" variant="rect" />
+        {/if}
+      {:else if versions.length === 0}
         <EmptyState
           title="Noch keine Version"
           description="Lade dein erstes Audio hoch — wir kümmern uns um Wellenform und Vorschau."
@@ -637,7 +677,7 @@
           onUpload={openUpload}
           onApprove={handleApprove}
           onReject={handleReject}
-          onCompare={openMixer}
+          onCompare={() => setView('compare')}
           onEdit={openVersionEdit}
           onDownload={handleDownload}
           onOfflineDownload={handleOfflineDownload}
@@ -693,7 +733,7 @@
     {/if}
   </main>
 
-  {#if panelOpen && !isNarrow}
+  {#if panelOpen && !isNarrow && view === 'listen'}
     <aside class="side-panel">
       <div class="panel-tabs">{@render tabSwitch()}</div>
       <div class="panel-body">

@@ -39,7 +39,7 @@
           <span>von {uploader(v.createdById)}, {formatWhen(v.createdAt)}</span>
           <StageLabel stage={hero.stage} small />
           {#if hero.versions.length > 1}
-            <Button size="sm" variant="secondary" href={`/mixer?track=${hero.track.id}&v=${v.id}`}>
+            <Button size="sm" variant="secondary" href={`${trackHref(hero.project.id, hero.track.id, v.id)}&view=compare`}>
               <Icon name="sliders" size={14} /> Mit V{hero.versions[hero.versions.length - 2].versionNumber} vergleichen
             </Button>
           {/if}

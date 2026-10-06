@@ -19,9 +19,6 @@
   const NAV = [
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
-    { href: '/tracks', icon: 'music', label: 'Tracks' },
-    { href: '/timeline', icon: 'timeline', label: 'Timeline' },
-    { href: '/mixer', icon: 'sliders', label: 'Mixer' },
   ] as const;
 
   // Only for addresses in ADMIN_EMAILS

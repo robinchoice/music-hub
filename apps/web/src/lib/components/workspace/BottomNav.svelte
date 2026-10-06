@@ -6,12 +6,10 @@
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
-  // Timeline, projects and account sit in the menu
+  // Projects and account sit in the menu
   const ITEMS = [
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
-    { href: '/tracks', icon: 'music', label: 'Tracks' },
-    { href: '/mixer', icon: 'sliders', label: 'Mixer' },
   ] as const;
 </script>
 
@@ -27,8 +25,8 @@
   {/each}
 
   <button class="nav-item" onclick={() => openMobileMenu?.()}>
-    <Icon name="menu" size={22} />
-    <span>Menü</span>
+    <Icon name="music" size={22} />
+    <span>Projekte</span>
   </button>
 </nav>
 

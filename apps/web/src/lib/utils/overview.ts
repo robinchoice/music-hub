@@ -491,14 +491,6 @@ export type TimelineRange = ReturnType<typeof timelineRange>;
 
 // ---------- Mixer ----------
 
-/** Tracks with at least two versions, the most recently active first */
-export function mixerTracks(groups: ProjectGroup[]): TrackInfo[] {
-  return groups
-    .flatMap((g) => g.list)
-    .filter((i) => i.versions.length > 1)
-    .sort((a, b) => b.last.at.localeCompare(a.last.at));
-}
-
 /** Loudness match in dB: down to the quietest measured version, never up; 0 without a measurement */
 export function matchGains(versions: { id: string; integratedLufs: number | null }[], match: boolean): Map<string, number> {
   const measured = versions.map((v) => v.integratedLufs).filter((x): x is number => x !== null);

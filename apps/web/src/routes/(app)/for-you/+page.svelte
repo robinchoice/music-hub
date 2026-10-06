@@ -97,7 +97,6 @@
           <span class="when">{formatWhen(e.at)}</span>
         </div>
       {/each}
-      <a class="more" href="/timeline">Ganzer Verlauf</a>
     </section>
   {/if}
 </div>
@@ -205,16 +204,6 @@
     color: var(--color-text-tertiary);
     white-space: nowrap;
     margin-top: 2px;
-  }
-  .more {
-    display: inline-block;
-    margin-top: 4px;
-    font-size: var(--text-sm);
-    color: var(--color-text-tertiary);
-    text-decoration: none;
-  }
-  .more:hover {
-    color: var(--color-text-primary);
   }
   .undo {
     position: fixed;
