@@ -6,6 +6,8 @@ type User = {
   email: string;
   name: string;
   avatarUrl?: string;
+  // Missing while an older API is still running
+  isAdmin?: boolean;
 } | null;
 
 export const user = writable<User>(null);

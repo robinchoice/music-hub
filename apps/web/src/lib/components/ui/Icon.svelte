@@ -10,7 +10,9 @@
     | 'settings' | 'logout' | 'list' | 'graph' | 'menu' | 'search' | 'music'
     | 'cloud-download' | 'cloud-check' | 'trash' | 'clock' | 'edit'
     | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
-    | 'users' | 'activity' | 'layers' | 'reply' | 'restore';
+    | 'users' | 'activity' | 'layers' | 'reply' | 'restore'
+    | 'mail' | 'log-in' | 'bell' | 'plug' | 'smartphone' | 'monitor' | 'external'
+    | 'arrow-left' | 'chevron-up' | 'alert';
 
   let {
     name,
@@ -208,6 +210,41 @@
   {:else if name === 'reply'}
     <polyline points="15 10 20 15 15 20" />
     <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+  {:else if name === 'mail'}
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m22 7-10 5L2 7" />
+  {:else if name === 'log-in'}
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+    <polyline points="10 17 15 12 10 7" />
+    <line x1="15" y1="12" x2="3" y2="12" />
+  {:else if name === 'bell'}
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+  {:else if name === 'plug'}
+    <path d="M12 22v-5" />
+    <path d="M9 8V2" />
+    <path d="M15 8V2" />
+    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+  {:else if name === 'smartphone'}
+    <rect x="5" y="2" width="14" height="20" rx="2" />
+    <line x1="12" y1="18" x2="12.01" y2="18" />
+  {:else if name === 'monitor'}
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+  {:else if name === 'external'}
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
+  {:else if name === 'arrow-left'}
+    <line x1="19" y1="12" x2="5" y2="12" />
+    <polyline points="12 19 5 12 12 5" />
+  {:else if name === 'chevron-up'}
+    <polyline points="18 15 12 9 6 15" />
+  {:else if name === 'alert'}
+    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
   {/if}
 </svg>
 

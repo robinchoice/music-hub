@@ -40,6 +40,12 @@
   Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die
   Löschung bittest.
 </p>
+<p>
+  Außerdem speichere ich, wann du Music Hub zuletzt benutzt hast, auf wenige Minuten genau. Jede Nutzung überschreibt
+  diesen Zeitpunkt, ein Verlauf entsteht dabei nicht. Zusammen mit deinen Logins, Uploads und Kommentaren zeigt er mir
+  als Betreiber, wer gerade online ist und wer schon länger nicht mehr da war. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+  DSGVO (berechtigtes Interesse an einem Überblick über den Betrieb).
+</p>
 
 <h2>4. Projekte, Dateien und Kommentare</h2>
 <p>

@@ -23,6 +23,13 @@
     { href: '/mixer', icon: 'sliders', label: 'Mixer' },
   ] as const;
 
+  // Only for addresses in ADMIN_EMAILS
+  const ADMIN_NAV = [
+    { href: '/admin', icon: 'gauge', label: 'Lagebild' },
+    { href: '/admin/users', icon: 'users', label: 'Nutzerliste' },
+    { href: '/admin/log', icon: 'activity', label: 'Protokoll' },
+  ] as const;
+
   const STATUS_COLORS: Record<TrackStatus, string> = {
     sketch: '#9b96a8',
     in_progress: '#fb923c',
@@ -185,6 +192,22 @@
     {/each}
   </nav>
 
+  {#if $user?.isAdmin}
+    <nav class="nav admin" aria-label="Admin">
+      <span class="nav-label">Admin</span>
+      {#each ADMIN_NAV as item (item.href)}
+        <a
+          href={item.href}
+          class="nav-item"
+          class:active={item.href === '/admin' ? $page.url.pathname === '/admin' : $page.url.pathname.startsWith(item.href)}
+          onclick={handleNavClick}
+        >
+          <Icon name={item.icon} size={16} /> {item.label}
+        </a>
+      {/each}
+    </nav>
+  {/if}
+
   <div class="section">
     <div class="section-head">
       <span>Projekte</span>
@@ -342,6 +365,15 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .nav-label {
+    padding: 0 var(--space-3) var(--space-1);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
   }
 
   .badge {
