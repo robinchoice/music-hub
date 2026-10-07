@@ -281,6 +281,10 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
+    if (memberId === membership.id) {
+      return c.json({ error: 'Cannot change own owner role' }, 403);
+    }
+
     const defaults = getRoleDefaults(newRole);
     const [updated] = await db
       .update(projectMembers)
@@ -311,6 +315,10 @@ export const projectRoutes = new Hono<AppEnv>()
 
     if (!membership) {
       return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    if (memberId === membership.id) {
+      return c.json({ error: 'Cannot remove own owner membership' }, 403);
     }
 
     await db.delete(projectMembers).where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)));

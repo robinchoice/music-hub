@@ -118,7 +118,8 @@ export const deviceRoutes = new Hono<AppEnv>()
     if (!code.approvedAt || !code.userId) return c.json({ status: 'pending' }, 202);
 
     // A code yields exactly one session
-    await db.delete(deviceCodes).where(eq(deviceCodes.id, code.id));
+    const [redeemed] = await db.delete(deviceCodes).where(eq(deviceCodes.id, code.id)).returning({ id: deviceCodes.id });
+    if (!redeemed) return c.json({ error: 'Code abgelaufen — bitte im Plugin neu anmelden' }, 400);
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_LIFETIME);
