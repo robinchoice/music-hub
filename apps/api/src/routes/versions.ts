@@ -7,12 +7,11 @@ import {
   updateVersionSchema,
   rejectVersionSchema,
   SUPPORTED_AUDIO_FORMATS,
-  MAX_STORAGE_PER_USER,
 } from '@music-hub/shared';
 import { versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
-import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
+import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { processVersion } from '../services/audio-processor.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
@@ -106,8 +105,8 @@ export const versionRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Forbidden' }, 403);
       }
 
-      const used = await storageUsed(db, userId);
-      if (used + fileSize > MAX_STORAGE_PER_USER) return storageFull(c, used);
+      const storage = await storageOf(db, userId);
+      if (!fits(storage, fileSize)) return storageFull(c, storage);
       if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
 
       const versionId = crypto.randomUUID();
@@ -160,7 +159,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const version = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
-      if ((await storageUsed(tx, userId)) + fileSize > MAX_STORAGE_PER_USER) return null;
+      if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       // Next version number; versions in the trash keep theirs
       const [latest] = await tx
@@ -187,7 +186,7 @@ export const versionRoutes = new Hono<AppEnv>()
         .returning();
       return version;
     });
-    if (!version) return storageFull(c, await storageUsed(db, userId));
+    if (!version) return storageFull(c, await storageOf(db, userId));
     const { versionNumber } = version;
 
     // Background processing (fire and forget)

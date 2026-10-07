@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, isNull } from 'drizzle-orm';
-import { requestStemUploadUrlSchema, createStemSchema, MAX_STORAGE_PER_USER, MAX_ZIP_SIZE } from '@music-hub/shared';
+import { requestStemUploadUrlSchema, createStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
 import { stems, projectMembers } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { liveTrack } from '../lib/trash.js';
-import { storageUsed, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
+import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { Zip, ZipPassThrough } from 'fflate';
 import type { AppEnv } from '../types.js';
 
@@ -53,8 +53,8 @@ export const stemRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!membership || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
 
-    const used = await storageUsed(db, userId);
-    if (used + fileSize > MAX_STORAGE_PER_USER) return storageFull(c, used);
+    const storage = await storageOf(db, userId);
+    if (!fits(storage, fileSize)) return storageFull(c, storage);
     if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
 
     const stemId = crypto.randomUUID();
@@ -99,7 +99,7 @@ export const stemRoutes = new Hono<AppEnv>()
 
     const stem = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
-      if ((await storageUsed(tx, userId)) + fileSize > MAX_STORAGE_PER_USER) return null;
+      if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       const [stem] = await tx
         .insert(stems)
@@ -115,7 +115,7 @@ export const stemRoutes = new Hono<AppEnv>()
         .returning();
       return stem;
     });
-    if (!stem) return storageFull(c, await storageUsed(db, userId));
+    if (!stem) return storageFull(c, await storageOf(db, userId));
 
     return c.json({ stem }, 201);
   })

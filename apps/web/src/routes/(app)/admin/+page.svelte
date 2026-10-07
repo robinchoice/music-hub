@@ -274,9 +274,9 @@
           {#if storage.length}
             <div class="bars">
               {#each storage as p (p.id)}
-                <div class="bar-row" data-tt="{formatGb(p.storageBytes)} von {formatGb(data.storageLimitBytes)}&#10;{p.name}">
+                <div class="bar-row" data-tt="{formatGb(p.storageBytes)} von {formatGb(p.storageLimitBytes)}&#10;{p.name}">
                   <span class="nm">{p.name}</span>
-                  <span class="track"><i style="width: {Math.min(100, (p.storageBytes / data.storageLimitBytes) * 100)}%"></i></span>
+                  <span class="track"><i style="width: {Math.min(100, (p.storageBytes / p.storageLimitBytes) * 100)}%"></i></span>
                   <span class="v">{formatGb(p.storageBytes)}</span>
                 </div>
               {/each}

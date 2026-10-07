@@ -30,6 +30,7 @@ export type Person = {
   lastActiveAt: string | null;
   projectCount: number;
   storageBytes: number;
+  storageLimitBytes: number;
   counts: Counts;
 };
 

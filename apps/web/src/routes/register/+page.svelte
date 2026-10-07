@@ -51,7 +51,7 @@
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
       <h1>Konto erstellen</h1>
-      <p class="card-sub">Kostenlos, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
+      <p class="card-sub">Kostenlos mit 5 GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
 
       {#if sent}
         <p class="success">

@@ -94,7 +94,7 @@ async function actionCounts(db: Database, from: Date) {
   return counts;
 }
 
-// Counted like storageUsed() in lib/storage.ts
+// Counted like storageOf() in lib/storage.ts
 async function storageByUser(db: Database) {
   const rows = await db.execute<{ uid: string; bytes: number }>(sql`
     SELECT uid, sum(size)::float8 AS bytes FROM (
@@ -123,6 +123,7 @@ async function loadPeople(db: Database, from: Date) {
         lastSeenAt: users.lastSeenAt,
         hasPassword: sql<boolean>`${users.passwordHash} IS NOT NULL`,
         blockedAt: users.blockedAt,
+        storageLimit: users.storageLimit,
       })
       .from(users),
     lastActions(db),
@@ -180,6 +181,7 @@ async function loadPeople(db: Database, from: Date) {
       lastActiveAt,
       projectCount: own.length,
       storageBytes: storage.get(u.id) ?? 0,
+      storageLimitBytes: u.storageLimit ?? MAX_STORAGE_PER_USER,
       counts: counts.get(u.id) ?? NO_COUNTS,
     };
   });

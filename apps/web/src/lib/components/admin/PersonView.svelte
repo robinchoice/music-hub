@@ -171,7 +171,7 @@
             <dt>Zuletzt gesehen</dt>
             <dd>{p.lastSeenAt ? formatWhen(p.lastSeenAt) : 'noch nicht erfasst'}</dd>
             <dt>Speicher</dt>
-            <dd>{formatGb(p.storageBytes)}<small>von {formatGb(detail.storageLimitBytes)}</small></dd>
+            <dd>{formatGb(p.storageBytes)}<small>von {formatGb(p.storageLimitBytes)}</small></dd>
           </dl>
         </section>
 

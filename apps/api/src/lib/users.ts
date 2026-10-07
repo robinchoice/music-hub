@@ -1,5 +1,6 @@
 import { asc, desc, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
+import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
 import { users, type Database } from '@music-hub/db';
 
 // Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
@@ -25,7 +26,7 @@ export async function createAccount(db: Database, values: typeof users.$inferIns
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('registration'))`);
     if (!(await registrationOpen(tx))) return undefined;
-    const [user] = await tx.insert(users).values(values).returning();
+    const [user] = await tx.insert(users).values({ ...values, storageLimit: SIGNUP_STORAGE_PER_USER }).returning();
     return user;
   });
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, bigint } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -12,6 +12,8 @@ export const users = pgTable('users', {
   lastSeenAt: timestamp('last_seen_at'),
   // Set by an admin; a blocked account can't log in and its share links stop working
   blockedAt: timestamp('blocked_at'),
+  // Bytes this account may upload; null means MAX_STORAGE_PER_USER
+  storageLimit: bigint('storage_limit', { mode: 'number' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

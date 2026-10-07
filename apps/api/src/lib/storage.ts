@@ -20,17 +20,22 @@ export function takeUploadVolume(userId: string, bytes: number) {
   return false;
 }
 
-// Originals the user uploaded, in all projects including archived ones, also while they are in the trash.
+export type Storage = { used: number; limit: number };
+
+// Used: originals the user uploaded, in all projects including archived ones, also while they are in the trash.
 // Covers and the MP3s and waveforms derived from versions don't count.
-export async function storageUsed(db: Executor, userId: string): Promise<number> {
-  const [{ used }] = await db.execute<{ used: string }>(sql`
+export async function storageOf(db: Executor, userId: string): Promise<Storage> {
+  const [{ used, limit }] = await db.execute<{ used: string; limit: string }>(sql`
     SELECT (SELECT coalesce(sum(v.file_size), 0) FROM versions v JOIN tracks t ON t.id = v.track_id
              WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')})
          + (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
-             WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS used
+             WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
+           (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId}) AS limit
   `);
-  return Number(used);
+  return { used: Number(used), limit: Number(limit) };
 }
+
+export const fits = (storage: Storage, bytes: number) => storage.used + bytes <= storage.limit;
 
 // Holds the user's storage until the transaction ends, so parallel uploads
 // can't all pass the limit check before any of them is inserted.
@@ -38,11 +43,11 @@ export async function lockStorage(tx: Executor, userId: string) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId}))`);
 }
 
-export function storageFull(c: Context, used: number) {
+export function storageFull(c: Context, { used, limit }: Storage) {
   // Rounded down, so a nearly full account doesn't read as full
   const gb = (bytes: number) => (Math.floor((bytes / GB) * 10) / 10).toLocaleString('de-DE');
   return c.json(
-    { error: `Nicht genug Speicherplatz: ${gb(used)} von ${gb(MAX_STORAGE_PER_USER)} GB belegt` },
+    { error: `Nicht genug Speicherplatz: ${gb(used)} von ${gb(limit)} GB belegt` },
     413,
   );
 }

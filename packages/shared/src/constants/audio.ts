@@ -15,6 +15,9 @@ export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
 export const MAX_STORAGE_PER_USER = 20 * 1024 * 1024 * 1024; // 20 GB
 
+// Accounts created by signing up rather than by an invite
+export const SIGNUP_STORAGE_PER_USER = 5 * 1024 * 1024 * 1024; // 5 GB
+
 // The stem ZIP is written without ZIP64, so its offsets end at 4 GB; 1 MB stays free for headers
 export const MAX_ZIP_SIZE = 4 * 1024 * 1024 * 1024 - 1024 * 1024;
 

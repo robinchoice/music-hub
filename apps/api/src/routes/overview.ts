@@ -29,15 +29,16 @@ const DAY_MS = 86_400_000;
 
 const iso = (value: Date | string | null | undefined) => (value ? new Date(value).toISOString() : null);
 
-// Storage of the user's own uploads, counted like storageUsed() in lib/storage.ts.
+// Storage of the user's own uploads, counted like storageOf() in lib/storage.ts.
 // The biggest tracks leave out what is in the trash, the totals include it.
 async function storageSummary(db: Database, userId: string) {
-  const [{ versionBytes, stemBytes }] = await db.execute<{ versionBytes: number; stemBytes: number }>(sql`
+  const [{ versionBytes, stemBytes, limitBytes }] = await db.execute<{ versionBytes: number; stemBytes: number; limitBytes: number }>(sql`
     SELECT
       (SELECT coalesce(sum(v.file_size), 0)::float8 FROM versions v JOIN tracks t ON t.id = v.track_id
         WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')}) AS "versionBytes",
       (SELECT coalesce(sum(s.file_size), 0)::float8 FROM stems s JOIN tracks t ON t.id = s.track_id
-        WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes"
+        WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes",
+      (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER})::float8 FROM users WHERE id = ${userId}) AS "limitBytes"
   `);
   const topTracks = await db.execute<{ trackId: string; name: string; bytes: number }>(sql`
     SELECT t.id AS "trackId", t.name AS "name", sum(x.size)::float8 AS "bytes"
@@ -56,7 +57,7 @@ async function storageSummary(db: Database, userId: string) {
     usedBytes: Number(versionBytes) + Number(stemBytes),
     versionBytes: Number(versionBytes),
     stemBytes: Number(stemBytes),
-    limitBytes: MAX_STORAGE_PER_USER,
+    limitBytes: Number(limitBytes),
     topTracks: [...topTracks].map((t) => ({ trackId: t.trackId, name: t.name, bytes: Number(t.bytes) })),
   };
 }
