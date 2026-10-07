@@ -108,7 +108,6 @@ export type PersonDetail = {
   logins: AdminEvent[];
   projects: { id: string; name: string; artist: string | null; role: ProjectRole; since: string }[];
   devices: { kind: 'push' | 'plugin'; label: string; since: string }[];
-  storageLimitBytes: number;
 };
 
 export type Listener = { guestName: string | null; seconds: number; completed: boolean; played: boolean; at: string; device: string };

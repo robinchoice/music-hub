@@ -145,19 +145,20 @@ export const authRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
       }
 
+      const defaultName = link.email.split('@')[0];
       let registration: { name: string; passwordHash: string } | null = null;
       if (link.passwordHash && password !== undefined) {
         if (!(await Bun.password.verify(password, link.passwordHash))) {
           return c.json({ error: 'Passwort falsch' }, 401);
         }
-        registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
+        registration = { name: link.name ?? defaultName, passwordHash: link.passwordHash };
       }
 
       let user = await findUserByEmail(tx, link.email);
       if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
       if (!user) {
         // Music Hub may have filled up since the link went out
-        const created = await createAccount(tx, { email: link.email, name: link.email.split('@')[0], ...registration });
+        const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration });
         if (!created) return c.json({ error: FULL }, 403);
         user = created;
         registration = null;

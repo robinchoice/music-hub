@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
   import { user, register } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -51,7 +52,7 @@
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
       <h1>Konto erstellen</h1>
-      <p class="card-sub">Kostenlos mit 5 GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
+      <p class="card-sub">Kostenlos mit {SIGNUP_STORAGE_PER_USER / 1024 ** 3} GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
 
       {#if sent}
         <p class="success">
