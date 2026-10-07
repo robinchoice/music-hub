@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import {
   magicLinkSchema,
   verifyTokenSchema,
@@ -10,7 +10,7 @@ import {
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
-import { generateToken, hashToken, bearerToken, markSeen } from '../middleware/auth.js';
+import { generateToken, hashToken, bearerToken, markSeen, requireAuth } from '../middleware/auth.js';
 import { isAdminEmail } from '../lib/admin.js';
 import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -132,50 +132,53 @@ export const authRoutes = new Hono<AppEnv>()
     const { token, password } = c.req.valid('json');
     const db = c.get('db');
 
-    const tokenHash = await hashToken(token);
-    const [link] = await db
-      .select()
-      .from(magicLinks)
-      .where(eq(magicLinks.token, tokenHash))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      const tokenHash = await hashToken(token);
+      const [link] = await tx
+        .select()
+        .from(magicLinks)
+        .where(eq(magicLinks.token, tokenHash))
+        .limit(1)
+        .for('update');
 
-    if (!link || link.expiresAt < new Date() || link.usedAt) {
-      return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
-    }
-
-    let registration: { name: string; passwordHash: string } | null = null;
-    if (link.passwordHash && password !== undefined) {
-      if (!(await Bun.password.verify(password, link.passwordHash))) {
-        return c.json({ error: 'Passwort falsch' }, 401);
+      if (!link || link.expiresAt < new Date() || link.usedAt) {
+        return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
       }
-      registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
-    }
 
-    let user = await findUserByEmail(db, link.email);
-    if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
-    if (!user) {
-      // Music Hub may have filled up since the link went out
-      const created = await createAccount(db, { email: link.email, name: link.email.split('@')[0], ...registration });
-      if (!created) return c.json({ error: FULL }, 403);
-      user = created;
-      registration = null;
-    }
+      let registration: { name: string; passwordHash: string } | null = null;
+      if (link.passwordHash && password !== undefined) {
+        if (!(await Bun.password.verify(password, link.passwordHash))) {
+          return c.json({ error: 'Passwort falsch' }, 401);
+        }
+        registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
+      }
 
-    await db
-      .update(magicLinks)
-      .set({ usedAt: new Date() })
-      .where(eq(magicLinks.id, link.id));
+      let user = await findUserByEmail(tx, link.email);
+      if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
+      if (!user) {
+        // Music Hub may have filled up since the link went out
+        const created = await createAccount(tx, { email: link.email, name: link.email.split('@')[0], ...registration });
+        if (!created) return c.json({ error: FULL }, 403);
+        user = created;
+        registration = null;
+      }
 
-    if (registration) {
-      [user] = await db
-        .update(users)
-        .set({ ...registration, updatedAt: new Date() })
-        .where(eq(users.id, user.id))
-        .returning();
-    }
+      await tx
+        .update(magicLinks)
+        .set({ usedAt: new Date() })
+        .where(eq(magicLinks.id, link.id));
 
-    await createSession(c, db, user.id);
-    return c.json({ user: { id: user.id, email: user.email, name: user.name, isAdmin: isAdminEmail(user.email) } });
+      if (registration) {
+        [user] = await tx
+          .update(users)
+          .set({ ...registration, updatedAt: new Date() })
+          .where(eq(users.id, user.id))
+          .returning();
+      }
+
+      await createSession(c, tx, user.id);
+      return c.json({ user: { id: user.id, email: user.email, name: user.name, isAdmin: isAdminEmail(user.email) } });
+    });
   })
 
   .post('/logout', async (c) => {
@@ -211,7 +214,7 @@ export const authRoutes = new Hono<AppEnv>()
     const [user] = await db
       .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl })
       .from(users)
-      .where(eq(users.id, session.userId))
+      .where(and(eq(users.id, session.userId), isNull(users.blockedAt)))
       .limit(1);
     if (!user) return c.json({ user: null });
 
@@ -219,21 +222,9 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
   })
 
-  .patch('/me', async (c) => {
-    const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
-    if (!sessionToken) return c.json({ error: 'Unauthorized' }, 401);
-
+  .patch('/me', requireAuth, async (c) => {
     const db = c.get('db');
-    const tokenHash = await hashToken(sessionToken);
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.tokenHash, tokenHash))
-      .limit(1);
-
-    if (!session || session.expiresAt < new Date()) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    const userId = c.get('userId');
 
     const body = await c.req.json<{ name?: string }>();
     if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
@@ -241,7 +232,7 @@ export const authRoutes = new Hono<AppEnv>()
     const [user] = await db
       .update(users)
       .set({ name: body.name.trim(), updatedAt: new Date() })
-      .where(eq(users.id, session.userId))
+      .where(eq(users.id, userId))
       .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl });
 
     return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });

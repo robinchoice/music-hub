@@ -88,10 +88,10 @@ async function extractMetadata(url: string): Promise<{
     '-show_format',
     '-show_streams',
     url,
-  ]);
+  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
 
   const output = await new Response(proc.stdout).text();
-  await proc.exited;
+  if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 
   const data = JSON.parse(output);
   const audioStream = data.streams?.find((s: any) => s.codec_type === 'audio');
@@ -109,10 +109,12 @@ async function measureLoudness(url: string): Promise<number | null> {
   const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128', '-f', 'null', '-'], {
     stdout: 'ignore',
     stderr: 'pipe',
+    timeout: 15 * 60_000,
+    killSignal: 'SIGKILL',
   });
 
   const log = await new Response(proc.stderr).text();
-  await proc.exited;
+  if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 
   // Per-second lines carry the running value; the summary at the end is the last match
   const last = [...log.matchAll(/\bI:\s+(-?[\d.]+) LUFS/g)].at(-1);
@@ -133,10 +135,10 @@ async function generateWaveformPeaks(url: string, duration: number): Promise<num
     '-f', 'f32le',         // raw 32-bit float
     '-v', 'quiet',
     'pipe:1',
-  ]);
+  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
 
   const buffer = await new Response(proc.stdout).arrayBuffer();
-  await proc.exited;
+  if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 
   const samples = new Float32Array(buffer);
   const numPeaks = 800;
@@ -169,9 +171,12 @@ async function transcodeToMp3(inputUrl: string, outputKey: string) {
     '-v', 'quiet',
     '-y',
     tmpFile,
-  ]);
+  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
 
-  await proc.exited;
+  if (await proc.exited !== 0) {
+    if (await Bun.file(tmpFile).exists()) await Bun.file(tmpFile).delete();
+    throw new Error('Audio processing failed or timed out');
+  }
 
   const mp3 = await Bun.file(tmpFile).bytes();
   await Bun.spawn(['rm', tmpFile]).exited;

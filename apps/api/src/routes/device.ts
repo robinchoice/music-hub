@@ -117,6 +117,13 @@ export const deviceRoutes = new Hono<AppEnv>()
     }
     if (!code.approvedAt || !code.userId) return c.json({ status: 'pending' }, 202);
 
+    const [user] = await db
+      .select({ id: users.id, email: users.email, name: users.name })
+      .from(users)
+      .where(and(eq(users.id, code.userId), isNull(users.blockedAt)))
+      .limit(1);
+    if (!user) return c.json({ error: 'Dieses Konto ist gesperrt.' }, 403);
+
     // A code yields exactly one session
     const [redeemed] = await db.delete(deviceCodes).where(eq(deviceCodes.id, code.id)).returning({ id: deviceCodes.id });
     if (!redeemed) return c.json({ error: 'Code abgelaufen — bitte im Plugin neu anmelden' }, 400);
@@ -124,12 +131,6 @@ export const deviceRoutes = new Hono<AppEnv>()
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_LIFETIME);
     await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt });
-
-    const [user] = await db
-      .select({ id: users.id, email: users.email, name: users.name })
-      .from(users)
-      .where(eq(users.id, code.userId))
-      .limit(1);
 
     return c.json({ token, expiresAt, user });
   });

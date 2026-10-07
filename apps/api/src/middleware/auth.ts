@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
-import { eq, gt } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { sessions, users, type Database } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
 
@@ -27,8 +27,9 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const db = c.get('db');
 
   const [session] = await db
-    .select()
+    .select({ userId: sessions.userId, expiresAt: sessions.expiresAt })
     .from(sessions)
+    .innerJoin(users, and(eq(users.id, sessions.userId), isNull(users.blockedAt)))
     .where(eq(sessions.tokenHash, tokenHash))
     .limit(1);
 

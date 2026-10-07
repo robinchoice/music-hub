@@ -283,7 +283,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const [link] = await db
       .select({ id: shareLinks.id, expiresAt: shareLinks.expiresAt })
       .from(shareLinks)
-      .where(eq(shareLinks.token, token))
+      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
     if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
@@ -310,7 +310,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const [link] = await db
       .select({ id: shareLinks.id })
       .from(shareLinks)
-      .where(eq(shareLinks.token, token))
+      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
 

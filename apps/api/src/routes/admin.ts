@@ -5,6 +5,7 @@ import { MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import {
   users,
   sessions,
+  deviceCodes,
   magicLinks,
   projects,
   projectMembers,
@@ -617,12 +618,18 @@ export const adminRoutes = new Hono<AppEnv>()
     await db.transaction(async (tx) => {
       await tx.update(users).set({ blockedAt: new Date() }).where(eq(users.id, id));
       await tx.delete(sessions).where(eq(sessions.userId, id));
+      await tx.delete(deviceCodes).where(eq(deviceCodes.userId, id));
     });
     return c.json({ blocked: true });
   })
 
   .delete('/users/:id/block', async (c) => {
-    await c.get('db').update(users).set({ blockedAt: null }).where(eq(users.id, c.req.param('id')));
+    const [user] = await c.get('db')
+      .update(users)
+      .set({ blockedAt: null })
+      .where(eq(users.id, c.req.param('id')))
+      .returning({ id: users.id });
+    if (!user) return c.json({ error: 'Not found' }, 404);
     return c.json({ blocked: false });
   })
 

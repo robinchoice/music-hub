@@ -6,7 +6,7 @@ import { users, type Database } from '@music-hub/db';
 // Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
 export const MAX_USERS = 10;
 
-export async function findUserByEmail(db: Database, email: string) {
+export async function findUserByEmail(db: Pick<Database, 'select'>, email: string) {
   const [user] = await db
     .select()
     .from(users)
@@ -22,7 +22,7 @@ export async function registrationOpen(db: Pick<Database, 'execute'>) {
 }
 
 // Creates a signed-up account unless Music Hub is full. The lock keeps parallel sign-ups from overshooting.
-export async function createAccount(db: Database, values: typeof users.$inferInsert) {
+export async function createAccount(db: Pick<Database, 'transaction'>, values: typeof users.$inferInsert) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('registration'))`);
     if (!(await registrationOpen(tx))) return undefined;

@@ -270,7 +270,7 @@
           {/if}
         </DashCard>
 
-        <DashCard icon="drive" title="Speicher" sub="{formatGb(storageTotal)} · je Person bis {formatGb(data.storageLimitBytes)}" span={4}>
+        <DashCard icon="drive" title="Speicher" sub="{formatGb(storageTotal)} insgesamt" span={4}>
           {#if storage.length}
             <div class="bars">
               {#each storage as p (p.id)}

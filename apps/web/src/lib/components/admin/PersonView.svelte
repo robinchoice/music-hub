@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ROLE_LABELS } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import { toastError } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -91,6 +92,8 @@
       const path = `/admin/users/${p.id}/block`;
       const res = await (block ? api.post<{ blocked: boolean }>(path) : api.delete<{ blocked: boolean }>(path));
       if (detail) detail = { ...detail, person: { ...detail.person, blocked: res.blocked } };
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : 'Sperrstatus konnte nicht geändert werden');
     } finally {
       blocking = false;
     }
