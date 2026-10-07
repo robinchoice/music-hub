@@ -5,6 +5,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import { offlineVersions, removeOffline, initOfflineStore } from '$lib/stores/offline.svelte.js';
+  import { formatFileSize } from '$lib/utils/format.js';
 
   let storageUsed = $state(0);
   let storageQuota = $state(0);
@@ -18,11 +19,6 @@
       storageQuota = estimate.quota ?? 0;
     }
   });
-
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
 
   function formatDate(ts: number): string {
     return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -62,7 +58,7 @@
   {:else}
     <div class="storage-bar">
       <span class="storage-label">Gerätespeicher belegt:</span>
-      <span class="storage-value">{formatBytes(storageUsed)} / {formatBytes(storageQuota)}</span>
+      <span class="storage-value">{formatFileSize(storageUsed)} / {formatFileSize(storageQuota)}</span>
     </div>
 
     <div class="version-list">
@@ -73,7 +69,7 @@
             <span class="version-meta">
               V{v.versionNumber}
               · {v.quality === 'stream' ? 'Stream (MP3)' : 'Original'}
-              · {formatBytes(v.sizeBytes)}
+              · {formatFileSize(v.sizeBytes)}
               · {formatDate(v.downloadedAt)}
             </span>
           </div>

@@ -171,7 +171,7 @@
     <input
       id="file-input-{trackId}"
       type="file"
-      accept=".wav,.mp3,.flac,.aiff,.aif"
+      accept={SUPPORTED_EXTENSIONS.join(',')}
       multiple
       onchange={handleFileSelect}
       hidden

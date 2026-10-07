@@ -6,6 +6,8 @@ import {
   updateProjectSchema,
   inviteMemberSchema,
   updateMemberSchema,
+  hasPermission,
+  type ProjectRole,
 } from '@music-hub/shared';
 import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
@@ -325,12 +327,10 @@ export const projectRoutes = new Hono<AppEnv>()
     return c.json({ message: 'Member removed' });
   });
 
-function getRoleDefaults(role: string) {
-  const engineerRoles = ['recording_engineer', 'mixing_engineer', 'mastering_engineer'];
-  if (role === 'owner') return { canUpload: true, canComment: true, canApprove: true };
-  if (engineerRoles.includes(role)) return { canUpload: true, canComment: true, canApprove: false };
-  if (role === 'artist') return { canUpload: false, canComment: true, canApprove: true };
-  if (role === 'label') return { canUpload: false, canComment: true, canApprove: true };
-  if (role === 'management') return { canUpload: false, canComment: true, canApprove: true };
-  return { canUpload: false, canComment: false, canApprove: false }; // viewer
+function getRoleDefaults(role: ProjectRole) {
+  return {
+    canUpload: hasPermission(role, 'track.upload'),
+    canComment: hasPermission(role, 'version.comment'),
+    canApprove: hasPermission(role, 'version.approve'),
+  };
 }

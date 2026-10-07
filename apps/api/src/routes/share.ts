@@ -12,7 +12,7 @@ import {
   users,
   projectMembers,
 } from '@music-hub/db';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, generateToken } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
@@ -33,12 +33,6 @@ async function hashIp(ip: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 import type { AppEnv } from '../types.js';
-
-function generateToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 export const shareRoutes = new Hono<AppEnv>()
   // --- Authenticated: create / list / revoke ---
