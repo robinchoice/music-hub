@@ -122,6 +122,7 @@ async function loadPeople(db: Database, from: Date) {
         createdAt: users.createdAt,
         lastSeenAt: users.lastSeenAt,
         hasPassword: sql<boolean>`${users.passwordHash} IS NOT NULL`,
+        blockedAt: users.blockedAt,
       })
       .from(users),
     lastActions(db),
@@ -172,6 +173,7 @@ async function loadPeople(db: Database, from: Date) {
       pending,
       inviteExpiresAt: pending ? (linkExpiry.get(u.email.toLowerCase()) ?? null) : null,
       hasPassword: u.hasPassword,
+      blocked: !!u.blockedAt,
       lastSeenAt,
       online: !!u.lastSeenAt && now - u.lastSeenAt.getTime() < ONLINE_MS,
       lastAction,
@@ -601,6 +603,25 @@ export const adminRoutes = new Hono<AppEnv>()
       ],
       storageLimitBytes: MAX_STORAGE_PER_USER,
     });
+  })
+
+  // Blocking ends all sessions; logins, magic links and the person's share links stop working until unblocked
+  .post('/users/:id/block', async (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, id)).limit(1);
+    if (!user) return c.json({ error: 'Not found' }, 404);
+    if (isAdminEmail(user.email)) return c.json({ error: 'Admins lassen sich nicht sperren' }, 400);
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ blockedAt: new Date() }).where(eq(users.id, id));
+      await tx.delete(sessions).where(eq(sessions.userId, id));
+    });
+    return c.json({ blocked: true });
+  })
+
+  .delete('/users/:id/block', async (c) => {
+    await c.get('db').update(users).set({ blockedAt: null }).where(eq(users.id, c.req.param('id')));
+    return c.json({ blocked: false });
   })
 
   // Links that are still valid or were opened in the last 30 days, with their newest listeners

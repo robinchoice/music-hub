@@ -22,6 +22,7 @@ export type Person = {
   pending: boolean;
   inviteExpiresAt: string | null;
   hasPassword: boolean;
+  blocked: boolean;
   lastSeenAt: string | null;
   online: boolean;
   lastAction: { type: ActionType; at: string } | null;

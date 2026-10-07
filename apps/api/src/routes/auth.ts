@@ -12,7 +12,7 @@ import {
 import { users, magicLinks, sessions } from '@music-hub/db';
 import { generateToken, hashToken, bearerToken, markSeen } from '../middleware/auth.js';
 import { isAdminEmail } from '../lib/admin.js';
-import { findUserByEmail } from '../lib/users.js';
+import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
@@ -25,8 +25,9 @@ const failedLogins = rateLimit(10, 15 * MINUTE);
 const mailsPerAddress = rateLimit(5, 60 * MINUTE);
 const mailsPerIp = rateLimit(20, 60 * MINUTE);
 
-// Accounts only come from project invites
-const NO_ACCESS = 'Für diese Adresse gibt es keinen Zugang. Music Hub ist nur auf Einladung nutzbar.';
+// New accounts beyond MAX_USERS only come from project invites
+const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einladung zu einem Projekt.';
+const BLOCKED = 'Dieses Konto ist gesperrt.';
 
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
@@ -50,10 +51,10 @@ export const authRoutes = new Hono<AppEnv>()
 
     if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
 
-    // Registering only sets a password on an invited account
     const existing = await findUserByEmail(db, email);
-    if (!existing) return c.json({ error: NO_ACCESS }, 403);
-    if (existing.passwordHash) {
+    if (!existing && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
+    if (existing?.blockedAt) return c.json({ error: BLOCKED }, 403);
+    if (existing?.passwordHash) {
       return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
     }
 
@@ -88,6 +89,7 @@ export const authRoutes = new Hono<AppEnv>()
       return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
     }
     for (const key of attempt) failedLogins.undo(key);
+    if (user.blockedAt) return c.json({ error: BLOCKED }, 403);
 
     await createSession(c, db, user.id);
     return c.json({
@@ -106,7 +108,9 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
 
     if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
-    if (!(await findUserByEmail(db, email))) return c.json({ error: NO_ACCESS }, 403);
+    const user = await findUserByEmail(db, email);
+    if (!user && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
+    if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
     if (!mailsPerAddress.hit(email.toLowerCase())) return tooManyRequests(c);
 
     const token = generateToken();
@@ -147,9 +151,15 @@ export const authRoutes = new Hono<AppEnv>()
       registration = { name: link.name ?? link.email.split('@')[0], passwordHash: link.passwordHash };
     }
 
-    // Also rejects links for unknown addresses sent before registration closed
     let user = await findUserByEmail(db, link.email);
-    if (!user) return c.json({ error: NO_ACCESS }, 403);
+    if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
+    if (!user) {
+      // Music Hub may have filled up since the link went out
+      const created = await createAccount(db, { email: link.email, name: link.email.split('@')[0], ...registration });
+      if (!created) return c.json({ error: FULL }, 403);
+      user = created;
+      registration = null;
+    }
 
     await db
       .update(magicLinks)

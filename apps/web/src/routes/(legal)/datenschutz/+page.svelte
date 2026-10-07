@@ -6,8 +6,8 @@
 <p class="meta">Stand: Oktober 2026</p>
 
 <p>
-  Music Hub ist ein Werkzeug für Musikproduktionen: Versionen, Feedback und Freigaben. Zugang gibt es nur mit
-  Einladung. Hier steht, welche Daten dabei anfallen, wofür ich sie brauche und wo sie liegen. Werbung, Tracking
+  Music Hub ist ein Werkzeug für Musikproduktionen: Versionen, Feedback und Freigaben. Ein Konto gibt es per
+  Registrierung, solange Plätze frei sind, oder per Einladung. Hier steht, welche Daten dabei anfallen, wofür ich sie brauche und wo sie liegen. Werbung, Tracking
   oder Analyse-Dienste gibt es nicht.
 </p>
 
@@ -34,7 +34,7 @@
 <h2>3. Konto und Anmeldung</h2>
 <p>
   Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse und, falls du eines festlegst, dein Passwort als
-  Hash. Konten entstehen nur über eine Einladung, die mit einem Login-Link per E-Mail kommt. Links per E-Mail gelten
+  Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten
   je nach Zweck zwischen 15 Minuten und sieben Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich 30 Tage
   lang angemeldet hält. Apps wie das DAW-Plugin melden sich über einen Gerätecode an, ihre Anmeldung gilt 180 Tage.
   Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die

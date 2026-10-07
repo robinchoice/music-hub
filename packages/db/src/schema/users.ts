@@ -10,6 +10,8 @@ export const users = pgTable('users', {
   tracksSeenAt: timestamp('tracks_seen_at'),
   // Last authenticated request, written at most every few minutes; the admin pages show who is online
   lastSeenAt: timestamp('last_seen_at'),
+  // Set by an admin; a blocked account can't log in and its share links stop working
+  blockedAt: timestamp('blocked_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

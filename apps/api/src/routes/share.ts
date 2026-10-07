@@ -17,6 +17,7 @@ import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
+import { notBlocked } from '../lib/users.js';
 
 // Links of a version in the trash pause until it is restored
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
@@ -160,7 +161,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const [link] = await db
       .select()
       .from(shareLinks)
-      .where(eq(shareLinks.token, token))
+      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
     if (link.expiresAt && link.expiresAt < new Date()) {
@@ -241,7 +242,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const [link] = await db
       .select()
       .from(shareLinks)
-      .where(eq(shareLinks.token, token))
+      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
     if (link.expiresAt && link.expiresAt < new Date()) {

@@ -99,6 +99,13 @@
       "when": 1791287584135,
       "tag": "0013_last_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791372724869,
+      "tag": "0014_blocked_users",
+      "breakpoints": true
     }
   ]
 }

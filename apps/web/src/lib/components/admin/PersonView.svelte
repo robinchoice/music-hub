@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ROLE_LABELS } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import ColumnChart from './ColumnChart.svelte';
@@ -79,6 +80,22 @@
       : [],
   );
 
+  let blocking = $state(false);
+
+  async function toggleBlock() {
+    if (!p) return;
+    const block = !p.blocked;
+    if (block && !confirm(`${p.name} sperren? Alle Sessions enden, Login und Share-Links gehen nicht mehr.`)) return;
+    blocking = true;
+    try {
+      const path = `/admin/users/${p.id}/block`;
+      const res = await (block ? api.post<{ blocked: boolean }>(path) : api.delete<{ blocked: boolean }>(path));
+      if (detail) detail = { ...detail, person: { ...detail.person, blocked: res.blocked } };
+    } finally {
+      blocking = false;
+    }
+  }
+
   const deviceIcon = (d: PersonDetail['devices'][number]) =>
     d.kind === 'plugin' ? 'plug' : /iPhone|iPad|Android/.test(d.label) ? 'smartphone' : 'monitor';
 </script>
@@ -88,7 +105,9 @@
     {#if p}
       <PersonAvatar person={p} size="lg" />
       <div class="who">
-        <h2>{p.name}{#if p.isAdmin}<span class="badge">Admin</span>{/if}</h2>
+        <h2>
+          {p.name}{#if p.isAdmin}<span class="badge">Admin</span>{/if}{#if p.blocked}<span class="badge blocked">Gesperrt</span>{/if}
+        </h2>
         <a class="mail" href="mailto:{p.email}">{p.email}</a>
         <div class="state">
           {#if p.pending}
@@ -100,6 +119,11 @@
           {/if}
         </div>
       </div>
+      {#if !p.isAdmin}
+        <Button size="sm" variant={p.blocked ? 'secondary' : 'danger'} loading={blocking} onclick={toggleBlock}>
+          {p.blocked ? 'Entsperren' : 'Sperren'}
+        </Button>
+      {/if}
     {:else}
       <div class="who"><Skeleton width="55%" height="1.2rem" /></div>
     {/if}
@@ -280,6 +304,11 @@
     color: var(--color-accent-2);
     border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
     letter-spacing: 0;
+  }
+  .badge.blocked {
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+    color: var(--color-error);
+    border-color: color-mix(in srgb, var(--color-error) 30%, transparent);
   }
   .mail {
     display: block;

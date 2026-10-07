@@ -50,8 +50,8 @@
 
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
-      <h1>Passwort festlegen</h1>
-      <p class="card-sub">Für Adressen, die zu einem Projekt eingeladen wurden.</p>
+      <h1>Konto erstellen</h1>
+      <p class="card-sub">Kostenlos, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
 
       {#if sent}
         <p class="success">
@@ -70,7 +70,7 @@
           {/if}
 
           <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
-            Passwort festlegen
+            Registrieren
           </Button>
         </form>
       {/if}

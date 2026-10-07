@@ -233,11 +233,11 @@
           {#if $user}
             <Button href="/dashboard" size="lg">Zum Dashboard</Button>
           {:else}
-            <Button href="/login" size="lg">Einloggen</Button>
+            <Button href="/register" size="lg">Konto anlegen</Button>
           {/if}
           <Button href={SELF_HOSTING} size="lg" variant="secondary">Selbst hosten</Button>
         </div>
-        <p class="fine">Zugang mit Einladung. Zum Reinhören reicht ein Link.</p>
+        <p class="fine">Kostenlos, solange Plätze frei sind. Zum Reinhören reicht ein Link.</p>
       </div>
     </header>
   </div>
@@ -444,7 +444,7 @@
         <ul class="facts">
           <li><Icon name="link" size={16} /> Quellcode unter AGPL-3.0</li>
           <li><Icon name="settings" size={16} /> SvelteKit, Hono, PostgreSQL, S3 und FFmpeg</li>
-          <li><Icon name="lock" size={16} /> hub.pleasance.org läuft auf Servern in Deutschland, Zugang nur mit Einladung</li>
+          <li><Icon name="lock" size={16} /> hub.pleasance.org läuft auf Servern in Deutschland, Plätze begrenzt</li>
         </ul>
       </div>
       <div class="term" aria-label="Installation in drei Befehlen">
