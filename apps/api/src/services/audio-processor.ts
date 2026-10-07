@@ -4,7 +4,16 @@ import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { publish } from './sse.js';
 import type { Database } from '@music-hub/db';
 
-export async function processVersion(db: Database, versionId: string) {
+// One version at a time: ffmpeg would otherwise take both cores of VPS 1 when several uploads land at once
+let queue: Promise<unknown> = Promise.resolve();
+
+export function processVersion(db: Database, versionId: string) {
+  const run = queue.then(() => processNow(db, versionId));
+  queue = run.catch(() => {});
+  return run;
+}
+
+async function processNow(db: Database, versionId: string) {
   console.log(`[Worker] Processing version ${versionId}`);
 
   // Mark as processing
