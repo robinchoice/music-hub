@@ -217,7 +217,10 @@
         {#if $user}
           <Button href="/dashboard" size="sm">Zum Dashboard</Button>
         {:else}
-          <Button href="/login" size="sm">Einloggen</Button>
+          <div class="nav-auth">
+            <Button href="/login" size="sm" variant="secondary">Einloggen</Button>
+            <Button href="/register" size="sm">Registrieren</Button>
+          </div>
         {/if}
       </div>
     </nav>
@@ -512,6 +515,10 @@
     display: flex;
     align-items: center;
     gap: var(--space-5);
+  }
+  .nav-auth {
+    display: flex;
+    gap: var(--space-2);
   }
   .nav-link {
     color: var(--color-text-secondary);
