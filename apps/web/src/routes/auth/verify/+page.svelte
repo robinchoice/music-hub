@@ -45,7 +45,19 @@
       await verifyToken(token!, password);
       goto('/dashboard');
     } catch (err) {
-      passwordError = err instanceof Error ? err.message : 'Bestätigung fehlgeschlagen';
+      const message = err instanceof Error ? err.message : 'Bestätigung fehlgeschlagen';
+      // Only a wrong password can be fixed here
+      if ((err as { status?: number }).status === 401) {
+        passwordError = message;
+        return;
+      }
+      // Opened the link a second time after confirming it
+      await checkAuth();
+      if ($user) {
+        goto('/dashboard');
+        return;
+      }
+      error = message;
     } finally {
       loading = false;
     }
@@ -58,15 +70,21 @@
   <div class="verify-page">
     {#if error}
       <div class="error-card">
-        <h2>Login fehlgeschlagen</h2>
-        <p>{error}</p>
-        <a href={`/login?tab=magic${next ? `&next=${encodeURIComponent(next)}` : ''}`}>Neuen Login-Link anfordern</a>
+        {#if isRegistration}
+          <h2>Registrierung nicht abgeschlossen</h2>
+          <p>{error}</p>
+          <a href="/register">Noch einmal registrieren</a>
+        {:else}
+          <h2>Login fehlgeschlagen</h2>
+          <p>{error}</p>
+          <a href={`/login?tab=magic${next ? `&next=${encodeURIComponent(next)}` : ''}`}>Neuen Login-Link anfordern</a>
+        {/if}
       </div>
     {:else if isRegistration}
       <form class="card" onsubmit={confirmRegistration}>
         <p class="brand"><Tile size={36} /> Music Hub</p>
         <h1>Registrierung abschließen</h1>
-        <p class="hint">Gib zur Bestätigung das Passwort ein, das du bei der Registrierung gewählt hast.</p>
+        <p class="hint">Letzter Schritt: Gib das Passwort ein, das du bei der Registrierung gewählt hast. So stellen wir sicher, dass niemand anderes ein Konto mit deiner Adresse anlegt.</p>
         <Input type="password" bind:value={password} label="Passwort" placeholder="Dein Passwort" error={passwordError} />
         <Button type="submit" size="lg" {loading} disabled={!password}>Bestätigen</Button>
       </form>

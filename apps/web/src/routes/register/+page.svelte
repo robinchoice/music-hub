@@ -4,6 +4,7 @@
   import { user, register } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
+  import { toastSuccess } from '$lib/stores/toast.js';
 
   let name = $state('');
   let email = $state('');
@@ -12,6 +13,7 @@
   let loading = $state(false);
   let error = $state('');
   let sent = $state(false);
+  let resending = $state(false);
 
   $effect(() => {
     if ($user) goto('/dashboard');
@@ -41,6 +43,18 @@
       loading = false;
     }
   }
+  async function resend() {
+    error = '';
+    resending = true;
+    try {
+      await register(name, email, password);
+      toastSuccess('Link erneut gesendet');
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Senden fehlgeschlagen';
+    } finally {
+      resending = false;
+    }
+  }
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
 </script>
@@ -55,10 +69,20 @@
       <p class="card-sub">Kostenlos mit {SIGNUP_STORAGE_PER_USER / 1024 ** 3} GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
 
       {#if sent}
-        <p class="success">
-          Fast geschafft! Wir haben dir einen Link an <strong>{email}</strong> geschickt. Klick darauf und
-          bestätige mit deinem Passwort.
-        </p>
+        <div class="sent">
+          <p class="success">
+            Fast geschafft! Wir haben dir einen Link an <strong>{email}</strong> geschickt. Klick darauf und
+            bestätige mit deinem Passwort.
+          </p>
+          <p class="hint">Der Link gilt 24 Stunden. Keine Mail da? Schau im Spam-Ordner nach.</p>
+          {#if error}
+            <p class="error">{error}</p>
+          {/if}
+          <div class="sent-actions">
+            <Button variant="secondary" onclick={resend} loading={resending}>Link erneut senden</Button>
+            <Button variant="ghost" onclick={() => (sent = false)}>Adresse ändern</Button>
+          </div>
+        </div>
       {:else}
         <form onsubmit={handleSubmit}>
           <Input label="Name" bind:value={name} placeholder="Dein Name" />
@@ -152,6 +176,24 @@
     color: var(--color-error);
     font-size: var(--text-sm);
     margin: 0;
+  }
+
+  .sent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .hint {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-sm);
+    margin: 0;
+  }
+
+  .sent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   .success {

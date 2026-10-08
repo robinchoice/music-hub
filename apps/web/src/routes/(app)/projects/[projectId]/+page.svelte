@@ -179,7 +179,13 @@
     <EmptyState
       title="Noch keine Tracks"
       description="Lege einen Track an und lade dein erstes Audio hoch."
-    />
+    >
+      {#snippet action()}
+        {#if canUpload && !showNewTrack}
+          <Button onclick={() => (showNewTrack = true)}>Neuer Track</Button>
+        {/if}
+      {/snippet}
+    </EmptyState>
   {:else if view === 'timeline'}
     <ProjectTimeline {ix} list={group.list} />
   {:else}

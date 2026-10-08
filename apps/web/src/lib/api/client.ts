@@ -35,7 +35,7 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
     const error = await res.json().catch(() => ({ error: res.statusText }));
     const message = error.error || 'Request failed';
     if (!silent) toastError(message);
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: res.status });
   }
 
   return res.json();
