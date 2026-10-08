@@ -1,0 +1,81 @@
+// Renders the link preview that WhatsApp, Signal and co. show for shared links,
+// 1200×630 into static/og-image.png (see DESIGN.md in robinchoice/starter,
+// "Vorschaubild"). Music Hub is German only, so there is one picture. Rerun after
+// changing the claim, APP_BAND or the tile in static/favicon.svg, and commit it.
+// Run: bun run og-image
+import { readFileSync } from 'node:fs';
+import { APP_BAND, GLOW, bandGradient } from '@music-hub/shared';
+import { chromium } from '@playwright/test';
+
+const NAME = 'Music Hub';
+const CLAIM = 'Versionen für Musik. Ohne Chaos.';
+
+const STATIC = new URL('static/', import.meta.url);
+const dataUrl = (file: string | URL, type: string) =>
+  `data:${type};base64,${readFileSync(new URL(file, STATIC)).toString('base64')}`;
+const INTER = import.meta.resolve('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2');
+// Music Hub's wordmark has padding around it, the picture needs it cropped like in the starter
+const WORDMARK = `data:image/svg+xml;base64,${Buffer.from(
+  readFileSync(new URL('pleasance-wordmark.svg', STATIC), 'utf8').replace('viewBox="0 0 827 160"', 'viewBox="63 41 702 78"'),
+).toString('base64')}`;
+
+const html = `<!doctype html>
+<style>
+  @font-face {
+    font-family: Display;
+    font-weight: 200 800;
+    font-stretch: 75% 100%;
+    src: url(${dataUrl('fonts/bricolage-grotesque-latin.woff2', 'font/woff2')});
+  }
+  @font-face {
+    font-family: Inter;
+    font-weight: 100 900;
+    src: url(${dataUrl(new URL(INTER), 'font/woff2')});
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 1200px;
+    height: 630px;
+    margin: 0;
+    padding: 0 96px 64px;
+    background: #0e0d12;
+    color: #f2f0ea;
+    font-family: Inter, system-ui, sans-serif;
+  }
+  main { flex: 1; display: flex; align-items: center; gap: 64px; }
+  .tile { flex: none; width: 208px; height: 208px; border-radius: 24%; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07); }
+  h1 { margin: 0; font: 780 116px/1 Display; font-stretch: 78%; letter-spacing: -0.02em; }
+  .line { width: 120px; height: 4px; margin: 28px 0 24px; border-radius: 2px; background: ${bandGradient(APP_BAND, GLOW)}; }
+  p { margin: 0; color: #9a98a3; font-size: 36px; line-height: 1.3; }
+  footer { display: flex; gap: 14px; align-items: flex-end; color: #9a98a3; font: 650 24px/1 Display; font-stretch: 80%; }
+  .signature { display: flex; flex-direction: column; gap: 8px; }
+  .wordmark { width: 180px; height: 20px; background: #f2f0ea; mask: url(${WORDMARK}) left center / contain no-repeat; }
+  .band { position: relative; height: 3px; border-radius: 2px; background: linear-gradient(rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.55)), linear-gradient(90deg, ${GLOW.join(', ')}); }
+  .marker { position: absolute; top: -2px; min-width: 10px; height: 7px; border-radius: 4px; background: ${bandGradient(APP_BAND, GLOW)};
+    left: ${((APP_BAND.from - 1) / 6) * 100}%; width: ${((APP_BAND.to - APP_BAND.from) / 6) * 100}%; }
+</style>
+<main>
+  <img class="tile" src="${dataUrl('favicon.svg', 'image/svg+xml')}" />
+  <div>
+    <h1>${NAME}</h1>
+    <div class="line"></div>
+    <p>${CLAIM}</p>
+  </div>
+</main>
+<footer>
+  ein Werkzeug von
+  <div class="signature"><div class="wordmark"></div><div class="band"><div class="marker"></div></div></div>
+</footer>`;
+
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
+  await page.setContent(html);
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: new URL('og-image.png', STATIC).pathname });
+  console.log('og-image.png');
+} finally {
+  await browser.close();
+}

@@ -24,10 +24,12 @@
     checkAuth();
   });
 
-  // Link previews; pages can override title and description via their load data
+  // Link previews. Public pages override them with meta in their server load,
+  // pages without SSR don't get any (link crawlers run no JavaScript).
   const meta = $derived({
     title: 'Music Hub',
     description: 'Jeder Stand deines Songs, Feedback auf die Sekunde und klar, welcher Mix freigegeben ist.',
+    image: '',
     ...$page.data.meta,
   });
 </script>
@@ -39,10 +41,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content={meta.title} />
   <meta property="og:description" content={meta.description} />
-  <meta property="og:image" content="{$page.url.origin}/og-image.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Music Hub — Versionen für Musik. Ohne Chaos." />
+  {#if meta.image}
+    <meta property="og:image" content={meta.image} />
+  {:else}
+    <meta property="og:image" content="{$page.url.origin}/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Music Hub: Versionen für Musik. Ohne Chaos." />
+  {/if}
   <meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 

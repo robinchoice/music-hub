@@ -5,7 +5,8 @@ declare global {
 		// interface Error {}
 		// interface Locals {}
 		interface PageData {
-			meta?: { title: string; description: string } | null;
+			// Link preview of a public page, see +layout.svelte. image is an absolute URL.
+			meta?: { title?: string; description?: string; image?: string } | null;
 		}
 		// interface PageState {}
 		// interface Platform {}
