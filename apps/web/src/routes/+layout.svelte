@@ -23,11 +23,27 @@
   onMount(() => {
     checkAuth();
   });
+
+  // Link previews; pages can override title and description via their load data
+  const meta = $derived({
+    title: 'Music Hub',
+    description: 'Jeder Stand deines Songs, Feedback auf die Sekunde und klar, welcher Mix freigegeben ist.',
+    ...$page.data.meta,
+  });
 </script>
 
 <svelte:head>
   <title>Music Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta property="og:site_name" content="Music Hub" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={meta.title} />
+  <meta property="og:description" content={meta.description} />
+  <meta property="og:image" content="{$page.url.origin}/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Music Hub — Versionen für Musik. Ohne Chaos." />
+  <meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <div
