@@ -111,7 +111,7 @@ export const commentRoutes = new Hono<AppEnv>()
         })
         .returning();
 
-      publish(track!.id, { type: 'comment:new', data: { versionId, commentId: comment.id } });
+      publish(db, track!.id, { type: 'comment:new', data: { versionId, commentId: comment.id } });
 
       return c.json({ comment }, 201);
     },

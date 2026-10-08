@@ -2,11 +2,7 @@ import { captureException } from './monitoring';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import path from 'path';
-import { sql } from 'drizzle-orm';
-import { readMigrationFiles } from 'drizzle-orm/migrator';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { createDb } from '@music-hub/db';
+import { createDb, migrateDb } from '@music-hub/db';
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import { trackRoutes } from './routes/tracks.js';
@@ -24,36 +20,18 @@ import { overviewRoutes } from './routes/overview.js';
 import { trashRoutes } from './routes/trash.js';
 import { adminRoutes } from './routes/admin.js';
 import { purgeTrash } from './lib/trash.js';
+import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
 
 // Auto-migrate on startup. A failed migration aborts the boot.
-{
-  const migrationsFolder = path.resolve(import.meta.dir, '../../../packages/db/src/migrations');
+await migrateDb(process.env.DATABASE_URL!);
+console.log('[Boot] Migrations up to date.');
 
-  // Databases set up by the former raw-SQL runner contain migrations 0000–0008
-  // but no drizzle bookkeeping; record those as applied before migrating.
-  await db.execute(sql`CREATE SCHEMA IF NOT EXISTS drizzle`);
-  await db.execute(
-    sql`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`,
-  );
-  const [{ tracked, legacy }] = await db.execute<{ tracked: number; legacy: boolean }>(
-    sql`SELECT (SELECT count(*)::int FROM drizzle.__drizzle_migrations) AS tracked, to_regclass('public.users') IS NOT NULL AS legacy`,
-  );
-  if (tracked === 0 && legacy) {
-    for (const m of readMigrationFiles({ migrationsFolder }).slice(0, 9)) {
-      await db.execute(
-        sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${m.hash}, ${m.folderMillis})`,
-      );
-    }
-    console.log('[Boot] Recorded legacy migrations 0000–0008 as applied.');
-  }
-
-  await migrate(db, { migrationsFolder });
-  console.log('[Boot] Migrations up to date.');
-}
+// Delivers the events of all instances and the worker to this instance's SSE clients
+await listenForEvents(db);
 
 const allowedOrigins = [
   process.env.APP_URL || 'http://localhost:5173',
@@ -104,7 +82,8 @@ const app = new Hono<AppEnv>()
   .route('/trash', trashRoutes)
   .route('/admin', adminRoutes);
 
-// Deletes for good what left the trash long enough ago: a minute after boot, then every six hours
+// Deletes for good what left the trash long enough ago: a minute after boot, then every six hours.
+// Each API instance runs it; a second run finds nothing left to delete.
 {
   const purge = () =>
     purgeTrash(db).catch((err) => {

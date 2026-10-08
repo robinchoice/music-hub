@@ -47,6 +47,24 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # === AUDIO-WORKER (Wellenform, MP3, Lautheit; ein Job gleichzeitig) ===
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: worker
+    environment:
+      - DATABASE_URL=postgresql://musichub:${POSTGRES_PASSWORD}@postgres:5432/musichub
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+      - NODE_ENV=production
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   # === POSTGRES ===
   postgres:
     image: postgres:16-alpine

@@ -1,33 +1,40 @@
 import type { Context } from 'hono';
+import { and, eq, gt, lt, sql } from 'drizzle-orm';
+import { rateLimits, type Database } from '@music-hub/db';
 
-// Fixed-window counters kept in memory. A single API process serves all
-// requests; a restart resets the counters.
-export function rateLimit(limit: number, windowMs: number) {
-  const windows = new Map<string, { count: number; resetAt: number }>();
+// Fixed-window counters in Postgres, so all API instances share them and a
+// restart keeps them. `name` keeps the keys of different limits apart.
+export function rateLimit(name: string, limit: number, windowMs: number) {
   let nextSweep = 0;
-
-  function current(key: string) {
-    const now = Date.now();
-    if (now >= nextSweep) {
-      for (const [k, w] of windows) if (w.resetAt <= now) windows.delete(k);
-      nextSweep = now + windowMs;
-    }
-    const w = windows.get(key);
-    return w && w.resetAt > now ? w : undefined;
-  }
 
   return {
     // Counts `amount` hits for `key`; false once it goes over the limit.
-    hit(key: string, amount = 1) {
-      const w = current(key);
-      if (w) return (w.count += amount) <= limit;
-      windows.set(key, { count: amount, resetAt: Date.now() + windowMs });
-      return amount <= limit;
+    async hit(db: Database, key: string, amount = 1) {
+      if (Date.now() >= nextSweep) {
+        nextSweep = Date.now() + windowMs;
+        await db.delete(rateLimits).where(lt(rateLimits.resetAt, sql`now()`));
+      }
+
+      // An expired window starts over at `amount`. Both CASEs see the old row.
+      const [row] = await db
+        .insert(rateLimits)
+        .values({ key: `${name}:${key}`, count: amount, resetAt: sql`now() + make_interval(secs => ${windowMs / 1000})` })
+        .onConflictDoUpdate({
+          target: rateLimits.key,
+          set: {
+            count: sql`case when ${rateLimits.resetAt} <= now() then excluded.count else ${rateLimits.count} + excluded.count end`,
+            resetAt: sql`case when ${rateLimits.resetAt} <= now() then excluded.reset_at else ${rateLimits.resetAt} end`,
+          },
+        })
+        .returning({ count: rateLimits.count });
+      return row!.count <= limit;
     },
     // Takes hits back, e.g. once a counted attempt turned out to be valid.
-    undo(key: string, amount = 1) {
-      const w = current(key);
-      if (w) w.count = Math.max(0, w.count - amount);
+    async undo(db: Database, key: string, amount = 1) {
+      await db
+        .update(rateLimits)
+        .set({ count: sql`greatest(0, ${rateLimits.count} - ${amount})` })
+        .where(and(eq(rateLimits.key, `${name}:${key}`), gt(rateLimits.resetAt, sql`now()`)));
     },
   };
 }

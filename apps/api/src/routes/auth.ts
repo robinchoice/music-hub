@@ -20,10 +20,10 @@ import type { AppEnv } from '../types.js';
 const MINUTE = 60 * 1000;
 // Failed password logins per IP and per account. Each attempt counts before the
 // password check, so parallel requests can't overshoot; a success takes it back.
-const failedLogins = rateLimit(10, 15 * MINUTE);
+const failedLogins = rateLimit('failed-logins', 10, 15 * MINUTE);
 // Magic link and registration emails
-const mailsPerAddress = rateLimit(5, 60 * MINUTE);
-const mailsPerIp = rateLimit(20, 60 * MINUTE);
+const mailsPerAddress = rateLimit('mails-per-address', 5, 60 * MINUTE);
+const mailsPerIp = rateLimit('mails-per-ip', 20, 60 * MINUTE);
 
 // New accounts beyond MAX_USERS only come from project invites
 const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einladung zu einem Projekt.';
@@ -49,7 +49,7 @@ export const authRoutes = new Hono<AppEnv>()
     const { name, email, password } = c.req.valid('json');
     const db = c.get('db');
 
-    if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+    if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const existing = await findUserByEmail(db, email);
     if (!existing && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
@@ -60,7 +60,7 @@ export const authRoutes = new Hono<AppEnv>()
 
     // Only count towards the address once a mail goes out, so 409s can't
     // block magic links for an existing account
-    if (!mailsPerAddress.hit(email.toLowerCase())) return tooManyRequests(c);
+    if (!(await mailsPerAddress.hit(db, email.toLowerCase()))) return tooManyRequests(c);
 
     const token = generateToken();
     await db.insert(magicLinks).values({
@@ -82,13 +82,13 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
 
     const attempt = [clientIp(c), email.toLowerCase()];
-    if (!attempt.every((key) => failedLogins.hit(key))) return tooManyRequests(c);
+    for (const key of attempt) if (!(await failedLogins.hit(db, key))) return tooManyRequests(c);
 
     const user = await findUserByEmail(db, email);
     if (!user?.passwordHash || !(await Bun.password.verify(password, user.passwordHash))) {
       return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
     }
-    for (const key of attempt) failedLogins.undo(key);
+    for (const key of attempt) await failedLogins.undo(db, key);
     if (user.blockedAt) return c.json({ error: BLOCKED }, 403);
 
     await createSession(c, db, user.id);
@@ -107,11 +107,11 @@ export const authRoutes = new Hono<AppEnv>()
     const { email, next } = c.req.valid('json');
     const db = c.get('db');
 
-    if (!mailsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+    if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const user = await findUserByEmail(db, email);
     if (!user && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
     if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
-    if (!mailsPerAddress.hit(email.toLowerCase())) return tooManyRequests(c);
+    if (!(await mailsPerAddress.hit(db, email.toLowerCase()))) return tooManyRequests(c);
 
     const token = generateToken();
     const tokenHash = await hashToken(token);

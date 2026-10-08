@@ -16,10 +16,16 @@ COPY --from=install /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=install /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 
-FROM base AS production
+FROM base AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 3000
 ENV NODE_ENV=production
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000/health || exit 1
+
+# Audio worker (ghcr.io/robinchoice/musichub-worker): the API image with another start command
+FROM runtime AS worker
+CMD ["bun", "run", "apps/api/src/worker.ts"]
+
+FROM runtime AS production
 CMD ["bun", "run", "apps/api/src/index.ts"]

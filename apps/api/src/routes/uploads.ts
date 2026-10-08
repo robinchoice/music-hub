@@ -13,7 +13,7 @@ export const uploadRoutes = new Hono<AppEnv>()
 
   .post('/cover', zValidator('json', coverUploadSchema), async (c) => {
     const { mimeType, fileSize } = c.req.valid('json');
-    if (!takeUploadVolume(c.get('userId'), fileSize)) return uploadVolumeExceeded(c);
+    if (!(await takeUploadVolume(c.get('db'), c.get('userId'), fileSize))) return uploadVolumeExceeded(c);
     const key = `covers/${crypto.randomUUID()}.${COVER_EXTENSIONS[mimeType]}`;
     const uploadUrl = await createUploadUrl(key, mimeType, fileSize);
     return c.json({ uploadUrl, key });

@@ -11,12 +11,12 @@ const GB = 1024 * 1024 * 1024;
 
 // Bytes of upload URLs handed out per user and day. Bounds what uploads that
 // are deleted again or never registered can pile up in the bucket.
-const uploadVolume = rateLimit(MAX_STORAGE_PER_USER, 24 * 60 * 60 * 1000);
+const uploadVolume = rateLimit('upload-volume', MAX_STORAGE_PER_USER, 24 * 60 * 60 * 1000);
 
 // Counts the bytes towards the user's daily upload volume, unless that would exceed it.
-export function takeUploadVolume(userId: string, bytes: number) {
-  if (uploadVolume.hit(userId, bytes)) return true;
-  uploadVolume.undo(userId, bytes);
+export async function takeUploadVolume(db: Database, userId: string, bytes: number) {
+  if (await uploadVolume.hit(db, userId, bytes)) return true;
+  await uploadVolume.undo(db, userId, bytes);
   return false;
 }
 

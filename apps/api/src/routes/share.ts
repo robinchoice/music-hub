@@ -24,10 +24,10 @@ const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
 
 const MINUTE = 60 * 1000;
 // Wrong passwords per share link, counted like failed logins
-const failedPasswords = rateLimit(10, 15 * MINUTE);
-const listensPerIp = rateLimit(30, 60 * MINUTE);
+const failedPasswords = rateLimit('failed-share-passwords', 10, 15 * MINUTE);
+const listensPerIp = rateLimit('listens-per-ip', 30, 60 * MINUTE);
 // Listen alert emails per share link
-const listenAlerts = rateLimit(1, 60 * MINUTE);
+const listenAlerts = rateLimit('listen-alerts', 1, 60 * MINUTE);
 
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + 'musichub-salt'));
@@ -169,11 +169,11 @@ export const shareRoutes = new Hono<AppEnv>()
     }
     if (link.passwordHash) {
       if (!password) return c.json({ error: 'Password required', passwordRequired: true }, 401);
-      if (!failedPasswords.hit(link.id)) return tooManyRequests(c);
+      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
       if (!(await Bun.password.verify(password, link.passwordHash))) {
         return c.json({ error: 'Password required', passwordRequired: true }, 401);
       }
-      failedPasswords.undo(link.id);
+      await failedPasswords.undo(db, link.id);
     }
 
     const found = await liveVersion(db, link.versionId);
@@ -251,11 +251,11 @@ export const shareRoutes = new Hono<AppEnv>()
     if (!link.allowComments) return c.json({ error: 'Comments disabled' }, 403);
     if (link.passwordHash) {
       if (!password) return c.json({ error: 'Password required' }, 401);
-      if (!failedPasswords.hit(link.id)) return tooManyRequests(c);
+      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
       if (!(await Bun.password.verify(password, link.passwordHash))) {
         return c.json({ error: 'Password required' }, 401);
       }
-      failedPasswords.undo(link.id);
+      await failedPasswords.undo(db, link.id);
     }
 
     if (!(await liveVersion(db, link.versionId))) return c.json({ error: UNAVAILABLE }, 410);
@@ -289,7 +289,7 @@ export const shareRoutes = new Hono<AppEnv>()
     if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
 
     const ip = clientIp(c);
-    if (!listensPerIp.hit(ip)) return tooManyRequests(c);
+    if (!(await listensPerIp.hit(db, ip))) return tooManyRequests(c);
     const ipHash = await hashIp(ip);
     const userAgent = (c.req.header('user-agent') ?? '').slice(0, 500);
 
@@ -333,7 +333,7 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .where(eq(listenEvents.id, eventId));
 
-    if (isFirstPlay && listenAlerts.hit(link.id)) {
+    if (isFirstPlay && (await listenAlerts.hit(db, link.id))) {
       // Fire-and-forget: alert link creator by email
       Promise.resolve().then(async () => {
         try {

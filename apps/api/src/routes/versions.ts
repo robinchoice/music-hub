@@ -12,7 +12,7 @@ import { versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
-import { processVersion } from '../services/audio-processor.js';
+import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
 import { publish } from '../services/sse.js';
@@ -107,7 +107,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
       const storage = await storageOf(db, userId);
       if (!fits(storage, fileSize)) return storageFull(c, storage);
-      if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
+      if (!(await takeUploadVolume(db, userId, fileSize))) return uploadVolumeExceeded(c);
 
       const versionId = crypto.randomUUID();
       const fileKey = `projects/${track.projectId}/tracks/${trackId}/versions/${versionId}/original/${fileName}`;
@@ -184,15 +184,11 @@ export const versionRoutes = new Hono<AppEnv>()
           createdById: userId,
         })
         .returning();
+      await enqueueAudioJob(tx, version.id);
       return version;
     });
     if (!version) return storageFull(c, await storageOf(db, userId));
     const { versionNumber } = version;
-
-    // Background processing (fire and forget)
-    processVersion(db, version.id).catch((err) =>
-      console.error(`[Worker] Failed: ${err.message}`),
-    );
 
     notifyProjectMembers(db, track.projectId, userId, {
       title: 'Neue Version',
@@ -200,7 +196,7 @@ export const versionRoutes = new Hono<AppEnv>()
       url: `/projects/${track.projectId}/tracks/${trackId}`,
     }).catch(() => {});
 
-    publish(trackId, { type: 'version:new', data: { versionId: version.id, versionNumber, trackId } });
+    publish(db, trackId, { type: 'version:new', data: { versionId: version.id, versionNumber, trackId } });
 
     return c.json({ version }, 201);
   })
@@ -427,7 +423,7 @@ export const versionRoutes = new Hono<AppEnv>()
       url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
     }).catch(() => {});
 
-    publish(version.trackId, { type: 'version:status', data: { versionId, status: 'approved' } });
+    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'approved' } });
 
     return c.json({ version: updated });
   })
@@ -539,7 +535,7 @@ export const versionRoutes = new Hono<AppEnv>()
       url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
     }).catch(() => {});
 
-    publish(version.trackId, { type: 'version:status', data: { versionId, status: 'rejected' } });
+    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'rejected' } });
 
     return c.json({ version: updated });
   });

@@ -55,7 +55,7 @@ export const stemRoutes = new Hono<AppEnv>()
 
     const storage = await storageOf(db, userId);
     if (!fits(storage, fileSize)) return storageFull(c, storage);
-    if (!takeUploadVolume(userId, fileSize)) return uploadVolumeExceeded(c);
+    if (!(await takeUploadVolume(db, userId, fileSize))) return uploadVolumeExceeded(c);
 
     const stemId = crypto.randomUUID();
     const fileKey = `projects/${track.projectId}/tracks/${trackId}/stems/${stemId}/${fileName}`;

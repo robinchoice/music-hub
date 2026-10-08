@@ -15,11 +15,24 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: musichub
+          POSTGRES_PASSWORD: musichub
+          POSTGRES_DB: musichub
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://musichub:musichub@localhost:5432/musichub
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run check
+      - run: bun run test
       - run: bun --bun run build
 
   build-and-push:
@@ -53,6 +66,21 @@ jobs:
           tags: |
             ghcr.io/robinchoice/musichub-${{ matrix.service }}:${{ github.sha }}
             ghcr.io/robinchoice/musichub-${{ matrix.service }}:latest
+      # The worker stage reuses the layers just built for the API
+      - if: matrix.service == 'api'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          target: worker
+          push: true
+          platforms: linux/arm64
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ghcr.io/robinchoice/musichub-worker:${{ github.sha }}
+            ghcr.io/robinchoice/musichub-worker:latest
 
   deploy:
     needs: build-and-push
@@ -62,12 +90,13 @@ jobs:
       COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
       COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
       COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+      COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
       COOLIFY_API: https://coolify.pleasance.org/api/v1
     steps:
       - name: Deploy images to Coolify
         run: |
           set -euo pipefail
-          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_API_UUID" ] || [ -z "$COOLIFY_WEB_UUID" ]; then
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_API_UUID" ] || [ -z "$COOLIFY_WEB_UUID" ] || [ -z "$COOLIFY_WORKER_UUID" ]; then
             echo '::notice::Coolify secrets are not set, skipping deploy.'
             exit 0
           fi
@@ -99,5 +128,7 @@ jobs:
             return 1
           }
 
+          # The API migrates first, the worker then takes the jobs queued meanwhile
           deploy "$COOLIFY_API_UUID"
+          deploy "$COOLIFY_WORKER_UUID"
           deploy "$COOLIFY_WEB_UUID"

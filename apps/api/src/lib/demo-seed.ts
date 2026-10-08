@@ -15,7 +15,7 @@ import {
   type Database,
 } from '@music-hub/db';
 import { putObject } from '../storage/s3.js';
-import { processVersion } from '../services/audio-processor.js';
+import { enqueueAudioJob, waitForAudioJobs } from '../services/audio-jobs.js';
 
 const ASSET_DIR = '/tmp/musichub-seed';
 
@@ -116,9 +116,10 @@ export async function createDemoProject(db: Database, userId: string): Promise<s
       .returning();
 
     createdVersionIds.push(version.id);
-    // Process synchronously so the player has a waveform when the user lands.
-    await processVersion(db, version.id);
+    await enqueueAudioJob(db, version.id);
   }
+  // So the player has a waveform when the user lands
+  await waitForAudioJobs(db, createdVersionIds, 60_000);
 
   // Comments on V2
   await db.insert(comments).values([

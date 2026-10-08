@@ -15,9 +15,9 @@ const CODE_LIFETIME = 10 * MINUTE;
 const SESSION_LIFETIME = 180 * DAY;
 const POLL_INTERVAL_SECONDS = 5;
 
-const startsPerIp = rateLimit(20, 60 * MINUTE);
-const pollsPerIp = rateLimit(300, 15 * MINUTE);
-const lookupsPerUser = rateLimit(20, 15 * MINUTE);
+const startsPerIp = rateLimit('device-starts-per-ip', 20, 60 * MINUTE);
+const pollsPerIp = rateLimit('device-polls-per-ip', 300, 15 * MINUTE);
+const lookupsPerUser = rateLimit('device-lookups-per-user', 20, 15 * MINUTE);
 
 // No letters or digits that look alike when read off a plugin window
 const USER_CODE_ALPHABET = 'BCDFGHJKLMNPQRSTVWXZ23456789';
@@ -46,7 +46,7 @@ function pendingCode(userCode: string) {
 export const deviceRoutes = new Hono<AppEnv>()
   // The plugin asks for a code to show the user
   .post('/', zValidator('json', deviceStartSchema), async (c) => {
-    if (!startsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+    if (!(await startsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
     const db = c.get('db');
     const { client } = c.req.valid('json');
 
@@ -73,7 +73,7 @@ export const deviceRoutes = new Hono<AppEnv>()
 
   // The browser shows what is asking before the user approves it
   .get('/:userCode', requireAuth, async (c) => {
-    if (!lookupsPerUser.hit(c.get('userId'))) return tooManyRequests(c);
+    if (!(await lookupsPerUser.hit(c.get('db'), c.get('userId')))) return tooManyRequests(c);
     const db = c.get('db');
 
     const [code] = await db
@@ -89,7 +89,7 @@ export const deviceRoutes = new Hono<AppEnv>()
   // The user approves the code the plugin shows
   .post('/approve', requireAuth, zValidator('json', deviceApproveSchema), async (c) => {
     const userId = c.get('userId');
-    if (!lookupsPerUser.hit(userId)) return tooManyRequests(c);
+    if (!(await lookupsPerUser.hit(c.get('db'), userId))) return tooManyRequests(c);
     const db = c.get('db');
 
     const [approved] = await db
@@ -104,7 +104,7 @@ export const deviceRoutes = new Hono<AppEnv>()
 
   // The plugin polls until the user has approved, then receives its session
   .post('/token', zValidator('json', deviceTokenSchema), async (c) => {
-    if (!pollsPerIp.hit(clientIp(c))) return tooManyRequests(c);
+    if (!(await pollsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
     const db = c.get('db');
 
     const [code] = await db

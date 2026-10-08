@@ -3,8 +3,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "dev": "bun run --hot src/index.ts & PORT=3001 bun run --hot src/worker.ts & wait",
+    "build": "bun build src/index.ts src/worker.ts --outdir dist --target bun",
+    "test": "bun test",
     "seed": "bun run src/scripts/seed.ts",
     "check": "tsc --noEmit"
   },
