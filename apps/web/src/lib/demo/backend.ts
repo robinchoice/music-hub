@@ -3,6 +3,7 @@
 // When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … fehlt".
 import type { TrackStatus } from '@music-hub/shared';
 import type { TrackComment, Version } from '$lib/utils/track.js';
+import { OPEN_EXAMPLE_ID } from './mode.js';
 
 // UUIDs that gen_random_uuid() never produces, so a stray request to the API only gets a 404.
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -455,6 +456,26 @@ const ROUTES: [string, RegExp, Handler][] = [
   }],
   ['POST', /^\/overview\/seen$/, () => ({ tracksSeenAt: (overviewState.tracksSeenAt = new Date().toISOString()) })],
 ];
+
+/** The example on /offen: Nachtbus as GET /open/:trackId would return it once opened. */
+export function demoOpenTrack() {
+  const mix = find(db.versions, uuid(104));
+  const people = [JONAS, KAI, LISA, MARA];
+  return {
+    track: { id: OPEN_EXAMPLE_ID, name: 'Nachtbus', description: null, credit: null, forkedFromId: null },
+    artist: 'Fernlicht',
+    people,
+    license: 'cc-by' as const,
+    credit: `„Nachtbus“ von Fernlicht (${people.map((p) => p.name).join(', ')}) · CC BY 4.0 · ${location.origin}/offen/${OPEN_EXAMPLE_ID}`,
+    coverUrl: COVER,
+    version: { duration: mix.duration },
+    streamUrl: mix.audio,
+    waveformUrl: null,
+    peaks: demoPeaks(mix),
+    stems: db.stems.filter((s) => s.trackId === DEMO.trackId).map((s) => ({ id: s.id, name: s.name, fileSize: s.fileSize })),
+    remixes: { count: 0, open: [] },
+  };
+}
 
 /** Answers a request like the API under /api/v1 would, from the sample data. */
 export async function demoRequest<T>(method: string, path: string, body?: unknown): Promise<T> {

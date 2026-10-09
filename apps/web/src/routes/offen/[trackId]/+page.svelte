@@ -14,6 +14,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import OpenHeader from '$lib/components/open/OpenHeader.svelte';
+  import { OPEN_EXAMPLE_ID } from '$lib/demo/mode.js';
   import { formatFileSize } from '$lib/utils/format.js';
 
   type Remix = { id: string; name: string; artist: string };
@@ -33,6 +34,7 @@
   type Project = { project: { id: string; name: string }; role: string };
 
   const trackId = ($page.params as Record<string, string>).trackId;
+  const example = trackId === OPEN_EXAMPLE_ID;
   let data = $state<OpenTrack | null>(null);
   let peaks = $state<number[]>([]);
   let error = $state('');
@@ -51,6 +53,13 @@
   const totalSize = $derived(data?.stems.reduce((sum, s) => sum + s.fileSize, 0) ?? 0);
 
   onMount(async () => {
+    if (example) {
+      const { demoOpenTrack } = await import('$lib/demo/backend.js');
+      const open = demoOpenTrack();
+      peaks = open.peaks;
+      data = open;
+      return;
+    }
     const res = await fetch(`/api/v1/open/${trackId}`).catch(() => null);
     if (!res?.ok) {
       error = (await res?.json().catch(() => null))?.error ?? 'Diese Seite ist nicht (mehr) offen.';
@@ -63,7 +72,10 @@
     if ($page.url.searchParams.has('remix')) void startFork();
   });
 
+  const notInExample = () => toastError('Im Beispiel nicht verfügbar');
+
   async function download(path: string) {
+    if (example) return notInExample();
     const res = await fetch(`/api/v1/open/${trackId}/${path}`);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return toastError(body.error ?? 'Download fehlgeschlagen');
@@ -76,6 +88,7 @@
   }
 
   async function startFork() {
+    if (example) return notInExample();
     if ($authLoading) await checkAuth();
     if (!$user) return goto(`/login?next=${encodeURIComponent(`/offen/${trackId}?remix=1`)}`);
     const res = await api.get<{ projects: Project[] }>('/projects');
@@ -127,6 +140,12 @@
         <Button variant="secondary" href="/offen">Offene Musik entdecken</Button>
       </div>
     {:else if data && info}
+      {#if example}
+        <div class="example">
+          <p><b>Beispiel mit erfundenen Daten.</b> So sieht ein offener Track aus, Download und Remix gibt es bei echten Tracks.</p>
+          {#if !$user}<Button size="sm" href="/register">Konto anlegen</Button>{/if}
+        </div>
+      {/if}
       <section class="hero">
         <CoverImage src={data.coverUrl} name={data.track.name} size="xl" rounded="lg" />
         <div class="title">
@@ -156,7 +175,7 @@
             <span class="spacer"></span>
             <Button size="sm" variant="secondary" onclick={() => download('mix')}>Mix</Button>
             {#if data.stems.length}
-              <Button size="sm" variant="secondary" href="/api/v1/open/{trackId}/zip">Alle · ZIP</Button>
+              <Button size="sm" variant="secondary" href={example ? undefined : `/api/v1/open/${trackId}/zip`} onclick={example ? notInExample : undefined}>Alle · ZIP</Button>
             {/if}
           </h2>
           {#if data.stems.length}
@@ -206,7 +225,7 @@
         </div>
       </div>
 
-      <p class="legal">Verletzt diese Seite deine Rechte? <button class="link" onclick={() => (reportOpen = true)}>Melden</button></p>
+      {#if !example}<p class="legal">Verletzt diese Seite deine Rechte? <button class="link" onclick={() => (reportOpen = true)}>Melden</button></p>{/if}
     {/if}
     <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
   </div>
@@ -250,10 +269,29 @@
     width: 100%;
     max-width: 980px;
     margin: 0 auto;
-    padding: var(--space-6) var(--space-4);
+    padding: 0 var(--space-10) var(--space-6);
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
+  }
+  .example {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-lg);
+  }
+  .example p {
+    flex: 1;
+    min-width: 220px;
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+  }
+  .example b {
+    color: var(--color-text-primary);
   }
   .gone {
     display: flex;
@@ -465,6 +503,9 @@
     font-size: var(--text-sm);
   }
   @media (max-width: 720px) {
+    .page {
+      padding: 0 var(--space-5) var(--space-6);
+    }
     .hero {
       flex-direction: column;
       align-items: flex-start;

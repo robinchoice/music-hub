@@ -13,3 +13,6 @@ export const demoMode: boolean = (() => {
     return false;
   }
 })();
+
+/** Track id of the made-up example on /offen while nothing real is open yet. */
+export const OPEN_EXAMPLE_ID = 'beispiel';
