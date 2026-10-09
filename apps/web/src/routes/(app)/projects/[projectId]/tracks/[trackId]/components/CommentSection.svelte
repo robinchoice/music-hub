@@ -56,11 +56,6 @@
   const doneCount = $derived(done.filter((c) => !c.deletedAt).length);
   const activeId = $derived(activeCommentId(open.filter((c) => !c.deletedAt), currentTime));
   const carryOpenItems = $derived(carryComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).sort(byPosition));
-  const placeholder = $derived(
-    commentTimestamp !== null
-      ? `Kommentar zu ${versionLabel} bei ${formatTime(commentTimestamp)} …`
-      : `Kommentar zu ${versionLabel} …`,
-  );
 
   function repliesOf(list: TrackComment[], id: string) {
     return list.filter((c) => c.parentId === id).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -99,10 +94,10 @@
           <button type="button" class="ts-remove" onclick={() => (commentTimestamp = null)} aria-label="Stelle entfernen">×</button>
         </span>
       {/if}
-      <input bind:this={input} type="text" bind:value={body} {placeholder} />
+      <input bind:this={input} type="text" bind:value={body} placeholder={`Kommentar zu ${versionLabel} …`} />
       <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>Senden</Button>
     </form>
-    <p class="hint">Klick in die Wellenform wählt die Stelle · Taste C nimmt die aktuelle Position</p>
+    <p class="hint">Klick in die Wellenform wählt die Stelle<span class="keys">{' '}· Taste C nimmt die aktuelle Position</span></p>
   {/if}
 
   <div class="list-head">
@@ -255,6 +250,12 @@
     margin: 0 2px var(--space-3);
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+  }
+  /* Touch screens have no keyboard shortcuts */
+  @media (hover: none) {
+    .keys {
+      display: none;
+    }
   }
 
   .list-head {
