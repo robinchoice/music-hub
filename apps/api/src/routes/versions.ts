@@ -14,6 +14,7 @@ import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } fr
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
+import { undoApproval } from '../lib/approval.js';
 import { notifyProjectMembers, notifyUser } from '../services/push.js';
 import { publish } from '../services/sse.js';
 import type { AppEnv } from '../types.js';
@@ -424,6 +425,32 @@ export const versionRoutes = new Hono<AppEnv>()
     }).catch(() => {});
 
     publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'approved' } });
+
+    return c.json({ version: updated });
+  })
+
+  // Undo your own approval, offered by the toast right after it
+  .post('/:id/unapprove', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+
+    const found = await liveVersion(db, versionId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { version, track } = found;
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership || !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
+
+    const updated = await undoApproval(db, versionId, userId);
+    if (!updated) return c.json({ error: 'Die Freigabe lässt sich nicht mehr zurücknehmen.' }, 409);
+
+    // undone: the audio stays the same, the player needn't reload
+    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready', undone: true } });
 
     return c.json({ version: updated });
   })
