@@ -8,7 +8,7 @@
 
 ## Checks
 
-`bun run check && bun run test && bun --bun run build`, keine neuen Fehler. Die Tests (`apps/api/src/*.test.ts`) laufen gegen `DATABASE_URL`, legen nur eigene Zeilen an und räumen sie wieder ab.
+`bun run check && bun run test && bun --bun run build`, keine neuen Fehler. Die Tests (`apps/api/src/*.test.ts`) laufen gegen `DATABASE_URL`, legen nur eigene Zeilen an und räumen sie wieder ab. `bun run test` startet auch die Playwright-Tests in `apps/web/tests` (Desktop und Pixel 7): Sie bauen das Web und starten API und Web selbst auf den Ports 53100 und 54100, Chromium einmalig mit `bunx playwright install chromium` in `apps/web`.
 
 ## Deploy
 
