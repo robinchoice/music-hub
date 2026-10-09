@@ -55,7 +55,10 @@
       <button class="backdrop" onclick={() => (mobileMenuOpen = false)} aria-label="Menü schließen"></button>
     {/if}
     <main class="main">
-      <div class="page">{@render children()}</div>
+      <!-- Pages read their ids once on mount: a new project or track needs a fresh page -->
+      {#key `${$page.params.projectId}/${$page.params.trackId}`}
+        <div class="page">{@render children()}</div>
+      {/key}
       <PleasanceFooter />
     </main>
     <BottomNav />
