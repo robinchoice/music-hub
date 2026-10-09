@@ -4,7 +4,7 @@ import { users } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
 
 // Addresses that may open the admin pages, comma-separated in ADMIN_EMAILS
-const ADMIN_EMAILS = new Set(
+export const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map((email) => email.trim().toLowerCase())

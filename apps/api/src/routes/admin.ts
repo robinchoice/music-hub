@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq, gt, gte, isNotNull, lt, sql, type SQL } from 'drizzle-orm';
+import { and, eq, gt, gte, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import {
@@ -16,6 +16,8 @@ import {
   shareLinks,
   listenEvents,
   pushSubscriptions,
+  openReports,
+  openTracks,
   type Database,
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
@@ -104,7 +106,7 @@ async function storageByUser(db: Database) {
         WHERE ${keptSql('v')} AND ${keptSql('t')}
       UNION ALL
       SELECT s.created_by_id, s.file_size FROM stems s JOIN tracks t ON t.id = s.track_id
-        WHERE ${keptSql('s')} AND ${keptSql('t')}
+        WHERE NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')}
     ) x
     GROUP BY uid
   `);
@@ -638,6 +640,43 @@ export const adminRoutes = new Hono<AppEnv>()
   .post('/test-account/reset', async (c) => {
     const token = await resetTestAccount(c.get('db'));
     return c.json({ url: `${process.env.APP_URL}/auth/verify?token=${token}` });
+  })
+
+  // Reports from public pages of open tracks that nobody handled yet
+  .get('/open-reports', async (c) => {
+    const reports = await c
+      .get('db')
+      .select({
+        id: openReports.id,
+        trackId: openReports.trackId,
+        trackName: tracks.name,
+        reason: openReports.reason,
+        email: openReports.email,
+        createdAt: openReports.createdAt,
+        open: sql<boolean>`${openTracks.openedAt} is not null`,
+      })
+      .from(openReports)
+      .innerJoin(tracks, eq(tracks.id, openReports.trackId))
+      .leftJoin(openTracks, eq(openTracks.trackId, openReports.trackId))
+      .where(isNull(openReports.resolvedAt))
+      .orderBy(openReports.createdAt);
+    return c.json({ reports });
+  })
+
+  // Handled; `close` also takes the track's public page down
+  .post('/open-reports/:id/resolve', async (c) => {
+    const db = c.get('db');
+    const [report] = await db
+      .update(openReports)
+      .set({ resolvedAt: new Date() })
+      .where(eq(openReports.id, c.req.param('id')))
+      .returning();
+    if (!report) return c.json({ error: 'Not found' }, 404);
+    if (c.req.query('close') === '1') {
+      await db.delete(openTracks).where(eq(openTracks.trackId, report.trackId));
+      await db.update(openReports).set({ resolvedAt: new Date() }).where(and(eq(openReports.trackId, report.trackId), isNull(openReports.resolvedAt)));
+    }
+    return c.json({ message: 'Resolved' });
   })
 
   // Links that are still valid or were opened in the last 30 days, with their newest listeners

@@ -23,13 +23,13 @@ export async function takeUploadVolume(db: Database, userId: string, bytes: numb
 export type Storage = { used: number; limit: number };
 
 // Used: originals the user uploaded, in all projects including archived ones, also while they are in the trash.
-// Covers and the MP3s and waveforms derived from versions don't count.
+// Covers, the MP3s and waveforms derived from versions and stems taken over from open tracks don't count.
 export async function storageOf(db: Executor, userId: string): Promise<Storage> {
   const [{ used, limit }] = await db.execute<{ used: string; limit: string }>(sql`
     SELECT (SELECT coalesce(sum(v.file_size), 0) FROM versions v JOIN tracks t ON t.id = v.track_id
              WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')})
          + (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
-             WHERE s.created_by_id = ${userId} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
+             WHERE s.created_by_id = ${userId} AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
            (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId}) AS limit
   `);
   return { used: Number(used), limit: Number(limit) };

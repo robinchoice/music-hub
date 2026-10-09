@@ -6,6 +6,7 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   real,
   timestamp,
 } from 'drizzle-orm/pg-core';
@@ -44,6 +45,11 @@ export const tracks = pgTable('tracks', {
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // A remix: the CC license it took over from its original
+  license: varchar('license', { length: 20 }),
+  // The open track it was forked from, and the credit line it has to carry
+  forkedFromId: uuid('forked_from_id').references((): AnyPgColumn => tracks.id, { onDelete: 'set null' }),
+  credit: text('credit'),
   // Moved to the project's trash; discardedAt is set when it is deleted for good before its time runs out
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
@@ -99,6 +105,8 @@ export const stems = pgTable('stems', {
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   fileSize: bigint('file_size', { mode: 'number' }).notNull(),
   fileKey: text('file_key').notNull(),
+  // Taken over from an open track: the file belongs to the original and doesn't count towards storage
+  forked: boolean('forked').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdById: uuid('created_by_id')
     .references(() => users.id)

@@ -194,27 +194,31 @@ export const stemRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Zu groß für ein ZIP — bitte die Spuren einzeln laden' }, 413);
     }
 
-    // Pulls the next chunk only once the client has taken the last one
-    const chunks = zipStems(trackStems);
-    const body = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        const { done, value } = await chunks.next();
-        if (done) controller.close();
-        else controller.enqueue(value);
-      },
-      async cancel() {
-        await chunks.return();
-      },
-    });
-
-    const zipName = `${track.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-stems.zip`;
-    return new Response(body, {
-      headers: {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${zipName}"`,
-      },
-    });
+    return zipResponse(track.name, trackStems);
   });
+
+// Pulls the next chunk only once the client has taken the last one
+export function zipResponse(trackName: string, files: { originalFileName: string; fileKey: string }[]) {
+  const chunks = zipStems(files);
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await chunks.next();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    async cancel() {
+      await chunks.return();
+    },
+  });
+
+  const zipName = `${trackName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-stems.zip`;
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${zipName}"`,
+    },
+  });
+}
 
 // Streams one stem after the other from the bucket into the uncompressed ZIP, so
 // memory holds a few chunks however large the stems are
