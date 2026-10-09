@@ -40,10 +40,10 @@
     }
   }
 
-  function setCover(key: string, file: File) {
+  function setCover(key: string | null, file?: File) {
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     coverKey = key;
-    coverPreview = URL.createObjectURL(file);
+    coverPreview = file ? URL.createObjectURL(file) : null;
   }
 </script>
 
@@ -72,7 +72,7 @@
 
       <div class="cover-group">
         <span class="textarea-label">Cover (optional)</span>
-        <CoverUpload currentUrl={coverPreview} {name} onUploaded={setCover} />
+        <CoverUpload currentUrl={coverPreview} {name} onChange={setCover} />
       </div>
 
       <div class="actions">

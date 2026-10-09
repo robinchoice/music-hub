@@ -7,11 +7,12 @@
   let {
     currentUrl = null,
     name = '',
-    onUploaded,
+    onChange,
   }: {
     currentUrl?: string | null;
     name?: string;
-    onUploaded: (key: string, file: File) => void | Promise<void>;
+    // A new cover key with its file, or null when the cover is removed
+    onChange: (key: string | null, file?: File) => void | Promise<void>;
   } = $props();
 
   let uploading = $state(false);
@@ -40,9 +41,18 @@
         body: file,
       });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-      await onUploaded(key, file);
+      await onChange(key, file);
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Upload fehlgeschlagen');
+    } finally {
+      uploading = false;
+    }
+  }
+
+  async function remove() {
+    uploading = true;
+    try {
+      await onChange(null);
     } finally {
       uploading = false;
     }
@@ -62,6 +72,7 @@
   }
 </script>
 
+<div class="cover-field">
 <label
   class="cover-upload"
   class:drag={dragOver}
@@ -80,8 +91,31 @@
     {/if}
   </div>
 </label>
+{#if currentUrl}
+  <button type="button" class="remove" onclick={remove} disabled={uploading}>Cover entfernen</button>
+{/if}
+</div>
 
 <style>
+  .cover-field {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .remove {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+  .remove:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    text-decoration: underline;
+  }
   .cover-upload {
     position: relative;
     display: inline-block;

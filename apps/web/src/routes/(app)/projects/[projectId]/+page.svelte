@@ -116,11 +116,11 @@
     }
   }
 
-  async function saveCover(key: string) {
+  async function saveCover(key: string | null) {
     const res = await api.patch<{ project: Project }>(`/projects/${projectId}`, { coverImageUrl: key });
     project = res.project;
     coverEditOpen = false;
-    toastSuccess('Cover gespeichert');
+    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
     reloadSidebar?.();
     void loadOverview(true);
   }
@@ -253,7 +253,7 @@
 {#if project}
   <Modal bind:open={coverEditOpen} title="Projekt-Cover ändern">
     <div class="cover-modal">
-      <CoverUpload currentUrl={project.coverUrl} name={project.name} onUploaded={saveCover} />
+      <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
     </div>
     {#snippet actions()}
       <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>

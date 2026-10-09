@@ -391,13 +391,13 @@
     if (v) void selectVersion(v);
   }
 
-  async function saveTrackCover(key: string) {
+  async function saveTrackCover(key: string | null) {
     await api.patch(`/tracks/${trackId}`, { coverImageUrl: key });
     // Reload list to refresh signed URL via /tracks/project/:id
     const tracksRes = await api.get<{ tracks: { id: string; coverUrl: string | null }[] }>(`/tracks/project/${projectId}`);
     trackCoverUrl = tracksRes.tracks.find((t) => t.id === trackId)?.coverUrl ?? null;
     coverEditOpen = false;
-    toastSuccess('Cover gespeichert');
+    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
   }
 
   function openRename() {
@@ -845,7 +845,7 @@
 
 <Modal bind:open={coverEditOpen} title="Track-Cover ändern">
   <div class="cover-modal">
-    <CoverUpload currentUrl={trackCoverUrl} name={trackName} onUploaded={saveTrackCover} />
+    <CoverUpload currentUrl={trackCoverUrl} name={trackName} onChange={saveTrackCover} />
   </div>
   {#snippet actions()}
     <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>

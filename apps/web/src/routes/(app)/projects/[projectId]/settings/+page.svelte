@@ -64,10 +64,10 @@
     }
   });
 
-  async function saveCover(key: string) {
+  async function saveCover(key: string | null) {
     const res = await api.patch<{ project: Project }>(`/projects/${projectId}`, { coverImageUrl: key });
     project = res.project;
-    toastSuccess('Cover gespeichert');
+    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
   }
 
   async function saveProject() {
@@ -141,7 +141,7 @@
     <section class="section">
       <h2>Projekt-Details</h2>
       <div class="cover-row">
-        <CoverUpload currentUrl={project.coverUrl} name={project.name} onUploaded={saveCover} />
+        <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
           <Input label="Artist" bind:value={editArtist} list="artists" placeholder="z.B. Anna Berger (optional)" />
           <datalist id="artists">
