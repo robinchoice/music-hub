@@ -67,8 +67,6 @@
   const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error' | 'accent'> = {
     approved: 'success',
     rejected: 'error',
-    processing: 'warning',
-    ready: 'accent',
   };
 
   let menu = $state<'picker' | 'more' | null>(null);

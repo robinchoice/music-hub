@@ -114,10 +114,12 @@
     /* The whole family band, for the line in the sender */
     --spectrum: linear-gradient(90deg, #f2545b, #fb8c45, #f2c14e, #6ccf8e, #46bfe0, #8e92f8, #c39bf2);
 
-    /* Semantic — rejection and errors in a cooler red than the product colour */
+    /* Signal colours of the family (starter DESIGN.md), never the product colour:
+       success = new (glow), warning = your turn (glow), error = failed or rejected (glow).
+       Running work has no colour of its own and stays muted. */
     --color-success: #6ccf8e;
-    --color-warning: #fbbf24;
-    --color-error: #f0607a;
+    --color-warning: #f4b44c;
+    --color-error: #f2545b;
 
     /* Spacing — fluid scale */
     --space-1: 0.25rem;

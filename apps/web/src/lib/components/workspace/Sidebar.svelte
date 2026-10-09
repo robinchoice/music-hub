@@ -384,7 +384,8 @@
     height: 20px;
     padding: 0 6px;
     border-radius: 10px;
-    background: var(--color-accent);
+    /* Open tasks wait for you: signal colour, not the product colour */
+    background: var(--color-warning);
     color: var(--color-on-accent);
     font-size: 11px;
     font-weight: 700;

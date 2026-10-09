@@ -99,7 +99,8 @@
     height: 16px;
     padding: 0 4px;
     border-radius: 8px;
-    background: var(--color-accent);
+    /* Open tasks wait for you: signal colour, not the product colour */
+    background: var(--color-warning);
     color: var(--color-on-accent);
     font-size: 10px;
     font-weight: 700;
