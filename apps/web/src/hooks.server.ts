@@ -1,6 +1,7 @@
 import { captureException } from './monitoring.server';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import dns from 'node:dns';
+import { dev } from '$app/environment';
 
 // Docker's embedded DNS doesn't answer AAAA queries, which otherwise stalls
 // the AAAA-before-A lookup order until it times out.
@@ -8,10 +9,9 @@ dns.setDefaultResultOrder('ipv4first');
 
 /**
  * Proxy /api requests to the API service in production.
- * In dev, Vite's proxy handles this — this hook only fires
- * in the built/deployed SvelteKit server.
+ * In dev, Vite's proxy does the same for the browser, fetches in server loads land here.
  */
-const API_ORIGIN = process.env.API_INTERNAL_URL || 'http://api:3000';
+const API_ORIGIN = process.env.API_INTERNAL_URL || (dev ? 'http://localhost:3000' : 'http://api:3000');
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname.startsWith('/api/')) {

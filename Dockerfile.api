@@ -20,7 +20,9 @@ FROM base AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 3000
-ENV NODE_ENV=production
+# Set by CI: /health reports it as revision, the deploy waits for it
+ARG APP_VERSION=dev
+ENV NODE_ENV=production APP_VERSION=$APP_VERSION
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000/health || exit 1
 
 # Audio worker (ghcr.io/robinchoice/musichub-worker): the API image with another start command

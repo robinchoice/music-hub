@@ -9,6 +9,10 @@ services:
     environment:
       - NODE_ENV=production
       - API_INTERNAL_URL=http://api:3000
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+      - PUBLIC_SENTRY_DSN=${PUBLIC_SENTRY_DSN:-}
+      - PUBLIC_SENTRY_ENVIRONMENT=${PUBLIC_SENTRY_ENVIRONMENT:-}
     depends_on:
       api:
         condition: service_healthy
@@ -36,6 +40,8 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_EMAIL=${VAPID_EMAIL:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
       - NODE_ENV=production
     depends_on:
       postgres:
@@ -59,6 +65,8 @@ services:
       - S3_ACCESS_KEY=${S3_ACCESS_KEY}
       - S3_SECRET_KEY=${S3_SECRET_KEY}
       - S3_BUCKET=${S3_BUCKET}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
       - NODE_ENV=production
     depends_on:
       api:
@@ -72,6 +80,8 @@ services:
       POSTGRES_USER: musichub
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: musichub
+    # Keeps one database from starving the other apps on the server
+    mem_limit: ${POSTGRES_MEMORY:-512m}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

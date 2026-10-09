@@ -19,7 +19,6 @@ import { deviceRoutes } from './routes/device.js';
 import { overviewRoutes } from './routes/overview.js';
 import { trashRoutes } from './routes/trash.js';
 import { adminRoutes } from './routes/admin.js';
-import { purgeTrash } from './lib/trash.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -62,9 +61,10 @@ const app = new Hono<AppEnv>()
     captureException(err);
     return c.json({ error: 'Internal server error' }, 500);
   })
-  .get('/health', (c) => c.json({ status: 'ok' }))
+  // The CI compares revision with the deployed commit
+  .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
   .basePath('/api/v1')
-  .get('/health', (c) => c.json({ status: 'ok' }))
+  .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
   .route('/auth', authRoutes)
   .route('/auth/device', deviceRoutes)
   .route('/projects', projectRoutes)
@@ -81,18 +81,6 @@ const app = new Hono<AppEnv>()
   .route('/overview', overviewRoutes)
   .route('/trash', trashRoutes)
   .route('/admin', adminRoutes);
-
-// Deletes for good what left the trash long enough ago: a minute after boot, then every six hours.
-// Each API instance runs it; a second run finds nothing left to delete.
-{
-  const purge = () =>
-    purgeTrash(db).catch((err) => {
-      console.error('[Trash] Purge failed:', err);
-      captureException(err);
-    });
-  setTimeout(purge, 60_000);
-  setInterval(purge, 6 * 60 * 60_000);
-}
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

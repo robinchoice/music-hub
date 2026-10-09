@@ -57,7 +57,7 @@ MAGIC_LINK_SECRET=<openssl rand -hex 32>
 APP_URL=http://localhost:5173
 ```
 
-Für E-Mail-Versand (optional, ohne läuft Magic Link in der Konsole):
+Für E-Mail-Versand (lokal optional, ohne stehen die Magic Links in der Konsole; in Produktion startet die API ohne `SMTP_HOST` nicht):
 ```env
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
@@ -82,7 +82,7 @@ Music Hub läuft auf jedem Server mit Docker. Du brauchst:
 
 - eine Domain, z. B. `music.example.com`
 - einen S3-kompatiblen Bucket mit HTTPS-Endpunkt, z. B. Hetzner Object Storage, Backblaze B2 oder Cloudflare R2. Browser laden Audio direkt in den Bucket hoch und streamen von dort.
-- optional einen SMTP-Zugang für die Login-Mails. Ohne `SMTP_HOST` stehen die Login-Links im Log der API (`docker compose -f docker-compose.prod.yml logs api`).
+- einen SMTP-Zugang für die Login-Mails. Ohne `SMTP_HOST` startet die API nicht, sonst könnte jeder mit Zugriff auf die Logs sich mit den dort stehenden Login-Links als beliebiger Nutzer anmelden.
 
 ```bash
 git clone https://github.com/robinchoice/music-hub.git

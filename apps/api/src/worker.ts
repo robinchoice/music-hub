@@ -1,5 +1,6 @@
 import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
+import { purgeTrash } from './lib/trash.js';
 import { processVersion } from './services/audio-processor.js';
 import {
   claimAudioJob,
@@ -30,6 +31,18 @@ for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => {
 
 // For the HEALTHCHECK of the image, which the API shares
 Bun.serve({ port: parseInt(process.env.PORT || '3000'), fetch: () => Response.json({ status: 'ok' }) });
+// Deletes for good what left the trash long enough ago: a minute after boot, then every six hours.
+// Each worker runs it; a second run finds nothing left to delete, so it needs no schedule table.
+{
+  const purge = () =>
+    purgeTrash(db).catch((err) => {
+      console.error('[Trash] Purge failed:', err);
+      captureException(err);
+    });
+  setTimeout(purge, 60_000);
+  setInterval(purge, 6 * 60 * 60_000);
+}
+
 console.log('[Worker] Waiting for audio jobs');
 
 while (!stopping) {

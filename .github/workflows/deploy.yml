@@ -61,6 +61,8 @@ jobs:
           push: true
           platforms: linux/arm64
           provenance: false
+          # /health reports the commit as revision, the deploy job waits for it
+          build-args: APP_VERSION=${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
@@ -76,6 +78,7 @@ jobs:
           push: true
           platforms: linux/arm64
           provenance: false
+          build-args: APP_VERSION=${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
@@ -92,6 +95,7 @@ jobs:
       COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
       COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
       COOLIFY_API: https://coolify.pleasance.org/api/v1
+      APP_URL: https://hub.pleasance.org
     steps:
       - name: Deploy images to Coolify
         run: |
@@ -132,3 +136,14 @@ jobs:
           deploy "$COOLIFY_API_UUID"
           deploy "$COOLIFY_WORKER_UUID"
           deploy "$COOLIFY_WEB_UUID"
+
+          # Coolify says finished once the containers run. Done means the public URL
+          # serves this commit, which also catches a proxy route lost on recreate.
+          for _ in {1..30}; do
+            revision=$(curl --silent --max-time 10 "$APP_URL/api/v1/health" | jq -r '.revision // empty' 2>/dev/null || true)
+            echo "Public revision: ${revision:-none}"
+            [ "$revision" = "$GITHUB_SHA" ] && exit 0
+            sleep 10
+          done
+          echo "$APP_URL/api/v1/health does not serve $GITHUB_SHA" >&2
+          exit 1
