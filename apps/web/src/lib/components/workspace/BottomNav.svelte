@@ -69,6 +69,8 @@
     border: none;
     cursor: pointer;
     font-family: inherit;
+    /* Buttons don't inherit it, the menu button would sit lower than the links */
+    line-height: inherit;
   }
 
   .nav-item:hover {
