@@ -85,7 +85,17 @@ export async function purgeTrash(db: Database) {
   if (removable.length) await db.delete(comments).where(inArray(comments.id, removable));
   if (blank.length) await db.update(comments).set({ body: '' }).where(inArray(comments.id, blank));
 
-  // Several stems can share a file; keep every file that a remaining row still points to
+  const files = await deleteUnusedFiles(db, keys);
+
+  if (trackIds.length || dueVersions.length || dueStems.length || commentIds.length) {
+    console.log(
+      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
+    );
+  }
+}
+
+// Several stems can share a file; keeps every file that a remaining row still points to
+export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
   let files = 0;
   for (const key of keys) {
     const [versionRef] = await db
@@ -102,10 +112,5 @@ export async function purgeTrash(db: Database) {
       console.error(`[Trash] Could not delete ${key}: ${(err as Error).message}`);
     }
   }
-
-  if (trackIds.length || dueVersions.length || dueStems.length || commentIds.length) {
-    console.log(
-      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
-    );
-  }
+  return files;
 }

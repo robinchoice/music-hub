@@ -10,6 +10,7 @@
   import ColumnChart from '$lib/components/admin/ColumnChart.svelte';
   import PersonAvatar from '$lib/components/admin/PersonAvatar.svelte';
   import { formatGb, formatWhen } from '$lib/utils/format.js';
+  import { toast, toastError } from '$lib/stores/toast.js';
   import {
     ACTION_LABEL,
     daysSince,
@@ -113,9 +114,29 @@
   const lastText = (p: Person) => (p.lastAction ? ACTION_LABEL[p.lastAction.type] : 'gesehen');
   const playsText = $derived(data?.current.plays === 1 ? 'einmal' : `${data?.current.plays}-mal`);
   const chartSub = $derived(`pro ${data?.series.unit === 'week' ? 'Woche' : 'Tag'}, mit mindestens einer Aktion`);
+
+  let resetting = $state(false);
+
+  // Opening the link here would replace the admin session, so it goes to the clipboard for a private window
+  async function resetTestAccount() {
+    resetting = true;
+    try {
+      const { url } = await api.post<{ url: string }>('/admin/test-account/reset');
+      await navigator.clipboard.writeText(url);
+      toast('Test-Account ist wieder neu. Login-Link kopiert, im privaten Fenster öffnen (15 Minuten gültig).', 'success', 8000);
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : 'Test-Account ließ sich nicht zurücksetzen');
+    } finally {
+      resetting = false;
+    }
+  }
 </script>
 
-<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Lagebild' }]} />
+<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Lagebild' }]}>
+  {#snippet actions()}
+    <Button size="sm" variant="secondary" onclick={resetTestAccount} loading={resetting}>Als neue Person testen</Button>
+  {/snippet}
+</TopBar>
 
 <div class="page">
   {#if !data && failed}

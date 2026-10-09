@@ -23,6 +23,7 @@
 - Audio verarbeitet nur der Worker (`apps/api/src/worker.ts`, Image `musichub-worker`, ein ffmpeg-Job gleichzeitig). Die API legt Jobs in `audio_jobs` an. Stirbt der Worker, holt er den Job nach Ablauf der Lease (5 Minuten) erneut ab, nach drei Versuchen wird die Version ohne MP3 und Wellenform `ready`. Der Worker leert auch den Papierkorb (alle sechs Stunden). Lokal startet `bun run dev` API und Worker.
 - Die WAV-Dateien im Bucket `music-hub` haben keine zweite Kopie.
 - Registrieren geht nur, solange es weniger als `MAX_USERS` Konten gibt (`apps/api/src/lib/users.ts`, wegen des geteilten S3-Speichers). Eingeladene zählen mit, kommen aber immer rein.
+- `test@onboarding.invalid` ist der Test-Account für das Onboarding und zählt nicht gegen `MAX_USERS`. „Als neue Person testen“ im Lagebild setzt ihn zurück (`lib/test-account.ts`, löscht seine Projekte samt Dateien) und kopiert einen Login-Link fürs private Fenster.
 
 ## Abweichungen vom Standard
 

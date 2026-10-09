@@ -6,6 +6,9 @@ import { users, type Database } from '@music-hub/db';
 // Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
 export const MAX_USERS = 10;
 
+// Admins reset this account to try Music Hub as a new person (lib/test-account.ts). It doesn't count towards MAX_USERS.
+export const TEST_ACCOUNT_EMAIL = 'test@onboarding.invalid';
+
 export async function findUserByEmail(db: Pick<Database, 'select'>, email: string) {
   const [user] = await db
     .select()
@@ -17,7 +20,7 @@ export async function findUserByEmail(db: Pick<Database, 'select'>, email: strin
 }
 
 export async function registrationOpen(db: Pick<Database, 'execute'>) {
-  const [{ count }] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users`);
+  const [{ count }] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users WHERE email <> ${TEST_ACCOUNT_EMAIL}`);
   return count < MAX_USERS;
 }
 

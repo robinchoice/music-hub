@@ -21,6 +21,7 @@ import {
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail, deviceLabel } from '../lib/admin.js';
 import { keptSql } from '../lib/trash.js';
+import { resetTestAccount } from '../lib/test-account.js';
 import type { AppEnv } from '../types.js';
 
 const DAY = 86_400_000;
@@ -631,6 +632,12 @@ export const adminRoutes = new Hono<AppEnv>()
       .returning({ id: users.id });
     if (!user) return c.json({ error: 'Not found' }, 404);
     return c.json({ blocked: false });
+  })
+
+  // Fresh test account to walk through onboarding; the login link belongs in a private window, it ends the admin session
+  .post('/test-account/reset', async (c) => {
+    const token = await resetTestAccount(c.get('db'));
+    return c.json({ url: `${process.env.APP_URL}/auth/verify?token=${token}` });
   })
 
   // Links that are still valid or were opened in the last 30 days, with their newest listeners
