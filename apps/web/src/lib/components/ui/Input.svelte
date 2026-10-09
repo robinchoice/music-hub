@@ -7,6 +7,7 @@
     error,
     disabled = false,
     autofocus = false,
+    list,
   }: {
     type?: 'text' | 'email' | 'password';
     value?: string;
@@ -15,6 +16,8 @@
     error?: string;
     disabled?: boolean;
     autofocus?: boolean;
+    /** id of a <datalist> with suggestions */
+    list?: string;
   } = $props();
 </script>
 
@@ -28,6 +31,7 @@
     {placeholder}
     {disabled}
     {autofocus}
+    {list}
     class:has-error={!!error}
   />
   {#if error}

@@ -331,6 +331,12 @@ export type ProjectGroup = {
 };
 
 /** Projects with their tracks, the most recently active first */
+/** Artists of all projects, for suggestions and the artist pages */
+export function artistNames(ix: OverviewIndex): string[] {
+  const names = ix.data.projects.map((p) => p.artist?.trim()).filter((a): a is string => !!a);
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
 export function projectGroups(ix: OverviewIndex): ProjectGroup[] {
   const infos = ix.data.tracks.map((t) => trackInfo(ix, t));
   const byLast = (a: TrackInfo, b: TrackInfo) => b.last.at.localeCompare(a.last.at);

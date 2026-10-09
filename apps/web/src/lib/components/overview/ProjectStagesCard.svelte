@@ -26,7 +26,7 @@
     <div class="pj">
       <div class="head">
         <CoverImage src={g.project.coverUrl} name={g.project.name} size="xs" rounded="sm" />
-        <b>{g.project.name}</b>
+        <a class="name" href="/projects/{g.project.id}">{g.project.name}</a>
         {#if g.project.artist}<span>{g.project.artist}</span>{/if}
         <span class="prog">{g.list.length ? `${g.done.length} von ${g.list.length} fertig` : 'Noch keine Tracks'}</span>
       </div>
@@ -67,11 +67,15 @@
     align-items: center;
     gap: 10px;
   }
-  .head b {
+  .head .name {
     color: var(--color-text-primary);
     font-weight: 600;
     font-size: var(--text-sm);
     white-space: nowrap;
+    text-decoration: none;
+  }
+  .head .name:hover {
+    text-decoration: underline;
   }
   .head span {
     font-size: var(--text-xs);

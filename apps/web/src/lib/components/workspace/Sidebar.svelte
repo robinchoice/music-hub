@@ -218,11 +218,13 @@
         {@const expanded = group.artist === '' || isArtistExpanded(group.artist) || !collapsedArtists.has(group.artist)}
         <div class="artist-group">
           {#if group.artist}
-            <button class="artist-head" onclick={() => toggleArtist(group.artist)}>
-              <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
-              <span class="artist-name">{group.artist}</span>
+            <div class="artist-head" class:active={$page.params.artist === group.artist}>
+              <button class="toggle" onclick={() => toggleArtist(group.artist)} aria-label={expanded ? 'Zuklappen' : 'Aufklappen'}>
+                <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
+              </button>
+              <a href="/artists/{encodeURIComponent(group.artist)}" class="artist-name" onclick={handleNavClick}>{group.artist}</a>
               <span class="count">{group.memberships.length}</span>
-            </button>
+            </div>
           {:else}
             <div class="artist-head ungrouped">
               <span class="artist-name">Ohne Zuordnung</span>
@@ -468,13 +470,26 @@
     font-size: var(--text-xs);
     font-weight: 600;
     font-family: inherit;
-    cursor: pointer;
     text-align: left;
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
   }
-  .artist-head:hover {
-    color: var(--color-text-secondary);
+  .toggle {
+    display: inline-flex;
+    padding: 2px;
+    margin: -2px;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .artist-head a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .artist-head a:hover,
+  .artist-head.active a {
+    color: var(--color-text-primary);
   }
   .artist-head.ungrouped {
     cursor: default;

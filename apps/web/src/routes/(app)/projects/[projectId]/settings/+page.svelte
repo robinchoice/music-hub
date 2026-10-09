@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { getContext, onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
@@ -12,6 +12,8 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import { overviewIndex } from '$lib/stores/overview.js';
+  import { artistNames } from '$lib/utils/overview.js';
 
   type Member = {
     id: string;
@@ -22,6 +24,7 @@
   type Project = { id: string; name: string; description: string | null; artist: string | null; coverUrl: string | null; coverImageUrl: string | null };
 
   const projectId = $page.params.projectId!;
+  const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
   let project = $state<Project | null>(null);
   let members = $state<Member[]>([]);
@@ -76,6 +79,7 @@
         description: editDesc || undefined,
       });
       toastSuccess('Projekt gespeichert');
+      reloadSidebar?.();
     } finally {
       saving = false;
     }
@@ -114,6 +118,7 @@
   async function archiveProject() {
     await api.delete(`/projects/${projectId}`);
     toastSuccess('Projekt archiviert');
+    reloadSidebar?.();
     goto('/dashboard');
   }
 </script>
@@ -138,7 +143,10 @@
       <div class="cover-row">
         <CoverUpload currentUrl={project.coverUrl} name={project.name} onUploaded={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
-          <Input label="Artist" bind:value={editArtist} placeholder="z.B. Anna Berger (optional)" />
+          <Input label="Artist" bind:value={editArtist} list="artists" placeholder="z.B. Anna Berger (optional)" />
+          <datalist id="artists">
+            {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
+          </datalist>
           <Input label="Name" bind:value={editName} />
           <div class="textarea-group">
             <label class="textarea-label">Beschreibung</label>

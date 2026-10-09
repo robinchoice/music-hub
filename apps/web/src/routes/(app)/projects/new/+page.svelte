@@ -1,13 +1,20 @@
 <script lang="ts">
+  import { getContext } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import { overviewIndex } from '$lib/stores/overview.js';
+  import { artistNames } from '$lib/utils/overview.js';
+
+  const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
   let name = $state('');
-  let artist = $state('');
+  // From "Neues Projekt" on an artist page
+  let artist = $state($page.url.searchParams.get('artist') ?? '');
   let description = $state('');
   let loading = $state(false);
 
@@ -21,6 +28,7 @@
         description: description || undefined,
       });
       toastSuccess('Projekt erstellt');
+      reloadSidebar?.();
       goto(`/projects/${res.project.id}`);
     } finally {
       loading = false;
@@ -40,7 +48,10 @@
     <h1>Neues Projekt</h1>
 
     <form onsubmit={handleSubmit}>
-      <Input label="Artist" bind:value={artist} placeholder="z.B. Anna Berger (optional)" />
+      <Input label="Artist" bind:value={artist} list="artists" placeholder="z.B. Anna Berger (optional)" />
+      <datalist id="artists">
+        {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
+      </datalist>
       <Input label="Name" bind:value={name} placeholder="Mein Album" />
 
       <div class="textarea-group">
