@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const magicLinkSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().max(255),
   // Page to return to after login, see safeNextPath
   next: z.string().max(2000).optional(),
 });
@@ -26,12 +26,12 @@ export const verifyTokenSchema = z.object({
 
 export const registerSchema = z.object({
   name: z.string().min(1).max(255),
-  email: z.string().email(),
+  email: z.string().email().max(255),
   password: z.string().min(8).max(200),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().max(255),
   password: z.string().min(1).max(200),
 });
 

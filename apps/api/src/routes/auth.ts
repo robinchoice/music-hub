@@ -88,7 +88,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (!user?.passwordHash || !(await Bun.password.verify(password, user.passwordHash))) {
       return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
     }
-    for (const key of attempt) await failedLogins.undo(db, key);
+    await Promise.all(attempt.map((key) => failedLogins.undo(db, key)));
     if (user.blockedAt) return c.json({ error: BLOCKED }, 403);
 
     await createSession(c, db, user.id);

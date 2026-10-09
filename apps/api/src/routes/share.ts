@@ -185,6 +185,10 @@ export const shareRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, track!.projectId))
       .limit(1);
 
+    if (c.req.query('meta') === '1') {
+      return c.json({ project: { name: project!.name }, track: { name: track!.name } });
+    }
+
     const streamKey = version.streamFileKey || version.originalFileKey;
     const streamUrl = await createDownloadUrl(streamKey);
     const waveformUrl = version.waveformDataKey

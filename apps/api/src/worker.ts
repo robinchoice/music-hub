@@ -16,10 +16,15 @@ const db = createDb(process.env.DATABASE_URL!);
 await migrateDb(process.env.DATABASE_URL!);
 
 let current: string | null = null;
+let claiming: Promise<string | null> | null = null;
+let stopping = false;
 
 // A deploy stops the old container; the next worker picks the job up right away
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => {
-  if (current) await releaseAudioJob(db, current).catch(() => {});
+  if (stopping) return;
+  stopping = true;
+  const versionId = claiming ? await claiming.catch(() => null) : current;
+  if (versionId) await releaseAudioJob(db, versionId).catch(() => {});
   process.exit(0);
 });
 
@@ -27,10 +32,13 @@ for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => {
 Bun.serve({ port: parseInt(process.env.PORT || '3000'), fetch: () => Response.json({ status: 'ok' }) });
 console.log('[Worker] Waiting for audio jobs');
 
-while (true) {
+while (!stopping) {
   try {
     await giveUpAudioJobs(db);
-    current = await claimAudioJob(db);
+    claiming = claimAudioJob(db);
+    current = await claiming;
+    claiming = null;
+    if (stopping) break;
     if (!current) {
       await Bun.sleep(2000);
       continue;

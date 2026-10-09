@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts & PORT=3001 bun run --hot src/worker.ts & wait",
-    "build": "bun build src/index.ts src/worker.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts src/worker.ts --outdir dist --target bun && cp -R ../../packages/db/src/migrations dist/",
     "test": "bun test",
     "seed": "bun run src/scripts/seed.ts",
     "check": "tsc --noEmit"

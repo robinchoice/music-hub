@@ -31,10 +31,12 @@ export async function processVersion(db: Database, versionId: string) {
 
     // Generate waveform peaks
     const peaks = await generateWaveformPeaks(originalUrl, metadata.duration);
-    const waveformKey = version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json');
+    const waveformKey = peaks
+      ? version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json')
+      : null;
 
     // Upload waveform data to S3
-    await putObject(waveformKey, JSON.stringify(peaks), 'application/json');
+    if (waveformKey) await putObject(waveformKey, JSON.stringify(peaks), 'application/json');
 
     // Transcode to MP3 for streaming
     const streamKey = version.originalFileKey.replace(/\/original\/.*$/, '/stream/audio.mp3');
@@ -106,7 +108,7 @@ async function measureLoudness(url: string): Promise<number | null> {
   });
 
   const log = await new Response(proc.stderr).text();
-  if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
+  if (await proc.exited !== 0) return null;
 
   // Per-second lines carry the running value; the summary at the end is the last match
   const last = [...log.matchAll(/\bI:\s+(-?[\d.]+) LUFS/g)].at(-1);
@@ -115,7 +117,7 @@ async function measureLoudness(url: string): Promise<number | null> {
   return lufs <= -70 ? null : lufs;
 }
 
-async function generateWaveformPeaks(url: string, duration: number): Promise<number[]> {
+async function generateWaveformPeaks(url: string, duration: number): Promise<number[] | null> {
   // Generate raw PCM samples with ffmpeg, then compute peaks
   const samplesPerPixel = Math.max(1, Math.floor(duration * 44100 / 800)); // ~800 peaks
 
@@ -130,7 +132,7 @@ async function generateWaveformPeaks(url: string, duration: number): Promise<num
   ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
 
   const buffer = await new Response(proc.stdout).arrayBuffer();
-  if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
+  if (await proc.exited !== 0) return null;
 
   const samples = new Float32Array(buffer);
   const numPeaks = 800;
