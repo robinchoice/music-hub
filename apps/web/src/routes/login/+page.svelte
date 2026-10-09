@@ -103,7 +103,7 @@
         {/if}
       {/if}
 
-      <p class="switch">Noch kein Konto oder kein Passwort? <a href="/register">Registrieren</a></p>
+      <p class="switch">Noch kein Konto oder kein Passwort? <a href="/register">Konto anlegen</a></p>
     </div>
 
     <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>

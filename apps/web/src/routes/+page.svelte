@@ -213,13 +213,12 @@
     <nav class="nav">
       <a href="/" class="wordmark"><Tile size={32} /> Music Hub</a>
       <div class="nav-right">
-        <a class="nav-link" href={SELF_HOSTING} target="_blank" rel="noopener">Selbst hosten</a>
         {#if $user}
           <Button href="/dashboard" size="sm">Zum Dashboard</Button>
         {:else}
           <div class="nav-auth">
             <Button href="/login" size="sm" variant="secondary">Einloggen</Button>
-            <Button href="/register" size="sm">Registrieren</Button>
+            <Button href="/register" size="sm">Konto anlegen</Button>
           </div>
         {/if}
       </div>
@@ -229,8 +228,8 @@
       <h1>Versionen für Musik. Ohne Chaos.</h1>
       <div class="hero-side">
         <p class="lede">
-          Music Hub hält jeden Stand deines Songs fest. Kommentare sitzen auf der Sekunde, um die es geht,
-          und am Ende ist klar, welcher Mix freigegeben ist.
+          Für Producer, Bands und alle, die am Song arbeiten: Music Hub hält jeden Stand fest, Kommentare
+          sitzen auf der Sekunde, und am Ende ist klar, welcher Mix freigegeben ist.
         </p>
         <div class="ctas">
           {#if $user}
@@ -238,7 +237,7 @@
           {:else}
             <Button href="/register" size="lg">Konto anlegen</Button>
           {/if}
-          <Button href={SELF_HOSTING} size="lg" variant="secondary">Selbst hosten</Button>
+          <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">Open Source, selbst hostbar →</a>
         </div>
         <p class="fine">Kostenlos, solange Plätze frei sind. Zum Reinhören reicht ein Link.</p>
       </div>
@@ -293,8 +292,8 @@
     <section class="sec">
       <h2>Schluss mit Final_v3_REAL.wav</h2>
       <p class="body">
-        Bisher liegt der aktuelle Mix in irgendeinem Ordner, das Feedback steckt in Sprachnachrichten,
-        und welcher Stand freigegeben ist, weiß am Ende keiner so genau.
+        Neue Version hochladen, die alte bleibt daneben. Statt Ordnern und Sprachnachrichten: ein Track, alle
+        Versionen, jede mit Status und offenen Punkten.
       </p>
       <div class="ba">
         <div class="ba-col before">
@@ -309,31 +308,12 @@
           </div>
         </div>
         <div class="ba-col after">
-          <h3>Mit Music Hub</h3>
+          <h3>Mit Music Hub · klick eine Version</h3>
           {#if listed}
             <VersionList {versions} selectedId={listed.id} onSelect={(v) => (listId = v.id)} />
+            <p class="after-foot"><b>V{listed.versionNumber}</b> {listed.notes}</p>
           {/if}
-          <p class="after-foot"><Icon name="list" size={15} /> Ein Track, alle Versionen, jede mit Status und offenen Punkten</p>
         </div>
-      </div>
-    </section>
-
-    <section class="feat">
-      <div class="feat-text">
-        <h3>Jede Version bleibt.</h3>
-        <p>
-          Neue Version hochladen, die alte bleibt daneben stehen. Varianten hängen an ihrer Vorlage, und der
-          Vergleich springt an derselben Stelle zwischen zwei Mixen hin und her.
-        </p>
-        <p class="hint">Klick auf eine Version in der Liste.</p>
-      </div>
-      <div class="frag frag-versions">
-        {#if listed}
-          <div class="frag-panel">
-            <VersionList {versions} selectedId={listed.id} onSelect={(v) => (listId = v.id)} />
-          </div>
-          <VersionCard {...card} version={listed} {versions} canApprove={false} onSelect={(v) => (listId = v.id)} player={noPlayer} />
-        {/if}
       </div>
     </section>
 
@@ -422,11 +402,15 @@
             <li><Icon name="check" size={18} /> Leertaste spielt, C kommentiert, ← und → wechseln die Version</li>
           </ul>
         </div>
-        {#if mounted && !small}
-          <div class="phone">
-            <DemoFrame src={DEMO.trackPath} title="Music Hub am Handy mit Beispieldaten" width={390} height={844} lazy />
-          </div>
-        {/if}
+        <div class="phone">
+          <img
+            src="/demo/nachtbus-handy.png"
+            alt="Der Track Nachtbus am Handy: V4 mit Wellenform, Kommentaren und Knöpfen zum Freigeben"
+            width="390"
+            height="844"
+            loading="lazy"
+          />
+        </div>
         <div class="side">
           <h3>Band, Artists und Kunden</h3>
           <ul>
@@ -438,36 +422,21 @@
       </div>
     </section>
 
-    <section class="sec oss">
-      <div>
-        <h2>Läuft auch auf deinem Server.</h2>
-        <p class="body">
-          Music Hub ist Open Source. Mit Docker und einem S3-Bucket hostest du ihn selbst, und deine Mixe bleiben
-          bei dir.
-        </p>
-        <div class="ctas">
-          <Button href={SELF_HOSTING} size="lg">
-            <svg class="gh" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" /></svg>
-            Anleitung auf GitHub
-          </Button>
-        </div>
-        <ul class="facts">
-          <li><Icon name="link" size={16} /> Quellcode unter AGPL-3.0</li>
-          <li><Icon name="settings" size={16} /> SvelteKit, Hono, PostgreSQL, S3 und FFmpeg</li>
-          <li><Icon name="lock" size={16} /> hub.pleasance.org läuft auf Servern in Deutschland, Plätze begrenzt</li>
-        </ul>
-      </div>
-      <div class="term" aria-label="Installation in drei Befehlen">
-        <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-        <pre><span class="c"># Music Hub auf deinem Server</span>
-<span class="p">$</span> git clone {REPO}.git
-<span class="p">$</span> cd music-hub && cp .env.production.example .env
-<span class="p">$</span> docker compose -f docker-compose.prod.yml up -d --build
-<span class="ok">✔ Container music-hub-postgres-1  Started</span>
-<span class="ok">✔ Container music-hub-api-1       Started</span>
-<span class="ok">✔ Container music-hub-web-1       Started</span></pre>
-      </div>
+    <section class="final">
+      <h2>Dein nächster Mix hat ein Zuhause.</h2>
+      <p>Leg ein Projekt an, lad V1 hoch und schick den Link an deine Band.</p>
+      {#if $user}
+        <Button href="/dashboard" size="lg">Zum Dashboard</Button>
+      {:else}
+        <Button href="/register" size="lg">Konto anlegen</Button>
+      {/if}
+      <p class="fine">Kostenlos, solange Plätze frei sind. Läuft auf Servern in Deutschland.</p>
     </section>
+
+    <p class="oss">
+      <span>Music Hub ist Open Source (AGPL-3.0). Mit Docker und einem S3-Bucket läuft er auch auf deinem Server.</span>
+      <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">Anleitung auf GitHub →</a>
+    </p>
 
     <SiteFooter />
   </main>
@@ -527,13 +496,6 @@
     display: flex;
     gap: var(--space-2);
   }
-  .nav-link {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-  }
-  .nav-link:hover {
-    color: var(--color-text-primary);
-  }
 
   h1,
   h2,
@@ -570,8 +532,17 @@
   .ctas {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-3) var(--space-6);
     margin-top: 26px;
+  }
+  .textlink {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--color-border-hover);
+  }
+  .textlink:hover {
+    color: var(--color-text-primary);
   }
   .fine {
     margin: 14px 0 0;
@@ -823,7 +794,6 @@
   }
   .after-foot {
     display: flex;
-    align-items: center;
     gap: 10px;
     margin: 18px 0 0;
     padding-top: 16px;
@@ -869,12 +839,6 @@
     border-radius: 22px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)), #0d0b0e;
     border: 1px solid #211f25;
-  }
-  .frag-versions {
-    display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    gap: 18px;
-    align-items: start;
   }
   .frag-stack {
     display: flex;
@@ -926,84 +890,57 @@
     color: var(--color-accent-2);
   }
   .phone {
-    width: 412px;
-    height: 866px;
-    margin: -60px -29px;
-    border: 11px solid #201e24;
-    border-radius: 54px;
+    width: 356px;
+    border: 10px solid #201e24;
+    border-radius: 48px;
     overflow: hidden;
     background: var(--color-bg-base);
     box-shadow: 0 40px 100px rgba(0, 0, 0, 0.65), 0 0 0 1px #2d2a31;
-    transform: scale(0.86);
+  }
+  .phone img {
+    display: block;
+    width: 100%;
+    height: auto;
   }
 
-  /* Open source */
-  .oss {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 64px;
-    align-items: center;
-    padding-bottom: 120px;
+  /* Closing band */
+  .final {
+    margin-top: 140px;
+    padding: 72px var(--space-8);
+    border-radius: 28px;
+    text-align: center;
+    background:
+      radial-gradient(120% 140% at 0% 100%, color-mix(in srgb, var(--color-accent) 20%, transparent), transparent 55%),
+      radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 20%, transparent), transparent 55%),
+      var(--color-bg-raised);
+    border: 1px solid var(--color-border);
   }
-  .gh {
-    flex: none;
-  }
-  .facts {
-    list-style: none;
-    margin: 28px 0 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .facts li {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    font-size: 16px;
-  }
-  .facts :global(svg) {
-    flex: none;
-    margin-top: 3px;
-    color: var(--color-text-tertiary);
-  }
-  .term {
-    min-width: 0;
-    border-radius: 16px;
-    background: #0d0b0e;
-    border: 1px solid #252229;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
-    overflow: hidden;
-  }
-  .term-bar {
-    height: 34px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 0 14px;
-    border-bottom: 1px solid #1f1d22;
-  }
-  .term-bar i {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #2d2a31;
-  }
-  .term pre {
+  .final h2 {
     margin: 0;
-    padding: 20px 22px 24px;
-    overflow-x: auto;
-    font: 13.5px/1.75 var(--font-mono);
-    color: #dad8dd;
+    font-size: clamp(40px, 4.6vw, 64px);
+    font-weight: 800;
+    font-stretch: 75%;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
   }
-  .term .c {
-    color: var(--color-text-tertiary);
+  .final > p:not(.fine) {
+    margin: 18px auto 28px;
+    max-width: 44ch;
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
   }
-  .term .p {
-    color: var(--color-accent-2);
-  }
-  .term .ok {
-    color: var(--color-success);
+
+  /* Open source, one quiet line */
+  .oss {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-6);
+    margin: 56px 0 72px;
+    font-size: 15px;
+    color: var(--color-text-secondary);
   }
 
   .reject-form {
@@ -1032,8 +969,7 @@
 
   @media (max-width: 1100px) {
     .hero,
-    .feat,
-    .oss {
+    .feat {
       grid-template-columns: minmax(0, 1fr);
       gap: 28px;
     }
@@ -1051,6 +987,7 @@
       grid-column: 1 / -1;
       order: 3;
       justify-self: center;
+      width: 320px;
     }
   }
 
@@ -1062,9 +999,6 @@
     .nav {
       padding: 16px 0;
     }
-    .nav-link {
-      display: none;
-    }
     .hero {
       padding-top: 16px;
     }
@@ -1075,7 +1009,7 @@
       font-size: 17px;
     }
     .ctas :global(.btn) {
-      flex: 1;
+      flex: 1 1 100%;
     }
     .stage {
       margin-top: 36px;
@@ -1095,7 +1029,6 @@
       font-size: 16.5px;
     }
     .ba,
-    .frag-versions,
     .sides {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -1122,11 +1055,19 @@
       gap: 36px;
       margin-top: 40px;
     }
-    .oss {
-      padding-bottom: 88px;
+    .phone {
+      display: none;
     }
-    .term pre {
-      font-size: 12px;
+    .final {
+      margin-top: 96px;
+      padding: 48px var(--space-5);
+      border-radius: 22px;
+    }
+    .final > p:not(.fine) {
+      font-size: 16.5px;
+    }
+    .oss {
+      margin-bottom: 56px;
     }
   }
 </style>

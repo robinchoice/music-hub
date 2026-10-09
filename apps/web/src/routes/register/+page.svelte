@@ -65,7 +65,7 @@
 
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
-      <h1>Konto erstellen</h1>
+      <h1>Konto anlegen</h1>
       <p class="card-sub">Kostenlos mit {SIGNUP_STORAGE_PER_USER / 1024 ** 3} GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
 
       {#if sent}
@@ -95,7 +95,7 @@
           {/if}
 
           <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
-            Registrieren
+            Konto anlegen
           </Button>
         </form>
       {/if}
