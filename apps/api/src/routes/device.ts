@@ -46,8 +46,8 @@ function pendingCode(userCode: string) {
 export const deviceRoutes = new Hono<AppEnv>()
   // The plugin asks for a code to show the user
   .post('/', zValidator('json', deviceStartSchema), async (c) => {
-    if (!(await startsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
     const db = c.get('db');
+    if (!(await startsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const { client } = c.req.valid('json');
 
     await db.delete(deviceCodes).where(lt(deviceCodes.expiresAt, new Date()));
@@ -73,8 +73,8 @@ export const deviceRoutes = new Hono<AppEnv>()
 
   // The browser shows what is asking before the user approves it
   .get('/:userCode', requireAuth, async (c) => {
-    if (!(await lookupsPerUser.hit(c.get('db'), c.get('userId')))) return tooManyRequests(c);
     const db = c.get('db');
+    if (!(await lookupsPerUser.hit(db, c.get('userId')))) return tooManyRequests(c);
 
     const [code] = await db
       .select({ client: deviceCodes.client, expiresAt: deviceCodes.expiresAt })
@@ -89,8 +89,8 @@ export const deviceRoutes = new Hono<AppEnv>()
   // The user approves the code the plugin shows
   .post('/approve', requireAuth, zValidator('json', deviceApproveSchema), async (c) => {
     const userId = c.get('userId');
-    if (!(await lookupsPerUser.hit(c.get('db'), userId))) return tooManyRequests(c);
     const db = c.get('db');
+    if (!(await lookupsPerUser.hit(db, userId))) return tooManyRequests(c);
 
     const [approved] = await db
       .update(deviceCodes)
@@ -104,8 +104,8 @@ export const deviceRoutes = new Hono<AppEnv>()
 
   // The plugin polls until the user has approved, then receives its session
   .post('/token', zValidator('json', deviceTokenSchema), async (c) => {
-    if (!(await pollsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
     const db = c.get('db');
+    if (!(await pollsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const [code] = await db
       .select()

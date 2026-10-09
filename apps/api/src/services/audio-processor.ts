@@ -4,6 +4,8 @@ import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { publish } from './sse.js';
 import type { Database } from '@music-hub/db';
 
+const FFMPEG_LIMITS = { timeout: 15 * 60_000, killSignal: 'SIGKILL' } as const;
+
 // Runs in the worker, one version at a time (services/audio-jobs.ts)
 export async function processVersion(db: Database, versionId: string) {
   console.log(`[Worker] Processing version ${versionId}`);
@@ -82,7 +84,7 @@ async function extractMetadata(url: string): Promise<{
     '-show_format',
     '-show_streams',
     url,
-  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
+  ], FFMPEG_LIMITS);
 
   const output = await new Response(proc.stdout).text();
   if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
@@ -103,8 +105,7 @@ async function measureLoudness(url: string): Promise<number | null> {
   const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128', '-f', 'null', '-'], {
     stdout: 'ignore',
     stderr: 'pipe',
-    timeout: 15 * 60_000,
-    killSignal: 'SIGKILL',
+    ...FFMPEG_LIMITS,
   });
 
   const log = await new Response(proc.stderr).text();
@@ -129,7 +130,7 @@ async function generateWaveformPeaks(url: string, duration: number): Promise<num
     '-f', 'f32le',         // raw 32-bit float
     '-v', 'quiet',
     'pipe:1',
-  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
+  ], FFMPEG_LIMITS);
 
   const buffer = await new Response(proc.stdout).arrayBuffer();
   if (await proc.exited !== 0) return null;
@@ -157,23 +158,24 @@ async function transcodeToMp3(inputUrl: string, outputKey: string) {
   // Transcode to temp file, then upload
   const tmpFile = `/tmp/musichub-${crypto.randomUUID()}.mp3`;
 
-  const proc = Bun.spawn([
-    'ffmpeg',
-    '-i', inputUrl,
-    '-codec:a', 'libmp3lame',
-    '-b:a', '128k',
-    '-v', 'quiet',
-    '-y',
-    tmpFile,
-  ], { timeout: 15 * 60_000, killSignal: 'SIGKILL' });
+  let mp3;
+  try {
+    const proc = Bun.spawn([
+      'ffmpeg',
+      '-i', inputUrl,
+      '-codec:a', 'libmp3lame',
+      '-b:a', '128k',
+      '-v', 'quiet',
+      '-y',
+      tmpFile,
+    ], FFMPEG_LIMITS);
 
-  if (await proc.exited !== 0) {
-    if (await Bun.file(tmpFile).exists()) await Bun.file(tmpFile).delete();
-    throw new Error('Audio processing failed or timed out');
+    if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
+
+    mp3 = await Bun.file(tmpFile).bytes();
+  } finally {
+    await Bun.file(tmpFile).delete().catch(() => {});
   }
-
-  const mp3 = await Bun.file(tmpFile).bytes();
-  await Bun.spawn(['rm', tmpFile]).exited;
 
   await putObject(outputKey, mp3, 'audio/mpeg');
 }

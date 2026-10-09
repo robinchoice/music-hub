@@ -131,9 +131,9 @@ export const authRoutes = new Hono<AppEnv>()
   .post('/verify', zValidator('json', verifyTokenSchema), async (c) => {
     const { token, password } = c.req.valid('json');
     const db = c.get('db');
+    const tokenHash = await hashToken(token);
 
     return db.transaction(async (tx) => {
-      const tokenHash = await hashToken(token);
       const [link] = await tx
         .select()
         .from(magicLinks)
