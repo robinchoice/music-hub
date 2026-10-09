@@ -1,6 +1,6 @@
 // Pure helpers for the overview pages: Übersicht, Für dich, Tracks, Timeline and Mixer.
 // No $lib imports, so they can be checked with Bun like track.ts.
-import { formatDate, formatTime } from './format.js';
+import { formatDate, formatTime, initials } from './format.js';
 
 export type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
 
@@ -133,9 +133,6 @@ export function indexOverview(data: OverviewData, me: string): OverviewIndex {
 // ---------- Names ----------
 
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
-
-export const initials = (name: string) =>
-  name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
 /** "Du" for yourself, first names for members, "Name (Gast)" for guests */
 export function personName(ix: OverviewIndex, userId: string | null, guestName: string | null = null): string {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { initials } from '$lib/utils/format.js';
+
   let {
     src = null,
     name,
@@ -8,15 +10,6 @@
     name: string;
     size?: 'xs' | 'sm' | 'md' | 'lg';
   } = $props();
-
-  const initials = $derived(
-    name
-      .split(' ')
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
-  );
 </script>
 
 <!-- Neutral, so colour stays with what can be done -->
@@ -24,7 +17,7 @@
   {#if src}
     <img {src} alt={name} />
   {:else}
-    <span>{initials}</span>
+    <span>{initials(name)}</span>
   {/if}
 </div>
 

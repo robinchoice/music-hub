@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import WaveSurfer from 'wavesurfer.js';
   import { APP_BAND, GLOW, bandColor } from '@music-hub/shared';
-  import { formatTime } from '$lib/utils/format.js';
+  import { formatTime, initials } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
   type CommentMarker = {
@@ -176,10 +176,6 @@
   }
 
   export { seekToTime, play, pause, togglePlay, getCurrentTime, getIsPlaying };
-
-  function initials(name: string) {
-    return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-  }
 </script>
 
 <div class="player" class:compact>

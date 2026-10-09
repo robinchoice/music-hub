@@ -5,6 +5,10 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Up to two initials, taken from words only: "Tom (Label)" gives "TL", not "T(" */
+export const initials = (name: string) =>
+  (name.match(/[\p{L}\p{N}]+/gu) ?? []).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+
 export function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);

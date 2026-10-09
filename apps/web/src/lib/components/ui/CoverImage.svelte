@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { initials } from '$lib/utils/format.js';
+
   let {
     src = null,
     name = '',
@@ -10,16 +12,6 @@
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'fill';
     rounded?: 'sm' | 'md' | 'lg';
   } = $props();
-
-  const initials = $derived(
-    name
-      .trim()
-      .split(/\s+/)
-      .map((p) => p[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || '?'
-  );
 </script>
 
 <div class="cover {size} round-{rounded}">
@@ -27,7 +19,7 @@
     <img {src} alt="" loading="lazy" />
   {:else}
     <div class="fallback">
-      <span>{initials}</span>
+      <span>{initials(name) || '?'}</span>
     </div>
   {/if}
 </div>
