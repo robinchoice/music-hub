@@ -63,7 +63,7 @@
       <datalist id="artists">
         {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
       </datalist>
-      <Input label="Name" bind:value={name} placeholder="Mein Album" />
+      <Input label="Name" bind:value={name} placeholder="z.B. Debütalbum, Sommer-EP oder Single" />
 
       <div class="textarea-group">
         <label class="textarea-label">Beschreibung (optional)</label>
