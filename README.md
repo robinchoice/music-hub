@@ -52,7 +52,7 @@ Web läuft auf `http://localhost:5173`, API auf `http://localhost:3000`.
 Pflicht-Variablen in `.env`:
 
 ```env
-DATABASE_URL=postgresql://musichub:musichub@localhost:5433/musichub
+DATABASE_URL=postgresql://musichub:musichub@localhost:5435/musichub
 MAGIC_LINK_SECRET=<openssl rand -hex 32>
 APP_URL=http://localhost:5173
 ```
