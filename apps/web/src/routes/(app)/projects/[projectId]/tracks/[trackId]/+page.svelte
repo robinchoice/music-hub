@@ -9,6 +9,7 @@
   import { trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
+  import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Sheet from '$lib/components/ui/Sheet.svelte';
@@ -64,6 +65,7 @@
   let currentTime = $state(0);
   let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
+  let showStemUpload = $state(false);
   let role = $state('');
   let loading = $state(true);
   // The track was deleted, or its link is wrong
@@ -148,6 +150,11 @@
     } finally {
       loading = false;
     }
+
+    // The upload buttons of an empty track in the overview land here
+    const upload = $page.url.searchParams.get('upload');
+    if (canUpload && upload === 'version') openUpload();
+    else if (canUpload && upload === 'spuren') openStemUpload();
 
     disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
       if (type === 'version:new') {
@@ -267,6 +274,14 @@
     branchFromId = null;
     branchLabelInput = '';
     showUpload = true;
+    showStemUpload = false;
+    sheetOpen = false;
+    scrollToUpload();
+  }
+
+  function openStemUpload() {
+    showStemUpload = true;
+    showUpload = false;
     sheetOpen = false;
     scrollToUpload();
   }
@@ -644,6 +659,27 @@
         </div>
       {/if}
 
+      {#if showStemUpload}
+        <div class="upload-zone">
+          <button class="close-upload" onclick={() => (showStemUpload = false)} title="Schließen" aria-label="Upload schließen">
+            <Icon name="x" size={16} />
+          </button>
+          <p class="upload-title">
+            <b>Spuren hochladen</b>
+            <span>einzeln oder alle auf einmal</span>
+          </p>
+          <StemUploadDropzone
+            {trackId}
+            onUploaded={async () => {
+              showStemUpload = false;
+              stems = (await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`)).stems;
+              toastSuccess('Spuren hochgeladen');
+              showPanel('spuren');
+            }}
+          />
+        </div>
+      {/if}
+
       {#if view === 'compare'}
         {#if $overviewIndex && mixerInfo}
           <TrackMixer ix={$overviewIndex} info={mixerInfo} soloId={selectedVersion?.id ?? null} onsolo={soloVersion} />
@@ -653,11 +689,20 @@
       {:else if versions.length === 0}
         <EmptyState
           title="Noch keine Version"
-          description="Lade dein erstes Audio hoch — wir kümmern uns um Wellenform und Vorschau."
+          description={stems.length
+            ? `${stems.length === 1 ? '1 Spur liegt' : `${stems.length} Spuren liegen`} bereit. Lade einen Mix hoch, um ihn hier zu hören und zu kommentieren.`
+            : 'Fang mit den Spuren an oder lade direkt einen Mix als erste Version hoch.'}
         >
           {#snippet action()}
             {#if canUpload}
-              <Button onclick={openUpload}>Audio hochladen</Button>
+              <div class="empty-actions">
+                <Button variant={stems.length ? 'secondary' : 'primary'} onclick={openStemUpload}>
+                  <Icon name="upload" size={14} /> {stems.length ? 'Weitere Spuren' : 'Spuren hochladen'}
+                </Button>
+                <Button variant={stems.length ? 'primary' : 'secondary'} onclick={openUpload}>
+                  <Icon name="upload" size={14} /> Version hochladen
+                </Button>
+              </div>
             {/if}
           {/snippet}
         </EmptyState>
@@ -1101,6 +1146,12 @@
     padding: var(--space-5);
     /* scrollIntoView stops below the sticky TopBar (65px) instead of under it */
     scroll-margin-top: calc(65px + var(--space-4));
+  }
+  .empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
   }
   .upload-title {
     display: flex;

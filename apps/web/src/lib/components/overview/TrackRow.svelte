@@ -51,7 +51,10 @@
     {#if v}
       <MiniWave version={v} markers={markersFor(ix, comments)} />
     {:else if canUpload}
-      <Button size="sm" variant="secondary" {href}><Icon name="upload" size={14} /> Erste Version hochladen</Button>
+      <div class="first-upload">
+        <Button size="sm" variant="secondary" href="{href}?upload=spuren"><Icon name="upload" size={14} /> Spuren</Button>
+        <Button size="sm" variant="secondary" href="{href}?upload=version"><Icon name="upload" size={14} /> Version</Button>
+      </div>
     {/if}
   </div>
 
@@ -203,6 +206,11 @@
   }
   .wave {
     min-width: 0;
+  }
+  .first-upload {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .stage {
     display: flex;
