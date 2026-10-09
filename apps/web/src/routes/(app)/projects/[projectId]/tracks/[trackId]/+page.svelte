@@ -40,6 +40,9 @@
   import ShareModal from './components/ShareModal.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem } from './components/StemList.svelte';
+  import OpenModal from '$lib/components/open/OpenModal.svelte';
+  import { openPath, type OpenState } from '$lib/utils/open.js';
+  import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
 
   const projectId = ($page.params as Record<string, string>).projectId;
   const trackId = ($page.params as Record<string, string>).trackId;
@@ -79,6 +82,10 @@
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
   let stems = $state<Stem[]>([]);
+  let openState = $state<OpenState | null>(null);
+  let openModal = $state(false);
+  // A remix: where it comes from and the credit line it has to carry
+  let forkedFrom = $state<{ id: string | null; credit: string; license: OpenLicense | null } | null>(null);
   let panelOpen = $state(true);
   let panelTab = $state<'versions' | 'spuren'>('versions');
   let isNarrow = $state(false);
@@ -106,6 +113,11 @@
     const t = $overviewIndex?.tracks.get(trackId);
     return $overviewIndex && t ? trackInfo($overviewIndex, t) : null;
   });
+  const openLabel = $derived(openState?.license ? OPEN_LICENSE_INFO[openState.license].label : '');
+  // Asked to agree to opening the track
+  const consentPending = $derived(
+    !!openState?.license && !openState.openedAt && !!openState.contributors.find((p) => p.id === $user?.id && !p.consented),
+  );
   const nextVersionNumber = $derived(versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1);
 
   // Phones and narrow windows get one column; versions and raw tracks open as a sheet there.
@@ -125,11 +137,23 @@
   onMount(async () => {
     await initOfflineStore();
     try {
-      const [projectRes, trackVersions, tracksRes, stemsRes] = await Promise.all([
+      const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`, true).catch(() => null),
-        api.get<{ tracks: { id: string; name: string; coverUrl: string | null; status: TrackStatus; section: string | null }[] }>(`/tracks/project/${projectId}`),
+        api.get<{
+          tracks: {
+            id: string;
+            name: string;
+            coverUrl: string | null;
+            status: TrackStatus;
+            section: string | null;
+            forkedFromId?: string | null;
+            credit?: string | null;
+            license?: OpenLicense | null;
+          }[];
+        }>(`/tracks/project/${projectId}`),
         api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`, true).catch(() => null),
+        api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null),
       ]);
 
       projectName = projectRes.project.name;
@@ -143,6 +167,8 @@
       trackCoverUrl = t?.coverUrl ?? null;
       trackStatus = t?.status ?? 'in_progress';
       trackSection = t?.section ?? null;
+      forkedFrom = t.credit ? { id: t.forkedFromId ?? null, credit: t.credit, license: t.license ?? null } : null;
+      openState = openRes?.open ?? null;
       versions = trackVersions.versions;
       stems = stemsRes.stems;
 
@@ -321,6 +347,7 @@
     await api.post(`/versions/${selectedVersion.id}/approve`);
     toastSuccess('Version freigegeben');
     await refreshVersions();
+    openState = (await api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null))?.open ?? openState;
   }
 
   function handleReject() {
@@ -547,6 +574,11 @@
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
       <Icon name="share" size={14} /> <span class="btn-label">Teilen</span>
     </Button>
+    {#if openState && role === 'owner' && !openState.license}
+      <Button size="sm" variant="ghost" onclick={() => (openModal = true)}>
+        <Icon name="git-branch" size={14} /> <span class="btn-label">Offen stellen</span>
+      </Button>
+    {/if}
     {#if canUpload}
       <Button size="sm" onclick={openUpload}>
         <Icon name="upload" size={14} /> Neue Version
@@ -605,6 +637,11 @@
             <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
               <Icon name="music" size={13} /><b>{stems.length}</b> {stems.length === 1 ? 'Spur' : 'Spuren'}
             </button>
+            {#if openState?.openedAt}
+              <button class="chip open" onclick={() => (openModal = true)}>Offen · {openLabel}</button>
+            {:else if openState?.license}
+              <button class="chip" onclick={() => (openModal = true)}><Icon name="git-branch" size={13} /> Offen stellen: wartet auf Zustimmung</button>
+            {/if}
           </div>
         </div>
         {#if canUpload || role === 'owner'}
@@ -628,6 +665,25 @@
           </div>
         {/if}
       </div>
+
+      {#if consentPending}
+        <div class="open-banner">
+          <span><b>{openState?.contributors.find((p) => p.id === openState?.requestedById)?.name ?? 'Jemand'}</b> möchte {trackName} unter {openLabel} offen stellen. Dafür braucht es deine Zustimmung.</span>
+          <Button size="sm" onclick={() => (openModal = true)}>Ansehen</Button>
+        </div>
+      {/if}
+
+      {#if forkedFrom}
+        <div class="fork-banner">
+          <Icon name="git-branch" size={16} />
+          <span>
+            <b>Remix</b> von {#if forkedFrom.id}<a href={openPath(forkedFrom.id)}>{forkedFrom.credit}</a>{:else}{forkedFrom.credit}{/if}
+            <small>
+              {#if forkedFrom.license === 'cc0'}Gemeinfrei, du musst niemanden nennen.{:else if forkedFrom.license === 'cc-by-sa'}Veröffentlichst du den Remix, nenne die Quelle so und stelle ihn ebenfalls unter CC BY-SA.{:else}Veröffentlichst du den Remix, nenne die Quelle so.{/if}
+            </small>
+          </span>
+        </div>
+      {/if}
 
       <TabBar
         tabs={[
@@ -852,6 +908,10 @@
   <ShareModal bind:open={shareOpen} versionId={selectedVersion.id} />
 {/if}
 
+{#if openState && $user}
+  <OpenModal bind:open={openModal} bind:openState {trackId} {trackName} isOwner={role === 'owner'} userId={$user.id} />
+{/if}
+
 <Modal bind:open={rejectOpen} title="Version ablehnen">
   <div class="edit-form">
     <label>
@@ -1036,6 +1096,37 @@
     color: var(--color-text-primary);
     border-color: var(--color-accent);
     background: var(--color-accent-subtle);
+  }
+  .chip.open {
+    border: 0;
+    background: var(--spectrum);
+    color: var(--color-on-accent);
+    font-weight: 600;
+  }
+  .open-banner,
+  .fork-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-hover);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+  }
+  .open-banner span,
+  .fork-banner span {
+    flex: 1;
+  }
+  .open-banner b,
+  .fork-banner b {
+    color: var(--color-text-primary);
+  }
+  .fork-banner small {
+    display: block;
+    color: var(--color-text-tertiary);
   }
   .track-cover-btn {
     background: none;

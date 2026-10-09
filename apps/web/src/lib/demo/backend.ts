@@ -406,6 +406,20 @@ const ROUTES: [string, RegExp, Handler][] = [
     return { ok: true };
   }],
   ['GET', /^\/stems\/track\/([\w-]+)$/, ([id]) => ({ stems: db.stems.filter((s) => s.trackId === id) })],
+  ['GET', /^\/tracks\/([\w-]+)\/open$/, ([id]) => {
+    const approved = db.versions.find((v) => v.trackId === id && v.status === 'approved');
+    const people = [MARA, KAI, LISA, JONAS].filter((p) => p.id === approved?.createdById || db.stems.some((s) => s.trackId === id && s.createdById === p.id));
+    return {
+      open: {
+        license: null,
+        openedAt: null,
+        requestedById: null,
+        versionId: approved?.id ?? null,
+        allowedLicenses: ['cc-by-sa', 'cc-by', 'cc0'],
+        contributors: people.map((p) => ({ ...p, stemCount: db.stems.filter((s) => s.trackId === id && s.createdById === p.id).length, consented: false })),
+      },
+    };
+  }],
   ['GET', /^\/activity$/, () => ({ events: activity() })],
   ['GET', /^\/share\/version\/([\w-]+)$/, () => ({
     links: [{ id: uuid(601), token: '7f3a9c41e2d0b8a64c1f', expiresAt: null, allowComments: true, allowDownload: false, hasPassword: false, createdAt: new Date(Date.now() - 50 * 60_000).toISOString() }],

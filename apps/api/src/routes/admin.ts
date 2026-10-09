@@ -47,7 +47,7 @@ function actionsSql(from: Date) {
     SELECT user_id AS uid, 'login' AS type, created_at AS at FROM sessions WHERE created_at >= ${f}
     UNION ALL SELECT u.id, 'login', m.used_at FROM magic_links m JOIN users u ON lower(u.email) = lower(m.email) WHERE m.used_at >= ${f}
     UNION ALL SELECT created_by_id, 'version', created_at FROM versions WHERE created_at >= ${f}
-    UNION ALL SELECT created_by_id, 'stem', created_at FROM stems WHERE created_at >= ${f}
+    UNION ALL SELECT created_by_id, 'stem', created_at FROM stems WHERE NOT forked AND created_at >= ${f}
     UNION ALL SELECT user_id, 'comment', created_at FROM comments
       WHERE user_id IS NOT NULL AND body NOT LIKE ${REJECTION_LIKE} AND created_at >= ${f}
     UNION ALL SELECT decided_by_id, CASE WHEN status = 'rejected' THEN 'reject' ELSE 'approve' END, decided_at FROM versions
@@ -231,7 +231,7 @@ async function periodTotals(db: Database, from: Date, to: Date) {
   }>(sql`
     SELECT
       (SELECT count(*)::int FROM versions WHERE ${range('created_at')}) AS versions,
-      (SELECT count(*)::int FROM stems WHERE ${range('created_at')}) AS stems,
+      (SELECT count(*)::int FROM stems WHERE NOT forked AND ${range('created_at')}) AS stems,
       (SELECT count(*)::int FROM comments
         WHERE user_id IS NOT NULL AND body NOT LIKE ${REJECTION_LIKE} AND ${range('created_at')}) AS comments,
       (SELECT count(*)::int FROM comments WHERE user_id IS NULL AND ${range('created_at')}) AS "guestComments",
@@ -256,7 +256,7 @@ async function projectActivity(db: Database, from: Date) {
   }>(sql`
     SELECT p.id, p.name, p.artist, p.is_archived AS archived,
       (SELECT count(*)::int FROM versions v ${inProject} AND v.created_at >= ${f})
-        + (SELECT count(*)::int FROM stems s JOIN tracks t ON t.id = s.track_id WHERE t.project_id = p.id AND s.created_at >= ${f})
+        + (SELECT count(*)::int FROM stems s JOIN tracks t ON t.id = s.track_id WHERE t.project_id = p.id AND NOT s.forked AND s.created_at >= ${f})
         AS uploads,
       (SELECT count(*)::int FROM comments c JOIN versions v ON v.id = c.version_id ${inProject}
         AND c.body NOT LIKE ${REJECTION_LIKE} AND c.created_at >= ${f}) AS comments,

@@ -117,6 +117,24 @@
 
   let resetting = $state(false);
 
+  // Reports from public pages of open tracks
+  type Report = { id: string; trackId: string; trackName: string; reason: string; email: string | null; createdAt: string; open: boolean };
+  let reports = $state<Report[]>([]);
+  const loadReports = () =>
+    api
+      .get<{ reports: Report[] }>('/admin/open-reports', true)
+      .then((r) => (reports = r.reports))
+      .catch(() => {});
+  $effect(() => {
+    void loadReports();
+  });
+
+  async function resolveReport(report: Report, close: boolean) {
+    if (close && !confirm(`Die öffentliche Seite von „${report.trackName}“ schließen?`)) return;
+    await api.post(`/admin/open-reports/${report.id}/resolve${close ? '?close=1' : ''}`);
+    await loadReports();
+  }
+
   // Opening the link here would replace the admin session, so it goes to the clipboard for a private window
   async function resetTestAccount() {
     resetting = true;
@@ -349,6 +367,24 @@
             <p class="empty">Niemand hat einen Link geöffnet.</p>
           {/if}
         </DashCard>
+
+        {#if reports.length}
+          <DashCard icon="alert" title="Meldungen" sub="zu offenen Tracks" span={4}>
+            <ul class="plist">
+              {#each reports as report (report.id)}
+                <li>
+                  <span class="grow">
+                    <a class="track-name" href="/offen/{report.trackId}">{report.trackName}</a>
+                    <span class="sub">{report.reason}</span>
+                    <span class="sub">{formatWhen(report.createdAt)}{report.email ? ` · ${report.email}` : ''}{report.open ? '' : ' · schon geschlossen'}</span>
+                  </span>
+                  {#if report.open}<button class="tbtn" onclick={() => resolveReport(report, true)}>Schließen</button>{/if}
+                  <button class="tbtn" onclick={() => resolveReport(report, false)}>Erledigt</button>
+                </li>
+              {/each}
+            </ul>
+          </DashCard>
+        {/if}
 
         {#if glitchtip}
           <section class="errors">
