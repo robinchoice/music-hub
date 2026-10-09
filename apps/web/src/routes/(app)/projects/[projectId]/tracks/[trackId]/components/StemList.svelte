@@ -2,12 +2,11 @@
   import { MAX_ZIP_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { demoMode } from '$lib/demo/mode.js';
-  import { toastError, toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { toastError, toastTrash } from '$lib/stores/toast.js';
   import { formatFileSize, timeAgo } from '$lib/utils/format.js';
   import { spurDisplayName, compareSpurNames } from '$lib/utils/track.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
 
   export type Stem = {
     id: string;
@@ -26,6 +25,7 @@
     canUpload,
     currentUserId,
     role,
+    onUpload,
   }: {
     trackId: string;
     trackName: string;
@@ -33,9 +33,9 @@
     canUpload: boolean;
     currentUserId: string | null;
     role: string;
+    onUpload: () => void;
   } = $props();
 
-  let showUpload = $state(false);
   let deleting = $state<string | null>(null);
 
   const rows = $derived(
@@ -90,37 +90,20 @@
     </p>
   {/if}
 
-  {#if stems.length > 0 || showUpload}
+  {#if stems.length > 0}
     <div class="tools">
-      {#if stems.length > 0}
-        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
-      {/if}
+      <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
       {#if canUpload}
-        <Button variant="secondary" size="sm" onclick={() => (showUpload = !showUpload)}>
-          <Icon name={showUpload ? 'x' : 'upload'} size={14} /> {showUpload ? 'Schließen' : 'Hochladen'}
-        </Button>
+        <Button variant="secondary" size="sm" onclick={onUpload}><Icon name="upload" size={14} /> Hochladen</Button>
       {/if}
     </div>
   {/if}
 
-  {#if showUpload}
-    <div class="upload-box">
-      <StemUploadDropzone
-        {trackId}
-        onUploaded={async () => {
-          await loadStems();
-          toastSuccess('Spuren hochgeladen');
-          showUpload = false;
-        }}
-      />
-    </div>
-  {/if}
-
-  {#if stems.length === 0 && !showUpload}
+  {#if stems.length === 0}
     <div class="empty">
       <p>Noch keine Spuren.</p>
       {#if canUpload}
-        <Button size="sm" onclick={() => (showUpload = true)}><Icon name="upload" size={14} /> Spuren hochladen</Button>
+        <Button size="sm" onclick={onUpload}><Icon name="upload" size={14} /> Spuren hochladen</Button>
       {/if}
     </div>
   {:else}
@@ -172,13 +155,6 @@
 
   .tools :global(.btn) {
     flex: 1;
-  }
-
-  .upload-box {
-    padding: var(--space-4);
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
   }
 
   .empty {

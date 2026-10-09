@@ -1,14 +1,20 @@
 <script lang="ts">
   import { MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import { onMount } from 'svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
-  let { trackId, onUploaded }: { trackId: string; onUploaded: () => void } = $props();
+  // initialFiles: picked before the zone opened, upload them right away
+  let { trackId, initialFiles = [], onUploaded }: { trackId: string; initialFiles?: File[]; onUploaded: () => void } = $props();
 
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
   let uploading = $state(false);
   let globalError = $state('');
+
+  onMount(() => {
+    if (initialFiles.length > 0) uploadFiles(initialFiles);
+  });
 
   function stemNameFromFile(fileName: string) {
     return fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();

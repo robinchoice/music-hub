@@ -66,6 +66,8 @@
   let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
   let showStemUpload = $state(false);
+  let stemInput = $state<HTMLInputElement>();
+  let pickedStems = $state<File[]>([]);
   let role = $state('');
   let loading = $state(true);
   // The track was deleted, or its link is wrong
@@ -154,7 +156,7 @@
     // The upload buttons of an empty track in the overview land here
     const upload = $page.url.searchParams.get('upload');
     if (canUpload && upload === 'version') openUpload();
-    else if (canUpload && upload === 'spuren') openStemUpload();
+    else if (canUpload && upload === 'spuren') showStemZone();
 
     disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
       if (type === 'version:new') {
@@ -279,11 +281,24 @@
     scrollToUpload();
   }
 
+  // One click to the file dialog; the zone opens with the picked files already uploading
   function openStemUpload() {
+    stemInput?.click();
+  }
+
+  function showStemZone(files: File[] = []) {
+    pickedStems = files;
     showStemUpload = true;
     showUpload = false;
     sheetOpen = false;
     scrollToUpload();
+  }
+
+  function handleStemPick(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (files.length > 0) showStemZone(files);
   }
 
   function startBranch() {
@@ -659,6 +674,10 @@
         </div>
       {/if}
 
+      {#if canUpload}
+        <input bind:this={stemInput} type="file" accept="audio/*" multiple hidden onchange={handleStemPick} />
+      {/if}
+
       {#if showStemUpload}
         <div class="upload-zone">
           <button class="close-upload" onclick={() => (showStemUpload = false)} title="Schließen" aria-label="Upload schließen">
@@ -668,8 +687,10 @@
             <b>Spuren hochladen</b>
             <span>einzeln oder alle auf einmal</span>
           </p>
+          {#key pickedStems}
           <StemUploadDropzone
             {trackId}
+            initialFiles={pickedStems}
             onUploaded={async () => {
               showStemUpload = false;
               stems = (await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`)).stems;
@@ -677,6 +698,7 @@
               showPanel('spuren');
             }}
           />
+          {/key}
         </div>
       {/if}
 
@@ -694,7 +716,7 @@
             : 'Fang mit den Spuren an oder lade direkt einen Mix als erste Version hoch.'}
         >
           {#snippet action()}
-            {#if canUpload}
+            {#if canUpload && !showUpload && !showStemUpload}
               <div class="empty-actions">
                 <Button variant={stems.length ? 'secondary' : 'primary'} onclick={openStemUpload}>
                   <Icon name="upload" size={14} /> {stems.length ? 'Weitere Spuren' : 'Spuren hochladen'}
@@ -791,7 +813,7 @@
             onUpload={openUpload}
           />
         {:else}
-          <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+          <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
         {/if}
       </div>
     </aside>
@@ -821,7 +843,7 @@
         onUpload={openUpload}
       />
     {:else}
-      <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} />
+      <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
     {/if}
   </Sheet>
 {/if}
