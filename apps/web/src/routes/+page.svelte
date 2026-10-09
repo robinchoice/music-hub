@@ -390,7 +390,14 @@
             {versions}
             canApprove
             onSelect={(v) => (decisionId = v.id)}
-            onApprove={() => send('POST', `/versions/${decision.id}/approve`)}
+            onApprove={async () => {
+              const { id, versionNumber } = decision;
+              await send('POST', `/versions/${id}/approve`);
+              toast(`V${versionNumber} ist freigegeben`, 'success', 8000, {
+                label: 'Rückgängig',
+                run: () => send('POST', `/versions/${id}/unapprove`),
+              });
+            }}
             onReject={() => {
               rejectReason = '';
               rejectOpen = true;

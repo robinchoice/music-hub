@@ -104,7 +104,7 @@
     <h2>Kommentare <span>zu {versionLabel}</span></h2>
     <div class="filter">
       <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>Offen <i>{openCount}</i></button>
-      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigt <i>{doneCount}</i></button>
+      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigte <i>{doneCount}</i></button>
     </div>
   </div>
 

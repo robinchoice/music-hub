@@ -351,6 +351,11 @@ const ROUTES: [string, RegExp, Handler][] = [
     v.status = 'approved';
     return { version: withCounts(v) };
   }],
+  ['POST', /^\/versions\/([\w-]+)\/unapprove$/, ([id]) => {
+    const v = find(db.versions, id);
+    v.status = 'ready';
+    return { version: withCounts(v) };
+  }],
   ['POST', /^\/versions\/([\w-]+)\/reject$/, ([id], body) => {
     const v = find(db.versions, id);
     v.status = 'rejected';

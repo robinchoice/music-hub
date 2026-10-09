@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
-  import { toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { toast, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
   import { trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
@@ -190,7 +190,7 @@
       } else if (type === 'version:status') {
         await refreshVersions();
         // Processing finished: reload so the player gets the MP3 and the waveform
-        if (data.status === 'ready' && selectedVersion && data.versionId === selectedVersion.id) {
+        if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
           await selectVersion(selectedVersion);
         }
       } else if (type === 'comment:new') {
@@ -344,9 +344,20 @@
 
   async function handleApprove() {
     if (!selectedVersion) return;
-    await api.post(`/versions/${selectedVersion.id}/approve`);
-    toastSuccess('Version freigegeben');
+    const { id, versionNumber } = selectedVersion;
+    await api.post(`/versions/${id}/approve`);
+    toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => undoApprove(id) });
     await refreshVersions();
+    await reloadOpenState();
+  }
+
+  async function undoApprove(id: string) {
+    await api.post(`/versions/${id}/unapprove`).catch(() => {});
+    await refreshVersions();
+    await reloadOpenState();
+  }
+
+  async function reloadOpenState() {
     openState = (await api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null))?.open ?? openState;
   }
 

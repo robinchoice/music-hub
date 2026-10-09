@@ -70,6 +70,8 @@
   };
 
   let menu = $state<'picker' | 'more' | null>(null);
+  // The badge celebrates an approval made right here, not one loaded with the page
+  let approvedHere = $state<string | null>(null);
 
   const showDecision = $derived(canApprove && version.status !== 'approved' && version.status !== 'rejected');
 
@@ -120,11 +122,20 @@
       {/if}
     </div>
 
-    <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
+    <span class="status" class:pop={approvedHere === version.id && version.status === 'approved'}>
+      <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
+    </span>
 
     <div class="actions">
       {#if showDecision}
-        <Button variant="ghost" size="sm" onclick={onApprove}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onclick={() => {
+            approvedHere = version.id;
+            onApprove();
+          }}
+        >
           <span class="ok"><Icon name="check" size={14} /> Freigeben</span>
         </Button>
         <Button variant="ghost" size="sm" onclick={onReject}>
@@ -173,6 +184,11 @@
     </div>
   </div>
 
+  {#if showDecision && version.openCommentCount > 0}
+    <p class="open-hint">
+      {version.openCommentCount === 1 ? 'Noch ein offener Punkt' : `Noch ${version.openCommentCount} offene Punkte`} zu V{version.versionNumber}
+    </p>
+  {/if}
   {#if version.notes}
     <p class="notes"><span>Neu</span>{version.notes}</p>
   {/if}
@@ -363,6 +379,38 @@
     letter-spacing: 0.08em;
     color: var(--color-text-tertiary);
     font-weight: 600;
+  }
+
+  .status {
+    display: inline-flex;
+    border-radius: var(--radius-full);
+  }
+  .pop {
+    animation: approved 700ms var(--ease-out);
+  }
+  @keyframes approved {
+    0% {
+      transform: scale(0.7);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 60%, transparent);
+    }
+    60% {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 12px transparent;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pop {
+      animation: none;
+    }
+  }
+
+  .open-hint {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+    color: var(--color-warning);
   }
 
   .reason {

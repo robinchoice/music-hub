@@ -128,7 +128,7 @@
           {#if comment.resolvedAt && onReopen}
             <button onclick={() => onReopen && run(onReopen)} disabled={busy}>Wieder öffnen</button>
           {:else if !comment.resolvedAt && onResolve}
-            <button class="ok" onclick={() => onResolve && run(onResolve)} disabled={busy}><Icon name="check" size={12} /> Erledigt</button>
+            <button class="ok" onclick={() => onResolve && run(onResolve)} disabled={busy}><Icon name="check" size={12} /> Abhaken</button>
           {/if}
         {/if}
         {#if isMine && onEdit}

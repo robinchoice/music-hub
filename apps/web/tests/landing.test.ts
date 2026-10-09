@@ -49,3 +49,28 @@ test('all bottom nav labels sit on one line', async ({ page, isMobile }) => {
   const ys = await labels.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
   expect(new Set(ys).size).toBe(1);
 });
+
+test('an approval shows open points first and can be undone', async ({ page }) => {
+  await page.goto('/');
+  const decision = page.locator('.frag-stack').nth(1);
+  await decision.scrollIntoViewIfNeeded();
+  await expect(decision.locator('.open-hint')).toHaveText('Noch 5 offene Punkte zu V4');
+
+  await decision.getByRole('button', { name: 'Freigeben' }).click();
+  await expect(decision.locator('.version-card .status')).toHaveText('Freigegeben');
+  await expect(decision.locator('.open-hint')).toHaveCount(0);
+
+  const toast = page.getByRole('alert').filter({ hasText: 'V4 ist freigegeben' });
+  await toast.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(decision.locator('.version-card .status')).toHaveText('Bereit');
+  await expect(decision.getByRole('button', { name: 'Ablehnen' })).toBeVisible();
+});
+
+test('resolving a comment and the filter of resolved ones have different names', async ({ page }) => {
+  await page.goto('/');
+  const feedback = page.locator('.frag-stack').first();
+  await feedback.scrollIntoViewIfNeeded();
+  await expect(feedback.getByRole('button', { name: 'Abhaken' }).first()).toBeVisible();
+  await expect(feedback.getByRole('button', { name: /^Erledigte/ })).toBeVisible();
+  await expect(feedback.getByRole('button', { name: 'Erledigt', exact: true })).toHaveCount(0);
+});
