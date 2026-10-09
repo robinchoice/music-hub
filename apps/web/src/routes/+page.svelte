@@ -1099,9 +1099,6 @@
     .ba-col {
       padding: 20px;
     }
-    .chaos {
-      height: 250px;
-    }
     .bubble.voice {
       top: 52px;
       right: 0;
