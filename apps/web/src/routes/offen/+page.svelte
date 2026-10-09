@@ -39,7 +39,7 @@
       <h1>Offene Musik</h1>
       <p>
         Mixe und Spuren, die ihre Künstler zum Remixen freigegeben haben, unter Creative-Commons-Lizenzen.
-        Lade sie herunter oder fang mit einem Klick deinen eigenen Remix in Music Hub an.
+        Lade sie herunter oder leg deinen eigenen Remix in Music Hub an.
       </p>
     </section>
 
