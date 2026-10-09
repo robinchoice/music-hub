@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, getContext } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
@@ -10,6 +10,8 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
+  import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
@@ -60,8 +62,10 @@
   let showNewTrack = $state(false);
   let loading = $state(true);
   let creating = $state(false);
+  let coverEditOpen = $state(false);
 
   const projectId = $page.params.projectId;
+  const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
   // Stand and turn of every track come from the overview, the sections from the track list
   const ix = $derived($overviewIndex);
@@ -112,6 +116,15 @@
     }
   }
 
+  async function saveCover(key: string) {
+    const res = await api.patch<{ project: Project }>(`/projects/${projectId}`, { coverImageUrl: key });
+    project = res.project;
+    coverEditOpen = false;
+    toastSuccess('Cover gespeichert');
+    reloadSidebar?.();
+    void loadOverview(true);
+  }
+
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
 </script>
 
@@ -139,7 +152,9 @@
       <Skeleton width="200px" height="2rem" />
     {:else if project}
       <div class="project-head">
-        <CoverImage src={project.coverUrl} name={project.name} size="lg" rounded="lg" />
+        <button class="cover-btn" onclick={() => (coverEditOpen = true)} disabled={role !== 'owner'} aria-label="Cover ändern">
+          <CoverImage src={project.coverUrl} name={project.name} size="lg" rounded="lg" />
+        </button>
         <div>
           <h1>{project.name}</h1>
           {#if project.description}
@@ -235,6 +250,17 @@
   {/each}
 {/snippet}
 
+{#if project}
+  <Modal bind:open={coverEditOpen} title="Projekt-Cover ändern">
+    <div class="cover-modal">
+      <CoverUpload currentUrl={project.coverUrl} name={project.name} onUploaded={saveCover} />
+    </div>
+    {#snippet actions()}
+      <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>
+    {/snippet}
+  </Modal>
+{/if}
+
 <style>
   .project-page {
     padding: var(--space-6) var(--space-6) var(--space-12);
@@ -255,6 +281,25 @@
     align-items: center;
     gap: var(--space-5);
     flex-wrap: wrap;
+  }
+  .cover-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: var(--radius-lg);
+    transition: transform var(--transition-fast);
+  }
+  .cover-btn:not(:disabled):hover {
+    transform: scale(1.04);
+  }
+  .cover-btn:disabled {
+    cursor: default;
+  }
+  .cover-modal {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-3) 0;
   }
   .project-head > div {
     min-width: 0;

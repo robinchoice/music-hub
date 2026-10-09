@@ -5,6 +5,7 @@
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
+  import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import { overviewIndex } from '$lib/stores/overview.js';
@@ -17,6 +18,9 @@
   let artist = $state($page.url.searchParams.get('artist') ?? '');
   let description = $state('');
   let loading = $state(false);
+  let coverKey = $state<string | null>(null);
+  // Local preview, the uploaded key only becomes readable once the project exists
+  let coverPreview = $state<string | null>(null);
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -26,6 +30,7 @@
         name,
         artist: artist.trim() || null,
         description: description || undefined,
+        coverImageUrl: coverKey,
       });
       toastSuccess('Projekt erstellt');
       reloadSidebar?.();
@@ -33,6 +38,12 @@
     } finally {
       loading = false;
     }
+  }
+
+  function setCover(key: string, file: File) {
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+    coverKey = key;
+    coverPreview = URL.createObjectURL(file);
   }
 </script>
 
@@ -57,6 +68,11 @@
       <div class="textarea-group">
         <label class="textarea-label">Beschreibung (optional)</label>
         <textarea bind:value={description} placeholder="Worum geht's in diesem Projekt?" rows="3"></textarea>
+      </div>
+
+      <div class="cover-group">
+        <span class="textarea-label">Cover (optional)</span>
+        <CoverUpload currentUrl={coverPreview} {name} onUploaded={setCover} />
       </div>
 
       <div class="actions">
@@ -94,10 +110,15 @@
     gap: var(--space-5);
   }
 
+  .cover-group,
   .textarea-group {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+  }
+
+  .cover-group {
+    align-items: flex-start;
   }
 
   .textarea-label {

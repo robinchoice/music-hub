@@ -6,6 +6,7 @@ export const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
   artist: z.string().max(255).nullable().optional(),
+  coverImageUrl: coverKeySchema.nullable().optional(),
 });
 
 export const updateProjectSchema = z.object({

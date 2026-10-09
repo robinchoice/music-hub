@@ -11,7 +11,7 @@
   }: {
     currentUrl?: string | null;
     name?: string;
-    onUploaded: (key: string) => void | Promise<void>;
+    onUploaded: (key: string, file: File) => void | Promise<void>;
   } = $props();
 
   let uploading = $state(false);
@@ -40,7 +40,7 @@
         body: file,
       });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-      await onUploaded(key);
+      await onUploaded(key, file);
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Upload fehlgeschlagen');
     } finally {
@@ -76,7 +76,7 @@
       <span class="spinner"></span>
     {:else}
       <Icon name="upload" size={20} />
-      <span class="hint">Bild ändern</span>
+      <span class="hint">{currentUrl ? 'Bild ändern' : 'Cover hinzufügen'}</span>
     {/if}
   </div>
 </label>

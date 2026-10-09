@@ -123,7 +123,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, projectId))
       .returning();
 
-    return c.json({ project });
+    return c.json({ project: await withCoverUrl(project) });
   })
 
   .delete('/:id', async (c) => {
