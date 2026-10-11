@@ -664,11 +664,17 @@
       width: min(280px, 85vw);
       z-index: 100;
       transform: translateX(-100%);
-      transition: transform 240ms var(--ease-out);
+      /* Hidden once it slid out, so Tab and screen readers skip the closed drawer */
+      visibility: hidden;
+      transition:
+        transform 240ms var(--ease-out),
+        visibility 0s 240ms;
       box-shadow: var(--shadow-lg);
     }
     .sidebar.open {
       transform: translateX(0);
+      visibility: visible;
+      transition: transform 240ms var(--ease-out);
     }
     .close {
       display: inline-flex;

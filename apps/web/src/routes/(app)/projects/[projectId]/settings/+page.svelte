@@ -148,10 +148,10 @@
             {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
           </datalist>
           <Input label="Name" bind:value={editName} />
-          <div class="textarea-group">
-            <label class="textarea-label">Beschreibung</label>
+          <label class="textarea-group">
+            <span class="textarea-label">Beschreibung</span>
             <textarea bind:value={editDesc} rows="3" placeholder="Worum geht's in diesem Projekt?"></textarea>
-          </div>
+          </label>
           <Button type="submit" loading={saving}>Speichern</Button>
         </form>
       </div>

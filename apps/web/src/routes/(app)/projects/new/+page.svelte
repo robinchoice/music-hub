@@ -65,10 +65,10 @@
       </datalist>
       <Input label="Name" bind:value={name} placeholder="z.B. Debütalbum, Sommer-EP oder Single" />
 
-      <div class="textarea-group">
-        <label class="textarea-label">Beschreibung (optional)</label>
+      <label class="textarea-group">
+        <span class="textarea-label">Beschreibung (optional)</span>
         <textarea bind:value={description} placeholder="Worum geht's in diesem Projekt?" rows="3"></textarea>
-      </div>
+      </label>
 
       <div class="cover-group">
         <span class="textarea-label">Cover (optional)</span>

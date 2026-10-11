@@ -19,13 +19,15 @@
     /** id of a <datalist> with suggestions */
     list?: string;
   } = $props();
+  const id = $props.id();
 </script>
 
 <div class="input-group">
   {#if label}
-    <label class="input-label">{label}</label>
+    <label class="input-label" for={id}>{label}</label>
   {/if}
   <input
+    {id}
     {type}
     bind:value
     {placeholder}
