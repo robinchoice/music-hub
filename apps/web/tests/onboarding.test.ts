@@ -36,6 +36,62 @@ test('a track needs a name', async ({ page }) => {
   await expect(form.getByRole('button', { name: 'Anlegen' })).toBeEnabled();
 });
 
+const wav = (name: string) => ({ name, mimeType: 'audio/wav', buffer: Buffer.alloc(64_000) });
+
+// "Version hochladen" goes straight to the file dialog
+async function pickVersion(page: Page) {
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Version hochladen' }).filter({ visible: true }).first().click();
+  await (await chooser).setFiles(wav('mix.wav'));
+}
+
+// The bucket and the version registration answer without S3, the track itself is real
+async function fakeUploads(page: Page, baseURL: string) {
+  await page.route('**/upload-url', (route) =>
+    route.fulfill({ json: { uploadUrl: `${baseURL}/fake-s3/mix.wav`, fileKey: 'test/mix.wav', versionId: crypto.randomUUID() } }),
+  );
+  await page.route('**/fake-s3/**', (route) => route.fulfill({ status: 200 }));
+  await page.route('**/api/v1/versions/track/*', (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ json: { version: {} } }) : route.fallback(),
+  );
+}
+
+async function newProject(page: Page) {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  return project.id as string;
+}
+
+test('a mix dropped on an empty project becomes a track named after the file', async ({ page, baseURL }) => {
+  await fakeUploads(page, baseURL!);
+  await page.goto(`/projects/${await newProject(page)}`);
+  await expect(page.getByText('Mix hier ablegen')).toBeVisible();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dateien auswählen' }).click();
+  await (await chooser).setFiles(wav('Letzte Bahn – Mix 1.wav'));
+  // One file: straight into its track
+  await page.waitForURL(/\/tracks\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole('heading', { name: 'Letzte Bahn', level: 1 })).toBeVisible();
+});
+
+test('several mixes become several tracks, the page stays', async ({ page, baseURL }) => {
+  await fakeUploads(page, baseURL!);
+  const projectId = await newProject(page);
+  await page.goto(`/projects/${projectId}`);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dateien auswählen' }).click();
+  await (await chooser).setFiles([wav('Letzte Bahn_final.wav'), wav('Nachtbus - Master v2.wav')]);
+  await expect(page.locator('.toast-container')).toContainText('2 Tracks angelegt');
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+  const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${projectId}`)).json();
+  expect(tracks.map((t: { name: string }) => t.name).sort()).toEqual(['Letzte Bahn', 'Nachtbus']);
+});
+
+test('the empty track stays possible for stems first', async ({ page }) => {
+  await page.goto(`/projects/${await newProject(page)}`);
+  await page.getByRole('button', { name: 'Leeren Track anlegen' }).click();
+  await expect(page.getByPlaceholder('Track-Name')).toBeVisible();
+});
+
 async function newTrack(page: Page) {
   const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
   const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
@@ -55,8 +111,7 @@ test('closing the upload zone cancels the upload, no version turns up later', as
   page.on('request', (r) => r.method() === 'POST' && r.url().endsWith(`/api/v1/versions/track/${trackId}`) && (registered = true));
 
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
-  await page.getByRole('button', { name: 'Version hochladen' }).filter({ visible: true }).first().click();
-  await page.locator('.upload-zone input[type=file]').setInputFiles({ name: 'mix.wav', mimeType: 'audio/wav', buffer: Buffer.alloc(64_000) });
+  await pickVersion(page);
   await expect(page.locator('.progress-container')).toBeVisible();
   await page.getByRole('button', { name: 'Upload schließen' }).click();
 
@@ -75,8 +130,7 @@ test('a finished upload only reports success', async ({ page, baseURL }) => {
     route.request().method() === 'POST' ? route.fulfill({ json: { version: {} } }) : route.fallback(),
   );
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
-  await page.getByRole('button', { name: 'Version hochladen' }).filter({ visible: true }).first().click();
-  await page.locator('.upload-zone input[type=file]').setInputFiles({ name: 'mix.wav', mimeType: 'audio/wav', buffer: Buffer.alloc(64_000) });
+  await pickVersion(page);
   await expect(page.locator('.toast-container')).toContainText('Version hochgeladen');
   await page.waitForTimeout(500);
   await expect(page.locator('.toast-container')).not.toContainText('Upload abgebrochen');

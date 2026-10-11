@@ -33,7 +33,7 @@
     isOffline,
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
-  import { TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
+  import { SUPPORTED_EXTENSIONS, TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import { predecessorOf, type Version, type TrackComment } from '$lib/utils/track.js';
   import VersionCard from './components/VersionCard.svelte';
   import VersionList from './components/VersionList.svelte';
@@ -81,6 +81,8 @@
   let stemZone = $state<StemUploadDropzone>();
   let stemInput = $state<HTMLInputElement>();
   let pickedStems = $state<File[]>([]);
+  let versionInput = $state<HTMLInputElement>();
+  let pickedVersions = $state<File[]>([]);
   let role = $state('');
   let loading = $state(true);
   // The track was deleted, or its link is wrong
@@ -200,7 +202,7 @@
 
     // The upload buttons of an empty track in the overview land here
     const upload = $page.url.searchParams.get('upload');
-    if (canUpload && upload === 'version') openUpload();
+    if (canUpload && upload === 'version') showVersionZone();
     else if (canUpload && upload === 'spuren') showStemZone();
 
     disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
@@ -322,13 +324,26 @@
     document.querySelector('.upload-zone')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
+  // One click to the file dialog, like the stems; the zone opens with the picked files already uploading
   function openUpload() {
+    versionInput?.click();
+  }
+
+  function showVersionZone(files: File[] = []) {
+    pickedVersions = files;
     branchFromId = null;
     branchLabelInput = '';
     showUpload = true;
     showStemUpload = false;
     sheetOpen = false;
     scrollToUpload();
+  }
+
+  function handleVersionPick(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (files.length > 0) showVersionZone(files);
   }
 
   // One click to the file dialog; the zone opens with the picked files already uploading
@@ -355,6 +370,7 @@
     if (!selectedVersion) return;
     branchFromId = selectedVersion.id;
     branchLabelInput = '';
+    pickedVersions = [];
     showUpload = true;
     scrollToUpload();
   }
@@ -752,9 +768,11 @@
               <button class="cancel-branch" onclick={() => (branchFromId = null)} aria-label="Variante abbrechen">×</button>
             </div>
           {/if}
+          {#key pickedVersions}
           <UploadDropzone
             bind:this={versionZone}
             {trackId}
+            initialFiles={pickedVersions}
             parentVersionId={branchFromId}
             branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
             onUploaded={(count) => {
@@ -764,11 +782,13 @@
               toastSuccess(count === 1 ? 'Version hochgeladen' : `${count} Versionen hochgeladen`);
             }}
           />
+          {/key}
         </div>
       {/if}
 
       {#if canUpload}
         <input bind:this={stemInput} type="file" accept="audio/*" multiple hidden onchange={handleStemPick} />
+        <input bind:this={versionInput} type="file" accept={SUPPORTED_EXTENSIONS.join(',')} multiple hidden onchange={handleVersionPick} />
       {/if}
 
       {#if showStemUpload}

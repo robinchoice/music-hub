@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { SUPPORTED_EXTENSIONS, MAX_FILE_SIZE } from '@music-hub/shared';
-  import { api } from '$lib/api/client.js';
+  import { onMount } from 'svelte';
+  import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
+  import { checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -8,11 +9,14 @@
     trackId,
     parentVersionId = null,
     branchLabel = null,
+    initialFiles = [],
     onUploaded,
   }: {
     trackId: string;
     parentVersionId?: string | null;
     branchLabel?: string | null;
+    /** Picked before the zone opened, they start uploading right away */
+    initialFiles?: File[];
     onUploaded: (count: number) => void;
   } = $props();
 
@@ -26,15 +30,17 @@
 
   // The close button cancels the upload, so nothing turns up as a version later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
-  let xhr: XMLHttpRequest | null = null;
+  const abort = new AbortController();
   let inFlight = false;
-  let cancelled = false;
   export function cancel() {
     if (!inFlight) return;
-    cancelled = true;
-    xhr?.abort();
+    abort.abort();
     toast('Upload abgebrochen');
   }
+
+  onMount(() => {
+    if (initialFiles.length > 0) uploadFiles(initialFiles);
+  });
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -60,21 +66,8 @@
   }
 
   async function uploadFiles(selected: File[]) {
-    error = '';
-
-    const tooBig = selected.filter((f) => f.size > MAX_FILE_SIZE);
-    if (tooBig.length > 0) {
-      error = `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
-      return;
-    }
-
-    const unsupported = selected.filter(
-      (f) => !SUPPORTED_EXTENSIONS.includes(('.' + f.name.split('.').pop()?.toLowerCase()) as any),
-    );
-    if (unsupported.length > 0) {
-      error = `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
-      return;
-    }
+    error = checkAudioFiles(selected) ?? '';
+    if (error) return;
 
     selected.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     uploading = true;
@@ -82,8 +75,7 @@
     total = selected.length;
 
     try {
-      const readable = await Promise.all(selected.map((f) => f.slice(0, 1).arrayBuffer().then(() => true, () => false)));
-      const unreadable = selected.filter((_, i) => !readable[i]);
+      const unreadable = await unreadableFiles(selected);
       if (unreadable.length > 0) {
         error = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
         return;
@@ -91,18 +83,23 @@
 
       // One after another: the API assigns version numbers as max + 1
       for (const [i, file] of selected.entries()) {
-        if (cancelled) return;
         current = i + 1;
         progress = 0;
-        await uploadFile(file);
+        const done = await uploadVersion(trackId, file, {
+          label,
+          parentVersionId,
+          branchLabel,
+          onProgress: (p) => (progress = p),
+          signal: abort.signal,
+        });
+        if (!done) return;
       }
-      if (cancelled) return;
 
       label = '';
       inFlight = false;
       onUploaded(total);
     } catch (err) {
-      if (cancelled) return;
+      if (abort.signal.aborted) return;
       const message = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
       error =
         total > 1
@@ -113,58 +110,6 @@
       uploading = false;
       progress = 0;
     }
-  }
-
-  async function uploadFile(file: File) {
-    // 1. Get presigned upload URL
-    const { uploadUrl, fileKey } = await api.post<{
-      uploadUrl: string;
-      fileKey: string;
-      versionId: string;
-    }>(`/versions/track/${trackId}/upload-url`, {
-      fileName: file.name,
-      mimeType: file.type || 'audio/wav',
-      fileSize: file.size,
-    });
-
-    // 2. Upload directly to S3
-    if (cancelled) return;
-    await uploadWithProgress(uploadUrl, file);
-    if (cancelled) return;
-
-    // 3. Register version
-    await api.post(`/versions/track/${trackId}`, {
-      fileKey,
-      label: label || undefined,
-      originalFileName: file.name,
-      mimeType: file.type || 'audio/wav',
-      fileSize: file.size,
-      parentVersionId: parentVersionId ?? undefined,
-      branchLabel: branchLabel ?? undefined,
-    });
-  }
-
-  function uploadWithProgress(url: string, file: File): Promise<void> {
-    return new Promise((resolve, reject) => {
-      xhr = new XMLHttpRequest();
-      xhr.open('PUT', url);
-      xhr.setRequestHeader('Content-Type', file.type || 'audio/wav');
-
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          progress = Math.round((e.loaded / e.total) * 100);
-        }
-      };
-
-      xhr.onload = function () {
-        if (this.status >= 200 && this.status < 300) resolve();
-        else reject(new Error(`Upload fehlgeschlagen (${this.status})`));
-      };
-      xhr.onabort = () => reject(new Error('Upload abgebrochen'));
-
-      xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
-      xhr.send(file);
-    });
   }
 </script>
 

@@ -17,6 +17,7 @@
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import ProjectTimeline from '$lib/components/overview/ProjectTimeline.svelte';
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
+  import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { projectGroups, type TrackInfo } from '$lib/utils/overview.js';
@@ -63,6 +64,7 @@
   let loading = $state(true);
   let creating = $state(false);
   let coverEditOpen = $state(false);
+  let drop = $state<ProjectDrop>();
 
   const projectId = $page.params.projectId;
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
@@ -127,6 +129,20 @@
   }
 
   const canUpload = $derived(role === 'owner' || role.includes('engineer'));
+  const empty = $derived(!loading && tracks.length === 0);
+
+  async function afterDrop() {
+    tracks = (await api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`)).tracks;
+    reloadSidebar?.();
+    void loadOverview(true);
+  }
+
+  // Files dropped anywhere on the page become tracks too
+  function dropOnPage(e: DragEvent) {
+    if (!canUpload || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    void drop?.add(Array.from(e.dataTransfer.files));
+  }
 </script>
 
 <TopBar
@@ -140,14 +156,22 @@
       <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">Einstellungen</Button>
     {/if}
     {#if canUpload}
-      <Button size="sm" onclick={() => showNewTrack = !showNewTrack}>
+      <Button variant="ghost" size="sm" onclick={() => showNewTrack = !showNewTrack}>
         {showNewTrack ? 'Abbrechen' : 'Neuer Track'}
       </Button>
+      {#if !empty}
+        <Button size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>
+      {/if}
     {/if}
   {/snippet}
 </TopBar>
 
-<div class="project-page">
+<div
+  class="project-page"
+  role="presentation"
+  ondragover={(e) => canUpload && e.dataTransfer?.types.includes('Files') && e.preventDefault()}
+  ondrop={dropOnPage}
+>
   <header>
     {#if loading}
       <Skeleton width="200px" height="2rem" />
@@ -173,6 +197,16 @@
     </form>
   {/if}
 
+  {#if canUpload}
+    <ProjectDrop
+      bind:this={drop}
+      projectId={projectId!}
+      big={empty}
+      onDone={afterDrop}
+      onEmptyTrack={showNewTrack ? undefined : () => (showNewTrack = true)}
+    />
+  {/if}
+
   <div class="tabs">
     <TabBar
       tabs={[
@@ -192,16 +226,9 @@
   {:else if !ix}
     <LoadFailed />
   {:else if !group?.list.length}
-    <EmptyState
-      title="Noch keine Tracks"
-      description="Lege einen Track an und lade dein erstes Audio hoch."
-    >
-      {#snippet action()}
-        {#if canUpload && !showNewTrack}
-          <Button onclick={() => (showNewTrack = true)}>Neuer Track</Button>
-        {/if}
-      {/snippet}
-    </EmptyState>
+    {#if !canUpload}
+      <EmptyState title="Noch keine Tracks" description="Sobald jemand einen Mix hochlädt, steht er hier." />
+    {/if}
   {:else if view === 'timeline'}
     <ProjectTimeline {ix} list={group.list} />
   {:else}
