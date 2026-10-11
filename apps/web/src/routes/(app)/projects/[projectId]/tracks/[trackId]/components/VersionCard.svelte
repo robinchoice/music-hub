@@ -69,6 +69,9 @@
     rejected: 'error',
   };
 
+  // The worker still marks a version ready when it can't read the file, it then has no duration
+  const unreadable = $derived(version.status === 'ready' && version.duration == null);
+
   let menu = $state<'picker' | 'more' | null>(null);
   // The badge celebrates an approval made right here, not one loaded with the page
   let approvedHere = $state<string | null>(null);
@@ -123,7 +126,11 @@
     </div>
 
     <span class="status" class:pop={approvedHere === version.id && version.status === 'approved'}>
-      <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
+      {#if unreadable}
+        <Badge variant="warning">Nicht verarbeitet</Badge>
+      {:else}
+        <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
+      {/if}
     </span>
 
     <div class="actions">
@@ -191,6 +198,9 @@
   {/if}
   {#if version.notes}
     <p class="notes"><span>Neu</span>{version.notes}</p>
+  {/if}
+  {#if unreadable}
+    <p class="open-hint">Die Datei ließ sich nicht verarbeiten, deshalb fehlen Wellenform und Länge. Ist sie beschädigt, lade sie am besten noch einmal hoch.</p>
   {/if}
   {#if version.rejectionReason}
     <p class="reason">Abgelehnt: „{version.rejectionReason}“</p>

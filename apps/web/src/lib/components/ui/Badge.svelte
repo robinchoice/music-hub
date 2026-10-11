@@ -23,7 +23,6 @@
     font-size: var(--text-xs);
     font-weight: 500;
     letter-spacing: 0.01em;
-    text-transform: capitalize;
     border: 1px solid transparent;
   }
 
