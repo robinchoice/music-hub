@@ -43,10 +43,10 @@ export function addUnprocessedVersion(trackId: string, userId: string) {
 }
 
 // A version as it comes from the upload; returns its id
-export function addVersion(trackId: string, userId: string, status: 'processing' | 'ready', versionNumber = 1) {
+export function addVersion(trackId: string, userId: string, status: 'processing' | 'ready', versionNumber = 1, fileSize = 7) {
   return bun(`
     import { versions } from '@music-hub/db';
-    const [v] = await db.insert(versions).values({ trackId: ${JSON.stringify(trackId)}, versionNumber: ${versionNumber}, status: ${JSON.stringify(status)}, duration: ${status === 'ready' ? 180 : null}, originalFileName: 'mix.wav', mimeType: 'audio/wav', fileSize: 7, originalFileKey: 'test/' + crypto.randomUUID() + '/mix.wav', createdById: ${JSON.stringify(userId)} }).returning();
+    const [v] = await db.insert(versions).values({ trackId: ${JSON.stringify(trackId)}, versionNumber: ${versionNumber}, status: ${JSON.stringify(status)}, duration: ${status === 'ready' ? 180 : null}, originalFileName: 'mix.wav', mimeType: 'audio/wav', fileSize: ${fileSize}, originalFileKey: 'test/' + crypto.randomUUID() + '/mix.wav', createdById: ${JSON.stringify(userId)} }).returning();
     console.log(v.id);
   `);
 }

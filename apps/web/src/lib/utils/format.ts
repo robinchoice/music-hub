@@ -89,9 +89,13 @@ export function formatDb(db: number): string {
   return `${db > 0 ? '+' : '−'}${decimal(Math.abs(db))} dB`;
 }
 
-/** "7,4 GB", below one GB with two decimals */
+/** "7,4 GB", below one GB with two decimals, below 0,1 GB in MB: "0 MB", "5,3 MB", "87 MB" */
 export function formatGb(bytes: number): string {
   const gb = bytes / 1024 ** 3;
+  if (gb < 0.1) {
+    const mb = bytes / 1024 ** 2;
+    return `${decimal(mb, mb > 0 && mb < 10 ? 1 : 0)} MB`;
+  }
   return `${decimal(gb, gb < 1 ? 2 : 1)} GB`;
 }
 

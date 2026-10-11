@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addMember, addUnprocessedVersion, logIn, removeUser } from './session.js';
+import { addMember, addUnprocessedVersion, addVersion, logIn, removeUser } from './session.js';
 
 let userId: string;
 const others: string[] = [];
@@ -62,4 +62,16 @@ test('once someone else is in a project, the steps are gone', async ({ page }) =
   await expect(page.locator('.steps')).toHaveCount(0);
   // Lena is to give feedback now
   await expect(page.getByRole('heading', { name: 'Wer ist dran' })).toBeVisible();
+});
+
+test('small uploads read in MB instead of 0,00 GB', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
+  addVersion(track.id, userId, 'ready', 1, Math.round(5.3 * 1024 ** 2));
+  await page.goto('/dashboard');
+  const card = page.locator('section.card').filter({ has: page.getByRole('heading', { name: 'Speicher' }) });
+  await expect(card.locator('.num')).toHaveText(/^5,3 MB/);
+  await expect(card).toContainText('Versionen 5,3 MB');
+  await expect(card).toContainText('Spuren 0 MB');
+  await expect(card).not.toContainText('0,00 GB');
 });
