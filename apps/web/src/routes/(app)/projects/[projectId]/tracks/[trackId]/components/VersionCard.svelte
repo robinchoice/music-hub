@@ -11,6 +11,8 @@
     version,
     versions,
     narrow = false,
+    processing = false,
+    grow = false,
     canApprove = false,
     canUpload = false,
     isOwner = false,
@@ -35,6 +37,8 @@
     version: Version;
     versions: Version[];
     narrow?: boolean;
+    processing?: boolean;
+    grow?: boolean;
     canApprove?: boolean;
     canUpload?: boolean;
     isOwner?: boolean;
@@ -58,7 +62,7 @@
   } = $props();
 
   const STATUS_LABEL: Record<string, string> = {
-    uploaded: 'Hochgeladen',
+    uploaded: 'Wird verarbeitet',
     processing: 'Wird verarbeitet',
     ready: 'Bereit',
     approved: 'Freigegeben',
@@ -71,6 +75,9 @@
 
   // The worker still marks a version ready when it can't read the file, it then has no duration
   const unreadable = $derived(version.status === 'ready' && version.duration == null);
+
+  // Placeholder bars that breathe until the worker has computed the real waveform
+  const PENDING_BARS = Array.from({ length: 64 }, (_, i) => 30 + (i % 5) * 6);
 
   let menu = $state<'picker' | 'more' | null>(null);
   // The badge celebrates an approval made right here, not one loaded with the page
@@ -128,6 +135,8 @@
     <span class="status" class:pop={approvedHere === version.id && version.status === 'approved'}>
       {#if unreadable}
         <Badge variant="warning">Nicht verarbeitet</Badge>
+      {:else if processing}
+        <Badge><span class="pulse"></span>Wird verarbeitet</Badge>
       {:else}
         <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
       {/if}
@@ -206,7 +215,21 @@
     <p class="reason">Abgelehnt: „{version.rejectionReason}“</p>
   {/if}
 
-  <div class="player">{@render player()}</div>
+  {#if processing}
+    <div class="player pending">
+      <div class="pending-row">
+        <button class="pending-play" disabled aria-label="Abspielen"><Icon name="play" size={24} /></button>
+        <div class="breath" aria-hidden="true">
+          {#each PENDING_BARS as h, i}<i style="height: {h}%; animation-delay: {i * 30}ms"></i>{/each}
+        </div>
+      </div>
+      <p class="pending-hint">
+        Hochgeladen. Wir rechnen die Wellenform und eine Version zum Streamen, das dauert meist unter einer Minute. Du kannst die Seite verlassen.
+      </p>
+    </div>
+  {:else}
+    <div class="player" class:grow>{@render player()}</div>
+  {/if}
 </section>
 
 <style>
@@ -433,6 +456,94 @@
 
   .player {
     margin-top: var(--space-4);
+  }
+
+  .pulse {
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  /* Same size as the WaveformPlayer, so nothing jumps when the real waveform arrives */
+  .pending-row {
+    display: flex;
+    gap: var(--space-5);
+    align-items: center;
+  }
+  .pending-play {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    display: inline-grid;
+    place-items: center;
+    padding-left: 4px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-tertiary);
+  }
+  .breath {
+    flex: 1;
+    min-width: 0;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .breath i {
+    flex: 1;
+    border-radius: 2px;
+    background: var(--color-bg-subtle);
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .pending-hint {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  /* The finished waveform grows in once from the left */
+  .grow :global(.waveform) {
+    animation: grow-in 900ms var(--ease-out) both;
+  }
+  @keyframes grow-in {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse,
+    .breath i,
+    .grow :global(.waveform) {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 540px) {
+    .pending-row {
+      gap: var(--space-3);
+    }
+    .pending-play {
+      width: 52px;
+      height: 52px;
+    }
   }
 
   @media (max-width: 1024px) {

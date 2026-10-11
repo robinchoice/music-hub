@@ -41,3 +41,32 @@ export function addUnprocessedVersion(trackId: string, userId: string) {
     await db.insert(versions).values({ trackId: ${JSON.stringify(trackId)}, versionNumber: 1, status: 'ready', label: 'kaputt', originalFileName: 'kaputt.wav', mimeType: 'audio/wav', fileSize: 7, originalFileKey: 'test/' + crypto.randomUUID() + '/kaputt.wav', createdById: ${JSON.stringify(userId)} });
   `);
 }
+
+// A version as it comes from the upload; returns its id
+export function addVersion(trackId: string, userId: string, status: 'processing' | 'ready', versionNumber = 1) {
+  return bun(`
+    import { versions } from '@music-hub/db';
+    const [v] = await db.insert(versions).values({ trackId: ${JSON.stringify(trackId)}, versionNumber: ${versionNumber}, status: ${JSON.stringify(status)}, duration: ${status === 'ready' ? 180 : null}, originalFileName: 'mix.wav', mimeType: 'audio/wav', fileSize: 7, originalFileKey: 'test/' + crypto.randomUUID() + '/mix.wav', createdById: ${JSON.stringify(userId)} }).returning();
+    console.log(v.id);
+  `);
+}
+
+// What the worker does when it is done: the version is ready and every open track page hears it
+export function finishProcessing(trackId: string, versionId: string) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    import { versions } from '@music-hub/db';
+    await db.update(versions).set({ status: 'ready', duration: 180 }).where(eq(versions.id, ${JSON.stringify(versionId)}));
+    await db.$client.notify('track_events', JSON.stringify({ trackId: ${JSON.stringify(trackId)}, type: 'version:status', data: { versionId: ${JSON.stringify(versionId)}, status: 'ready' } }));
+  `);
+}
+
+// People invited by a test get an account of their own
+export function removeEmail(email: string) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    import { magicLinks } from '@music-hub/db';
+    await db.delete(magicLinks).where(eq(magicLinks.email, ${JSON.stringify(email)}));
+    await db.delete(users).where(eq(users.email, ${JSON.stringify(email)}));
+  `);
+}

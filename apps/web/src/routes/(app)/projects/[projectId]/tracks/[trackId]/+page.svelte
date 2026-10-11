@@ -38,6 +38,7 @@
   import VersionCard from './components/VersionCard.svelte';
   import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
+  import InviteCard from './components/InviteCard.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem } from './components/StemList.svelte';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
@@ -63,6 +64,13 @@
   let selectedVersion = $state<Version | null>(null);
   let streamUrl = $state('');
   let peaks = $state<number[]>([]);
+  // The loaded version waits for the worker; switches together with the player data
+  let processing = $state(false);
+  // The waveform just arrived over SSE and grows in once
+  let grow = $state(false);
+  // Members of the project, loaded for owners only: alone in it, the first version asks who should listen
+  let memberCount = $state<number | null>(null);
+  let inviteDismissed = $state(false);
   let comments = $state<TrackComment[]>([]);
   let predecessorComments = $state<TrackComment[]>([]);
   let currentTime = $state(0);
@@ -120,6 +128,9 @@
   const consentPending = $derived(
     !!openState?.license && !openState.openedAt && !!openState.contributors.find((p) => p.id === $user?.id && !p.consented),
   );
+  const showInvite = $derived(
+    versions.length === 1 && memberCount === 1 && !processing && !inviteDismissed && selectedVersion?.id === versions[0].id,
+  );
   const nextVersionNumber = $derived(versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1);
 
   // Phones and narrow windows get one column; versions and raw tracks open as a sheet there.
@@ -160,6 +171,12 @@
 
       projectName = projectRes.project.name;
       role = projectRes.role;
+      inviteDismissed = localStorage.getItem(`invite-dismissed:${trackId}`) === '1';
+      if (role === 'owner' && !inviteDismissed) {
+        void api
+          .get<{ members: unknown[] }>(`/projects/${projectId}/members`, true)
+          .then((res) => (memberCount = res.members.length), () => {});
+      }
       const t = tracksRes.tracks.find((t) => t.id === trackId);
       if (!t || !trackVersions || !stemsRes) {
         missing = true;
@@ -193,7 +210,7 @@
         await refreshVersions();
         // Processing finished: reload so the player gets the MP3 and the waveform
         if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
-          await selectVersion(selectedVersion);
+          await selectVersion(selectedVersion, true);
         }
       } else if (type === 'comment:new') {
         if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
@@ -202,7 +219,7 @@
     });
   });
 
-  async function selectVersion(version: Version) {
+  async function selectVersion(version: Version, grown = false) {
     // Snapshot current playhead so the new version picks up where we left off
     if (playerRef && selectedVersion) {
       snapshotForTrack(trackId, playerRef.getCurrentTime(), playerRef.getIsPlaying());
@@ -223,6 +240,8 @@
       if (blobUrl) {
         peaks = cachedPeaks;
         streamUrl = blobUrl;
+        processing = false;
+        grow = false;
         comments = [];
         predecessorComments = [];
         return;
@@ -244,6 +263,8 @@
     if (seq !== selectSeq) return;
     peaks = peaksRes;
     streamUrl = streamRes.url;
+    processing = version.status === 'uploaded' || version.status === 'processing';
+    grow = grown;
     comments = commentRes.comments;
     predecessorComments = predRes.comments;
   }
@@ -806,6 +827,8 @@
           version={selectedVersion}
           {versions}
           narrow={isNarrow}
+          {processing}
+          {grow}
           {canApprove}
           {canUpload}
           isOwner={role === 'owner'}
@@ -849,6 +872,19 @@
             {/key}
           {/snippet}
         </VersionCard>
+
+        {#if showInvite}
+          <InviteCard
+            {projectId}
+            versionId={selectedVersion.id}
+            versionNumber={selectedVersion.versionNumber}
+            onInvited={() => (memberCount = (memberCount ?? 0) + 1)}
+            onDismiss={() => {
+              inviteDismissed = true;
+              localStorage.setItem(`invite-dismissed:${trackId}`, '1');
+            }}
+          />
+        {/if}
 
         <CommentSection
           bind:this={commentSection}
