@@ -12,7 +12,7 @@ const DAY = 24 * 60 * MINUTE;
 const CODE_LIFETIME = 10 * MINUTE;
 // The token lives in the user's profile directory and a DAW shouldn't ask
 // for a login every month, so plugin sessions outlive browser sessions.
-const SESSION_LIFETIME = 180 * DAY;
+export const SESSION_LIFETIME = 180 * DAY;
 const POLL_INTERVAL_SECONDS = 5;
 
 const startsPerIp = rateLimit('device-starts-per-ip', 20, 60 * MINUTE);

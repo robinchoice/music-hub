@@ -1,9 +1,12 @@
 import { createMiddleware } from 'hono/factory';
-import { getCookie } from 'hono/cookie';
+import { getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
 import { sessions, users, type Database } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
+
+export const SESSION_DAYS = 30;
+const DAY = 24 * 60 * 60 * 1000;
 
 // users.last_seen_at is written at most this often per user; the admin pages count
 // someone as online for a while longer than that
@@ -27,7 +30,7 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const db = c.get('db');
 
   const [session] = await db
-    .select({ userId: sessions.userId, expiresAt: sessions.expiresAt })
+    .select({ id: sessions.id, userId: sessions.userId, expiresAt: sessions.expiresAt })
     .from(sessions)
     .innerJoin(users, and(eq(users.id, sessions.userId), isNull(users.blockedAt)))
     .where(eq(sessions.tokenHash, tokenHash))
@@ -38,9 +41,38 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   c.set('userId', session.userId);
+  await renewSession(c, db, session, sessionToken);
   await markSeen(db, session.userId);
   await next();
 });
+
+export function setSessionCookie(c: Context, token: string) {
+  setCookie(c, 'session', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: (SESSION_DAYS * DAY) / 1000,
+  });
+}
+
+// Browser sessions in use don't expire: at most once a day they run SESSION_DAYS
+// from now again, the cookie with them. Bearer sessions of the plugin keep the
+// expiry it was given.
+export async function renewSession(
+  c: Context,
+  db: Database,
+  session: { id: string; expiresAt: Date },
+  token: string,
+) {
+  if (getCookie(c, 'session') !== token) return;
+  if (session.expiresAt.getTime() >= Date.now() + (SESSION_DAYS - 1) * DAY) return;
+  await db
+    .update(sessions)
+    .set({ expiresAt: new Date(Date.now() + SESSION_DAYS * DAY) })
+    .where(eq(sessions.id, session.id));
+  setSessionCookie(c, token);
+}
 
 export function generateToken(): string {
   const bytes = new Uint8Array(32);

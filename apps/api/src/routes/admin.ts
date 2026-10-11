@@ -21,6 +21,7 @@ import {
   type Database,
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
+import { SESSION_LIFETIME as PLUGIN_SESSION_MS } from './device.js';
 import { requireAdmin, isAdminEmail, deviceLabel } from '../lib/admin.js';
 import { keptSql } from '../lib/trash.js';
 import { resetTestAccount } from '../lib/test-account.js';
@@ -29,8 +30,6 @@ import type { AppEnv } from '../types.js';
 const DAY = 86_400_000;
 // Seen this recently counts as online; markSeen() writes last_seen_at every two minutes
 const ONLINE_MS = 5 * 60_000;
-// Plugin sessions run 180 days, browser sessions 30
-const PLUGIN_SESSION_MS = 90 * DAY;
 // Days and weeks of the charts follow the clock of the people using Music Hub
 const TZ = 'Europe/Berlin';
 // Same prefix the reject route writes; such a comment is the reason of a rejection, not a comment of its own
@@ -472,7 +471,9 @@ async function loadEvents(db: Database, { from, to, userId }: { from: Date; to: 
   }
   sessionRows.forEach((s, i) => {
     if (matched.has(i)) return;
-    const via = s.expiresAt.getTime() - s.createdAt.getTime() > PLUGIN_SESSION_MS ? 'plugin' : 'password';
+    // Plugin sessions keep their lifetime, browser sessions in use grow past it
+    const lifetime = s.expiresAt.getTime() - s.createdAt.getTime();
+    const via = Math.abs(lifetime - PLUGIN_SESSION_MS) < DAY ? 'plugin' : 'password';
     events.push({ type: 'login', at: toIso(s.createdAt), userId: s.userId, via });
   });
 
@@ -590,7 +591,7 @@ export const adminRoutes = new Hono<AppEnv>()
           and(
             eq(sessions.userId, id),
             gt(sessions.expiresAt, new Date()),
-            sql`${sessions.expiresAt} - ${sessions.createdAt} > make_interval(days => ${PLUGIN_SESSION_MS / DAY})`,
+            sql`abs(extract(epoch from ${sessions.expiresAt} - ${sessions.createdAt}) - ${PLUGIN_SESSION_MS / 1000}) < ${DAY / 1000}`,
           ),
         ),
     ]);

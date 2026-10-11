@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
+import { deleteCookie, getCookie } from 'hono/cookie';
 import { and, eq, isNull } from 'drizzle-orm';
 import {
   magicLinkSchema,
@@ -10,7 +10,16 @@ import {
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
-import { generateToken, hashToken, bearerToken, markSeen, requireAuth } from '../middleware/auth.js';
+import {
+  generateToken,
+  hashToken,
+  bearerToken,
+  markSeen,
+  renewSession,
+  requireAuth,
+  SESSION_DAYS,
+  setSessionCookie,
+} from '../middleware/auth.js';
 import { isAdminEmail } from '../lib/admin.js';
 import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -32,15 +41,9 @@ const BLOCKED = 'Dieses Konto ist gesperrt.';
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.insert(sessions).values({ userId, tokenHash, expiresAt });
-  setCookie(c, 'session', sessionToken, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 30 * 24 * 60 * 60,
-  });
+  setSessionCookie(c, sessionToken);
 }
 
 export const authRoutes = new Hono<AppEnv>()
@@ -219,6 +222,7 @@ export const authRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!user) return c.json({ user: null });
 
+    await renewSession(c, db, session, sessionToken);
     await markSeen(db, user.id);
     return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
   })

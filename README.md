@@ -111,6 +111,10 @@ Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/mus
 
 Jeder Push auf `main` deployt automatisch: Ein GitHub-Webhook ruft Coolify auf, Coolify baut Web und API neu. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
+## Login in der Savor-Vorschau
+
+Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 30 Tage, also bleibt die Vorschau angemeldet. Sessions des Plugins behalten ihre 180 Tage.
+
 ## Projektstruktur
 
 ```
