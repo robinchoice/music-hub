@@ -5,9 +5,10 @@ import { defineConfig, devices } from '@playwright/test';
 const envFile = new URL('../../.env', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
-// Own ports and the built web app, so a dev server of another project is never reused
-const API_PORT = 53100;
-const WEB_PORT = 54100;
+// Own ports and the built web app, so a dev server of another project is never reused.
+// Worktrees testing at the same time pick other ports via TEST_API_PORT and TEST_WEB_PORT.
+const API_PORT = Number(process.env.TEST_API_PORT ?? 53100);
+const WEB_PORT = Number(process.env.TEST_WEB_PORT ?? 54100);
 const WEB = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({
