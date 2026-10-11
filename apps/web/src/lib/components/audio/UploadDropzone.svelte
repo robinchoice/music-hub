@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SUPPORTED_EXTENSIONS, MAX_FILE_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
   let {
@@ -22,6 +23,18 @@
   let total = $state(0);
   let error = $state('');
   let label = $state('');
+
+  // The close button cancels the upload, so nothing turns up as a version later.
+  // Plain variables: state read while the zone is being removed can still hold an old value.
+  let xhr: XMLHttpRequest | null = null;
+  let inFlight = false;
+  let cancelled = false;
+  export function cancel() {
+    if (!inFlight) return;
+    cancelled = true;
+    xhr?.abort();
+    toast('Upload abgebrochen');
+  }
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -65,6 +78,7 @@
 
     selected.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     uploading = true;
+    inFlight = true;
     total = selected.length;
 
     try {
@@ -77,20 +91,25 @@
 
       // One after another: the API assigns version numbers as max + 1
       for (const [i, file] of selected.entries()) {
+        if (cancelled) return;
         current = i + 1;
         progress = 0;
         await uploadFile(file);
       }
+      if (cancelled) return;
 
       label = '';
+      inFlight = false;
       onUploaded(total);
     } catch (err) {
+      if (cancelled) return;
       const message = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
       error =
         total > 1
           ? `${selected[current - 1].name}: ${message} (${current - 1} von ${total} hochgeladen)`
           : message;
     } finally {
+      inFlight = false;
       uploading = false;
       progress = 0;
     }
@@ -109,7 +128,9 @@
     });
 
     // 2. Upload directly to S3
+    if (cancelled) return;
     await uploadWithProgress(uploadUrl, file);
+    if (cancelled) return;
 
     // 3. Register version
     await api.post(`/versions/track/${trackId}`, {
@@ -125,7 +146,7 @@
 
   function uploadWithProgress(url: string, file: File): Promise<void> {
     return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+      xhr = new XMLHttpRequest();
       xhr.open('PUT', url);
       xhr.setRequestHeader('Content-Type', file.type || 'audio/wav');
 
@@ -135,16 +156,19 @@
         }
       };
 
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`Upload failed: ${xhr.status}`));
+      xhr.onload = function () {
+        if (this.status >= 200 && this.status < 300) resolve();
+        else reject(new Error(`Upload fehlgeschlagen (${this.status})`));
       };
+      xhr.onabort = () => reject(new Error('Upload abgebrochen'));
 
-      xhr.onerror = () => reject(new Error('Upload failed'));
+      xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
       xhr.send(file);
     });
   }
 </script>
+
+<svelte:window onbeforeunload={(e) => uploading && e.preventDefault()} />
 
 <div class="upload-section">
   <div class="label-input">

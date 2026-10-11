@@ -69,6 +69,8 @@
   let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
   let showStemUpload = $state(false);
+  let versionZone = $state<UploadDropzone>();
+  let stemZone = $state<StemUploadDropzone>();
   let stemInput = $state<HTMLInputElement>();
   let pickedStems = $state<File[]>([]);
   let role = $state('');
@@ -713,7 +715,7 @@
 
       {#if showUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => { showUpload = false; branchFromId = null; }} title="Schließen" aria-label="Upload schließen">
+          <button class="close-upload" onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Schließen" aria-label="Upload schließen">
             <Icon name="x" size={16} />
           </button>
           <p class="upload-title">
@@ -728,6 +730,7 @@
             </div>
           {/if}
           <UploadDropzone
+            bind:this={versionZone}
             {trackId}
             parentVersionId={branchFromId}
             branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
@@ -747,7 +750,7 @@
 
       {#if showStemUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => (showStemUpload = false)} title="Schließen" aria-label="Upload schließen">
+          <button class="close-upload" onclick={() => { stemZone?.cancel(); showStemUpload = false; }} title="Schließen" aria-label="Upload schließen">
             <Icon name="x" size={16} />
           </button>
           <p class="upload-title">
@@ -756,6 +759,7 @@
           </p>
           {#key pickedStems}
           <StemUploadDropzone
+            bind:this={stemZone}
             {trackId}
             initialFiles={pickedStems}
             onUploaded={async () => {

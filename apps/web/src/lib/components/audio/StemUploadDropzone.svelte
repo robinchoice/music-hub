@@ -2,6 +2,7 @@
   import { MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
+  import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
   // initialFiles: picked before the zone opened, upload them right away
@@ -10,6 +11,18 @@
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
   let uploading = $state(false);
+
+  // The close button cancels the uploads, so no stem turns up later.
+  // Plain variables: state read while the zone is being removed can still hold an old value.
+  const running = new Set<XMLHttpRequest>();
+  let inFlight = false;
+  let cancelled = false;
+  export function cancel() {
+    if (!inFlight) return;
+    cancelled = true;
+    running.forEach((xhr) => xhr.abort());
+    toast('Upload abgebrochen');
+  }
   let globalError = $state('');
 
   onMount(() => {
@@ -56,11 +69,13 @@
     }
 
     uploading = true;
+    inFlight = true;
     const readable = await Promise.all(selected.map((f) => f.slice(0, 1).arrayBuffer().then(() => true, () => false)));
     const unreadable = selected.filter((_, i) => !readable[i]);
     if (unreadable.length > 0) {
       globalError = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
       uploading = false;
+      inFlight = false;
       return;
     }
 
@@ -68,11 +83,14 @@
 
     // Upload in batches of 3
     for (let i = 0; i < selected.length; i += 3) {
+      if (cancelled) return;
       const batch = selected.slice(i, i + 3);
       await Promise.all(batch.map((file, j) => uploadOne(file, i + j)));
     }
+    if (cancelled) return;
 
     uploading = false;
+    inFlight = false;
     const anyError = files.some((f) => f.error);
     if (!anyError) {
       files = [];
@@ -90,10 +108,12 @@
       );
 
       step = 'S3';
+      if (cancelled) return;
       await uploadWithProgress(uploadUrl, file, mimeType, (p) => {
         files[idx].progress = p;
       });
 
+      if (cancelled) return;
       step = 'DB';
       await api.post(`/stems/track/${trackId}`, {
         fileKey,
@@ -112,6 +132,8 @@
   function uploadWithProgress(url: string, file: File, mimeType: string, onProgress: (p: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      running.add(xhr);
+      xhr.onloadend = () => running.delete(xhr);
       xhr.open('PUT', url);
       xhr.setRequestHeader('Content-Type', mimeType);
       xhr.upload.onprogress = (e) => {
@@ -119,10 +141,13 @@
       };
       xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
       xhr.onerror = () => reject(new Error('Upload fehlgeschlagen'));
+      xhr.onabort = () => reject(new Error('Upload abgebrochen'));
       xhr.send(file);
     });
   }
 </script>
+
+<svelte:window onbeforeunload={(e) => uploading && e.preventDefault()} />
 
 <div class="stem-upload">
   <div
