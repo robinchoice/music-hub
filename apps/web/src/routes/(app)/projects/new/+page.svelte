@@ -77,7 +77,7 @@
 
       <div class="actions">
         <Button variant="secondary" href="/dashboard">Abbrechen</Button>
-        <Button type="submit" {loading}>Anlegen</Button>
+        <Button type="submit" {loading} disabled={!name.trim()}>Anlegen</Button>
       </div>
     </form>
   </div>

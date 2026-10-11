@@ -168,7 +168,7 @@
   {#if showNewTrack}
     <form class="new-track-form" onsubmit={(e) => { e.preventDefault(); createTrack(); }}>
       <Input bind:value={newTrackName} placeholder="Track-Name" autofocus />
-      <Button type="submit" loading={creating}>Anlegen</Button>
+      <Button type="submit" loading={creating} disabled={!newTrackName.trim()}>Anlegen</Button>
     </form>
   {/if}
 

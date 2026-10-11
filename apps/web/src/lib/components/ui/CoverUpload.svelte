@@ -40,7 +40,7 @@
         headers: { 'Content-Type': file.type },
         body: file,
       });
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Upload fehlgeschlagen (${res.status})`);
       await onChange(key, file);
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Upload fehlgeschlagen');
