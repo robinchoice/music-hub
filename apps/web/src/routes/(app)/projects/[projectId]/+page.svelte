@@ -107,6 +107,7 @@
         name: newTrackName,
       });
       tracks = [...tracks, res.track];
+      reloadSidebar?.();
       void loadOverview(true);
       newTrackName = '';
       showNewTrack = false;

@@ -285,6 +285,7 @@
     trackStatus = s;
     statusMenuOpen = false;
     await api.patch(`/tracks/${trackId}`, { status: s });
+    reloadSidebar?.();
     toastSuccess(`Status: ${TRACK_STATUS_LABELS[s]}`);
   }
 
@@ -466,6 +467,7 @@
     await api.patch(`/tracks/${trackId}`, { name });
     trackName = name;
     renameOpen = false;
+    reloadSidebar?.();
     toastSuccess('Track umbenannt');
   }
 
