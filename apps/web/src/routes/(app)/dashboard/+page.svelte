@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
+  import FirstSteps from '$lib/components/overview/FirstSteps.svelte';
   import ActivityChart from '$lib/components/overview/ActivityChart.svelte';
   import ListensCard from '$lib/components/overview/ListensCard.svelte';
   import LoudnessCard from '$lib/components/overview/LoudnessCard.svelte';
@@ -12,8 +12,20 @@
   import ProjectStagesCard from '$lib/components/overview/ProjectStagesCard.svelte';
   import StorageCard from '$lib/components/overview/StorageCard.svelte';
   import TurnCard from '$lib/components/overview/TurnCard.svelte';
+  import { user } from '$lib/stores/auth.js';
   import { overviewIndex, overviewFailed, tasks, loadOverview } from '$lib/stores/overview.js';
-  import { eventsOf, projectGroups, weekSummary } from '$lib/utils/overview.js';
+  import {
+    eventsOf,
+    firstName,
+    freshVersions,
+    isAlone,
+    listenRows,
+    loudnessGroups,
+    projectGroups,
+    turnRows,
+    weekBuckets,
+    weekSummary,
+  } from '$lib/utils/overview.js';
 
   onMount(() => {
     void loadOverview(true);
@@ -24,21 +36,33 @@
   const events = $derived(ix ? eventsOf(ix) : []);
   const today = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // "3 neue Versionen, 12 Kommentare und eine Freigabe"
+  // Until someone else is in one of your projects, three steps lead to the first feedback
+  const alone = $derived(ix ? isAlone(ix) : false);
+  const welcome = $derived(alone && !ix?.data.versions.length);
+
+  // "3 neue Versionen, 12 Kommentare und eine Freigabe"; what didn't happen stays out
   const parts = $derived.by(() => {
     const w = weekSummary(events);
-    const out = [
-      w.versions === 1 ? '1 neue Version' : `${w.versions} neue Versionen`,
-      w.comments === 1 ? '1 Kommentar' : `${w.comments} Kommentare`,
-    ];
+    const out: string[] = [];
+    if (w.versions) out.push(w.versions === 1 ? '1 neue Version' : `${w.versions} neue Versionen`);
+    if (w.comments) out.push(w.comments === 1 ? '1 Kommentar' : `${w.comments} Kommentare`);
     if (w.approvals) out.push(w.approvals === 1 ? 'eine Freigabe' : `${w.approvals} Freigaben`);
     return out;
   });
+
+  // Cards only appear with something to show; a lone card in a row takes the full width
+  const showFresh = $derived(ix ? freshVersions(ix, groups).length > 0 : false);
+  const showTurn = $derived(ix ? turnRows(ix, groups.flatMap((g) => g.list)).length > 0 : false);
+  const showActivity = $derived(weekBuckets(events, 8).some((b) => b.versions || b.comments));
+  const showListens = $derived(ix ? listenRows(ix).length > 0 : false);
+  const showLoudness = $derived(loudnessGroups(groups).length > 0);
 </script>
 
 <TopBar crumbs={[{ label: 'Übersicht' }]}>
   {#snippet actions()}
-    <Button href="/projects/new" size="sm">Neues Projekt</Button>
+    <!-- The steps carry the main button while they show -->
+    {#if !alone}<Button href="/projects/new" size="sm">Neues Projekt</Button>
+    {:else if ix?.data.projects.length}<Button href="/projects/new" size="sm" variant="secondary">Neues Projekt</Button>{/if}
   {/snippet}
 </TopBar>
 
@@ -51,37 +75,40 @@
       <Skeleton height="16rem" variant="rect" />
       <Skeleton height="10rem" variant="rect" />
     </div>
-  {:else if !ix.data.projects.length}
-    <EmptyState
-      title="Noch keine Projekte"
-      description="Leg ein Projekt an und lade die anderen ein. Sobald es Versionen gibt, siehst du hier, wie es um alles steht."
-    >
-      {#snippet action()}
-        <Button href="/projects/new">Neues Projekt</Button>
-      {/snippet}
-    </EmptyState>
   {:else}
     <div class="head">
       <p class="date">{today}</p>
       <p class="sum">
-        In den letzten sieben Tagen:{#each parts as part, i (part)}{i === 0 ? ' ' : i === parts.length - 1 ? ' und ' : ', '}<b>{part}</b>{/each}.
+        {#if welcome}
+          Willkommen{$user ? `, ${firstName($user.name)}` : ''}. <b>In drei Schritten</b> hörst du das erste Feedback zu deinem Song.
+        {:else if parts.length}
+          In den letzten sieben Tagen:{#each parts as part, i (part)}{i === 0 ? ' ' : i === parts.length - 1 ? ' und ' : ', '}<b>{part}</b>{/each}.
+        {:else}
+          In den letzten sieben Tagen war es ruhig.
+        {/if}
+        {#if alone && !welcome}Noch hört niemand mit.{/if}
         {#if $tasks.length}
           <a href="/for-you">{$tasks.length === 1 ? 'Eine Aufgabe wartet' : `${$tasks.length} Aufgaben warten`} auf dich.</a>
         {/if}
       </p>
     </div>
-    <div class="grid">
-      <NewVersionsCard {ix} {groups} />
-      <TurnCard {ix} {groups} />
-      <ProjectStagesCard {groups} />
-      <ActivityChart {events} />
-      <div class="row">
-        <ListensCard {ix} />
-        <LoudnessCard {groups} />
-        <!-- Only for members with uploads of their own -->
-        {#if ix.data.storage.usedBytes > 0}<StorageCard storage={ix.data.storage} />{/if}
+    {#if alone}<FirstSteps {ix} {groups} />{/if}
+    {#if groups.length}
+      <div class="grid">
+        {#if showFresh}<NewVersionsCard {ix} {groups} span={showTurn ? 8 : 12} />{/if}
+        {#if showTurn}<TurnCard {ix} {groups} span={showFresh ? 4 : 12} />{/if}
+        <ProjectStagesCard {groups} span={showActivity ? 6 : 12} />
+        {#if showActivity}<ActivityChart {events} />{/if}
+        <!-- Storage only for members with uploads of their own -->
+        {#if showListens || showLoudness || ix.data.storage.usedBytes > 0}
+          <div class="row">
+            {#if showListens}<ListensCard {ix} />{/if}
+            {#if showLoudness}<LoudnessCard {groups} />{/if}
+            {#if ix.data.storage.usedBytes > 0}<StorageCard storage={ix.data.storage} />{/if}
+          </div>
+        {/if}
       </div>
-    </div>
+    {/if}
   {/if}
 </div>
 

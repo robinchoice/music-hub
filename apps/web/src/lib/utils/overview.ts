@@ -473,6 +473,30 @@ export function weekSummary(events: { kind: EventKind; at: string }[], now = Dat
   };
 }
 
+/** Nobody else is a member of any of your projects, or you have none yet */
+export const isAlone = (ix: OverviewIndex) =>
+  ix.data.projects.every((p) => p.members.every((m) => m.userId === ix.me));
+
+/** "Neu zum Anhören": per track only its newest version, and only those of the others, newest first */
+export function freshVersions(ix: OverviewIndex, groups: ProjectGroup[]): TrackInfo[] {
+  return groups
+    .flatMap((g) => g.list)
+    .filter((i) => i.latest && i.latest.createdById !== ix.me && i.latest.status !== 'uploaded' && i.latest.status !== 'processing')
+    .sort((a, b) => b.latest!.createdAt.localeCompare(a.latest!.createdAt));
+}
+
+/** "Per Link gehört": per listener and shared version, the latest four */
+export function listenRows(ix: OverviewIndex) {
+  return ix.data.listens
+    .flatMap((l) => {
+      const version = ix.versions.get(l.versionId);
+      const track = version ? ix.tracks.get(version.trackId) : undefined;
+      return version && track ? [{ ...l, version, track, name: l.listenerName ?? 'Gast' }] : [];
+    })
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+    .slice(0, 4);
+}
+
 /** Latest versions with a measurement, grouped by project; versions without one stay out */
 export function loudnessGroups(groups: ProjectGroup[]) {
   return groups

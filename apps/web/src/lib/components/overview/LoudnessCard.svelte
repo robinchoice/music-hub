@@ -3,6 +3,7 @@
   import { formatLufs } from '$lib/utils/format.js';
   import { loudnessGroups, versionName, type ProjectGroup, type TrackInfo } from '$lib/utils/overview.js';
 
+  // Only shown once a version is measured
   let { groups }: { groups: ProjectGroup[] } = $props();
 
   // Scale from −20 to −6 LUFS with the streaming reference at −14
@@ -21,13 +22,9 @@
 
 <DashCard icon="gauge" title="Lautheit" sub="neueste Version, LUFS">
   {#snippet actions()}
-    {#if rows.length}
-      <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
-    {/if}
+    <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
   {/snippet}
-  {#if !rows.length}
-    <p class="empty">Noch keine gemessene Version.</p>
-  {:else if table}
+  {#if table}
     <table class="mini-table">
       <thead><tr><th>Track</th><th>Version</th><th>LUFS</th></tr></thead>
       <tbody>

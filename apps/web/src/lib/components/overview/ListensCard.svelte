@@ -2,25 +2,16 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import DashCard from './DashCard.svelte';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
-  import type { OverviewIndex } from '$lib/utils/overview.js';
+  import { listenRows, type OverviewIndex } from '$lib/utils/overview.js';
 
   let { ix }: { ix: OverviewIndex } = $props();
 
-  // Per listener and shared version, the latest four
-  const rows = $derived(
-    ix.data.listens
-      .flatMap((l) => {
-        const version = ix.versions.get(l.versionId);
-        const track = version ? ix.tracks.get(version.trackId) : undefined;
-        return version && track ? [{ ...l, version, track, name: l.listenerName ?? 'Gast' }] : [];
-      })
-      .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
-      .slice(0, 4),
-  );
+  // Only shown once someone listened
+  const rows = $derived(listenRows(ix));
   const share = (seconds: number, duration: number | null) => (duration ? Math.min(1, seconds / duration) : 0);
 </script>
 
-<DashCard icon="headphones" title="Per Link gehört" sub={rows.length ? 'geteilte Versionen' : ''}>
+<DashCard icon="headphones" title="Per Link gehört" sub="geteilte Versionen">
   {#each rows as r (`${r.versionId}:${r.listenerName}`)}
     <div class="row">
       <Avatar name={r.name} size="sm" />
@@ -38,8 +29,6 @@
       </div>
       <span class="when">{formatWhen(r.lastAt)}</span>
     </div>
-  {:else}
-    <p class="empty">Noch hat niemand über einen geteilten Link reingehört.</p>
   {/each}
 </DashCard>
 

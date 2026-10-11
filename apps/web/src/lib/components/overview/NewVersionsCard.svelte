@@ -7,23 +7,18 @@
   import StageLabel from './StageLabel.svelte';
   import { handOff } from '$lib/stores/listen.js';
   import { formatWhen } from '$lib/utils/format.js';
-  import { firstName, markersFor, trackHref, versionName, type OverviewIndex, type ProjectGroup } from '$lib/utils/overview.js';
+  import { firstName, freshVersions, markersFor, trackHref, versionName, type OverviewIndex, type ProjectGroup } from '$lib/utils/overview.js';
 
-  let { ix, groups }: { ix: OverviewIndex; groups: ProjectGroup[] } = $props();
+  // Only shown with something to hear
+  let { ix, groups, span = 8 }: { ix: OverviewIndex; groups: ProjectGroup[]; span?: number } = $props();
 
-  // Per track only its newest version, and only those of the others
-  const fresh = $derived(
-    groups
-      .flatMap((g) => g.list)
-      .filter((i) => i.latest && i.latest.createdById !== ix.me && i.latest.status !== 'uploaded' && i.latest.status !== 'processing')
-      .sort((a, b) => b.latest!.createdAt.localeCompare(a.latest!.createdAt)),
-  );
-  const hero = $derived(fresh[0] ?? null);
+  const fresh = $derived(freshVersions(ix, groups));
+  const hero = $derived(fresh[0]);
   const uploader = (id: string) => firstName(ix.users.get(id)?.name ?? 'Jemand');
 </script>
 
-<DashCard icon="headphones" title="Neu zum Anhören" sub={hero ? 'neueste Versionen der anderen' : ''} span={8}>
-  {#if hero && hero.latest}
+<DashCard icon="headphones" title="Neu zum Anhören" sub="neueste Versionen der anderen" {span}>
+  {#if hero.latest}
     {@const v = hero.latest}
     <div class="hero">
       <div class="cover">
@@ -62,8 +57,6 @@
         {/each}
       </div>
     {/if}
-  {:else}
-    <p class="empty">Gerade gibt es nichts Neues von den anderen.</p>
   {/if}
 </DashCard>
 

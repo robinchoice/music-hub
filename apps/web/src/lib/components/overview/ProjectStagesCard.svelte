@@ -4,7 +4,7 @@
   import DashCard from './DashCard.svelte';
   import { STAGE_ICON, trackHref, versionName, type ProjectGroup, type StageKey, type TrackInfo } from '$lib/utils/overview.js';
 
-  let { groups }: { groups: ProjectGroup[] } = $props();
+  let { groups, span = 6 }: { groups: ProjectGroup[]; span?: number } = $props();
 
   const LEGEND: [StageKey, string][] = [
     ['feedback', 'wartet auf Feedback'],
@@ -21,7 +21,7 @@
   }
 </script>
 
-<DashCard icon="layers" title="Stand der Projekte" span={6}>
+<DashCard icon="layers" title="Stand der Projekte" {span}>
   {#each groups as g (g.project.id)}
     <div class="pj">
       <div class="head">

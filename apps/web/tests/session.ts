@@ -70,3 +70,13 @@ export function removeEmail(email: string) {
     await db.delete(users).where(eq(users.email, ${JSON.stringify(email)}));
   `);
 }
+
+// Someone else in the project; removeUser takes them out again
+export function addMember(projectId: string, name = 'Lena') {
+  return bun(`
+    import { projectMembers } from '@music-hub/db';
+    const [u] = await db.insert(users).values({ email: 'test-' + crypto.randomUUID() + '@example.com', name: ${JSON.stringify(name)} }).returning();
+    await db.insert(projectMembers).values({ projectId: ${JSON.stringify(projectId)}, userId: u.id, role: 'artist' });
+    console.log(u.id);
+  `);
+}

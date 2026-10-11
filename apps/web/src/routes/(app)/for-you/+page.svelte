@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
@@ -9,7 +10,7 @@
   import TaskCard from '$lib/components/overview/TaskCard.svelte';
   import { overviewIndex, overviewFailed, tasks, loadOverview, dismissTask, restoreTask } from '$lib/stores/overview.js';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
-  import { avatarOf, eventsOf, fullName, personName, type OverviewEvent } from '$lib/utils/overview.js';
+  import { avatarOf, eventsOf, fullName, isAlone, personName, projectGroups, type OverviewEvent } from '$lib/utils/overview.js';
 
   onMount(() => {
     void loadOverview(true);
@@ -18,6 +19,9 @@
   const ix = $derived($overviewIndex);
   // The four newest things the others did
   const recent = $derived(ix ? eventsOf(ix).filter((e) => e.actorId !== ix.me).slice(0, 4) : []);
+  // Nobody else could have left anything yet; invite to the most recently active project
+  const alone = $derived(ix ? isAlone(ix) : false);
+  const project = $derived(ix ? projectGroups(ix)[0]?.project : undefined);
 
   let undoKey = $state<string | null>(null);
   let undoTimer: ReturnType<typeof setTimeout> | undefined;
@@ -62,6 +66,19 @@
           <TaskCard {ix} {task} ondone={done} />
         </div>
       {/each}
+    </div>
+  {:else if alone}
+    <div class="empty">
+      <div class="ok alone"><Icon name="users" size={22} stroke={2.2} /></div>
+      <h2>Noch hört niemand mit</h2>
+      <p>Hol Leute in dein Projekt. Sobald sie kommentieren, antworten oder neue Versionen hochladen, steht es hier.</p>
+      <div class="cta">
+        {#if project}
+          <Button href="/projects/{project.id}/settings">{project.name} teilen</Button>
+        {:else}
+          <Button href="/projects/new">Neues Projekt</Button>
+        {/if}
+      </div>
     </div>
   {:else}
     <div class="empty">
@@ -160,6 +177,13 @@
     place-items: center;
     background: color-mix(in srgb, var(--color-success) 12%, transparent);
     color: var(--color-success);
+  }
+  .ok.alone {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+  .cta {
+    margin-top: var(--space-4);
   }
   .empty h2 {
     margin: 0 0 4px;

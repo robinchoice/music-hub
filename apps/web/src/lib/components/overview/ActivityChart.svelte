@@ -2,7 +2,7 @@
   import DashCard from './DashCard.svelte';
   import { weekBuckets, type OverviewEvent, type WeekBucket } from '$lib/utils/overview.js';
 
-  let { events }: { events: OverviewEvent[] } = $props();
+  let { events, span = 6 }: { events: OverviewEvent[]; span?: number } = $props();
 
   const HEIGHT = 160;
   let table = $state(false);
@@ -14,7 +14,7 @@
     `KW ${b.week}${b.current ? ', diese Woche' : ''}\n${b.versions} ${b.versions === 1 ? 'Version' : 'Versionen'}\n${b.comments} ${b.comments === 1 ? 'Kommentar' : 'Kommentare'}`;
 </script>
 
-<DashCard icon="activity" title="Aktivität" sub="pro Kalenderwoche" span={6}>
+<DashCard icon="activity" title="Aktivität" sub="pro Kalenderwoche" {span}>
   {#snippet actions()}
     <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
   {/snippet}

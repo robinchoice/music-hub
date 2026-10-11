@@ -3,12 +3,13 @@
   import DashCard from './DashCard.svelte';
   import { trackHref, turnRows, type OverviewIndex, type ProjectGroup } from '$lib/utils/overview.js';
 
-  let { ix, groups }: { ix: OverviewIndex; groups: ProjectGroup[] } = $props();
+  // Only shown while someone is
+  let { ix, groups, span = 4 }: { ix: OverviewIndex; groups: ProjectGroup[]; span?: number } = $props();
 
   const rows = $derived(turnRows(ix, groups.flatMap((g) => g.list)));
 </script>
 
-<DashCard icon="users" title="Wer ist dran" sub="laufende Tracks" span={4}>
+<DashCard icon="users" title="Wer ist dran" sub="laufende Tracks" {span}>
   {#each rows as row (row.key)}
     <div class="who">
       <Avatar name={row.avatarName} src={row.avatarUrl} size="sm" />
@@ -24,8 +25,6 @@
         </div>
       </div>
     </div>
-  {:else}
-    <p class="empty">Gerade ist niemand dran.</p>
   {/each}
 </DashCard>
 
