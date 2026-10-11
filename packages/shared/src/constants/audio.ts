@@ -9,7 +9,17 @@ export const SUPPORTED_AUDIO_FORMATS = [
   'audio/x-aiff',
 ] as const;
 
-export const SUPPORTED_EXTENSIONS = ['.wav', '.mp3', '.flac', '.aiff', '.aif'] as const;
+export const SUPPORTED_EXTENSIONS = ['.wav', '.mp3', '.flac', '.aiff', '.aif', '.aifc'] as const;
+
+// Browsers report these unreliably (often empty for AIFF), so the upload goes by the extension
+export const AUDIO_MIME_BY_EXTENSION: Record<(typeof SUPPORTED_EXTENSIONS)[number], (typeof SUPPORTED_AUDIO_FORMATS)[number]> = {
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.aiff': 'audio/aiff',
+  '.aif': 'audio/aiff',
+  '.aifc': 'audio/aiff',
+};
 
 export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 

@@ -1,17 +1,19 @@
-import { SUPPORTED_EXTENSIONS, MAX_FILE_SIZE } from '@music-hub/shared';
+import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE } from '@music-hub/shared';
 import { api } from '$lib/api/client.js';
 
 // Why these files can't go up, or null when they can
 export function checkAudioFiles(files: File[]): string | null {
   const tooBig = files.filter((f) => f.size > MAX_FILE_SIZE);
   if (tooBig.length > 0) return `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
-  const unsupported = files.filter(
-    (f) => !SUPPORTED_EXTENSIONS.includes(('.' + f.name.split('.').pop()?.toLowerCase()) as any),
-  );
+  const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.includes(extension(f.name) as any));
   if (unsupported.length > 0) {
     return `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
   }
   return null;
+}
+
+function extension(fileName: string) {
+  return '.' + fileName.split('.').pop()?.toLowerCase();
 }
 
 // Files that vanished or lost permission since they were picked, before anything goes up
@@ -43,7 +45,7 @@ type VersionUpload = {
 
 // Upload URL, file straight to S3, then the version. Returns false when aborted before the version exists.
 export async function uploadVersion(trackId: string, file: File, opts: VersionUpload = {}) {
-  const mimeType = file.type || 'audio/wav';
+  const mimeType = AUDIO_MIME_BY_EXTENSION[extension(file.name) as keyof typeof AUDIO_MIME_BY_EXTENSION];
   const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string; versionId: string }>(
     `/versions/track/${trackId}/upload-url`,
     { fileName: file.name, mimeType, fileSize: file.size },
