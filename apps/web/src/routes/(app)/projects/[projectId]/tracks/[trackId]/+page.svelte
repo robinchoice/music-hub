@@ -414,6 +414,8 @@
       rejectOpen = false;
       toastSuccess('Version abgelehnt');
       await reloadComments();
+    } catch {
+      // The API client already showed the error
     } finally {
       rejecting = false;
     }
@@ -526,6 +528,8 @@
       toastSuccess('Version aktualisiert');
       editVersionOpen = false;
       await refreshVersions();
+    } catch {
+      // The API client already showed the error
     } finally {
       savingVersion = false;
     }
@@ -764,7 +768,7 @@
           {#if branchFromId}
             <div class="branch-banner">
               <span>Variante von <strong>V{versions.find((v) => v.id === branchFromId)?.versionNumber}</strong></span>
-              <input type="text" bind:value={branchLabelInput} placeholder="Name der Variante (z.B. 'andere Vocals')" />
+              <input type="text" bind:value={branchLabelInput} placeholder="Name der Variante (z. B. „andere Vocals“)" />
               <button class="cancel-branch" onclick={() => (branchFromId = null)} aria-label="Variante abbrechen">×</button>
             </div>
           {/if}
@@ -1024,7 +1028,7 @@
   <div class="edit-form">
     <label>
       <span class="lbl">Bezeichnung</span>
-      <input type="text" bind:value={editVersionLabel} placeholder="z.B. 'Mehr Bass'" />
+      <input type="text" bind:value={editVersionLabel} placeholder="z. B. „Mehr Bass“" />
     </label>
     <label>
       <span class="lbl">Notizen</span>

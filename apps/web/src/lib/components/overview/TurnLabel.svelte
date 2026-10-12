@@ -31,7 +31,7 @@
     white-space: nowrap;
   }
   .me {
-    color: var(--color-accent);
+    color: var(--color-warning);
     font-weight: 500;
   }
   .avs {

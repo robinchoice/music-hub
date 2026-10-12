@@ -80,6 +80,8 @@
       });
       toastSuccess('Projekt gespeichert');
       reloadSidebar?.();
+    } catch {
+      // The API client already showed the error
     } finally {
       saving = false;
     }
@@ -97,6 +99,8 @@
       toastSuccess('Person eingeladen');
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
+    } catch {
+      // The API client already showed the error
     } finally {
       inviting = false;
     }
@@ -143,13 +147,13 @@
       <div class="cover-row">
         <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
-          <Input label="Artist" bind:value={editArtist} list="artists" placeholder="z.B. Anna Berger (optional)" />
+          <Input label="Artist (optional)" bind:value={editArtist} list="artists" placeholder="z. B. Anna Berger" />
           <datalist id="artists">
             {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
           </datalist>
           <Input label="Name" bind:value={editName} />
           <label class="textarea-group">
-            <span class="textarea-label">Beschreibung</span>
+            <span class="textarea-label">Beschreibung (optional)</span>
             <textarea bind:value={editDesc} rows="3" placeholder="Worum geht's in diesem Projekt?"></textarea>
           </label>
           <Button type="submit" loading={saving}>Speichern</Button>
@@ -296,9 +300,13 @@
     width: 100%;
   }
 
+  /* Same style as the labels of Input */
   .textarea-label {
     color: var(--color-text-secondary);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   textarea {

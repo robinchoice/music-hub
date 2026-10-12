@@ -49,6 +49,8 @@
     try {
       openState = (await request()).open;
       if (openState.openedAt) toastSuccess(`${trackName} ist jetzt offen`);
+    } catch {
+      // The API client already showed the error
     } finally {
       saving = false;
     }

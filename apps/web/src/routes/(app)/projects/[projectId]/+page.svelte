@@ -114,6 +114,8 @@
       newTrackName = '';
       showNewTrack = false;
       toastSuccess('Track angelegt');
+    } catch {
+      // The API client already showed the error
     } finally {
       creating = false;
     }
@@ -386,6 +388,11 @@
 
   .new-track-form :global(.input-group) {
     flex: 1;
+  }
+
+  /* As tall as the input next to it */
+  .new-track-form :global(.btn) {
+    height: 42px;
   }
 
 

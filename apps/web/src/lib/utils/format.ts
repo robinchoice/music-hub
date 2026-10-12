@@ -1,8 +1,8 @@
 import { TRASH_DAYS } from '@music-hub/shared';
 
 export function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${decimal(bytes / 1024, 0)} KB`;
+  return `${decimal(bytes / (1024 * 1024))} MB`;
 }
 
 /** Up to two initials, taken from words only: "Tom (Label)" gives "TL", not "T(" */
@@ -89,14 +89,28 @@ export function formatDb(db: number): string {
   return `${db > 0 ? '+' : '−'}${decimal(Math.abs(db))} dB`;
 }
 
-/** "7,4 GB", below one GB with two decimals, below 0,1 GB in MB: "0 MB", "5,3 MB", "87 MB" */
-export function formatGb(bytes: number): string {
+// Unit and decimals for an amount of storage
+function gbUnit(bytes: number) {
   const gb = bytes / 1024 ** 3;
   if (gb < 0.1) {
     const mb = bytes / 1024 ** 2;
-    return `${decimal(mb, mb > 0 && mb < 10 ? 1 : 0)} MB`;
+    return { unit: 'MB', size: 1024 ** 2, digits: mb > 0 && mb < 10 ? 1 : 0 };
   }
-  return `${decimal(gb, gb < 1 ? 2 : 1)} GB`;
+  return { unit: 'GB', size: 1024 ** 3, digits: gb < 1 ? 2 : 1 };
+}
+
+/** "7,4 GB", below one GB with two decimals, below 0,1 GB in MB: "0 MB", "5,3 MB", "87 MB" */
+export function formatGb(bytes: number): string {
+  const { unit, size, digits } = gbUnit(bytes);
+  return `${decimal(bytes / size, digits)} ${unit}`;
+}
+
+/** Two parts of `total` in its unit, rounded so that they add up to formatGb(total) */
+export function formatGbSplit(total: number, part: number): [string, string] {
+  const { unit, size, digits } = gbUnit(total);
+  const steps = (bytes: number) => Math.round((bytes / size) * 10 ** digits);
+  const text = (n: number) => `${decimal(n / 10 ** digits, digits)} ${unit}`;
+  return [text(steps(part)), text(steps(total) - steps(part))];
 }
 
 /** Whole days until something deleted at `deletedAt` leaves the trash, at least 1 */

@@ -25,6 +25,8 @@
       const res = await api.patch<{ user: typeof $user }>('/auth/me', { name: name.trim() });
       user.set(res.user);
       toastSuccess('Profil gespeichert');
+    } catch {
+      // The API client already showed the error
     } finally {
       saving = false;
     }

@@ -29,7 +29,7 @@ test('the comment box fits the phone and hides keyboard hints on touch', async (
   await expect(feedback.locator('.ts-chip')).toBeVisible();
   await expect(feedback.locator('.composer input')).toHaveAttribute('placeholder', 'Kommentar zu V4 …');
   await expect(feedback.getByText('Taste C nimmt die aktuelle Position')).toBeVisible({ visible: !isMobile });
-  if (!isMobile) await expect(feedback.locator('.hint')).toHaveText('Klick in die Wellenform wählt die Stelle · Taste C nimmt die aktuelle Position');
+  if (!isMobile) await expect(feedback.locator('.hint')).toHaveText('Klick in die Wellenform wählt die Stelle · Taste C nimmt die aktuelle Position', { useInnerText: true });
 });
 
 test('the last file of the chaos box is fully visible', async ({ page }) => {

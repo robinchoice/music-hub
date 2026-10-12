@@ -31,6 +31,8 @@
       await api.post(`/projects/${projectId}/members`, { email: address, role: 'artist' });
       toastSuccess(`${address} ist eingeladen`);
       onInvited();
+    } catch {
+      // The API client already showed the error
     } finally {
       inviting = false;
     }
@@ -49,6 +51,8 @@
       }
       // Some browsers refuse the clipboard after the await, the link then stays visible to copy by hand
       await navigator.clipboard.writeText(guestUrl).then(() => toastSuccess('Link kopiert'), () => {});
+    } catch {
+      // The API client already showed the error
     } finally {
       linking = false;
     }

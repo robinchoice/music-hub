@@ -103,6 +103,8 @@
       const projectId = target === 'new' ? (await api.post<{ project: { id: string } }>('/projects', { name: 'Remixe' })).project.id : target;
       const { track } = await api.post<{ track: { id: string; projectId: string } }>(`/open/${trackId}/fork`, { projectId });
       await goto(`/projects/${track.projectId}/tracks/${track.id}`);
+    } catch {
+      // The API client already showed the error
     } finally {
       forking = false;
     }

@@ -77,6 +77,8 @@
         await api.post(`/trash/stem/${stem.id}/restore`);
         await loadStems();
       });
+    } catch {
+      // The API client already showed the error
     } finally {
       deleting = null;
     }

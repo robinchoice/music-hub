@@ -44,10 +44,14 @@
   let replyBody = $state('');
   let busy = $state(false);
 
+  // False when the action failed, the API client already showed the error
   async function run(action: () => Promise<void>) {
     busy = true;
     try {
       await action();
+      return true;
+    } catch {
+      return false;
     } finally {
       busy = false;
     }
@@ -62,15 +66,14 @@
     const body = editBody.trim();
     const edit = onEdit;
     if (!body || !edit) return;
-    await run(() => edit(body));
-    editing = false;
+    if (await run(() => edit(body))) editing = false;
   }
 
   async function sendReply() {
     const body = replyBody.trim();
     const reply = onReply;
     if (!body || !reply) return;
-    await run(() => reply(body));
+    if (!(await run(() => reply(body)))) return;
     replyBody = '';
     replying = false;
   }

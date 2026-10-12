@@ -4,7 +4,7 @@ import { api } from '$lib/api/client.js';
 // Why these files can't go up, or null when they can
 export function checkAudioFiles(files: File[]): string | null {
   const tooBig = files.filter((f) => f.size > MAX_FILE_SIZE);
-  if (tooBig.length > 0) return `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
+  if (tooBig.length > 0) return `${tooBig.map((f) => f.name).join(', ')} zu groß (max. 500 MB)`;
   const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.includes(extension(f.name) as any));
   if (unsupported.length > 0) {
     return `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;

@@ -75,6 +75,8 @@
       // The list updates before onSubmit returns; keep a next comment the user already started
       if (body.trim() === text) body = '';
       if (commentTimestamp === timestamp) commentTimestamp = null;
+    } catch {
+      // The API client already showed the error
     } finally {
       submitting = false;
     }
@@ -97,7 +99,7 @@
       <input bind:this={input} type="text" bind:value={body} placeholder={`Kommentar zu ${versionLabel} …`} />
       <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>Senden</Button>
     </form>
-    <p class="hint">Klick in die Wellenform wählt die Stelle<span class="keys">{' '}· Taste C nimmt die aktuelle Position</span></p>
+    <p class="hint"><span class="mouse">Klick in die Wellenform wählt die Stelle</span><span class="touch">Tipp auf die Wellenform wählt die Stelle</span><span class="keys">{' '}· Taste C nimmt die aktuelle Position</span></p>
   {/if}
 
   <div class="list-head">
@@ -110,7 +112,11 @@
 
   {#if shown.length === 0}
     <p class="empty">
-      {filter === 'open' ? 'Keine offenen Kommentare. Klick in die Wellenform, um eine Stelle zu markieren.' : 'Noch nichts erledigt.'}
+      {#if filter === 'open'}
+        Keine offenen Kommentare. <span class="mouse">Klick in die Wellenform</span><span class="touch">Tipp auf die Wellenform</span>, um eine Stelle zu markieren.
+      {:else}
+        Noch nichts erledigt.
+      {/if}
     </p>
   {:else}
     <div class="list">
@@ -251,10 +257,17 @@
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
   }
+  .touch {
+    display: none;
+  }
   /* Touch screens have no keyboard shortcuts */
   @media (hover: none) {
-    .keys {
+    .keys,
+    .mouse {
       display: none;
+    }
+    .touch {
+      display: inline;
     }
   }
 

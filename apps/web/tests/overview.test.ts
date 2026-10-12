@@ -72,6 +72,6 @@ test('small uploads read in MB instead of 0,00 GB', async ({ page }) => {
   const card = page.locator('section.card').filter({ has: page.getByRole('heading', { name: 'Speicher' }) });
   await expect(card.locator('.num')).toHaveText(/^5,3 MB/);
   await expect(card).toContainText('Versionen 5,3 MB');
-  await expect(card).toContainText('Spuren 0 MB');
+  await expect(card).toContainText('Spuren 0,0 MB');
   await expect(card).not.toContainText('0,00 GB');
 });

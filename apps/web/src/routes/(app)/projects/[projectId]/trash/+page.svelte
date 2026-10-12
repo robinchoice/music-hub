@@ -141,6 +141,8 @@
       entries = entries.filter((x) => x.id !== e.id);
       discardOpen = false;
       toastSuccess('Endgültig gelöscht');
+    } catch {
+      // The API client already showed the error
     } finally {
       busy = false;
     }
@@ -153,6 +155,8 @@
       entries = [];
       emptyOpen = false;
       toastSuccess('Papierkorb geleert');
+    } catch {
+      // The API client already showed the error
     } finally {
       busy = false;
     }

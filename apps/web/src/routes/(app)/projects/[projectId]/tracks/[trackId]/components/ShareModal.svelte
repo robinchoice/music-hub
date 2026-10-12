@@ -62,6 +62,8 @@
       );
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       createdUrl = `${origin}/listen/${res.link.token}`;
+    } catch {
+      // The API client already showed the error
     } finally {
       creating = false;
     }

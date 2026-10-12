@@ -59,7 +59,7 @@
     globalError = '';
     const tooBig = selected.filter((f) => f.size > MAX_FILE_SIZE);
     if (tooBig.length > 0) {
-      globalError = `${tooBig.map((f) => f.name).join(', ')} zu groß (max 500 MB)`;
+      globalError = `${tooBig.map((f) => f.name).join(', ')} zu groß (max. 500 MB)`;
       return;
     }
     const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(f.type || 'audio/wav'));
@@ -172,8 +172,8 @@
     />
     <div class="dropzone-content">
       <span class="icon"><Icon name="upload" size={24} /></span>
-      <p>STEMs hier ablegen oder klicken</p>
-      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max 500 MB</span>
+      <p><span class="mouse">Spuren hierher ziehen oder klicken</span><span class="touch">Tippen, um Spuren auszuwählen</span></p>
+      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max. 500 MB</span>
     </div>
   </div>
 
@@ -300,5 +300,17 @@
   .error {
     color: var(--color-error);
     font-size: 0.85rem;
+  }
+
+  .touch {
+    display: none;
+  }
+  @media (hover: none) {
+    .mouse {
+      display: none;
+    }
+    .touch {
+      display: inline;
+    }
   }
 </style>

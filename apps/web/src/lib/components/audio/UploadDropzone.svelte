@@ -120,7 +120,7 @@
     <input
       type="text"
       bind:value={label}
-      placeholder="Versions-Bezeichnung (z.B. 'Mix V2', 'Final Master')"
+      placeholder="Versionsbezeichnung, z. B. „Rough Mix“"
       disabled={uploading}
     />
   </div>
@@ -154,8 +154,8 @@
     {:else}
       <div class="dropzone-content">
         <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
-        <p>Audio-Dateien hier ablegen oder klicken zum Auswählen</p>
-        <span class="formats">WAV, MP3, FLAC, AIFF — max 500 MB</span>
+        <p><span class="mouse">Audio-Dateien hierher ziehen oder klicken</span><span class="touch">Tippen, um Audio-Dateien auszuwählen</span></p>
+        <span class="formats">WAV, MP3, FLAC, AIFF — max. 500 MB</span>
       </div>
     {/if}
   </div>
@@ -251,5 +251,17 @@
   .error {
     color: var(--color-error);
     font-size: 0.9rem;
+  }
+
+  .touch {
+    display: none;
+  }
+  @media (hover: none) {
+    .mouse {
+      display: none;
+    }
+    .touch {
+      display: inline;
+    }
   }
 </style>

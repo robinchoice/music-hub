@@ -49,6 +49,8 @@
   let menuOpen = $state(false);
   let query = $state('');
   let searchInput = $state<HTMLInputElement | undefined>();
+  // The / shortcut only helps with a keyboard
+  let touch = $state(false);
 
   const activeProjectId = $derived(($page.params as Record<string, string>).projectId ?? null);
   const activeTrackId = $derived(($page.params as Record<string, string>).trackId ?? null);
@@ -113,6 +115,7 @@
   }
 
   onMount(async () => {
+    touch = matchMedia('(hover: none)').matches;
     void loadOverview();
     try {
       const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true);
@@ -170,7 +173,7 @@
       bind:this={searchInput}
       type="text"
       bind:value={query}
-      placeholder="Suchen…  (/)"
+      placeholder={touch ? 'Suchen…' : 'Suchen…  (/)'}
       aria-label="Suchen"
     />
   </div>
@@ -246,7 +249,7 @@
                     <span class="name">{project.name}</span>
                     <span class="count">{trackCount}</span>
                   </a>
-                  {#if shouldExpand(project.id) && tracksByProject[project.id]}
+                  {#if shouldExpand(project.id) && tracksByProject[project.id]?.some(trackMatches)}
                     <ul class="tracks">
                       {#each tracksByProject[project.id].filter(trackMatches) as track (track.id)}
                         <li>
@@ -270,7 +273,7 @@
         </div>
       {/each}
       {#if filtered.length === 0 && query}
-        <p class="empty">Nichts gefunden für "{query}"</p>
+        <p class="empty">Nichts gefunden für „{query}“</p>
       {:else if projects.length === 0}
         <p class="empty">Noch keine Projekte</p>
       {/if}

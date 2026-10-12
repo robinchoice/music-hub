@@ -26,7 +26,7 @@
       return;
     }
     if (file.size > MAX) {
-      toastError('Bild zu groß (max 2 MB)');
+      toastError('Bild zu groß (max. 2 MB)');
       return;
     }
     uploading = true;
@@ -53,6 +53,8 @@
     uploading = true;
     try {
       await onChange(null);
+    } catch {
+      // The API client already showed the error
     } finally {
       uploading = false;
     }

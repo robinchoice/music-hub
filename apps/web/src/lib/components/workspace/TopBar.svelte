@@ -44,7 +44,9 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-4) var(--space-6);
+    /* Same height on every page, the track page's sticky panel sits right below it */
+    min-height: 65px;
+    padding: 0 var(--space-6);
     border-bottom: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-bg-base) 88%, transparent);
     position: sticky;
@@ -112,7 +114,8 @@
 
   @media (max-width: 880px) {
     .topbar {
-      padding: var(--space-3) var(--space-4);
+      min-height: 57px;
+      padding: 0 var(--space-4);
     }
     .hamburger {
       display: inline-flex;
@@ -129,7 +132,7 @@
   }
   @media (max-width: 540px) {
     .topbar {
-      padding: var(--space-3);
+      padding: 0 var(--space-3);
       gap: var(--space-2);
     }
     .crumbs a:last-of-type {

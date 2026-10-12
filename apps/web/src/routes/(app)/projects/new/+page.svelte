@@ -35,6 +35,8 @@
       toastSuccess('Projekt erstellt');
       reloadSidebar?.();
       goto(`/projects/${res.project.id}`);
+    } catch {
+      // The API client already showed the error
     } finally {
       loading = false;
     }
@@ -59,11 +61,11 @@
     <h1>Neues Projekt</h1>
 
     <form onsubmit={handleSubmit}>
-      <Input label="Artist" bind:value={artist} list="artists" placeholder="z.B. Anna Berger (optional)" />
+      <Input label="Artist (optional)" bind:value={artist} list="artists" placeholder="z. B. Anna Berger" />
       <datalist id="artists">
         {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
       </datalist>
-      <Input label="Name" bind:value={name} placeholder="z.B. Debütalbum, Sommer-EP oder Single" />
+      <Input label="Name" bind:value={name} placeholder="z. B. Debütalbum, Sommer-EP oder Single" />
 
       <label class="textarea-group">
         <span class="textarea-label">Beschreibung (optional)</span>
@@ -121,9 +123,13 @@
     align-items: flex-start;
   }
 
+  /* Same style as the labels of Input */
   .textarea-label {
     color: var(--color-text-secondary);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   textarea {

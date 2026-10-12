@@ -1,14 +1,15 @@
 <script lang="ts">
   import DashCard from './DashCard.svelte';
-  import { formatGb } from '$lib/utils/format.js';
+  import { formatGb, formatGbSplit } from '$lib/utils/format.js';
   import type { OverviewStorage } from '$lib/utils/overview.js';
 
   let { storage }: { storage: OverviewStorage } = $props();
 
   const pct = (bytes: number) => (bytes / storage.limitBytes) * 100;
+  const [versions, stems] = $derived(formatGbSplit(storage.usedBytes, storage.versionBytes));
   const limit = $derived(`${Math.round(storage.limitBytes / 1024 ** 3)} GB`);
   const tip = $derived(
-    `${formatGb(storage.usedBytes)} von ${limit} belegt (${Math.round(pct(storage.usedBytes))} %)\nVersionen ${formatGb(storage.versionBytes)}, Spuren ${formatGb(storage.stemBytes)}`,
+    `${formatGb(storage.usedBytes)} von ${limit} belegt (${Math.round(pct(storage.usedBytes))} %)\nVersionen ${versions}, Spuren ${stems}`,
   );
 </script>
 
@@ -19,8 +20,8 @@
     {#if storage.stemBytes}<i style="width: {pct(storage.stemBytes)}%; background: var(--color-series-2)"></i>{/if}
   </div>
   <div class="legend">
-    <span><i style="background: var(--color-series-1)"></i>Versionen {formatGb(storage.versionBytes)}</span>
-    <span><i style="background: var(--color-series-2)"></i>Spuren {formatGb(storage.stemBytes)}</span>
+    <span><i style="background: var(--color-series-1)"></i>Versionen {versions}</span>
+    <span><i style="background: var(--color-series-2)"></i>Spuren {stems}</span>
   </div>
   {#if storage.topTracks.length}
     <ul class="top">
