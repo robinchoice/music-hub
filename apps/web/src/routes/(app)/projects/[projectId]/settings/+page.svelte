@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
-  import { toastSuccess } from '$lib/stores/toast.js';
+  import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import { ROLE_LABELS, PROJECT_ROLES } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -76,7 +76,7 @@
       await api.patch(`/projects/${projectId}`, {
         name: editName,
         artist: editArtist.trim() || null,
-        description: editDesc || undefined,
+        description: editDesc,
       });
       toastSuccess('Projekt gespeichert');
       reloadSidebar?.();
@@ -107,23 +107,41 @@
   }
 
   async function updateRole(memberId: string, newRole: string) {
-    await api.patch(`/projects/${projectId}/members/${memberId}`, { role: newRole });
-    toastSuccess('Rolle aktualisiert');
-    const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
-    members = res.members;
+    try {
+      await api.patch(`/projects/${projectId}/members/${memberId}`, { role: newRole });
+      toastSuccess('Rolle aktualisiert');
+      const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
+      members = res.members;
+    } catch (e) {
+      if (!(e instanceof Error && 'status' in e)) {
+        toastError(e instanceof Error ? e.message : 'Rolle konnte nicht geändert werden');
+      }
+    }
   }
 
   async function removeMember(memberId: string) {
-    await api.delete(`/projects/${projectId}/members/${memberId}`);
-    toastSuccess('Person entfernt');
-    members = members.filter((m) => m.id !== memberId);
+    try {
+      await api.delete(`/projects/${projectId}/members/${memberId}`);
+      toastSuccess('Person entfernt');
+      members = members.filter((m) => m.id !== memberId);
+    } catch (e) {
+      if (!(e instanceof Error && 'status' in e)) {
+        toastError(e instanceof Error ? e.message : 'Person konnte nicht entfernt werden');
+      }
+    }
   }
 
   async function archiveProject() {
-    await api.delete(`/projects/${projectId}`);
-    toastSuccess('Projekt archiviert');
-    reloadSidebar?.();
-    goto('/dashboard');
+    try {
+      await api.delete(`/projects/${projectId}`);
+      toastSuccess('Projekt archiviert');
+      reloadSidebar?.();
+      await goto('/dashboard');
+    } catch (e) {
+      if (!(e instanceof Error && 'status' in e)) {
+        toastError(e instanceof Error ? e.message : 'Projekt konnte nicht archiviert werden');
+      }
+    }
   }
 </script>
 

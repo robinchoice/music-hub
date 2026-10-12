@@ -53,8 +53,10 @@
     uploading = true;
     try {
       await onChange(null);
-    } catch {
-      // The API client already showed the error
+    } catch (e) {
+      if (!(e instanceof Error && 'status' in e)) {
+        toastError(e instanceof Error ? e.message : 'Cover konnte nicht entfernt werden');
+      }
     } finally {
       uploading = false;
     }

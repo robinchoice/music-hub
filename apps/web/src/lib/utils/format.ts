@@ -105,12 +105,17 @@ export function formatGb(bytes: number): string {
   return `${decimal(bytes / size, digits)} ${unit}`;
 }
 
-/** Two parts of `total` in its unit, rounded so that they add up to formatGb(total) */
+/** Two parts rounded to the displayed total, using their own units if a nonempty part would read as zero */
 export function formatGbSplit(total: number, part: number): [string, string] {
   const { unit, size, digits } = gbUnit(total);
   const steps = (bytes: number) => Math.round((bytes / size) * 10 ** digits);
-  const text = (n: number) => `${decimal(n / 10 ** digits, digits)} ${unit}`;
-  return [text(steps(part)), text(steps(total) - steps(part))];
+  const first = steps(part);
+  const second = steps(total) - first;
+  if ((part > 0 && first === 0) || (total > part && second === 0)) {
+    return [formatGb(part), formatGb(total - part)];
+  }
+  const text = (n: number) => n === 0 ? '0 MB' : `${decimal(n / 10 ** digits, digits)} ${unit}`;
+  return [text(first), text(second)];
 }
 
 /** Whole days until something deleted at `deletedAt` leaves the trash, at least 1 */
