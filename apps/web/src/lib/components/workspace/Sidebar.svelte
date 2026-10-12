@@ -107,13 +107,6 @@
     return !q || track.name.toLowerCase().includes(q);
   }
 
-  // Whether a given project should auto-expand for search
-  function shouldExpand(projectId: string) {
-    if (activeProjectId === projectId) return true;
-    if (!query.trim()) return false;
-    return tracksByProject[projectId]?.some(trackMatches);
-  }
-
   onMount(async () => {
     touch = matchMedia('(hover: none)').matches;
     void loadOverview();
@@ -238,6 +231,8 @@
           {#if expanded}
             <ul class="projects">
               {#each group.memberships as { project, trackCount } (project.id)}
+                {@const matches = activeProjectId === project.id || query.trim()
+                  ? (tracksByProject[project.id]?.filter(trackMatches) ?? []) : []}
                 <li>
                   <a
                     href="/projects/{project.id}"
@@ -249,9 +244,9 @@
                     <span class="name">{project.name}</span>
                     <span class="count">{trackCount}</span>
                   </a>
-                  {#if shouldExpand(project.id) && tracksByProject[project.id]?.some(trackMatches)}
+                  {#if matches.length}
                     <ul class="tracks">
-                      {#each tracksByProject[project.id].filter(trackMatches) as track (track.id)}
+                      {#each matches as track (track.id)}
                         <li>
                           <a
                             href="/projects/{project.id}/tracks/{track.id}"

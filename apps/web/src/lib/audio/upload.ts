@@ -1,10 +1,17 @@
 import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE } from '@music-hub/shared';
 import { api } from '$lib/api/client.js';
 
+export const MAX_FILE_SIZE_LABEL = `${MAX_FILE_SIZE / 1024 ** 2} MB`;
+
+export function checkFileSize(files: File[]): string | null {
+  const tooBig = files.filter((f) => f.size > MAX_FILE_SIZE);
+  return tooBig.length > 0 ? `${tooBig.map((f) => f.name).join(', ')} zu groß (max. ${MAX_FILE_SIZE_LABEL})` : null;
+}
+
 // Why these files can't go up, or null when they can
 export function checkAudioFiles(files: File[]): string | null {
-  const tooBig = files.filter((f) => f.size > MAX_FILE_SIZE);
-  if (tooBig.length > 0) return `${tooBig.map((f) => f.name).join(', ')} zu groß (max. 500 MB)`;
+  const sizeError = checkFileSize(files);
+  if (sizeError) return sizeError;
   const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.includes(extension(f.name) as any));
   if (unsupported.length > 0) {
     return `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;

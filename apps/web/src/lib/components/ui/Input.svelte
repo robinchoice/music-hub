@@ -48,14 +48,6 @@
     gap: var(--space-2);
   }
 
-  .input-label {
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
   input {
     padding: 0.7rem 0.9rem;
     height: 42px;

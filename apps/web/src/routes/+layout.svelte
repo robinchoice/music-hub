@@ -167,10 +167,32 @@
     --transition-fast: 120ms var(--ease-out);
     --transition-base: 200ms var(--ease-out);
 
+    --topbar-height: 65px;
+
     /* Z-Index */
     --z-dropdown: 100;
     --z-modal: 200;
     --z-toast: 300;
+  }
+
+  :global(.touch) {
+    display: none;
+  }
+  @media (hover: none) {
+    :global(.mouse) {
+      display: none;
+    }
+    :global(.touch) {
+      display: inline;
+    }
+  }
+
+  :global(.input-label) {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   :global(html) {

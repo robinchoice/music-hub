@@ -26,7 +26,7 @@
       return;
     }
     if (file.size > MAX) {
-      toastError('Bild zu groß (max. 2 MB)');
+      toastError(`Bild zu groß (max. ${MAX / 1024 ** 2} MB)`);
       return;
     }
     uploading = true;

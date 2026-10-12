@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
-  import { checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
+  import { MAX_FILE_SIZE_LABEL, checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -155,7 +155,7 @@
       <div class="dropzone-content">
         <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
         <p><span class="mouse">Audio-Dateien hierher ziehen oder klicken</span><span class="touch">Tippen, um Audio-Dateien auszuwählen</span></p>
-        <span class="formats">WAV, MP3, FLAC, AIFF — max. 500 MB</span>
+        <span class="formats">WAV, MP3, FLAC, AIFF — max. {MAX_FILE_SIZE_LABEL}</span>
       </div>
     {/if}
   </div>
@@ -251,17 +251,5 @@
   .error {
     color: var(--color-error);
     font-size: 0.9rem;
-  }
-
-  .touch {
-    display: none;
-  }
-  @media (hover: none) {
-    .mouse {
-      display: none;
-    }
-    .touch {
-      display: inline;
-    }
   }
 </style>

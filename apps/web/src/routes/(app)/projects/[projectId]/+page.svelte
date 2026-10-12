@@ -383,16 +383,15 @@
     display: flex;
     gap: var(--space-3);
     margin-bottom: var(--space-6);
-    align-items: flex-start;
+    align-items: stretch;
   }
 
   .new-track-form :global(.input-group) {
     flex: 1;
   }
 
-  /* As tall as the input next to it */
   .new-track-form :global(.btn) {
-    height: 42px;
+    height: auto;
   }
 
 

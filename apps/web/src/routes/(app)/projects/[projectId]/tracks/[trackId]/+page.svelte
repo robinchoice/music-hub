@@ -1334,8 +1334,8 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-5);
-    /* scrollIntoView stops below the sticky TopBar (65px) instead of under it */
-    scroll-margin-top: calc(65px + var(--space-4));
+    /* scrollIntoView stops below the sticky TopBar instead of under it */
+    scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
   }
   .empty-actions {
     display: flex;
@@ -1407,12 +1407,12 @@
   }
 
 
-  /* The page scrolls as a whole; the panel sticks below the TopBar (65px high) and scrolls its tab on its own. */
+  /* The page scrolls as a whole; the panel sticks below the TopBar and scrolls its tab on its own. */
   .side-panel {
     position: sticky;
-    top: 65px;
+    top: var(--topbar-height);
     align-self: flex-start;
-    height: calc(100vh - 65px);
+    height: calc(100vh - var(--topbar-height));
     width: 320px;
     flex-shrink: 0;
     border-left: 1px solid var(--color-border);

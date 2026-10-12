@@ -68,12 +68,12 @@
       <Input label="Name" bind:value={name} placeholder="z. B. Debütalbum, Sommer-EP oder Single" />
 
       <label class="textarea-group">
-        <span class="textarea-label">Beschreibung (optional)</span>
+        <span class="input-label">Beschreibung (optional)</span>
         <textarea bind:value={description} placeholder="Worum geht's in diesem Projekt?" rows="3"></textarea>
       </label>
 
       <div class="cover-group">
-        <span class="textarea-label">Cover (optional)</span>
+        <span class="input-label">Cover (optional)</span>
         <CoverUpload currentUrl={coverPreview} {name} onChange={setCover} />
       </div>
 
@@ -121,15 +121,6 @@
 
   .cover-group {
     align-items: flex-start;
-  }
-
-  /* Same style as the labels of Input */
-  .textarea-label {
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
 
   textarea {

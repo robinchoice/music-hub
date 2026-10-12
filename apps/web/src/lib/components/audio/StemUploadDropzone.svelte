@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
+  import { STEM_MIME_TYPE } from '@music-hub/shared';
+  import { checkFileSize, MAX_FILE_SIZE_LABEL } from '$lib/audio/upload.js';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
   import { toast } from '$lib/stores/toast.js';
@@ -56,12 +57,8 @@
   }
 
   async function uploadFiles(selected: File[]) {
-    globalError = '';
-    const tooBig = selected.filter((f) => f.size > MAX_FILE_SIZE);
-    if (tooBig.length > 0) {
-      globalError = `${tooBig.map((f) => f.name).join(', ')} zu groß (max. 500 MB)`;
-      return;
-    }
+    globalError = checkFileSize(selected) ?? '';
+    if (globalError) return;
     const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(f.type || 'audio/wav'));
     if (notAudio.length > 0) {
       globalError = `Kein Audio: ${notAudio.map((f) => f.name).join(', ')}`;
@@ -173,7 +170,7 @@
     <div class="dropzone-content">
       <span class="icon"><Icon name="upload" size={24} /></span>
       <p><span class="mouse">Spuren hierher ziehen oder klicken</span><span class="touch">Tippen, um Spuren auszuwählen</span></p>
-      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max. 500 MB</span>
+      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max. {MAX_FILE_SIZE_LABEL}</span>
     </div>
   </div>
 
@@ -300,17 +297,5 @@
   .error {
     color: var(--color-error);
     font-size: 0.85rem;
-  }
-
-  .touch {
-    display: none;
-  }
-  @media (hover: none) {
-    .mouse {
-      display: none;
-    }
-    .touch {
-      display: inline;
-    }
   }
 </style>

@@ -45,7 +45,7 @@
     justify-content: space-between;
     gap: var(--space-3);
     /* Same height on every page, the track page's sticky panel sits right below it */
-    min-height: 65px;
+    min-height: var(--topbar-height);
     padding: 0 var(--space-6);
     border-bottom: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-bg-base) 88%, transparent);
@@ -114,7 +114,7 @@
 
   @media (max-width: 880px) {
     .topbar {
-      min-height: 57px;
+      --topbar-height: 57px;
       padding: 0 var(--space-4);
     }
     .hamburger {

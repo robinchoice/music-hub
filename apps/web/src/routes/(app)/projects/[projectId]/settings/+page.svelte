@@ -171,7 +171,7 @@
           </datalist>
           <Input label="Name" bind:value={editName} />
           <label class="textarea-group">
-            <span class="textarea-label">Beschreibung (optional)</span>
+            <span class="input-label">Beschreibung (optional)</span>
             <textarea bind:value={editDesc} rows="3" placeholder="Worum geht's in diesem Projekt?"></textarea>
           </label>
           <Button type="submit" loading={saving}>Speichern</Button>
@@ -316,15 +316,6 @@
     flex-direction: column;
     gap: var(--space-2);
     width: 100%;
-  }
-
-  /* Same style as the labels of Input */
-  .textarea-label {
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
 
   textarea {
