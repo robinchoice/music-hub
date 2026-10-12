@@ -930,6 +930,10 @@
     line-height: 1.6;
     color: var(--color-text-secondary);
   }
+  /* The accent glow behind it is too bright for the tertiary text */
+  .final > .fine {
+    color: var(--color-text-secondary);
+  }
 
   /* Open source, one quiet line */
   .oss {

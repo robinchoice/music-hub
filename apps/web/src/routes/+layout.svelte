@@ -106,7 +106,7 @@
     /* Text */
     --color-text-primary: #f2f0ea;
     --color-text-secondary: #9a98a3;
-    --color-text-tertiary: #6f6c77;
+    --color-text-tertiary: #8b8893;
 
     /* Unplayed part of waveforms */
     --color-wave-idle: #47444b;

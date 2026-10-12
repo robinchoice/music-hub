@@ -260,6 +260,9 @@
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);
   }
+  .face.on .t {
+    color: var(--color-text-secondary);
+  }
   .filters {
     display: flex;
     flex-direction: column;

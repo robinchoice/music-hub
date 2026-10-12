@@ -324,6 +324,10 @@
     color: var(--color-text-tertiary);
   }
 
+  .filter button.on i {
+    color: var(--color-text-secondary);
+  }
+
   .list {
     display: flex;
     flex-direction: column;

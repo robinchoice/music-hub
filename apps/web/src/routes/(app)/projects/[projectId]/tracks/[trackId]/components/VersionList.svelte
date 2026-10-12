@@ -98,7 +98,7 @@
 
   .count {
     font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
     background: var(--color-bg-subtle);
     border-radius: var(--radius-full);
     padding: 0 0.45rem;

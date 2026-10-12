@@ -1140,7 +1140,7 @@
   }
   .section-tag {
     font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
     background: var(--color-bg-subtle);
     border: 1px solid var(--color-border);
     padding: 3px 8px;

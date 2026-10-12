@@ -371,7 +371,7 @@
   }
   .section-count {
     background: var(--color-bg-subtle);
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
     padding: 1px 7px;
     border-radius: var(--radius-full);
     font-size: 10px;

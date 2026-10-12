@@ -44,7 +44,7 @@
     align-items: center;
     justify-content: center;
     box-shadow: inset 0 0 0 1px var(--color-border);
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
     font-family: var(--font-display);
     font-weight: 780;
     font-stretch: 80%;
