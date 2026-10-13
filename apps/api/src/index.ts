@@ -22,6 +22,7 @@ import { adminRoutes } from './routes/admin.js';
 import { openRoutes } from './routes/open.js';
 import { syncRoutes } from './routes/sync.js';
 import { noticeRoutes } from './routes/notices.js';
+import { sendDueNotices } from './lib/notices.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -87,6 +88,17 @@ const app = new Hono<AppEnv>()
   .route('/open', openRoutes)
   .route('/sync', syncRoutes)
   .route('/notices', noticeRoutes);
+
+// Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
+// Each instance runs it; taking a batch deletes it first, so none goes out twice.
+setInterval(
+  () =>
+    sendDueNotices(db).catch((err) => {
+      console.error('[Notices] Sending failed:', err);
+      captureException(err);
+    }),
+  30_000,
+);
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);
