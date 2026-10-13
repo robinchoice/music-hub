@@ -15,8 +15,9 @@ import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolu
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { undoApproval } from '../lib/approval.js';
-import { notifyProjectMembers, notifyUser } from '../services/push.js';
+import { notifyUser } from '../services/push.js';
 import { publish } from '../services/sse.js';
+import { queueVersionNotice } from '../lib/notices.js';
 import type { AppEnv } from '../types.js';
 
 // The reject route stores the reason as a comment with this prefix; the version list reads it back.
@@ -182,6 +183,7 @@ export const versionRoutes = new Hono<AppEnv>()
           mimeType: input.mimeType,
           fileSize,
           originalFileKey: input.fileKey,
+          sha256: input.sha256,
           createdById: userId,
         })
         .returning();
@@ -191,11 +193,8 @@ export const versionRoutes = new Hono<AppEnv>()
     if (!version) return storageFull(c, await storageOf(db, userId));
     const { versionNumber } = version;
 
-    notifyProjectMembers(db, track.projectId, userId, {
-      title: 'Neue Version',
-      body: `${track.name} — V${versionNumber} hochgeladen`,
-      url: `/projects/${track.projectId}/tracks/${trackId}`,
-    }).catch(() => {});
+    // The worker announces it once the uploader pauses, so a batch becomes one push and one mail
+    await queueVersionNotice(db, track.projectId, userId, version.id);
 
     publish(db, trackId, { type: 'version:new', data: { versionId: version.id, versionNumber, trackId } });
 

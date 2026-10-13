@@ -54,7 +54,11 @@ export async function notifyProjectMembers(
     .map((m: { userId: string }) => m.userId)
     .filter((id: string) => id !== excludeUserId);
 
-  if (userIds.length === 0) return;
+  await notifyUsers(db, userIds, payload);
+}
+
+export async function notifyUsers(db: any, userIds: string[], payload: PushPayload): Promise<void> {
+  if (!process.env.VAPID_PUBLIC_KEY || userIds.length === 0) return;
 
   const subs = await db
     .select()

@@ -38,7 +38,11 @@ export const requestUploadUrlSchema = z.object({
   fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
 });
 
+// Hex SHA-256 of the file; the sync app sends it to recognise files it already has
+const sha256 = z.string().regex(/^[0-9a-f]{64}$/).optional();
+
 export const createVersionSchema = z.object({
+  sha256,
   fileKey: z.string().min(1),
   label: z.string().max(100).optional(),
   notes: z.string().max(2000).optional(),
@@ -68,6 +72,7 @@ export const requestStemUploadUrlSchema = z.object({
 });
 
 export const createStemSchema = z.object({
+  sha256,
   fileKey: z.string().min(1),
   name: z.string().min(1).max(255),
   originalFileName: z.string().min(1),
@@ -76,6 +81,7 @@ export const createStemSchema = z.object({
 });
 
 export const replaceStemSchema = z.object({
+  sha256,
   fileKey: z.string().min(1),
   originalFileName: z.string().min(1),
   mimeType: z.string().regex(STEM_MIME_TYPE),

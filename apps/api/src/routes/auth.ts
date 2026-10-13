@@ -216,7 +216,7 @@ export const authRoutes = new Hono<AppEnv>()
     }
 
     const [user] = await db
-      .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl })
+      .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails })
       .from(users)
       .where(and(eq(users.id, session.userId), isNull(users.blockedAt)))
       .limit(1);
@@ -231,14 +231,17 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const userId = c.get('userId');
 
-    const body = await c.req.json<{ name?: string }>();
-    if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
+    const body = await c.req.json<{ name?: string; versionMails?: boolean }>();
+    const versionMails = typeof body.versionMails === 'boolean' ? body.versionMails : undefined;
+    if (body.name !== undefined || versionMails === undefined) {
+      if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
+    }
 
     const [user] = await db
       .update(users)
-      .set({ name: body.name.trim(), updatedAt: new Date() })
+      .set({ name: body.name?.trim() || undefined, versionMails, updatedAt: new Date() })
       .where(eq(users.id, userId))
-      .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl });
+      .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails });
 
     return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
   });

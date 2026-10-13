@@ -103,6 +103,7 @@ export const stemRoutes = new Hono<AppEnv>()
           mimeType: input.mimeType,
           fileSize,
           fileKey: input.fileKey,
+          sha256: input.sha256,
           createdById: userId,
         })
         .returning();

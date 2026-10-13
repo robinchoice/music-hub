@@ -18,6 +18,15 @@
     if ($user && !name) name = $user.name;
   });
 
+  async function setVersionMails(versionMails: boolean) {
+    try {
+      const res = await api.patch<{ user: typeof $user }>('/auth/me', { versionMails });
+      user.set(res.user);
+    } catch {
+      // The API client already showed the error
+    }
+  }
+
   async function save() {
     if (!name.trim()) return;
     saving = true;
@@ -41,9 +50,9 @@
     <p class="sub">Dein Profil — sichtbar für andere im Projekt.</p>
   </header>
 
-  {#if pushStore.state !== 'unsupported'}
-    <section class="card">
-      <h2>Benachrichtigungen</h2>
+  <section class="card">
+    <h2>Benachrichtigungen</h2>
+    {#if pushStore.state !== 'unsupported'}
       {#if pushStore.state === 'denied'}
         <p class="push-hint">Push-Benachrichtigungen wurden im Browser blockiert. Bitte in den Browser-Einstellungen erlauben.</p>
       {:else if pushStore.state === 'subscribed'}
@@ -57,8 +66,18 @@
           <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>Aktivieren</Button>
         </div>
       {/if}
-    </section>
-  {/if}
+    {/if}
+    {#if $user}
+      <label class="mail-row">
+        <input
+          type="checkbox"
+          checked={$user.versionMails ?? true}
+          onchange={(e) => setVersionMails(e.currentTarget.checked)}
+        />
+        <span>Mails zu neuen Versionen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.</span>
+      </label>
+    {/if}
+  </section>
 
   {#if $user}
     <section class="card">
@@ -170,6 +189,19 @@
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
     margin: 0;
+  }
+  .mail-row {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    margin-top: var(--space-4);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .mail-row input {
+    accent-color: var(--color-accent);
+    margin-top: 3px;
   }
   .card + .card {
     margin-top: var(--space-5);

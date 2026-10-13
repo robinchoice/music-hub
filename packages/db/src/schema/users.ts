@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, bigint } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, bigint, boolean } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -14,6 +14,9 @@ export const users = pgTable('users', {
   blockedAt: timestamp('blocked_at'),
   // Bytes this account may upload; null means MAX_STORAGE_PER_USER
   storageLimit: bigint('storage_limit', { mode: 'number' }),
+  // Mails about new versions go to members without push; the token in the mail's unsubscribe link turns them off
+  versionMails: boolean('version_mails').default(true).notNull(),
+  mailToken: uuid('mail_token').defaultRandom().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

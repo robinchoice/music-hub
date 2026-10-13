@@ -6,6 +6,7 @@ type User = {
   email: string;
   name: string;
   avatarUrl?: string;
+  versionMails?: boolean;
   // Missing while an older API is still running
   isAdmin?: boolean;
 } | null;

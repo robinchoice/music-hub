@@ -1,6 +1,7 @@
 import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
+import { sendDueNotices } from './lib/notices.js';
 import { processVersion } from './services/audio-processor.js';
 import {
   claimAudioJob,
@@ -42,6 +43,16 @@ Bun.serve({ port: parseInt(process.env.PORT || '3000'), fetch: () => Response.js
   setTimeout(purge, 60_000);
   setInterval(purge, 6 * 60 * 60_000);
 }
+
+// Announces new versions once their uploader pauses. Each worker runs it; taking a batch deletes it first, so none goes out twice.
+setInterval(
+  () =>
+    sendDueNotices(db).catch((err) => {
+      console.error('[Notices] Sending failed:', err);
+      captureException(err);
+    }),
+  30_000,
+);
 
 console.log('[Worker] Waiting for audio jobs');
 

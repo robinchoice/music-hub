@@ -85,6 +85,8 @@ export const versions = pgTable('versions', {
   originalFileKey: text('original_file_key').notNull(),
   streamFileKey: text('stream_file_key'),
   waveformDataKey: text('waveform_data_key'),
+  // SHA-256 of the original file as hex, sent by the sync app to recognise files it already has
+  sha256: varchar('sha256', { length: 64 }),
 
   createdById: uuid('created_by_id')
     .references(() => users.id)
@@ -105,6 +107,7 @@ export const stems = pgTable('stems', {
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   fileSize: bigint('file_size', { mode: 'number' }).notNull(),
   fileKey: text('file_key').notNull(),
+  sha256: varchar('sha256', { length: 64 }),
   // Taken over from an open track: the file belongs to the original and doesn't count towards storage
   forked: boolean('forked').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
@@ -130,6 +133,7 @@ export const stemRevisions = pgTable('stem_revisions', {
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   fileSize: bigint('file_size', { mode: 'number' }).notNull(),
   fileKey: text('file_key').notNull(),
+  sha256: varchar('sha256', { length: 64 }),
   forked: boolean('forked').default(false).notNull(),
   createdById: uuid('created_by_id')
     .references(() => users.id)

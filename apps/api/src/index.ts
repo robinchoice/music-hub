@@ -20,6 +20,8 @@ import { overviewRoutes } from './routes/overview.js';
 import { trashRoutes } from './routes/trash.js';
 import { adminRoutes } from './routes/admin.js';
 import { openRoutes } from './routes/open.js';
+import { syncRoutes } from './routes/sync.js';
+import { noticeRoutes } from './routes/notices.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -82,7 +84,9 @@ const app = new Hono<AppEnv>()
   .route('/overview', overviewRoutes)
   .route('/trash', trashRoutes)
   .route('/admin', adminRoutes)
-  .route('/open', openRoutes);
+  .route('/open', openRoutes)
+  .route('/sync', syncRoutes)
+  .route('/notices', noticeRoutes);
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

@@ -91,3 +91,12 @@ export function addStem(trackId: string, userId: string, name: string, earlier =
     console.log(s.id);
   `);
 }
+
+// The token behind the unsubscribe link in the user's mails
+export function mailTokenOf(userId: string) {
+  return bun(`
+    import { eq } from 'drizzle-orm';
+    const [u] = await db.select({ mailToken: users.mailToken }).from(users).where(eq(users.id, ${JSON.stringify(userId)}));
+    console.log(u.mailToken);
+  `);
+}

@@ -3,7 +3,7 @@ import { stemRevisions, stems, type Database } from '@music-hub/db';
 import { fits, lockStorage, storageOf } from './storage.js';
 
 type Stem = typeof stems.$inferSelect;
-type File = { originalFileName: string; mimeType: string; fileKey: string; fileSize: number };
+type File = { originalFileName: string; mimeType: string; fileKey: string; fileSize: number; sha256?: string };
 
 // The stem's current file as an entry of its history
 const revisionOf = (stem: Stem, replacedAt: Date) => ({
@@ -12,6 +12,7 @@ const revisionOf = (stem: Stem, replacedAt: Date) => ({
   mimeType: stem.mimeType,
   fileSize: stem.fileSize,
   fileKey: stem.fileKey,
+  sha256: stem.sha256,
   forked: stem.forked,
   createdById: stem.createdById,
   createdAt: stem.revisedAt ?? stem.createdAt,
@@ -30,7 +31,7 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
     await tx.insert(stemRevisions).values(revisionOf(current, now));
     const [stem] = await tx
       .update(stems)
-      .set({ ...file, forked: false, createdById: userId, revisedAt: now })
+      .set({ ...file, sha256: file.sha256 ?? null, forked: false, createdById: userId, revisedAt: now })
       .where(eq(stems.id, stemId))
       .returning();
     return stem;
@@ -59,6 +60,7 @@ export async function restoreRevision(db: Database, revisionId: string) {
         mimeType: restored.mimeType,
         fileSize: restored.fileSize,
         fileKey: restored.fileKey,
+        sha256: restored.sha256,
         forked: restored.forked,
         createdById: restored.createdById,
         revisedAt: now,
