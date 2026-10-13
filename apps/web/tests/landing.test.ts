@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { logIn, removeUser } from './session.js';
 
 // Console errors fail the test
 let errors: string[] = [];
@@ -73,4 +74,15 @@ test('resolving a comment and the filter of resolved ones have different names',
   await expect(feedback.getByRole('button', { name: 'Abhaken' }).first()).toBeVisible();
   await expect(feedback.getByRole('button', { name: /^Erledigte/ })).toBeVisible();
   await expect(feedback.getByRole('button', { name: 'Erledigt', exact: true })).toHaveCount(0);
+});
+
+test('signed in, the server-rendered nav already leads to the dashboard', async ({ page, context, baseURL }) => {
+  const userId = await logIn(context, baseURL!);
+  try {
+    const html = await (await page.request.get('/')).text();
+    expect(html).toContain('Zum Dashboard');
+    expect(html).not.toContain('Konto anlegen');
+  } finally {
+    removeUser(userId);
+  }
 });

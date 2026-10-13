@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { user } from '$lib/stores/auth.js';
+  import { authLoading, user } from '$lib/stores/auth.js';
   import { toast, toastError } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -18,6 +18,9 @@
 
   const REPO = 'https://github.com/robinchoice/music-hub';
   const SELF_HOSTING = `${REPO}#self-hosting`;
+
+  let { data } = $props();
+  const signedIn = $derived($authLoading ? data.signedIn : !!$user);
 
   let mounted = $state(false);
   let small = $state(false);
@@ -213,7 +216,7 @@
     <nav class="nav">
       <a href="/" class="wordmark"><Tile size={32} /> Music Hub</a>
       <div class="nav-right">
-        {#if $user}
+        {#if signedIn}
           <Button href="/dashboard" size="sm">Zum Dashboard</Button>
         {:else}
           <div class="nav-auth">
@@ -232,7 +235,7 @@
           sitzen auf der Sekunde, und am Ende ist klar, welcher Mix freigegeben ist.
         </p>
         <div class="ctas">
-          {#if $user}
+          {#if signedIn}
             <Button href="/dashboard" size="lg">Zum Dashboard</Button>
           {:else}
             <Button href="/register" size="lg">Konto anlegen</Button>
@@ -427,7 +430,7 @@
     <section class="final">
       <h2>Dein nächster Mix hat ein Zuhause.</h2>
       <p>Leg ein Projekt an, lad V1 hoch und schick den Link an deine Band.</p>
-      {#if $user}
+      {#if signedIn}
         <Button href="/dashboard" size="lg">Zum Dashboard</Button>
       {:else}
         <Button href="/register" size="lg">Konto anlegen</Button>
