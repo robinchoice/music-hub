@@ -23,6 +23,8 @@
   let songName = $state('');
   let target = $state<Track | null>(null);
   let starting = $state(false);
+  // While files go up the song stays, so they are reported for the right one
+  let uploading = $state(false);
   // Songs that got files in this visit
   let sent = $state<string[]>([]);
 
@@ -111,10 +113,10 @@
         <section class="card">
           <div class="target">
             <span><Icon name="music" size={14} /> <b>{target.name}</b></span>
-            <button class="link" onclick={otherSong}>Anderer Song</button>
+            <button class="link" onclick={otherSong} disabled={uploading}>Anderer Song</button>
           </div>
           {#key target.id}
-            <StemUploadDropzone trackId={target.id} base="{base}/track/{target.id}" extra={{ guestName: guestName.trim() }} onUploaded={uploaded} />
+            <StemUploadDropzone trackId={target.id} base="{base}/track/{target.id}" extra={{ guestName: guestName.trim() }} onUploaded={uploaded} bind:uploading />
           {/key}
         </section>
       {/if}
@@ -212,6 +214,10 @@
     font-size: var(--text-sm);
     cursor: pointer;
     white-space: nowrap;
+  }
+  .link:disabled {
+    color: var(--color-text-tertiary);
+    cursor: default;
   }
   .done {
     display: flex;

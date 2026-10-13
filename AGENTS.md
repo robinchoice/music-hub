@@ -26,6 +26,8 @@
 - Registrieren geht nur, solange es weniger als `MAX_USERS` Konten gibt (`apps/api/src/lib/users.ts`, wegen des geteilten S3-Speichers). Eingeladene zählen mit, kommen aber immer rein.
 - Offene Tracks (`lib/open.ts`, öffentlich unter `/offen`): Ein Remix übernimmt die Spuren mit denselben S3-Keys (`stems.forked`), sie zählen nicht zum Speicher. Dateien löscht nur `deleteUnusedFiles`, das noch genutzte Keys stehen lässt. Öffentlich sind nur Spuren, die vor `open_tracks.opened_at` hochgeladen wurden.
 - Spuren haben Fassungen (`lib/stems.ts`): Die Zeile in `stems` hält immer die aktuelle Datei, frühere liegen in `stem_revisions` und zählen zum Speicher dessen, der sie hochgeladen hat. Wer Speicher zählt oder Dateien löscht, muss `stem_revisions` mitnehmen. Solange ein Track offen ist, lassen sich seine Spuren nicht ersetzen.
+- Upload-Link (`routes/upload-links.ts`, öffentlich unter `/upload/<token>`): Gäste ohne Konto legen Songs und Spuren an. Beides gehört in der DB dem Ersteller des Links (`created_by_id`) und zählt zu seinem Speicher, den Gast nennt nur `stems.guest_name`. Der Link gilt nur, solange der Ersteller im Projekt hochladen darf und das Projekt nicht archiviert ist.
+- Track-Status: `sketch` heißt in der Oberfläche „Demo“. `in_progress` („In Arbeit“) stammt von vor den Produktionsphasen und wird nur noch angeboten, solange ein Track ihn hat. Neue Status kennt eine ältere, noch offene Web-Version nicht.
 - `test@onboarding.invalid` ist der Test-Account für das Onboarding und zählt nicht gegen `MAX_USERS`. „Als neue Person testen“ im Lagebild setzt ihn zurück (`lib/test-account.ts`, löscht seine Projekte samt Dateien) und kopiert einen Login-Link fürs private Fenster.
 
 ## Abweichungen vom Standard

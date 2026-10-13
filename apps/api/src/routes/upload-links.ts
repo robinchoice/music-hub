@@ -168,6 +168,8 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     const ownerId = found.link.createdById;
     const stem = await db.transaction(async (tx) => {
       await lockStorage(tx, ownerId);
+      // Checked again under the lock, so the same file sent twice at once becomes one stem
+      if (!(await freshStemKey(tx, track, input.fileKey))) return 'taken';
       if (!fits(await storageOf(tx, ownerId), fileSize)) return null;
       const [stem] = await tx
         .insert(stems)
@@ -184,6 +186,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
         .returning({ id: stems.id });
       return stem;
     });
+    if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);
     if (!stem) return ownerFull(c);
 
     if (await uploadAlerts.hit(db, `${found.link.id}:${track.id}`)) {

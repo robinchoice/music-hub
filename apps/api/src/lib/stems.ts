@@ -20,7 +20,7 @@ const revisionOf = (stem: Stem, replacedAt: Date) => ({
 });
 
 // A key handed out by an upload URL route for this track that no stem uses yet
-export async function freshStemKey(db: Database, track: { id: string; projectId: string }, fileKey: string) {
+export async function freshStemKey(db: Pick<Database, 'select'>, track: { id: string; projectId: string }, fileKey: string) {
   const expectedPrefix = `projects/${track.projectId}/tracks/${track.id}/stems/`;
   const keySuffix = fileKey.slice(expectedPrefix.length);
   if (!fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/[^/]+$/.test(keySuffix)) return false;

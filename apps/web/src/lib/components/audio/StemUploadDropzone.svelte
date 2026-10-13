@@ -14,11 +14,18 @@
     onUploaded,
     base = `/stems/track/${trackId}`,
     extra = {},
-  }: { trackId: string; initialFiles?: File[]; onUploaded: () => void; base?: string; extra?: Record<string, string> } = $props();
+    uploading = $bindable(false),
+  }: {
+    trackId: string;
+    initialFiles?: File[];
+    onUploaded: () => void;
+    base?: string;
+    extra?: Record<string, string>;
+    uploading?: boolean;
+  } = $props();
 
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
-  let uploading = $state(false);
 
   // The close button cancels the uploads, so no stem turns up later.
   // Plain variables: state read while the zone is being removed can still hold an old value.

@@ -35,7 +35,8 @@
     },
   };
 
-  const c = $derived(COLORS[status]);
+  // A status added later can reach a page loaded before it, which then shows it plainly
+  const c = $derived(COLORS[status] ?? working);
 </script>
 
 <span
@@ -43,7 +44,7 @@
   style="background: {c.bg}; color: {c.fg}; border-color: {c.border}"
 >
   <span class="dot" style="background: {c.fg}"></span>
-  {TRACK_STATUS_LABELS[status]}
+  {TRACK_STATUS_LABELS[status] ?? status}
 </span>
 
 <style>
