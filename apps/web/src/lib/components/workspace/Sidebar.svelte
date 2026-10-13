@@ -20,6 +20,7 @@
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
     { href: '/for-you', icon: 'inbox', label: 'Für dich' },
     { href: '/offen', icon: 'git-branch', label: 'Offene Musik' },
+    { href: '/trash', icon: 'trash', label: 'Papierkorb' },
   ] as const;
 
   // Only for addresses in ADMIN_EMAILS

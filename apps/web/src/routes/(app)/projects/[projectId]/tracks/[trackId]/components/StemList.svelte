@@ -154,7 +154,7 @@
       revisions = revisions.filter((r) => r.id !== revision.id);
       count(-1);
       if (!revisions.length) historyOf = null;
-      toastTrash(`Fassung ${n} von „${spurDisplayName(stem.name, trackName)}“ liegt im Papierkorb des Projekts`, async () => {
+      toastTrash(`Fassung ${n} von „${spurDisplayName(stem.name, trackName)}“ liegt im Papierkorb`, async () => {
         await api.post(`/trash/revision/${revision.id}/restore`);
         count(1);
         if (historyOf === stem.id) await loadRevisions(stem.id);
@@ -169,7 +169,7 @@
     try {
       await api.delete(`/stems/${stem.id}`);
       stems = stems.filter((s) => s.id !== stem.id);
-      toastTrash(`Spur „${label}“ liegt im Papierkorb des Projekts`, async () => {
+      toastTrash(`Spur „${label}“ liegt im Papierkorb`, async () => {
         await api.post(`/trash/stem/${stem.id}/restore`);
         await loadStems();
       });

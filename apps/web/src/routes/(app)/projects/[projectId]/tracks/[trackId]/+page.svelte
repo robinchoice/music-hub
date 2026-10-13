@@ -455,7 +455,7 @@
 
   async function handleDeleteComment(id: string) {
     await api.delete(`/comments/${id}`);
-    toastTrash('Kommentar liegt im Papierkorb des Projekts', () => handleRestoreComment(id));
+    toastTrash('Kommentar liegt im Papierkorb', () => handleRestoreComment(id));
     await reloadComments();
     void loadOverview();
   }
@@ -537,7 +537,7 @@
 
   async function deleteTrack() {
     await api.delete(`/tracks/${trackId}`);
-    toastTrash(`„${trackName}“ liegt im Papierkorb des Projekts`, async () => {
+    toastTrash(`„${trackName}“ liegt im Papierkorb`, async () => {
       await api.post(`/trash/track/${trackId}/restore`);
       reloadSidebar?.();
       void loadOverview();
@@ -601,7 +601,7 @@
     if (!selectedVersion) return;
     const { id, versionNumber } = selectedVersion;
     await api.delete(`/versions/${id}`);
-    toastTrash(`V${versionNumber} liegt im Papierkorb des Projekts`, async () => {
+    toastTrash(`V${versionNumber} liegt im Papierkorb`, async () => {
       await api.post(`/trash/version/${id}/restore`);
       await loadVersions();
       const restored = versions.find((v) => v.id === id);
@@ -658,7 +658,7 @@
     {:else if missing}
       <EmptyState
         title="Diesen Track gibt es hier nicht mehr"
-        description="Er wurde gelöscht. Gelöschte Tracks liegen 30 Tage im Papierkorb des Projekts."
+        description="Er wurde gelöscht. Gelöschte Tracks liegen 30 Tage im Papierkorb."
       >
         {#snippet action()}
           <Button href="/projects/{projectId}">Zum Projekt</Button>
@@ -714,7 +714,7 @@
                 {#if role === 'owner'}
                   <hr />
                   <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> Track in den Papierkorb</button>
-                  <span class="menu-hint">Mit allen Versionen, Kommentaren und Spuren, 30 Tage im Papierkorb des Projekts</span>
+                  <span class="menu-hint">Mit allen Versionen, Kommentaren und Spuren, 30 Tage im Papierkorb</span>
                 {/if}
               </div>
             {/if}

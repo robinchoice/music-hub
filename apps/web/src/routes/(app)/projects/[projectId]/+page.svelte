@@ -259,7 +259,7 @@
 
   {#if trash.length > 0}
     {@const daysLeft = trashDaysLeft(trash[trash.length - 1].deletedAt)}
-    <a href="/projects/{projectId}/trash" class="trash-link">
+    <a href="/trash?project={projectId}" class="trash-link">
       <span class="trash-icon"><Icon name="trash" size={16} /></span>
       <span class="trash-text">
         <b>Papierkorb</b>

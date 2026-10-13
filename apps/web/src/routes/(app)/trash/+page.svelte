@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, getContext } from 'svelte';
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { toast, toastSuccess } from '$lib/stores/toast.js';
   import { loadOverview } from '$lib/stores/overview.js';
@@ -15,7 +15,7 @@
   import { spurDisplayName, versionTitle } from '$lib/utils/track.js';
   import { TRASH_DAYS } from '@music-hub/shared';
 
-  type Base = { id: string; deletedAt: string; trackId: string; trackName: string };
+  type Base = { id: string; deletedAt: string; projectId: string; projectName: string; trackId: string; trackName: string };
   type Entry =
     | (Base & {
         kind: 'track';
@@ -48,7 +48,6 @@
       });
   type Filter = 'all' | Entry['kind'];
 
-  const projectId = ($page.params as Record<string, string>).projectId;
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
   const FILTERS: [Filter, string][] = [
@@ -60,34 +59,46 @@
     ['comment', 'Kommentare'],
   ];
 
-  let projectName = $state('');
   let entries = $state<Entry[]>([]);
   let loading = $state(true);
   let filter = $state<Filter>('all');
+  // All projects or one, kept in ?project= so the project page can link here
+  let projectFilter = $state($page.url.searchParams.get('project') ?? '');
+  // The projects as loaded, so one stays selectable once its last entry is gone
+  let projectOptions = $state<{ id: string; name: string }[]>([]);
   let menuFor = $state<string | null>(null);
   let discarding = $state<Entry | null>(null);
   let discardOpen = $state(false);
   let emptyOpen = $state(false);
   let busy = $state(false);
 
-  const shown = $derived(filter === 'all' ? entries : entries.filter((e) => e.kind === filter));
-  const bytes = $derived(entries.reduce((sum, e) => sum + ('bytes' in e ? e.bytes : 0), 0));
-  const countOf = (f: Filter) => (f === 'all' ? entries.length : entries.filter((e) => e.kind === f).length);
+  const scoped = $derived(projectFilter ? entries.filter((e) => e.projectId === projectFilter) : entries);
+  const shown = $derived(filter === 'all' ? scoped : scoped.filter((e) => e.kind === filter));
+  const bytes = $derived(scoped.reduce((sum, e) => sum + ('bytes' in e ? e.bytes : 0), 0));
+  const countOf = (f: Filter) => (f === 'all' ? scoped.length : scoped.filter((e) => e.kind === f).length);
+  const projectName = $derived(projectOptions.find((p) => p.id === projectFilter)?.name ?? '');
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const size = (b: number) => (b >= 1024 ** 3 ? formatGb(b) : formatFileSize(b));
 
   onMount(async () => {
     try {
-      const [projectRes, trashRes] = await Promise.all([
-        api.get<{ project: { name: string } }>(`/projects/${projectId}`),
-        api.get<{ entries: Entry[] }>(`/trash/project/${projectId}`),
-      ]);
-      projectName = projectRes.project.name;
-      entries = trashRes.entries;
+      entries = (await api.get<{ entries: Entry[] }>('/trash')).entries;
+      projectOptions = [...new Map(entries.map((e) => [e.projectId, e.projectName]))]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      if (projectFilter && !projectOptions.some((p) => p.id === projectFilter)) selectProject('');
     } finally {
       loading = false;
     }
   });
+
+  function selectProject(id: string) {
+    projectFilter = id;
+    const url = new URL($page.url);
+    if (id) url.searchParams.set('project', id);
+    else url.searchParams.delete('project');
+    replaceState(url, {});
+  }
 
   function title(e: Entry) {
     if (e.kind === 'track') return e.trackName;
@@ -108,7 +119,7 @@
 
   // Where a restored entry is
   function place(e: Entry) {
-    const track = `/projects/${projectId}/tracks/${e.trackId}`;
+    const track = `/projects/${e.projectId}/tracks/${e.trackId}`;
     if (e.kind === 'version') return `${track}?v=${e.id}`;
     if (e.kind === 'comment') return `${track}?v=${e.versionId}`;
     return track;
@@ -155,8 +166,8 @@
   async function emptyTrash() {
     busy = true;
     try {
-      await api.delete(`/trash/project/${projectId}`);
-      entries = [];
+      await api.delete(projectFilter ? `/trash?project=${projectFilter}` : '/trash');
+      entries = entries.filter((e) => projectFilter && e.projectId !== projectFilter);
       emptyOpen = false;
       toastSuccess('Papierkorb geleert');
     } catch {
@@ -173,25 +184,22 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<TopBar
-  crumbs={[
-    { label: 'Projekte', href: '/dashboard' },
-    { label: projectName || '…', href: `/projects/${projectId}` },
-    { label: 'Papierkorb' },
-  ]}
-/>
+<TopBar crumbs={[{ label: 'Papierkorb' }]} />
 
 <div class="trash-page">
   <header class="head">
     <span class="head-icon"><Icon name="trash" size={24} /></span>
     <div class="grow">
       <h1>Papierkorb</h1>
-      <p>Gelöschtes aus „{projectName || '…'}“ bleibt {TRASH_DAYS} Tage hier und wird danach endgültig gelöscht.</p>
+      <p>
+        Gelöschtes aus {projectName ? `„${projectName}“` : 'deinen Projekten'} bleibt {TRASH_DAYS} Tage hier und wird
+        danach endgültig gelöscht.
+      </p>
       {#if bytes > 0}
         <p>Die Dateien darin belegen {size(bytes)} und zählen weiter zum Speicher.</p>
       {/if}
     </div>
-    {#if entries.length > 0}
+    {#if scoped.length > 0}
       <Button variant="danger" size="sm" onclick={() => (emptyOpen = true)}><Icon name="trash" size={13} /> Papierkorb leeren</Button>
     {/if}
   </header>
@@ -206,15 +214,30 @@
     <div class="empty">
       <Icon name="trash" size={28} />
       <b>Der Papierkorb ist leer</b>
-      <p>Gelöschte Tracks, Versionen, Spuren und Kommentare landen hier und lassen sich {TRASH_DAYS} Tage lang wiederherstellen.</p>
+      <p>Gelöschte Tracks, Versionen, Spuren und Kommentare aus allen Projekten landen hier und lassen sich {TRASH_DAYS} Tage lang wiederherstellen.</p>
     </div>
   {:else}
-    <div class="filter" role="tablist">
-      {#each FILTERS.filter(([f]) => f !== 'revision' || countOf(f) > 0) as [f, label]}
-        <button role="tab" aria-selected={filter === f} class:on={filter === f} onclick={() => (filter = f)}>
-          {label} <i>{countOf(f)}</i>
-        </button>
-      {/each}
+    <div class="toolbar">
+      {#if projectOptions.length > 1}
+        <select
+          class="project-select"
+          aria-label="Projekt"
+          value={projectFilter}
+          onchange={(ev) => selectProject(ev.currentTarget.value)}
+        >
+          <option value="">Alle Projekte</option>
+          {#each projectOptions as p (p.id)}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
+      {/if}
+      <div class="filter" role="tablist">
+        {#each FILTERS.filter(([f]) => f !== 'revision' || countOf(f) > 0) as [f, label]}
+          <button role="tab" aria-selected={filter === f} class:on={filter === f} onclick={() => (filter = f)}>
+            {label} <i>{countOf(f)}</i>
+          </button>
+        {/each}
+      </div>
     </div>
 
     {#if shown.length === 0}
@@ -234,6 +257,7 @@
             <div class="main">
               <div class="title">{title(e)}</div>
               <div class="sub">
+                {#if !projectFilter}<span class="project">{e.projectName}</span> · {/if}
                 {#if e.kind === 'track'}
                   Track · {trackContents(e)}
                 {:else if e.kind === 'version'}
@@ -272,8 +296,8 @@
     {/if}
 
     <p class="foot">
-      Du siehst nur, was du wiederherstellen darfst: als Owner Tracks, Versionen, Spuren und ihre Fassungen, sonst
-      deine eigenen Spuren und Fassungen, dazu deine eigenen Kommentare.
+      Du siehst nur, was du wiederherstellen darfst: in deinen eigenen Projekten Tracks, Versionen, Spuren und ihre
+      Fassungen, in anderen deine eigenen Spuren und Fassungen, dazu überall deine eigenen Kommentare.
     </p>
   {/if}
 </div>
@@ -303,7 +327,7 @@
 
 <Modal bind:open={emptyOpen} title="Papierkorb leeren?">
   <p class="modal-text">
-    {plural(entries.length, 'Eintrag wird', 'Einträge werden')} endgültig gelöscht, mit allen Versionen, Kommentaren und
+    {plural(scoped.length, 'Eintrag wird', 'Einträge werden')}{projectName ? ` aus „${projectName}“` : ''} endgültig gelöscht, mit allen Versionen, Kommentaren und
     Dateien darin.
   </p>
   <p class="modal-text">Danach kannst du sie nicht mehr wiederherstellen.</p>
@@ -353,10 +377,29 @@
     font-size: var(--text-sm);
   }
 
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .project-select {
+    height: 32px;
+    max-width: 100%;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--text-xs);
+  }
+
   .filter {
     display: inline-flex;
     max-width: 100%;
-    margin-bottom: var(--space-3);
     padding: 2px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -446,7 +489,8 @@
     font-size: var(--text-xs);
   }
 
-  .sub b {
+  .sub b,
+  .sub .project {
     color: var(--color-text-secondary);
     font-weight: 500;
   }

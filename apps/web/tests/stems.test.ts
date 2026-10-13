@@ -57,11 +57,13 @@ test('an earlier take goes into the trash and comes back from there', async ({ p
   await trackWithStem(page, 2);
   await page.getByRole('button', { name: 'Fassung 3' }).click();
   await page.getByRole('button', { name: 'Fassung 1 in den Papierkorb' }).click();
-  await expect(page.locator('.toast-container')).toContainText('Fassung 1 von „Drums“ liegt im Papierkorb des Projekts');
+  await expect(page.locator('.toast-container')).toContainText('Fassung 1 von „Drums“ liegt im Papierkorb');
   await expect(page.getByRole('button', { name: 'Fassung 2', exact: true })).toBeVisible();
   await expect(page.locator('li.revision')).toHaveCount(1);
 
+  // The old address leads to the trash with this project selected
   await page.goto(`/projects/${projectId}/trash`);
+  await expect(page).toHaveURL(`/trash?project=${projectId}`);
   await page.getByRole('tab', { name: /Fassungen/ }).click();
   await expect(page.getByText('Frühere Fassung von Drums')).toBeVisible();
   await page.getByRole('button', { name: 'Wiederherstellen' }).click();

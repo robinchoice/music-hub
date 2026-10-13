@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { tracks, versions, stems, stemRevisions, comments, projectMembers, type Database } from '@music-hub/db';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { tracks, versions, stems, stemRevisions, comments, projects, projectMembers, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
@@ -19,15 +19,26 @@ async function roleIn(db: Database, projectId: string, userId: string) {
   return membership?.role ?? null;
 }
 
-// What the user may restore in the project: as owner tracks, versions, stems and earlier files of stems,
+// What the user may restore, across all their projects or in one: in projects they own tracks, versions, stems and earlier files of stems,
 // otherwise their own stems and earlier files, and always their own comments. Whatever sits below a deleted track or version comes back with it.
-async function trashOf(db: Database, projectId: string, userId: string, owner: boolean) {
-  // The subqueries name the outer table: drizzle leaves columns of a single-table select unqualified
+export async function trashOf(db: Database, userId: string, projectId?: string) {
+  const memberships = await db
+    .select({ id: projects.id, name: projects.name, role: projectMembers.role })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+    .where(and(eq(projectMembers.userId, userId), projectId ? eq(projects.id, projectId) : undefined));
+  if (!memberships.length) return [];
+  const memberIds = memberships.map((m) => m.id);
+  const ownedIds = memberships.filter((m) => m.role === 'owner').map((m) => m.id);
+  const owner = ownedIds.length > 0;
+  const projectName = new Map(memberships.map((m) => [m.id, m.name]));
+
   const trackRows = owner
     ? await db
         .select({
           id: tracks.id,
           deletedAt: tracks.deletedAt,
+          projectId: tracks.projectId,
           trackId: tracks.id,
           trackName: tracks.name,
           coverImageUrl: tracks.coverImageUrl,
@@ -38,7 +49,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
           bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and s.deleted_at is null and r.deleted_at is null))::float8`,
         })
         .from(tracks)
-        .where(and(eq(tracks.projectId, projectId), inTrash(tracks)))
+        .where(and(inArray(tracks.projectId, ownedIds), inTrash(tracks)))
     : [];
 
   const versionRows = owner
@@ -46,6 +57,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
         .select({
           id: versions.id,
           deletedAt: versions.deletedAt,
+          projectId: tracks.projectId,
           trackId: tracks.id,
           trackName: tracks.name,
           versionNumber: versions.versionNumber,
@@ -58,13 +70,14 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
         })
         .from(versions)
         .innerJoin(tracks, eq(tracks.id, versions.trackId))
-        .where(and(eq(tracks.projectId, projectId), isNull(tracks.deletedAt), inTrash(versions)))
+        .where(and(inArray(tracks.projectId, ownedIds), isNull(tracks.deletedAt), inTrash(versions)))
     : [];
 
   const stemRows = await db
     .select({
       id: stems.id,
       deletedAt: stems.deletedAt,
+      projectId: tracks.projectId,
       trackId: tracks.id,
       trackName: tracks.name,
       name: stems.name,
@@ -74,10 +87,10 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     .innerJoin(tracks, eq(tracks.id, stems.trackId))
     .where(
       and(
-        eq(tracks.projectId, projectId),
+        inArray(tracks.projectId, memberIds),
         isNull(tracks.deletedAt),
         inTrash(stems),
-        owner ? undefined : eq(stems.createdById, userId),
+        owner ? or(inArray(tracks.projectId, ownedIds), eq(stems.createdById, userId)) : eq(stems.createdById, userId),
       ),
     );
 
@@ -85,6 +98,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     .select({
       id: stemRevisions.id,
       deletedAt: stemRevisions.deletedAt,
+      projectId: tracks.projectId,
       trackId: tracks.id,
       trackName: tracks.name,
       name: stems.name,
@@ -96,11 +110,11 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     .innerJoin(tracks, eq(tracks.id, stems.trackId))
     .where(
       and(
-        eq(tracks.projectId, projectId),
+        inArray(tracks.projectId, memberIds),
         isNull(tracks.deletedAt),
         isNull(stems.deletedAt),
         inTrash(stemRevisions),
-        owner ? undefined : eq(stemRevisions.createdById, userId),
+        owner ? or(inArray(tracks.projectId, ownedIds), eq(stemRevisions.createdById, userId)) : eq(stemRevisions.createdById, userId),
       ),
     );
 
@@ -108,6 +122,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     .select({
       id: comments.id,
       deletedAt: comments.deletedAt,
+      projectId: tracks.projectId,
       trackId: tracks.id,
       trackName: tracks.name,
       versionId: versions.id,
@@ -121,7 +136,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     .innerJoin(tracks, eq(tracks.id, versions.trackId))
     .where(
       and(
-        eq(tracks.projectId, projectId),
+        inArray(tracks.projectId, memberIds),
         isNull(tracks.deletedAt),
         isNull(versions.deletedAt),
         inTrash(comments),
@@ -142,7 +157,9 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     ...revisionRows.map((r) => ({ kind: 'revision' as const, ...r })),
     ...commentRows.map((c) => ({ kind: 'comment' as const, ...c })),
   ];
-  return entries.sort((a, b) => b.deletedAt!.getTime() - a.deletedAt!.getTime());
+  return entries
+    .map((e) => ({ ...e, projectName: projectName.get(e.projectId)! }))
+    .sort((a, b) => b.deletedAt!.getTime() - a.deletedAt!.getTime());
 }
 
 // The project of an item in the trash, if the user may restore it
@@ -207,35 +224,46 @@ async function setState(db: Database, kind: Kind, ids: string[], state: TrashSta
   else await db.update(comments).set(state).where(inArray(comments.id, ids));
 }
 
+// Everything the user could restore there is deleted for good
+async function emptyTrash(db: Database, userId: string, projectId?: string) {
+  const entries = await trashOf(db, userId, projectId);
+  const now = new Date();
+  for (const kind of KINDS) {
+    const ids = entries.filter((e) => e.kind === kind).map((e) => e.id);
+    if (ids.length) await setState(db, kind, ids, { discardedAt: now });
+  }
+}
+
 export const trashRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
+
+  // The user's trash across all projects, or of one with ?project=
+  .get('/', async (c) => {
+    const projectId = c.req.query('project');
+    return c.json({ entries: await trashOf(c.get('db'), c.get('userId'), projectId) });
+  })
+
+  .delete('/', async (c) => {
+    await emptyTrash(c.get('db'), c.get('userId'), c.req.query('project'));
+    return c.json({ ok: true });
+  })
 
   .get('/project/:projectId', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
     const projectId = c.req.param('projectId');
 
-    const role = await roleIn(db, projectId, userId);
-    if (!role) return c.json({ error: 'Not found' }, 404);
-
-    return c.json({ entries: await trashOf(db, projectId, userId, role === 'owner') });
+    if (!(await roleIn(db, projectId, userId))) return c.json({ error: 'Not found' }, 404);
+    return c.json({ entries: await trashOf(db, userId, projectId) });
   })
 
-  // Empties the trash: everything the user could restore there is deleted for good
   .delete('/project/:projectId', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
     const projectId = c.req.param('projectId');
 
-    const role = await roleIn(db, projectId, userId);
-    if (!role) return c.json({ error: 'Not found' }, 404);
-
-    const entries = await trashOf(db, projectId, userId, role === 'owner');
-    const now = new Date();
-    for (const kind of KINDS) {
-      const ids = entries.filter((e) => e.kind === kind).map((e) => e.id);
-      if (ids.length) await setState(db, kind, ids, { discardedAt: now });
-    }
+    if (!(await roleIn(db, projectId, userId))) return c.json({ error: 'Not found' }, 404);
+    await emptyTrash(db, userId, projectId);
     return c.json({ ok: true });
   })
 

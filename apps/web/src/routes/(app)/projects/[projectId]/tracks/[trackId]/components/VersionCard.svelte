@@ -192,7 +192,7 @@
             {#if isOwner}
               <hr />
               <button role="menuitem" class="danger" onclick={() => pick(onDelete)}><Icon name="trash" size={14} /> Version in den Papierkorb</button>
-              <span class="menu-hint">Mit allen Kommentaren, 30 Tage im Papierkorb des Projekts. Freigabelinks pausieren so lange.</span>
+              <span class="menu-hint">Mit allen Kommentaren, 30 Tage im Papierkorb. Freigabelinks pausieren so lange.</span>
             {/if}
           </div>
         {/if}
