@@ -15,8 +15,11 @@ test('a new track starts as Demo and moves through the production stages', async
   await page.locator('.status-trigger').click();
   await expect(page.locator('.status-menu button')).toHaveText(['Demo', 'Recording', 'Mix', 'Master', 'Final', 'Veröffentlicht']);
   await expect(page.locator('.status-menu button.active')).toHaveText('Demo');
+  // The pill changes at once, the reload has to wait until the status is saved
+  const saved = page.waitForResponse((r) => r.url().endsWith(`/api/v1/tracks/${track.id}`) && r.request().method() === 'PATCH');
   await page.locator('.status-menu button', { hasText: 'Mix' }).click();
   await expect(page.locator('.status-trigger')).toHaveText('Mix');
+  await saved;
   await page.reload();
   await expect(page.locator('.status-trigger')).toHaveText('Mix');
 });
