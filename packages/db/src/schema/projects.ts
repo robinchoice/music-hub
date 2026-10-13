@@ -46,6 +46,8 @@ export const projectMembers = pgTable(
       .references(() => users.id, { onDelete: 'cascade' })
       .notNull(),
     role: projectRoleEnum('role').notNull(),
+    // A person can hold several roles in one project, role is the first of them
+    extraRoles: projectRoleEnum('extra_roles').array().default([]).notNull(),
     canUpload: boolean('can_upload').default(false).notNull(),
     canComment: boolean('can_comment').default(true).notNull(),
     canApprove: boolean('can_approve').default(false).notNull(),

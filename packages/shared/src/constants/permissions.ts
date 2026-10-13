@@ -67,3 +67,8 @@ export function hasPermission(role: ProjectRole, permission: Permission): boolea
 export function getPermissions(role: ProjectRole): Permission[] {
   return PERMISSIONS[role];
 }
+
+/** All roles of a member: the first one plus any extra ones */
+export function memberRoles(m: { role: ProjectRole; extraRoles?: ProjectRole[] | null }): ProjectRole[] {
+  return [m.role, ...(m.extraRoles ?? [])];
+}

@@ -31,7 +31,7 @@
     stems: { id: string; name: string; fileSize: number }[];
     remixes: { count: number; open: (Remix & { remixes: Remix[] })[] };
   };
-  type Project = { project: { id: string; name: string }; role: string };
+  type Project = { project: { id: string; name: string }; roles: string[] };
 
   const trackId = ($page.params as Record<string, string>).trackId;
   const example = trackId === OPEN_EXAMPLE_ID;
@@ -92,7 +92,7 @@
     if ($authLoading) await checkAuth();
     if (!$user) return goto(`/login?next=${encodeURIComponent(`/offen/${trackId}?remix=1`)}`);
     const res = await api.get<{ projects: Project[] }>('/projects');
-    projects = res.projects.filter((p) => p.role === 'owner' || p.role.includes('engineer'));
+    projects = res.projects.filter((p) => p.roles.some((r) => r === 'owner' || r.includes('engineer')));
     target = projects[0]?.project.id ?? 'new';
     forkOpen = true;
   }

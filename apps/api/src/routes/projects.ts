@@ -7,6 +7,7 @@ import {
   inviteMemberSchema,
   updateMemberSchema,
   hasPermission,
+  memberRoles,
   type ProjectRole,
 } from '@music-hub/shared';
 import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
@@ -36,6 +37,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .select({
         project: projects,
         role: projectMembers.role,
+        extraRoles: projectMembers.extraRoles,
         trackCount: sql<number>`(select count(*)::int from ${tracks} where ${tracks.projectId} = ${projects.id} and ${tracks.deletedAt} is null)`,
       })
       .from(projectMembers)
@@ -43,8 +45,9 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, archived)));
 
     const enriched = await Promise.all(
-      memberships.map(async (m) => ({
+      memberships.map(async ({ extraRoles, ...m }) => ({
         ...m,
+        roles: memberRoles({ role: m.role, extraRoles }),
         project: await withCoverUrl(m.project),
       })),
     );
@@ -94,7 +97,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    return c.json({ project: await withCoverUrl(project), role: membership.role });
+    return c.json({ project: await withCoverUrl(project), role: membership.role, roles: memberRoles(membership) });
   })
 
   .patch('/:id', zValidator('json', updateProjectSchema), async (c) => {
@@ -207,6 +210,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .select({
         id: projectMembers.id,
         role: projectMembers.role,
+        extraRoles: projectMembers.extraRoles,
         canUpload: projectMembers.canUpload,
         canComment: projectMembers.canComment,
         canApprove: projectMembers.canApprove,
@@ -221,14 +225,14 @@ export const projectRoutes = new Hono<AppEnv>()
       .innerJoin(users, eq(users.id, projectMembers.userId))
       .where(eq(projectMembers.projectId, projectId));
 
-    return c.json({ members });
+    return c.json({ members: members.map(({ extraRoles, ...m }) => ({ ...m, roles: memberRoles({ role: m.role, extraRoles }) })) });
   })
 
   .post('/:id/members', zValidator('json', inviteMemberSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
     const projectId = c.req.param('id');
-    const { email, role } = c.req.valid('json');
+    const { email, ...input } = c.req.valid('json');
 
     // Check permission (owner or management)
     const [membership] = await db
@@ -237,7 +241,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
       .limit(1);
 
-    if (!membership || (membership.role !== 'owner' && membership.role !== 'management')) {
+    if (!membership || !memberRoles(membership).some((r) => r === 'owner' || r === 'management')) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -251,14 +255,12 @@ export const projectRoutes = new Hono<AppEnv>()
         .returning();
     }
 
-    const defaults = getRoleDefaults(role);
     const [member] = await db
       .insert(projectMembers)
       .values({
         projectId,
         userId: invitedUser.id,
-        role,
-        ...defaults,
+        ...roleColumns(input),
       })
       .onConflictDoNothing()
       .returning();
@@ -296,7 +298,7 @@ export const projectRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('id');
     const memberId = c.req.param('memberId');
-    const { role: newRole } = c.req.valid('json');
+    const input = c.req.valid('json');
 
     const [membership] = await db
       .select()
@@ -318,10 +320,9 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Cannot change own owner role' }, 403);
     }
 
-    const defaults = getRoleDefaults(newRole);
     const [updated] = await db
       .update(projectMembers)
-      .set({ role: newRole, ...defaults })
+      .set(roleColumns(input))
       .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
       .returning();
 
@@ -358,10 +359,15 @@ export const projectRoutes = new Hono<AppEnv>()
     return c.json({ message: 'Member removed' });
   });
 
-function getRoleDefaults(role: ProjectRole) {
+// The rights of several roles add up
+export function roleColumns(input: { role?: ProjectRole; roles?: ProjectRole[] }) {
+  const [role, ...extraRoles] = [...new Set(input.roles ?? [input.role!])];
+  const all = [role, ...extraRoles];
   return {
-    canUpload: hasPermission(role, 'track.upload'),
-    canComment: hasPermission(role, 'version.comment'),
-    canApprove: hasPermission(role, 'version.approve'),
+    role,
+    extraRoles,
+    canUpload: all.some((r) => hasPermission(r, 'track.upload')),
+    canComment: all.some((r) => hasPermission(r, 'version.comment')),
+    canApprove: all.some((r) => hasPermission(r, 'version.approve')),
   };
 }

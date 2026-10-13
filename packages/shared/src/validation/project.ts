@@ -16,18 +16,24 @@ export const updateProjectSchema = z.object({
   coverImageUrl: coverKeySchema.nullable().optional(),
 });
 
-export const inviteMemberSchema = z.object({
-  email: z.string().email(),
-  role: z.enum(PROJECT_ROLES).refine((r) => r !== 'owner', {
-    message: 'Cannot invite as owner',
-  }),
+const assignableRole = z.enum(PROJECT_ROLES).refine((r) => r !== 'owner', {
+  message: 'Cannot assign owner',
 });
 
-export const updateMemberSchema = z.object({
-  role: z.enum(PROJECT_ROLES).refine((r) => r !== 'owner', {
-    message: 'Cannot change role to owner',
-  }),
-});
+// roles replaces role, which older clients still send
+const memberRoles = {
+  role: assignableRole.optional(),
+  roles: z.array(assignableRole).min(1).max(PROJECT_ROLES.length).optional(),
+};
+const hasRole = (m: { role?: string; roles?: string[] }) => !!(m.role || m.roles);
+
+export const inviteMemberSchema = z
+  .object({ email: z.string().email(), ...memberRoles })
+  .refine(hasRole, { message: 'role or roles required' });
+
+export const updateMemberSchema = z
+  .object(memberRoles)
+  .refine(hasRole, { message: 'role or roles required' });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;

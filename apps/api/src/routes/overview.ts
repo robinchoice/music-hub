@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { taskKeySchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { memberRoles, taskKeySchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import {
   projects,
   projectMembers,
@@ -87,7 +87,7 @@ export const overviewRoutes = new Hono<AppEnv>()
     };
 
     const memberships = await db
-      .select({ project: projects, role: projectMembers.role })
+      .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))
       .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)));
@@ -97,7 +97,7 @@ export const overviewRoutes = new Hono<AppEnv>()
     }
 
     const members = await db
-      .select({ projectId: projectMembers.projectId, userId: projectMembers.userId, role: projectMembers.role })
+      .select({ projectId: projectMembers.projectId, userId: projectMembers.userId, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
       .from(projectMembers)
       .where(inArray(projectMembers.projectId, projectIds));
 
@@ -239,13 +239,16 @@ export const overviewRoutes = new Hono<AppEnv>()
 
     return c.json({
       projects: await Promise.all(
-        memberships.map(async ({ project, role }) => ({
+        memberships.map(async ({ project, role, extraRoles }) => ({
           id: project.id,
           name: project.name,
           artist: project.artist,
           coverUrl: project.coverImageUrl ? await createDownloadUrl(project.coverImageUrl) : null,
           myRole: role,
-          members: members.filter((m) => m.projectId === project.id).map((m) => ({ userId: m.userId, role: m.role })),
+          myRoles: memberRoles({ role, extraRoles }),
+          members: members
+            .filter((m) => m.projectId === project.id)
+            .map((m) => ({ userId: m.userId, role: m.role, roles: memberRoles(m) })),
         })),
       ),
       users: userRows,
