@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { createDb, migrateDb, projectMembers, projects, stems, tracks, users } from '@music-hub/db';
 import { trashOf } from './routes/trash.js';
 
@@ -72,4 +72,14 @@ test("the trash covers all projects, with each project's rights", async () => {
 test('the trash of one project shows only that project', async () => {
   expect((await trashOf(db, robin, own)).map((e) => e.projectId)).toEqual([own]);
   expect(await trashOf(db, robin, crypto.randomUUID())).toEqual([]);
+});
+
+test('archived projects stay out of the trash', async () => {
+  await db.update(projects).set({ isArchived: true }).where(eq(projects.id, own));
+  try {
+    expect((await trashOf(db, robin)).map((e) => e.projectId)).toEqual([foreign]);
+    expect(await trashOf(db, robin, own)).toEqual([]);
+  } finally {
+    await db.update(projects).set({ isArchived: false }).where(eq(projects.id, own));
+  }
 });

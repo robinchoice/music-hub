@@ -19,14 +19,14 @@ async function roleIn(db: Database, projectId: string, userId: string) {
   return membership?.role ?? null;
 }
 
-// What the user may restore, across all their projects or in one: in projects they own tracks, versions, stems and earlier files of stems,
+// What the user may restore, across all their projects that are not archived or in one: in projects they own tracks, versions, stems and earlier files of stems,
 // otherwise their own stems and earlier files, and always their own comments. Whatever sits below a deleted track or version comes back with it.
 export async function trashOf(db: Database, userId: string, projectId?: string) {
   const memberships = await db
     .select({ id: projects.id, name: projects.name, role: projectMembers.role })
     .from(projectMembers)
     .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-    .where(and(eq(projectMembers.userId, userId), projectId ? eq(projects.id, projectId) : undefined));
+    .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false), projectId ? eq(projects.id, projectId) : undefined));
   if (!memberships.length) return [];
   const memberIds = memberships.map((m) => m.id);
   const ownedIds = memberships.filter((m) => m.role === 'owner').map((m) => m.id);
