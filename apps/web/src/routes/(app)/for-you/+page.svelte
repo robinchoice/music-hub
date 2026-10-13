@@ -8,12 +8,15 @@
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import TaskCard from '$lib/components/overview/TaskCard.svelte';
+  import RequestCard from '$lib/components/profile/RequestCard.svelte';
+  import { requests, loadRequests } from '$lib/stores/requests.js';
   import { overviewIndex, overviewFailed, tasks, loadOverview, dismissTask, restoreTask } from '$lib/stores/overview.js';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
   import { avatarOf, eventsOf, fullName, isAlone, personName, projectGroups, type OverviewEvent } from '$lib/utils/overview.js';
 
   onMount(() => {
     void loadOverview(true);
+    void loadRequests();
   });
 
   const ix = $derived($overviewIndex);
@@ -49,8 +52,16 @@
 <TopBar crumbs={[{ label: 'Für dich' }]} />
 
 <div class="page">
-  <h1>Für dich {#if $tasks.length}<span class="count">{$tasks.length}</span>{/if}</h1>
+  <h1>Für dich {#if $tasks.length + $requests.length}<span class="count">{$tasks.length + $requests.length}</span>{/if}</h1>
   <p class="sub">Was gerade auf dich wartet, das Neueste zuerst.</p>
+
+  {#if $requests.length}
+    <div class="list requests">
+      {#each $requests as r (r.id)}
+        <div out:fly={{ x: 18, duration: 220 }}><RequestCard request={r} /></div>
+      {/each}
+    </div>
+  {/if}
 
   {#if !ix && $overviewFailed}
     <LoadFailed />
@@ -80,7 +91,7 @@
         {/if}
       </div>
     </div>
-  {:else}
+  {:else if !$requests.length}
     <div class="empty">
       <div class="ok"><Icon name="check" size={22} stroke={2.4} /></div>
       <h2>Alles erledigt</h2>
@@ -155,6 +166,9 @@
     margin: 4px 0 var(--space-5);
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
+  }
+  .requests {
+    margin-bottom: var(--space-3);
   }
   .list,
   .loading {

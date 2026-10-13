@@ -7,6 +7,7 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
 
   let name = $state('');
@@ -93,6 +94,7 @@
         </div>
       </div>
     </section>
+    <ProfileSettings />
   {/if}
 
   <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>

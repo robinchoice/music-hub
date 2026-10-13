@@ -10,6 +10,7 @@
   import Tile from '$lib/components/ui/Tile.svelte';
   import { loadOverview, tasks } from '$lib/stores/overview.js';
   import { STATUS_COLORS, type TrackStatus } from '$lib/utils/overview.js';
+  import { loadRequests, requests } from '$lib/stores/requests.js';
 
   type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
   type ProjectMembership = { project: Project; role: string; trackCount: number };
@@ -105,6 +106,7 @@
   onMount(async () => {
     touch = matchMedia('(hover: none)').matches;
     void loadOverview();
+    void loadRequests();
     try {
       const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true);
       projects = res.projects;
@@ -175,8 +177,8 @@
         onclick={handleNavClick}
       >
         <Icon name={item.icon} size={16} /> {item.label}
-        {#if item.href === '/for-you' && $tasks.length}
-          <span class="badge">{$tasks.length}</span>
+        {#if item.href === '/for-you' && $tasks.length + $requests.length}
+          <span class="badge">{$tasks.length + $requests.length}</span>
         {/if}
       </a>
     {/each}

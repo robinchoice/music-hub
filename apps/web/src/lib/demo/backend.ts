@@ -447,6 +447,7 @@ const ROUTES: [string, RegExp, Handler][] = [
     };
   }],
   ['GET', /^\/overview$/, () => overview()],
+  ['GET', /^\/requests$/, () => ({ requests: [] })],
   ['POST', /^\/overview\/dismissals$/, (_, body) => {
     overviewState.dismissed.add(String(body?.taskKey));
     return { ok: true };
@@ -465,7 +466,9 @@ export function demoOpenTrack() {
   return {
     track: { id: OPEN_EXAMPLE_ID, name: 'Nachtbus', description: null, credit: null, forkedFromId: null },
     artist: 'Fernlicht',
-    people,
+    people: people.map((p) => ({ ...p, handle: null })),
+    stars: 12,
+    starred: false,
     license: 'cc-by' as const,
     credit: `„Nachtbus“ von Fernlicht (${people.map((p) => p.name).join(', ')}) · CC BY 4.0 · ${location.origin}/offen/${OPEN_EXAMPLE_ID}`,
     coverUrl: COVER,

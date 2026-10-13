@@ -22,7 +22,9 @@
   type OpenTrack = {
     track: { id: string; name: string; description: string | null; credit: string | null; forkedFromId: string | null };
     artist: string;
-    people: { id: string; name: string; avatarUrl: string | null }[];
+    people: { id: string; name: string; avatarUrl: string | null; handle: string | null }[];
+    stars: number;
+    starred: boolean;
     license: OpenLicense;
     credit: string;
     coverUrl: string | null;
@@ -81,6 +83,21 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return toastError(body.error ?? 'Download fehlgeschlagen');
     location.href = body.url;
+  }
+
+  async function toggleStar() {
+    if (example) return notInExample();
+    if ($authLoading) await checkAuth();
+    if (!$user) return goto(`/login?next=${encodeURIComponent(`/offen/${trackId}`)}`);
+    const on = !data!.starred;
+    data!.starred = on;
+    data!.stars += on ? 1 : -1;
+    try {
+      await (on ? api.put(`/open/${trackId}/star`) : api.delete(`/open/${trackId}/star`));
+    } catch {
+      data!.starred = !on;
+      data!.stars += on ? -1 : 1;
+    }
   }
 
   async function copyCredit() {
@@ -156,13 +173,24 @@
           <h1>{data.track.name}</h1>
           <div class="by">
             <span class="avatars">
-              {#each data.people as p (p.id)}<Avatar src={p.avatarUrl} name={p.name} size="sm" />{/each}
+              {#each data.people as p (p.id)}
+                {#if p.handle}
+                  <a href="/@{p.handle}" title="Profil von {p.name}" aria-label="Profil von {p.name}"><Avatar src={p.avatarUrl} name={p.name} size="sm" /></a>
+                {:else}
+                  <Avatar src={p.avatarUrl} name={p.name} size="sm" />
+                {/if}
+              {/each}
             </span>
             <span>{data.artist}</span>
             <a class="license" href={info.url} target="_blank" rel="noopener">{info.label}</a>
           </div>
         </div>
-        <Button onclick={startFork}><Icon name="git-branch" size={14} /> Remixen in Music Hub</Button>
+        <div class="actions">
+          <button class="star" class:on={data.starred} onclick={toggleStar} aria-pressed={data.starred} title={data.starred ? 'Stern zurücknehmen' : 'Stern geben'}>
+            <Icon name="star" size={15} /> {data.stars}
+          </button>
+          <Button onclick={startFork}><Icon name="git-branch" size={14} /> Remixen in Music Hub</Button>
+        </div>
       </section>
 
       {#if data.track.description}<p class="description">{data.track.description}</p>{/if}
@@ -338,6 +366,44 @@
   .avatars {
     display: flex;
     gap: 4px;
+  }
+  .avatars a {
+    display: flex;
+    border-radius: 50%;
+  }
+  .avatars a:hover {
+    box-shadow: 0 0 0 2px var(--color-accent);
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .star {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border-hover);
+    background: none;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .star:hover {
+    border-color: var(--color-accent);
+  }
+  .star.on {
+    color: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+    background: var(--color-accent-subtle);
+  }
+  .star.on :global(svg) {
+    fill: currentColor;
   }
   .license {
     padding: 3px 10px;

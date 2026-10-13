@@ -3,6 +3,7 @@
   import { getContext } from 'svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { tasks } from '$lib/stores/overview.js';
+  import { requests } from '$lib/stores/requests.js';
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
@@ -17,8 +18,8 @@
   {#each ITEMS as item (item.href)}
     <a href={item.href} class="nav-item" class:active={$page.url.pathname === item.href}>
       <Icon name={item.icon} size={22} />
-      {#if item.href === '/for-you' && $tasks.length}
-        <span class="badge">{$tasks.length}</span>
+      {#if item.href === '/for-you' && $tasks.length + $requests.length}
+        <span class="badge">{$tasks.length + $requests.length}</span>
       {/if}
       <span>{item.label}</span>
     </a>

@@ -8,7 +8,7 @@
   }: {
     src?: string | null;
     name: string;
-    size?: 'xs' | 'sm' | 'md' | 'lg';
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   } = $props();
 </script>
 
@@ -43,6 +43,7 @@
   .sm { width: 24px; height: 24px; font-size: 0.6rem; }
   .md { width: 32px; height: 32px; font-size: 0.7rem; }
   .lg { width: 40px; height: 40px; font-size: 0.85rem; }
+  .xl { width: 96px; height: 96px; font-size: 2rem; }
 
   img {
     width: 100%;
