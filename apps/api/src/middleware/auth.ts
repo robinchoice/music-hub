@@ -20,29 +20,39 @@ export async function markSeen(db: Database, userId: string) {
   await db.update(users).set({ lastSeenAt: new Date(now) }).where(eq(users.id, userId));
 }
 
+async function validSession(db: Database, token: string) {
+  const [session] = await db
+    .select({ id: sessions.id, userId: sessions.userId, expiresAt: sessions.expiresAt })
+    .from(sessions)
+    .innerJoin(users, and(eq(users.id, sessions.userId), isNull(users.blockedAt)))
+    .where(eq(sessions.tokenHash, await hashToken(token)))
+    .limit(1);
+  return session && session.expiresAt >= new Date() ? session : undefined;
+}
+
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
   if (!sessionToken) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const tokenHash = await hashToken(sessionToken);
   const db = c.get('db');
-
-  const [session] = await db
-    .select({ id: sessions.id, userId: sessions.userId, expiresAt: sessions.expiresAt })
-    .from(sessions)
-    .innerJoin(users, and(eq(users.id, sessions.userId), isNull(users.blockedAt)))
-    .where(eq(sessions.tokenHash, tokenHash))
-    .limit(1);
-
-  if (!session || session.expiresAt < new Date()) {
+  const session = await validSession(db, sessionToken);
+  if (!session) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   c.set('userId', session.userId);
   await renewSession(c, db, session, sessionToken);
   await markSeen(db, session.userId);
+  await next();
+});
+
+// For public pages that show more to someone logged in: sets userId only if there is a valid session
+export const optionalAuth = createMiddleware<AppEnv>(async (c, next) => {
+  const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
+  const session = sessionToken ? await validSession(c.get('db'), sessionToken) : undefined;
+  if (session) c.set('userId', session.userId);
   await next();
 });
 

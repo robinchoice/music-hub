@@ -261,3 +261,55 @@ export async function sendVersionsEmail(
     `,
   });
 }
+
+export async function sendContactRequestEmail(email: string, fromName: string, message: string) {
+  const url = `${process.env.APP_URL}/for-you`;
+  if (!transport) {
+    console.log(`[DEV] Contact request from ${fromName} to ${email}: ${url}`);
+    return;
+  }
+
+  await transport.sendMail({
+    from: fromEmail,
+    to: email,
+    subject: `${fromName} hat dir eine Anfrage geschickt`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
+        <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
+        <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 0.5rem;"><strong style="color: #f4f0ec;">${escapeHtml(fromName)}</strong> hat dir über dein Profil geschrieben:</p>
+        <p style="color: #f4f0ec; line-height: 1.55; margin: 0 0 1.5rem; white-space: pre-wrap;">${escapeHtml(message)}</p>
+        <a href="${url}" style="
+          display: inline-block;
+          padding: 0.8rem 1.6rem;
+          background: linear-gradient(135deg, #f43f5e, #fb923c);
+          color: #fff;
+          border-radius: 10px;
+          text-decoration: none;
+          font-weight: 600;
+        ">Annehmen oder ablehnen</a>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 1.5rem 0 0;">Antworten geht nur in Music Hub. Nimmst du an, arbeitet ihr in einem gemeinsamen Projekt weiter.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendRequestReportEmail(to: string[], fromName: string, senderEmail: string, toName: string, message: string) {
+  if (!transport) {
+    console.log(`[DEV] ${toName} reported a request from ${fromName} <${senderEmail}> to ${to.join(', ')}`);
+    return;
+  }
+
+  await transport.sendMail({
+    from: fromEmail,
+    to,
+    subject: `Gemeldete Anfrage von ${fromName}`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
+        <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
+        <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 0.5rem;"><strong style="color: #f4f0ec;">${escapeHtml(toName)}</strong> hat eine Anfrage von <strong style="color: #f4f0ec;">${escapeHtml(fromName)}</strong> (${escapeHtml(senderEmail)}) blockiert und gemeldet:</p>
+        <p style="color: #f4f0ec; line-height: 1.55; margin: 0 0 1.5rem; white-space: pre-wrap;">${escapeHtml(message)}</p>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Sperren lässt sich das Konto in der Nutzerliste.</p>
+      </div>
+    `,
+  });
+}

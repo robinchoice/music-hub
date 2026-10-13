@@ -12,3 +12,4 @@ export * from './audioJobs.js';
 export * from './open.js';
 export * from './notices.js';
 export * from './uploadLinks.js';
+export * from './profiles.js';

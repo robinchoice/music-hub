@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, timestamp, primaryKey } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { tracks, versions } from './tracks.js';
 
@@ -17,6 +17,8 @@ export const openTracks = pgTable('open_tracks', {
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   openedAt: timestamp('opened_at'),
+  // Downloads of the mix, a stem or the ZIP; the profile shows their sum
+  downloadCount: integer('download_count').default(0).notNull(),
 });
 
 export const openConsents = pgTable(
