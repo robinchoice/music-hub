@@ -295,7 +295,7 @@
     border-radius: var(--radius-sm);
     background: var(--color-bg-base);
     font-family: var(--font-sans);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     font-weight: 500;
     color: var(--color-text-secondary);
   }
@@ -304,7 +304,7 @@
     font-family: var(--font-display);
     font-weight: 800;
     font-stretch: 78%;
-    font-size: var(--text-sm);
+    font-size: 1.05rem;
     color: var(--color-text-primary);
   }
 
@@ -312,6 +312,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Next to the filter there is only room for the number on phones */
+  @media (max-width: 480px) {
+    .list-head .vchip span {
+      display: none;
+    }
   }
 
   .filter {
