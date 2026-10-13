@@ -175,7 +175,7 @@
             <span class="avatars">
               {#each data.people as p (p.id)}
                 {#if p.handle}
-                  <a href="/@{p.handle}" title="Profil von {p.name}" aria-label="Profil von {p.name}"><Avatar src={p.avatarUrl} name={p.name} size="sm" /></a>
+                  <a href="/@{p.handle}" title="Profil von {p.name}" aria-label="Profil von {p.name}"><Avatar src={p.avatarUrl} name={p.name} size="md" /></a>
                 {:else}
                   <Avatar src={p.avatarUrl} name={p.name} size="sm" />
                 {/if}
@@ -367,11 +367,17 @@
     display: flex;
     gap: 4px;
   }
+  /* Profile links: a 44 px target around the 32 px avatar, the gap keeps neighbours apart */
+  .avatars:has(a) {
+    gap: var(--space-3);
+  }
   .avatars a {
     display: flex;
     border-radius: 50%;
+    padding: 6px;
+    margin: -6px;
   }
-  .avatars a:hover {
+  .avatars a:hover :global(.avatar) {
     box-shadow: 0 0 0 2px var(--color-accent);
   }
   .actions {

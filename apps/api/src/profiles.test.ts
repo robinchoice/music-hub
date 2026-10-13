@@ -13,7 +13,7 @@ import {
   users,
   versions,
 } from '@music-hub/db';
-import { acceptRequest, contactState, declineRequest, openTracksOf, pendingRequests, suggestHandle } from './lib/profiles.js';
+import { acceptRequest, contactState, requestsInProject, declineRequest, openTracksOf, pendingRequests, suggestHandle } from './lib/profiles.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
 const db = createDb(process.env.DATABASE_URL!);
@@ -101,7 +101,8 @@ test('accepting puts the sender into a new project with the message', async () =
 
   const result = await acceptRequest(db, id, robin);
   const [project] = await db.select().from(projects).where(eq(projects.id, result!.projectId));
-  expect(project).toMatchObject({ name: 'Robin × Mara', description: 'Anfrage von Mara: Lust auf einen Remix?', createdById: robin });
+  expect(project).toMatchObject({ name: 'Robin × Mara', createdById: robin });
+  expect(await requestsInProject(db, project.id)).toMatchObject([{ message: 'Lust auf einen Remix?', from: { name: 'Mara' } }]);
   expect(await contactState(db, profile(robin, 'everyone'), mara)).toBe('connected');
   const members = await db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id));
   expect(members.map((m) => [m.userId, m.role]).sort()).toEqual([[mara, 'artist'], [robin, 'owner']].sort());

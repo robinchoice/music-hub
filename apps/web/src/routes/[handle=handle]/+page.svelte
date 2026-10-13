@@ -143,14 +143,20 @@
             <Button variant="secondary" disabled><Icon name="check" size={14} /> Anfrage geschickt</Button>
           {:else if data.contact === 'needs-open'}
             <Button variant="secondary" disabled>Anfrage schicken</Button>
-            <p class="hint">{p.name} nimmt Anfragen von Leuten mit eigenem offenen Track an.</p>
-          {:else if data.contact === 'closed'}
-            <p class="hint">{p.name} nimmt gerade keine Anfragen an.</p>
-          {:else}
+          {:else if data.contact !== 'closed'}
             <Button onclick={startRequest}><Icon name="mail" size={14} /> Anfrage schicken</Button>
           {/if}
         </div>
       </section>
+
+      {#if data.contact === 'needs-open'}
+        <p class="note">
+          {p.name} nimmt Anfragen von Leuten an, die selbst einen Track offen gestellt haben. Das geht auf der Seite deines Tracks unter „Offen stellen“, sobald er eine freigegebene Version hat.
+          <a href="/dashboard">Zu deinen Projekten</a>
+        </p>
+      {:else if data.contact === 'closed'}
+        <p class="note">{p.name} nimmt gerade keine Anfragen an.</p>
+      {/if}
 
       {#if data.stats}
         <dl class="stats">
@@ -298,11 +304,17 @@
     gap: var(--space-2);
     max-width: 240px;
   }
-  .hint {
+  .note {
     margin: 0;
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-    text-align: right;
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+  .note a {
+    color: var(--color-text-primary);
   }
   .stats {
     display: flex;
@@ -479,9 +491,6 @@
     .cta {
       align-items: flex-start;
       max-width: none;
-    }
-    .hint {
-      text-align: left;
     }
     .remixes {
       display: none;

@@ -58,6 +58,9 @@
   let trash = $state<{ deletedAt: string }[]>([]);
   let role = $state('');
   let roles = $state<string[]>([]);
+  // Contact requests that led here, so their message stays in view
+  type Request = { id: string; message: string; answeredAt: string; from: { name: string; handle: string | null }; track: { id: string; name: string } | null };
+  let requests = $state<Request[]>([]);
   let tracks = $state<Track[]>([]);
   let doneOpen = $state(false);
   // Rows showing their open comments or rejection reason
@@ -93,12 +96,13 @@
     void loadOverview(true);
     try {
       const [projectRes, trackRes] = await Promise.all([
-        api.get<{ project: Project; role: string; roles: string[] }>(`/projects/${projectId}`),
+        api.get<{ project: Project; role: string; roles: string[]; requests?: Request[] }>(`/projects/${projectId}`),
         api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`),
       ]);
       project = projectRes.project;
       role = projectRes.role;
       roles = projectRes.roles;
+      requests = projectRes.requests ?? [];
       tracks = trackRes.tracks;
     } finally {
       loading = false;
@@ -232,6 +236,15 @@
       {/if}
     </div>
   {/if}
+
+  {#each requests as r (r.id)}
+    <aside class="request">
+      <p class="request-head">
+        Anfrage von {#if r.from.handle}<a href="/@{r.from.handle}">{r.from.name}</a>{:else}<b>{r.from.name}</b>{/if}{#if r.track}{' zu '}<a href="/offen/{r.track.id}">„{r.track.name}“</a>{/if}
+      </p>
+      <blockquote>{r.message}</blockquote>
+    </aside>
+  {/each}
 
   {#if showNewTrack}
     <form class="new-track-form" onsubmit={(e) => { e.preventDefault(); createTrack(); }}>
@@ -531,6 +544,31 @@
   }
   .trash-text small {
     font-size: var(--text-xs);
+  }
+  .request {
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-left: 2px solid var(--color-accent);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--color-bg-raised);
+  }
+  .request-head {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .request-head a,
+  .request-head b {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+  .request blockquote {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .archived {
     display: flex;

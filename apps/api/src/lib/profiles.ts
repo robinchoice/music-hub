@@ -5,6 +5,7 @@ import {
   profiles,
   projectMembers,
   projects,
+  tracks,
   userBlocks,
   users,
   type Database,
@@ -179,11 +180,7 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
       ]);
       const [project] = await tx
         .insert(projects)
-        .values({
-          name: `${me.name} × ${sender.name}`.slice(0, 255),
-          description: `Anfrage von ${sender.name}: ${request.message}`,
-          createdById: userId,
-        })
+        .values({ name: `${me.name} × ${sender.name}`.slice(0, 255), createdById: userId })
         .returning();
       await tx.insert(projectMembers).values({
         projectId: project.id,
@@ -213,6 +210,24 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
       .where(eq(contactRequests.id, requestId));
     return { projectId, fromUserId: request.fromUserId };
   });
+}
+
+// Accepted requests that led into this project; the project page shows them, so the message stays
+export async function requestsInProject(db: Database, projectId: string) {
+  return db
+    .select({
+      id: contactRequests.id,
+      message: contactRequests.message,
+      answeredAt: contactRequests.answeredAt,
+      from: { name: users.name, handle: profiles.handle },
+      track: { id: tracks.id, name: tracks.name },
+    })
+    .from(contactRequests)
+    .innerJoin(users, eq(users.id, contactRequests.fromUserId))
+    .leftJoin(profiles, and(eq(profiles.userId, users.id), eq(profiles.visible, true)))
+    .leftJoin(tracks, eq(tracks.id, contactRequests.trackId))
+    .where(and(eq(contactRequests.projectId, projectId), eq(contactRequests.status, 'accepted')))
+    .orderBy(desc(contactRequests.answeredAt));
 }
 
 // Declines silently; with block the sender can't ask again

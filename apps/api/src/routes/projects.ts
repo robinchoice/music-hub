@@ -13,6 +13,7 @@ import {
 import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
 import { findUserByEmail } from '../lib/users.js';
+import { requestsInProject } from '../lib/profiles.js';
 import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import type { AppEnv } from '../types.js';
@@ -97,7 +98,12 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    return c.json({ project: await withCoverUrl(project), role: membership.role, roles: memberRoles(membership) });
+    return c.json({
+      project: await withCoverUrl(project),
+      role: membership.role,
+      roles: memberRoles(membership),
+      requests: await requestsInProject(db, projectId),
+    });
   })
 
   .patch('/:id', zValidator('json', updateProjectSchema), async (c) => {
