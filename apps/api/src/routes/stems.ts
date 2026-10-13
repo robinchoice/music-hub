@@ -6,7 +6,7 @@ import { stems, stemRevisions, openTracks, projectMembers, users, type Database 
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { liveTrack } from '../lib/trash.js';
-import { replaceStem, restoreRevision } from '../lib/stems.js';
+import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { Zip, ZipPassThrough } from 'fflate';
 import type { AppEnv } from '../types.js';
@@ -311,21 +311,6 @@ async function liveRevision(db: Database, revisionId: string) {
 // Who may delete a stem may also give it a new file
 const mayChange = ({ stem, membership }: NonNullable<Awaited<ReturnType<typeof stemAccess>>>, userId: string) =>
   membership.canUpload && (membership.role === 'owner' || stem.createdById === userId);
-
-// A key handed out by the upload URL route for this track that no stem uses yet
-async function freshStemKey(db: Database, track: { id: string; projectId: string }, fileKey: string) {
-  const expectedPrefix = `projects/${track.projectId}/tracks/${track.id}/stems/`;
-  const keySuffix = fileKey.slice(expectedPrefix.length);
-  if (!fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/[^/]+$/.test(keySuffix)) return false;
-
-  const [stemRef] = await db.select({ id: stems.id }).from(stems).where(eq(stems.fileKey, fileKey)).limit(1);
-  const [revisionRef] = await db
-    .select({ id: stemRevisions.id })
-    .from(stemRevisions)
-    .where(eq(stemRevisions.fileKey, fileKey))
-    .limit(1);
-  return !stemRef && !revisionRef;
-}
 
 // Pulls the next chunk only once the client has taken the last one
 export function zipResponse(trackName: string, files: { originalFileName: string; fileKey: string }[]) {

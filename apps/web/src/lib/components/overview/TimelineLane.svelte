@@ -5,7 +5,7 @@
   import TurnLabel from './TurnLabel.svelte';
   import { formatDate } from '$lib/utils/format.js';
   import {
-    decisionText, personName, trackHref, versionName,
+    STATUS_COLORS, decisionText, personName, trackHref, versionName,
     type OverviewComment, type OverviewIndex, type OverviewVersion, type TimelineRange, type TrackInfo,
   } from '$lib/utils/overview.js';
 
@@ -25,8 +25,6 @@
     dockedId: string | null;
     onplay: (version: OverviewVersion, from?: number) => void;
   } = $props();
-
-  const STATUS_COLORS = { sketch: 'var(--color-text-secondary)', in_progress: 'var(--color-accent)', final: 'var(--color-success)', released: 'var(--color-text-primary)' };
 
   const at = (iso: string) => range.pct(Date.parse(iso));
   const inRange = (iso: string) => Date.parse(iso) >= range.start;

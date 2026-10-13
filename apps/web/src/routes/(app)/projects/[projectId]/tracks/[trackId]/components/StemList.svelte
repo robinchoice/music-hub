@@ -17,6 +17,7 @@
     fileSize: number;
     createdAt: string;
     createdById: string;
+    guestName?: string | null;
     revisedAt?: string | null;
     revisionCount?: number;
   };
@@ -210,6 +211,9 @@
         <li title={stem.originalFileName}>
           <Icon name="music" size={13} />
           <span class="name">{label}</span>
+          {#if stem.guestName}
+            <span class="guest" title="Über den Upload-Link geschickt">von {stem.guestName}</span>
+          {/if}
           {#if stem.revisionCount}
             <button
               class="fassung"
@@ -365,6 +369,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .guest {
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   .size {

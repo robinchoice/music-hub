@@ -6,19 +6,23 @@
     size = 'sm',
   }: { status: TrackStatus; size?: 'sm' | 'md' } = $props();
 
-  // Sketch neutral, in progress in the product colour, final green, released filled in the text colour
+  // Demo neutral, the stages in between in the product colour, final green, released filled in the text colour
   const tint = (color: string, alpha: number) => `color-mix(in srgb, ${color} ${alpha}%, transparent)`;
+  const working = {
+    bg: 'var(--color-accent-subtle)',
+    fg: 'var(--color-accent)',
+    border: tint('var(--color-accent)', 40),
+  };
   const COLORS: Record<TrackStatus, { bg: string; fg: string; border: string }> = {
     sketch: {
       bg: tint('var(--color-text-secondary)', 12),
       fg: 'var(--color-text-secondary)',
       border: tint('var(--color-text-secondary)', 30),
     },
-    in_progress: {
-      bg: 'var(--color-accent-subtle)',
-      fg: 'var(--color-accent)',
-      border: tint('var(--color-accent)', 40),
-    },
+    in_progress: working,
+    recording: working,
+    mixing: working,
+    mastering: working,
     final: {
       bg: tint('var(--color-success)', 12),
       fg: 'var(--color-success)',

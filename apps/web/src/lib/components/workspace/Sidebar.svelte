@@ -9,11 +9,11 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
   import { loadOverview, tasks } from '$lib/stores/overview.js';
+  import { STATUS_COLORS, type TrackStatus } from '$lib/utils/overview.js';
 
   type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
   type ProjectMembership = { project: Project; role: string; trackCount: number };
   type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
-  type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
   type Track = { id: string; name: string; coverUrl: string | null; status: TrackStatus };
 
   const NAV = [
@@ -30,13 +30,6 @@
     { href: '/admin/users', icon: 'users', label: 'Nutzerliste' },
     { href: '/admin/log', icon: 'activity', label: 'Protokoll' },
   ] as const;
-
-  const STATUS_COLORS: Record<TrackStatus, string> = {
-    sketch: 'var(--color-text-secondary)',
-    in_progress: 'var(--color-accent)',
-    final: 'var(--color-success)',
-    released: 'var(--color-text-primary)',
-  };
 
   let {
     open = $bindable(false),

@@ -2,7 +2,20 @@
 // No $lib imports, so they can be checked with Bun like track.ts.
 import { formatDate, formatTime, initials } from './format.js';
 
-export type TrackStatus = 'sketch' | 'in_progress' | 'final' | 'released';
+import type { TrackStatus } from '@music-hub/shared';
+
+export type { TrackStatus };
+
+// Demo neutral, the stages in between in the product colour, final green, released in the text colour
+export const STATUS_COLORS: Record<TrackStatus, string> = {
+  sketch: 'var(--color-text-secondary)',
+  in_progress: 'var(--color-accent)',
+  recording: 'var(--color-accent)',
+  mixing: 'var(--color-accent)',
+  mastering: 'var(--color-accent)',
+  final: 'var(--color-success)',
+  released: 'var(--color-text-primary)',
+};
 
 export type OverviewProject = {
   id: string;

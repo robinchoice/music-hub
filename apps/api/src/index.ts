@@ -22,6 +22,7 @@ import { adminRoutes } from './routes/admin.js';
 import { openRoutes } from './routes/open.js';
 import { syncRoutes } from './routes/sync.js';
 import { noticeRoutes } from './routes/notices.js';
+import { uploadLinkRoutes } from './routes/upload-links.js';
 import { sendDueNotices } from './lib/notices.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
@@ -87,7 +88,8 @@ const app = new Hono<AppEnv>()
   .route('/admin', adminRoutes)
   .route('/open', openRoutes)
   .route('/sync', syncRoutes)
-  .route('/notices', noticeRoutes);
+  .route('/notices', noticeRoutes)
+  .route('/upload-links', uploadLinkRoutes);
 
 // Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
 // Each instance runs it; taking a batch deletes it first, so none goes out twice.

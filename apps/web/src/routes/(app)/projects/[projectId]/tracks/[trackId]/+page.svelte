@@ -33,7 +33,7 @@
     isOffline,
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
-  import { SUPPORTED_EXTENSIONS, TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
+  import { SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import { predecessorOf, versionTitle, type Version, type TrackComment } from '$lib/utils/track.js';
   import VersionCard from './components/VersionCard.svelte';
   import VersionList from './components/VersionList.svelte';
@@ -50,7 +50,9 @@
 
   let projectName = $state('');
   let trackName = $state('');
-  let trackStatus = $state<TrackStatus>('in_progress');
+  let trackStatus = $state<TrackStatus>('sketch');
+  // "In Arbeit" predates the production stages and is only offered while the track still has it
+  const statusChoices = $derived<readonly TrackStatus[]>(trackStatus === 'in_progress' ? ['in_progress', ...TRACK_STAGES] : TRACK_STAGES);
   let trackSection = $state<string | null>(null);
   let trackCoverUrl = $state<string | null>(null);
   let coverEditOpen = $state(false);
@@ -188,7 +190,7 @@
       }
       trackName = t?.name || '';
       trackCoverUrl = t?.coverUrl ?? null;
-      trackStatus = t?.status ?? 'in_progress';
+      trackStatus = t?.status ?? 'sketch';
       trackSection = t?.section ?? null;
       forkedFrom = t.credit ? { id: t.forkedFromId ?? null, credit: t.credit, license: t.license ?? null } : null;
       openState = openRes?.open ?? null;
@@ -679,7 +681,7 @@
             </button>
             {#if statusMenuOpen}
               <div class="status-menu" role="menu">
-                {#each TRACK_STATUSES as s}
+                {#each statusChoices as s}
                   <button onclick={() => setTrackStatus(s)} class:active={s === trackStatus}>
                     <TrackStatusPill status={s} />
                   </button>

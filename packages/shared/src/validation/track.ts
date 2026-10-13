@@ -6,12 +6,18 @@ export const createTrackSchema = z.object({
   description: z.string().max(2000).optional(),
 });
 
-export const TRACK_STATUSES = ['sketch', 'in_progress', 'final', 'released'] as const;
+export const TRACK_STATUSES = ['sketch', 'in_progress', 'recording', 'mixing', 'mastering', 'final', 'released'] as const;
 export type TrackStatus = (typeof TRACK_STATUSES)[number];
 
+// The production stages in their order; in_progress is only kept for tracks that already have it
+export const TRACK_STAGES = ['sketch', 'recording', 'mixing', 'mastering', 'final', 'released'] as const satisfies readonly TrackStatus[];
+
 export const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
-  sketch: 'Skizze',
+  sketch: 'Demo',
   in_progress: 'In Arbeit',
+  recording: 'Recording',
+  mixing: 'Mix',
+  mastering: 'Master',
   final: 'Final',
   released: 'Veröffentlicht',
 };
@@ -92,6 +98,14 @@ export const createShareLinkSchema = z.object({
   allowComments: z.boolean().optional(),
   allowDownload: z.boolean().optional(),
   password: z.string().min(1).max(255).optional(),
+});
+
+export const guestTrackSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+});
+
+export const guestStemSchema = createStemSchema.extend({
+  guestName: z.string().trim().min(1).max(100),
 });
 
 export const guestCommentSchema = z.object({

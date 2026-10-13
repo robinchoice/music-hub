@@ -10,13 +10,11 @@
   import { formatTime, formatWhen } from '$lib/utils/format.js';
   import { byPosition } from '$lib/utils/track.js';
   import {
-    UPLOAD_ROLES, avatarOf, firstName, fullName, lastText, markersFor, personName, trackHref, versionName,
+    STATUS_COLORS, UPLOAD_ROLES, avatarOf, firstName, fullName, lastText, markersFor, personName, trackHref, versionName,
     type OverviewIndex, type TrackInfo,
   } from '$lib/utils/overview.js';
 
   let { ix, info, expanded = false, ontoggle }: { ix: OverviewIndex; info: TrackInfo; expanded?: boolean; ontoggle: () => void } = $props();
-
-  const STATUS_COLORS = { sketch: 'var(--color-text-secondary)', in_progress: 'var(--color-accent)', final: 'var(--color-success)', released: 'var(--color-text-primary)' };
 
   const v = $derived(info.latest);
   const comments = $derived(v ? (ix.commentsOf.get(v.id) ?? []) : []);

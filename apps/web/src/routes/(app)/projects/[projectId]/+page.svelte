@@ -18,6 +18,7 @@
   import ProjectTimeline from '$lib/components/overview/ProjectTimeline.svelte';
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
+  import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
@@ -67,6 +68,7 @@
   let creating = $state(false);
   let coverEditOpen = $state(false);
   let restoring = $state(false);
+  let uploadLinkOpen = $state(false);
   let drop = $state<ProjectDrop>();
 
   const projectId = $page.params.projectId;
@@ -177,6 +179,7 @@
       <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">Einstellungen</Button>
     {/if}
     {#if canUpload}
+      <Button variant="ghost" size="sm" onclick={() => (uploadLinkOpen = true)}>Upload-Link</Button>
       <Button variant="ghost" size="sm" onclick={() => showNewTrack = !showNewTrack}>
         {showNewTrack ? 'Abbrechen' : 'Neuer Track'}
       </Button>
@@ -317,6 +320,10 @@
     <TrackRow ix={ix!} {info} expanded={!!expanded[info.track.id]} ontoggle={() => (expanded = { ...expanded, [info.track.id]: !expanded[info.track.id] })} />
   {/each}
 {/snippet}
+
+{#if canUpload && projectId}
+  <UploadLinkModal bind:open={uploadLinkOpen} {projectId} />
+{/if}
 
 {#if project}
   <Modal bind:open={coverEditOpen} title="Projekt-Cover ändern">

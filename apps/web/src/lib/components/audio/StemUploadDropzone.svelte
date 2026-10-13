@@ -6,8 +6,15 @@
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
-  // initialFiles: picked before the zone opened, upload them right away
-  let { trackId, initialFiles = [], onUploaded }: { trackId: string; initialFiles?: File[]; onUploaded: () => void } = $props();
+  // initialFiles: picked before the zone opened, upload them right away.
+  // The upload link page sends to its own routes and adds the guest's name.
+  let {
+    trackId,
+    initialFiles = [],
+    onUploaded,
+    base = `/stems/track/${trackId}`,
+    extra = {},
+  }: { trackId: string; initialFiles?: File[]; onUploaded: () => void; base?: string; extra?: Record<string, string> } = $props();
 
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
@@ -100,7 +107,7 @@
     try {
       const mimeType = file.type || 'audio/wav';
       const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(
-        `/stems/track/${trackId}/upload-url`,
+        `${base}/upload-url`,
         { fileName: file.name, mimeType, fileSize: file.size },
       );
 
@@ -112,7 +119,8 @@
 
       if (cancelled) return;
       step = 'DB';
-      await api.post(`/stems/track/${trackId}`, {
+      await api.post(base, {
+        ...extra,
         fileKey,
         name: stemNameFromFile(file.name),
         originalFileName: file.name,

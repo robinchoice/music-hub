@@ -22,9 +22,13 @@ export const versionStatusEnum = pgEnum('version_status', [
   'rejected',
 ]);
 
+// sketch is shown as Demo; in_progress stays for tracks that had it before the production stages
 export const trackStatusEnum = pgEnum('track_status', [
   'sketch',
   'in_progress',
+  'recording',
+  'mixing',
+  'mastering',
   'final',
   'released',
 ]);
@@ -37,7 +41,7 @@ export const tracks = pgTable('tracks', {
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   coverImageUrl: text('cover_image_url'),
-  status: trackStatusEnum('status').default('in_progress').notNull(),
+  status: trackStatusEnum('status').default('sketch').notNull(),
   section: varchar('section', { length: 100 }),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdById: uuid('created_by_id')
@@ -110,6 +114,8 @@ export const stems = pgTable('stems', {
   sha256: varchar('sha256', { length: 64 }),
   // Taken over from an open track: the file belongs to the original and doesn't count towards storage
   forked: boolean('forked').default(false).notNull(),
+  // Sent through the project's upload link by someone without an account; createdById is the link's creator
+  guestName: varchar('guest_name', { length: 100 }),
   sortOrder: integer('sort_order').default(0).notNull(),
   // Who uploaded the current file
   createdById: uuid('created_by_id')
