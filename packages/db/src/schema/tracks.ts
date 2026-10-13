@@ -108,11 +108,33 @@ export const stems = pgTable('stems', {
   // Taken over from an open track: the file belongs to the original and doesn't count towards storage
   forked: boolean('forked').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // Who uploaded the current file
   createdById: uuid('created_by_id')
     .references(() => users.id)
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  // When the current file replaced an earlier one; null while it is the first
+  revisedAt: timestamp('revised_at'),
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
+});
+
+// Earlier files of a stem. The stem row always holds the current one.
+export const stemRevisions = pgTable('stem_revisions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  stemId: uuid('stem_id')
+    .references(() => stems.id, { onDelete: 'cascade' })
+    .notNull(),
+  originalFileName: varchar('original_file_name', { length: 500 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  fileKey: text('file_key').notNull(),
+  forked: boolean('forked').default(false).notNull(),
+  createdById: uuid('created_by_id')
+    .references(() => users.id)
+    .notNull(),
+  // When this file was uploaded and when a newer one replaced it
+  createdAt: timestamp('created_at').notNull(),
+  replacedAt: timestamp('replaced_at').defaultNow().notNull(),
 });

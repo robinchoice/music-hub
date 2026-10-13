@@ -1,4 +1,4 @@
-import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE } from '@music-hub/shared';
+import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
 import { api } from '$lib/api/client.js';
 
 export const MAX_FILE_SIZE_LABEL = `${MAX_FILE_SIZE / 1024 ** 2} MB`;
@@ -82,4 +82,29 @@ export async function uploadVersion(trackId: string, file: File, opts: VersionUp
     branchLabel: opts.branchLabel ?? undefined,
   });
   return true;
+}
+
+// Upload URL, file straight to S3, then the stem gets it as its new file. Returns the updated stem.
+export async function replaceStemFile<T>(trackId: string, stemId: string, file: File, onProgress?: (percent: number) => void) {
+  const error = checkFileSize([file]) ?? (STEM_MIME_TYPE.test(file.type || 'audio/wav') ? null : `Kein Audio: ${file.name}`);
+  if (error) throw new Error(error);
+  const mimeType = file.type || 'audio/wav';
+  const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(`/stems/track/${trackId}/upload-url`, {
+    fileName: file.name,
+    mimeType,
+    fileSize: file.size,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', mimeType);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload fehlgeschlagen (${xhr.status})`)));
+    xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
+    xhr.send(file);
+  });
+
+  const res = await api.post<{ stem: T }>(`/stems/${stemId}/replace`, { fileKey, originalFileName: file.name, mimeType });
+  return res.stem;
 }

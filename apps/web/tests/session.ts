@@ -80,3 +80,14 @@ export function addMember(projectId: string, name = 'Lena') {
     console.log(u.id);
   `);
 }
+
+// A stem with as many earlier files as given; returns its id
+export function addStem(trackId: string, userId: string, name: string, earlier = 0) {
+  return bun(`
+    import { stems, stemRevisions } from '@music-hub/db';
+    const file = (n) => ({ originalFileName: n + '.wav', mimeType: 'audio/wav', fileSize: 7, fileKey: 'test/' + crypto.randomUUID() + '/' + n + '.wav', createdById: ${JSON.stringify(userId)} });
+    const [s] = await db.insert(stems).values({ trackId: ${JSON.stringify(trackId)}, name: ${JSON.stringify(name)}, ...file(${JSON.stringify(name)}) }).returning();
+    for (let i = 1; i <= ${earlier}; i++) await db.insert(stemRevisions).values({ stemId: s.id, ...file(${JSON.stringify(name)} + '-take' + i), createdAt: new Date(), replacedAt: new Date() });
+    console.log(s.id);
+  `);
+}

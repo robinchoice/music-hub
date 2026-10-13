@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { TRASH_DAYS } from '@music-hub/shared';
-import { comments, stems, tracks, versions, type Database } from '@music-hub/db';
+import { comments, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
 import { deleteObject } from '../storage/s3.js';
 
 // After leaving the trash, deleted things are kept this long so they can be restored on request
@@ -60,6 +60,13 @@ export async function purgeTrash(db: Database) {
       collect(v.originalFileKey, v.streamFileKey, v.waveformDataKey);
     }
     for (const s of await db.select().from(stems).where(inArray(stems.trackId, trackIds))) collect(s.fileKey);
+    for (const r of await db
+      .select({ fileKey: stemRevisions.fileKey })
+      .from(stemRevisions)
+      .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
+      .where(inArray(stems.trackId, trackIds))) {
+      collect(r.fileKey);
+    }
     await db.delete(tracks).where(inArray(tracks.id, trackIds));
   }
 
@@ -69,6 +76,10 @@ export async function purgeTrash(db: Database) {
 
   const dueStems = await db.select().from(stems).where(due(stems));
   for (const s of dueStems) collect(s.fileKey);
+  if (dueStems.length) {
+    const ids = dueStems.map((s) => s.id);
+    for (const r of await db.select().from(stemRevisions).where(inArray(stemRevisions.stemId, ids))) collect(r.fileKey);
+  }
   if (dueStems.length) await db.delete(stems).where(inArray(stems.id, dueStems.map((s) => s.id)));
 
   const dueComments = await db.select({ id: comments.id, body: comments.body }).from(comments).where(due(comments));
@@ -104,7 +115,12 @@ export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
       .where(or(eq(versions.originalFileKey, key), eq(versions.streamFileKey, key), eq(versions.waveformDataKey, key)))
       .limit(1);
     const [stemRef] = await db.select({ id: stems.id }).from(stems).where(eq(stems.fileKey, key)).limit(1);
-    if (versionRef || stemRef) continue;
+    const [revisionRef] = await db
+      .select({ id: stemRevisions.id })
+      .from(stemRevisions)
+      .where(eq(stemRevisions.fileKey, key))
+      .limit(1);
+    if (versionRef || stemRef || revisionRef) continue;
     try {
       await deleteObject(key);
       files++;

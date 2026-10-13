@@ -10,6 +10,7 @@ import {
   tracks,
   versions,
   stems,
+  stemRevisions,
   pushSubscriptions,
   taskDismissals,
   type Database,
@@ -46,6 +47,13 @@ export async function resetTestAccount(db: Database) {
         [v.originalFileKey, v.streamFileKey, v.waveformDataKey].forEach((key) => key && keys.add(key));
       }
       for (const s of await tx.select().from(stems).where(inArray(stems.trackId, trackIds))) keys.add(s.fileKey);
+      for (const r of await tx
+        .select({ fileKey: stemRevisions.fileKey })
+        .from(stemRevisions)
+        .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
+        .where(inArray(stems.trackId, trackIds))) {
+        keys.add(r.fileKey);
+      }
       await tx.delete(projects).where(inArray(projects.id, projectIds));
     }
 

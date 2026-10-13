@@ -75,6 +75,12 @@ export const createStemSchema = z.object({
   fileSize: z.number().int().positive(),
 });
 
+export const replaceStemSchema = z.object({
+  fileKey: z.string().min(1),
+  originalFileName: z.string().min(1),
+  mimeType: z.string().regex(STEM_MIME_TYPE),
+});
+
 export const createShareLinkSchema = z.object({
   expiresAt: z.string().datetime().optional(),
   allowComments: z.boolean().optional(),
@@ -99,3 +105,4 @@ export type CoverUploadInput = z.infer<typeof coverUploadSchema>;
 export type GuestCommentInput = z.infer<typeof guestCommentSchema>;
 export type RequestStemUploadUrlInput = z.infer<typeof requestStemUploadUrlSchema>;
 export type CreateStemInput = z.infer<typeof createStemSchema>;
+export type ReplaceStemInput = z.infer<typeof replaceStemSchema>;

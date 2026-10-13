@@ -2,8 +2,9 @@
   import { MAX_ZIP_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { demoMode } from '$lib/demo/mode.js';
-  import { toastError, toastTrash } from '$lib/stores/toast.js';
-  import { formatFileSize, timeAgo } from '$lib/utils/format.js';
+  import { toastError, toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { formatFileSize, formatWhen, timeAgo } from '$lib/utils/format.js';
+  import { replaceStemFile } from '$lib/audio/upload.js';
   import { spurDisplayName, compareSpurNames } from '$lib/utils/track.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -16,6 +17,18 @@
     fileSize: number;
     createdAt: string;
     createdById: string;
+    revisedAt?: string | null;
+    revisionCount?: number;
+  };
+
+  type Revision = {
+    id: string;
+    originalFileName: string;
+    fileSize: number;
+    createdAt: string;
+    replacedAt: string;
+    createdById: string;
+    createdByName: string;
   };
 
   let {
@@ -37,6 +50,15 @@
   } = $props();
 
   let deleting = $state<string | null>(null);
+  // The stem getting a new file and how far the upload is
+  let replacing = $state<{ id: string; progress: number } | null>(null);
+  let replaceTarget: Stem | null = null;
+  let fileInput: HTMLInputElement;
+  // The stem whose earlier files are open
+  let historyOf = $state<string | null>(null);
+  let revisions = $state<Revision[]>([]);
+
+  const mayChange = (stem: Stem) => canUpload && (role === 'owner' || stem.createdById === currentUserId);
 
   const rows = $derived(
     stems
@@ -66,6 +88,63 @@
   async function downloadStem(stem: Stem) {
     const res = await api.get<{ url: string }>(`/stems/${stem.id}/download-url`);
     window.location.href = res.url;
+  }
+
+  function pickReplacement(stem: Stem) {
+    if (demoMode) return toastError('In der Demo nicht verfügbar');
+    replaceTarget = stem;
+    fileInput.click();
+  }
+
+  async function replaceStem(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    const stem = replaceTarget;
+    if (!file || !stem) return;
+    replacing = { id: stem.id, progress: 0 };
+    try {
+      const updated = await replaceStemFile<Stem>(trackId, stem.id, file, (p) => replacing && (replacing.progress = p));
+      stems = stems.map((s) => (s.id === stem.id ? { ...updated, revisionCount: (s.revisionCount ?? 0) + 1 } : s));
+      if (historyOf === stem.id) await loadRevisions(stem.id);
+      toastSuccess(`Neue Fassung von „${spurDisplayName(stem.name, trackName)}“ hochgeladen`);
+    } catch (err) {
+      // API errors were shown already
+      if (!(err as { status?: number }).status) toastError((err as Error).message);
+    } finally {
+      replacing = null;
+    }
+  }
+
+  async function loadRevisions(stemId: string) {
+    const res = await api.get<{ revisions: Revision[] }>(`/stems/${stemId}/revisions`);
+    revisions = res.revisions;
+  }
+
+  async function toggleHistory(stem: Stem) {
+    if (historyOf === stem.id) {
+      historyOf = null;
+      return;
+    }
+    revisions = [];
+    historyOf = stem.id;
+    await loadRevisions(stem.id);
+  }
+
+  async function downloadRevision(revision: Revision) {
+    const res = await api.get<{ url: string }>(`/stems/revisions/${revision.id}/download-url`);
+    window.location.href = res.url;
+  }
+
+  async function restoreRevision(stem: Stem, revision: Revision) {
+    try {
+      const { stem: updated } = await api.post<{ stem: Stem }>(`/stems/revisions/${revision.id}/restore`);
+      stems = stems.map((s) => (s.id === stem.id ? { ...updated, revisionCount: s.revisionCount } : s));
+      await loadRevisions(stem.id);
+      toastSuccess(`„${revision.originalFileName}“ ist wieder die aktuelle Fassung`);
+    } catch {
+      // The API client already showed the error
+    }
   }
 
   async function deleteStem(stem: Stem, label: string) {
@@ -114,10 +193,34 @@
         <li title={stem.originalFileName}>
           <Icon name="music" size={13} />
           <span class="name">{label}</span>
-          <span class="size">{formatFileSize(stem.fileSize)}</span>
+          {#if stem.revisionCount}
+            <button
+              class="fassung"
+              class:on={historyOf === stem.id}
+              onclick={() => toggleHistory(stem)}
+              aria-expanded={historyOf === stem.id}
+              title="Frühere Fassungen"
+            >
+              Fassung {stem.revisionCount + 1}
+            </button>
+          {/if}
+          <span class="size">
+            {replacing?.id === stem.id ? `${replacing.progress} %` : formatFileSize(stem.fileSize)}
+          </span>
           <button class="row-btn" onclick={() => downloadStem(stem)} title="Herunterladen" aria-label={`${label} herunterladen`}>
             <Icon name="download" size={13} />
           </button>
+          {#if mayChange(stem)}
+            <button
+              class="row-btn hover-only"
+              onclick={() => pickReplacement(stem)}
+              disabled={!!replacing}
+              title="Neue Fassung hochladen"
+              aria-label={`Neue Fassung von ${label} hochladen`}
+            >
+              <Icon name="upload" size={13} />
+            </button>
+          {/if}
           {#if role === 'owner' || stem.createdById === currentUserId}
             <button
               class="row-btn delete"
@@ -130,9 +233,38 @@
             </button>
           {/if}
         </li>
+        {#if historyOf === stem.id}
+          {#each revisions as revision, i (revision.id)}
+            <li class="revision" title={revision.originalFileName}>
+              <span class="name">
+                Fassung {revisions.length - i} · {revision.createdByName} · bis {formatWhen(revision.replacedAt)}
+              </span>
+              <span class="size">{formatFileSize(revision.fileSize)}</span>
+              <button
+                class="row-btn"
+                onclick={() => downloadRevision(revision)}
+                title="Herunterladen"
+                aria-label={`Fassung ${revisions.length - i} herunterladen`}
+              >
+                <Icon name="download" size={13} />
+              </button>
+              {#if mayChange(stem)}
+                <button
+                  class="row-btn"
+                  onclick={() => restoreRevision(stem, revision)}
+                  title="Wieder zur aktuellen Fassung machen"
+                  aria-label={`Fassung ${revisions.length - i} wiederherstellen`}
+                >
+                  <Icon name="restore" size={13} />
+                </button>
+              {/if}
+            </li>
+          {/each}
+        {/if}
       {/each}
     </ul>
   {/if}
+  <input bind:this={fileInput} type="file" accept="audio/*" hidden onchange={replaceStem} />
 </div>
 
 <style>
@@ -233,13 +365,40 @@
     background: var(--color-bg-overlay);
   }
 
-  .row-btn.delete {
+  .row-btn.delete,
+  .row-btn.hover-only {
     opacity: 0;
   }
 
   .list li:hover .row-btn.delete,
-  .row-btn.delete:focus-visible {
+  .row-btn.delete:focus-visible,
+  .list li:hover .row-btn.hover-only,
+  .row-btn.hover-only:focus-visible {
     opacity: 1;
+  }
+
+  .fassung {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: none;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .fassung:hover,
+  .fassung.on {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-hover);
+  }
+
+  .list li.revision {
+    padding-left: calc(var(--space-2) + 13px + var(--space-2));
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
   }
 
   .row-btn.delete:hover {
@@ -252,7 +411,8 @@
   }
 
   @media (hover: none) {
-    .row-btn.delete {
+    .row-btn.delete,
+    .row-btn.hover-only {
       opacity: 1;
     }
   }

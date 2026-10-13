@@ -24,6 +24,7 @@
 - Die WAV-Dateien im Bucket `music-hub` haben keine zweite Kopie.
 - Registrieren geht nur, solange es weniger als `MAX_USERS` Konten gibt (`apps/api/src/lib/users.ts`, wegen des geteilten S3-Speichers). Eingeladene zählen mit, kommen aber immer rein.
 - Offene Tracks (`lib/open.ts`, öffentlich unter `/offen`): Ein Remix übernimmt die Spuren mit denselben S3-Keys (`stems.forked`), sie zählen nicht zum Speicher. Dateien löscht nur `deleteUnusedFiles`, das noch genutzte Keys stehen lässt. Öffentlich sind nur Spuren, die vor `open_tracks.opened_at` hochgeladen wurden.
+- Spuren haben Fassungen (`lib/stems.ts`): Die Zeile in `stems` hält immer die aktuelle Datei, frühere liegen in `stem_revisions` und zählen zum Speicher dessen, der sie hochgeladen hat. Wer Speicher zählt oder Dateien löscht, muss `stem_revisions` mitnehmen. Solange ein Track offen ist, lassen sich seine Spuren nicht ersetzen.
 - `test@onboarding.invalid` ist der Test-Account für das Onboarding und zählt nicht gegen `MAX_USERS`. „Als neue Person testen“ im Lagebild setzt ihn zurück (`lib/test-account.ts`, löscht seine Projekte samt Dateien) und kopiert einen Login-Link fürs private Fenster.
 
 ## Abweichungen vom Standard

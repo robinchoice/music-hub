@@ -35,7 +35,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
           commentCount: sql<number>`(select count(*)::int from comments c join versions v on v.id = c.version_id where v.track_id = tracks.id and v.deleted_at is null and c.deleted_at is null)`,
           stemCount: sql<number>`(select count(*)::int from stems s where s.track_id = tracks.id and s.deleted_at is null)`,
           shareLinkCount: sql<number>`(select count(*)::int from share_links l join versions v on v.id = l.version_id where v.track_id = tracks.id and v.deleted_at is null)`,
-          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null))::float8`,
+          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and s.deleted_at is null))::float8`,
         })
         .from(tracks)
         .where(and(eq(tracks.projectId, projectId), inTrash(tracks)))
