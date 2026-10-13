@@ -1,0 +1,1 @@
+ALTER TABLE "project_members" ADD COLUMN "extra_roles" "project_role"[] DEFAULT '{}' NOT NULL;

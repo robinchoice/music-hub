@@ -24,7 +24,7 @@
   // Opens the version that plays inline, otherwise the newest
   const playing = $derived($listen.trackId === info.track.id ? $listen.versionId : null);
   const href = $derived(trackHref(info.project.id, info.track.id, playing ?? v?.id));
-  const canUpload = $derived(UPLOAD_ROLES.includes(info.project.myRole));
+  const canUpload = $derived(info.project.myRoles.some((r) => UPLOAD_ROLES.includes(r)));
   const last = $derived(info.last);
 </script>
 

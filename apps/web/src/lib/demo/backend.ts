@@ -167,18 +167,18 @@ let nextId = 900;
 // "Erledigt" and the last visit of "Tracks"; like every change in the demo they stay in this window
 const overviewState = { dismissed: new Set<string>(), tracksSeenAt: null as string | null };
 
-// Roles in the demo projects: Jonas owns them, Kai mixes, Mara and Lisa are the band
+// Roles in the demo projects: Jonas owns them, Kai mixes and masters, Mara and Lisa are the band
 const MEMBERS = [
-  { userId: JONAS.id, role: 'owner' },
-  { userId: MARA.id, role: 'artist' },
-  { userId: LISA.id, role: 'artist' },
-  { userId: KAI.id, role: 'mixing_engineer' },
+  { userId: JONAS.id, role: 'owner', roles: ['owner'] },
+  { userId: MARA.id, role: 'artist', roles: ['artist'] },
+  { userId: LISA.id, role: 'artist', roles: ['artist'] },
+  { userId: KAI.id, role: 'mixing_engineer', roles: ['mixing_engineer', 'mastering_engineer'] },
 ];
 
 function overview() {
   const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
   return {
-    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', members: MEMBERS })),
+    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], members: MEMBERS })),
     users: [MARA, KAI, LISA, JONAS],
     tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, createdAt: t.createdAt, createdById: JONAS.id })),
     versions: db.versions.map((v) => ({
@@ -326,12 +326,13 @@ const ROUTES: [string, RegExp, Handler][] = [
     projects: db.projects.map((project) => ({
       project: { ...project, coverImageUrl: project.coverUrl, createdById: KAI.id, isArchived: false },
       role: 'artist',
+      roles: ['artist'],
       trackCount: db.tracks.filter((t) => t.projectId === project.id).length,
     })),
   })],
   ['GET', /^\/projects\/([\w-]+)$/, ([id]) => {
     const project = find(db.projects, id);
-    return { project: { ...project, coverImageUrl: project.coverUrl }, role: 'artist' };
+    return { project: { ...project, coverImageUrl: project.coverUrl }, role: 'artist', roles: ['artist'] };
   }],
   ['GET', /^\/tracks\/project\/([\w-]+)$/, ([id]) => ({
     tracks: db.tracks.filter((t) => t.projectId === id).sort((a, b) => a.sortOrder - b.sortOrder).map(trackRow),

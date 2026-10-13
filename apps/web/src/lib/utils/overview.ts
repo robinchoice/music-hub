@@ -10,7 +10,8 @@ export type OverviewProject = {
   artist: string | null;
   coverUrl: string | null;
   myRole: string;
-  members: { userId: string; role: string }[];
+  myRoles: string[];
+  members: { userId: string; role: string; roles: string[] }[];
 };
 export type OverviewUser = { id: string; name: string; avatarUrl: string | null };
 export type OverviewTrack = {
@@ -289,7 +290,7 @@ export function trackInfo(ix: OverviewIndex, track: OverviewTrack): TrackInfo {
   } else {
     stage = { key: 'feedback', text: 'Wartet auf Feedback' };
     turn = project.members
-      .filter((m) => FEEDBACK_ROLES.includes(m.role) && m.userId !== latest.createdById)
+      .filter((m) => m.roles.some((r) => FEEDBACK_ROLES.includes(r)) && m.userId !== latest.createdById)
       .map((m) => m.userId);
     if (latest.hasActiveShareLink) {
       const names = new Set<string>();
@@ -404,7 +405,7 @@ export function tasksFor(ix: OverviewIndex): Task[] {
     const comments = ix.commentsOf.get(v.id) ?? [];
     if (v.createdById !== ix.me) {
       const heard = comments.some((c) => c.userId === ix.me);
-      if (v.status === 'ready' && FEEDBACK_ROLES.includes(info.project.myRole) && !heard) {
+      if (v.status === 'ready' && info.project.myRoles.some((r) => FEEDBACK_ROLES.includes(r)) && !heard) {
         out.push({ kind: 'listen', key: `listen:${v.id}`, at: v.createdAt, info, version: v });
       }
     } else if (v.status === 'rejected') {

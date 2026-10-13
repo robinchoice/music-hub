@@ -18,6 +18,7 @@
   type Member = {
     id: string;
     role: string;
+    roles: string[];
     user: { id: string; email: string; name: string; avatarUrl: string | null };
   };
 
@@ -39,7 +40,7 @@
 
   // Invite
   let inviteEmail = $state('');
-  let inviteRole = $state('artist');
+  let inviteRoles = $state<string[]>(['artist']);
   let inviting = $state(false);
 
   // Archive
@@ -93,7 +94,7 @@
     try {
       await api.post(`/projects/${projectId}/members`, {
         email: inviteEmail,
-        role: inviteRole,
+        roles: inviteRoles,
       });
       inviteEmail = '';
       toastSuccess('Person eingeladen');
@@ -106,10 +107,15 @@
     }
   }
 
-  async function updateRole(memberId: string, newRole: string) {
+  // Adds or removes one role, the last one stays
+  function toggled(roles: string[], r: string) {
+    return roles.includes(r) ? roles.filter((x) => x !== r) : [...roles, r];
+  }
+
+  async function updateRoles(memberId: string, roles: string[]) {
     try {
-      await api.patch(`/projects/${projectId}/members/${memberId}`, { role: newRole });
-      toastSuccess('Rolle aktualisiert');
+      await api.patch(`/projects/${projectId}/members/${memberId}`, { roles });
+      toastSuccess('Rollen aktualisiert');
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
     } catch (e) {
@@ -194,19 +200,14 @@
             {#if member.role === 'owner'}
               <Badge variant="accent">Besitzer</Badge>
             {:else if role === 'owner'}
-              <select
-                value={member.role}
-                onchange={(e) => updateRole(member.id, (e.target as HTMLSelectElement).value)}
-              >
-                {#each assignableRoles as r}
-                  <option value={r} selected={r === member.role}>{ROLE_LABELS[r]}</option>
-                {/each}
-              </select>
               <Button variant="ghost" size="sm" onclick={() => removeMember(member.id)}>
                 <span style="color: var(--color-error)">Entfernen</span>
               </Button>
+              {@render roleChips(member.roles, (r) => updateRoles(member.id, toggled(member.roles, r)))}
             {:else}
-              <Badge>{ROLE_LABELS[member.role as keyof typeof ROLE_LABELS] || member.role}</Badge>
+              {#each member.roles as r}
+                <Badge>{ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r}</Badge>
+              {/each}
             {/if}
           </div>
         {/each}
@@ -216,12 +217,8 @@
       {#if role === 'owner' || role === 'management'}
         <form class="invite-form" onsubmit={(e) => { e.preventDefault(); inviteMember(); }}>
           <Input type="email" bind:value={inviteEmail} placeholder="name@email.de" />
-          <select bind:value={inviteRole}>
-            {#each assignableRoles as r}
-              <option value={r}>{ROLE_LABELS[r]}</option>
-            {/each}
-          </select>
           <Button type="submit" loading={inviting} size="sm">Einladen</Button>
+          {@render roleChips(inviteRoles, (r) => (inviteRoles = toggled(inviteRoles, r)))}
         </form>
       {/if}
     </section>
@@ -241,6 +238,22 @@
     {/if}
   {/if}
 </div>
+
+{#snippet roleChips(selected: string[], toggle: (r: string) => void)}
+  <div class="role-chips" role="group" aria-label="Rollen">
+    {#each assignableRoles as r}
+      {@const on = selected.includes(r)}
+      <button
+        type="button"
+        class="chip"
+        class:on
+        aria-pressed={on}
+        disabled={on && selected.length === 1}
+        onclick={() => toggle(r)}
+      >{ROLE_LABELS[r]}</button>
+    {/each}
+  </div>
+{/snippet}
 
 <Modal bind:open={showArchiveModal} title="Projekt archivieren">
   <p>Sicher dass du <strong>{project?.name}</strong> archivieren willst? Es verschwindet dann für alle Beteiligten. Im Archiv kannst du es jederzeit wiederherstellen.</p>
@@ -345,6 +358,7 @@
 
   .member-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
@@ -370,18 +384,41 @@
     font-size: var(--text-xs);
   }
 
-  select {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-hover);
-    background: var(--color-bg-base);
-    color: var(--color-text-primary);
+  /* Several roles per person, toggled one by one */
+  .role-chips {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .chip {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+    background: none;
+    color: var(--color-text-secondary);
+    font: inherit;
     font-size: var(--text-sm);
-    font-family: inherit;
+    cursor: pointer;
+  }
+  .chip:hover {
+    border-color: var(--color-border-hover);
+    color: var(--color-text-primary);
+  }
+  .chip.on {
+    background: var(--color-bg-overlay);
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+  .chip:disabled {
+    cursor: default;
   }
 
   .invite-form {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: flex-start;
     flex-direction: row;
