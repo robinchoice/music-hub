@@ -26,9 +26,11 @@ async function withCoverUrl<T extends { coverImageUrl?: string | null }>(
 export const projectRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
 
+  // ?archived=1 lists the archived projects instead
   .get('/', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
+    const archived = c.req.query('archived') === '1';
 
     const memberships = await db
       .select({
@@ -38,7 +40,7 @@ export const projectRoutes = new Hono<AppEnv>()
       })
       .from(projectMembers)
       .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-      .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)));
+      .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, archived)));
 
     const enriched = await Promise.all(
       memberships.map(async (m) => ({
@@ -153,6 +155,35 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, projectId));
 
     return c.json({ message: 'Project archived' });
+  })
+
+  .post('/:id/restore', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const projectId = c.req.param('id');
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(
+        and(
+          eq(projectMembers.projectId, projectId),
+          eq(projectMembers.userId, userId),
+          eq(projectMembers.role, 'owner'),
+        ),
+      )
+      .limit(1);
+
+    if (!membership) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    await db
+      .update(projects)
+      .set({ isArchived: false, updatedAt: new Date() })
+      .where(eq(projects.id, projectId));
+
+    return c.json({ message: 'Project restored' });
   })
 
   // Members

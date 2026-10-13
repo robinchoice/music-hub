@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
-  import { toastError, toastSuccess } from '$lib/stores/toast.js';
+  import { toast, toastError, toastSuccess } from '$lib/stores/toast.js';
   import { ROLE_LABELS, PROJECT_ROLES } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -134,7 +134,7 @@
   async function archiveProject() {
     try {
       await api.delete(`/projects/${projectId}`);
-      toastSuccess('Projekt archiviert');
+      toast('Projekt archiviert', 'success', 6000, { label: 'Zum Archiv', run: () => goto('/archive') });
       reloadSidebar?.();
       await goto('/dashboard');
     } catch (e) {
@@ -233,7 +233,7 @@
         <div class="danger-content">
           <div>
             <strong>Projekt archivieren</strong>
-            <p>Das Projekt verschwindet für alle Beteiligten.</p>
+            <p>Das Projekt verschwindet für alle Beteiligten und lässt sich im Archiv wiederherstellen.</p>
           </div>
           <Button variant="danger" onclick={() => showArchiveModal = true}>Archivieren</Button>
         </div>
@@ -243,7 +243,7 @@
 </div>
 
 <Modal bind:open={showArchiveModal} title="Projekt archivieren">
-  <p>Sicher dass du <strong>{project?.name}</strong> archivieren willst? Es verschwindet dann für alle Beteiligten.</p>
+  <p>Sicher dass du <strong>{project?.name}</strong> archivieren willst? Es verschwindet dann für alle Beteiligten. Im Archiv kannst du es jederzeit wiederherstellen.</p>
   {#snippet actions()}
     <Button variant="secondary" onclick={() => showArchiveModal = false}>Abbrechen</Button>
     <Button variant="danger" onclick={archiveProject}>Archivieren</Button>
