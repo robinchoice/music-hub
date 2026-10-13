@@ -26,12 +26,13 @@
     starred: boolean;
     coverUrl: string | null;
   };
-  type Contact = 'login' | 'self' | 'allowed' | 'sent' | 'needs-open' | 'closed';
+  type Contact = 'login' | 'self' | 'allowed' | 'connected' | 'sent' | 'needs-open' | 'closed';
   type Profile = {
     profile: { handle: string; name: string; avatarUrl: string | null; bio: string | null; links: string[]; artists: string[] };
     stats: { tracks: number; stars: number; remixes: number; downloads: number } | null;
     tracks: Track[];
     contact: Contact;
+    sharedProjectId: string | null;
   };
 
   const handle = ($page.params as Record<string, string>).handle.slice(1);
@@ -136,12 +137,16 @@
         <div class="cta">
           {#if data.contact === 'self'}
             <Button variant="secondary" href="/account#profil"><Icon name="edit" size={14} /> Profil bearbeiten</Button>
+          {:else if data.contact === 'connected'}
+            <Button variant="secondary" href="/projects/{data.sharedProjectId}">Gemeinsames Projekt öffnen</Button>
           {:else if data.contact === 'sent'}
             <Button variant="secondary" disabled><Icon name="check" size={14} /> Anfrage geschickt</Button>
           {:else if data.contact === 'needs-open'}
             <Button variant="secondary" disabled>Anfrage schicken</Button>
             <p class="hint">{p.name} nimmt Anfragen von Leuten mit eigenem offenen Track an.</p>
-          {:else if data.contact !== 'closed'}
+          {:else if data.contact === 'closed'}
+            <p class="hint">{p.name} nimmt gerade keine Anfragen an.</p>
+          {:else}
             <Button onclick={startRequest}><Icon name="mail" size={14} /> Anfrage schicken</Button>
           {/if}
         </div>
@@ -149,7 +154,7 @@
 
       {#if data.stats}
         <dl class="stats">
-          <div><dt>offene Tracks</dt><dd>{data.stats.tracks}</dd></div>
+          <div><dt>{data.stats.tracks === 1 ? 'offener Track' : 'offene Tracks'}</dt><dd>{data.stats.tracks}</dd></div>
           <div><dt>Stars</dt><dd>{data.stats.stars}</dd></div>
           <div><dt>Remixe von anderen</dt><dd>{data.stats.remixes}</dd></div>
           <div><dt>Downloads</dt><dd>{data.stats.downloads}</dd></div>
@@ -177,7 +182,7 @@
               </button>
             </li>
           {:else}
-            <li class="faint empty">Hier ist noch nichts offen.</li>
+            <li class="faint empty">{tab === 'own' ? 'Noch kein eigener Track offen.' : 'Noch kein Remix offen.'}</li>
           {/each}
         </ul>
       {:else}
@@ -206,7 +211,7 @@
         <textarea bind:value={message} rows="5" maxlength={MAX_REQUEST_LENGTH} placeholder="Wer bist du, und was möchtest du zusammen machen?"></textarea>
         <span class="counter">{message.length} / {MAX_REQUEST_LENGTH}</span>
       </label>
-      <p class="faint">{data.profile.name} sieht deinen Namen, dein Profil und diese Nachricht. Weiter schreibt ihr erst, wenn {data.profile.name} annimmt: Dann landet ihr in einem gemeinsamen Projekt.</p>
+      <p class="faint">{data.profile.name} sieht deinen Namen, diese Nachricht und dein Profil, falls du eins hast. Weiter schreibt ihr erst, wenn {data.profile.name} annimmt: Dann landet ihr in einem gemeinsamen Projekt.</p>
     </div>
     {#snippet actions()}
       <Button variant="ghost" onclick={() => (requestOpen = false)}>Abbrechen</Button>
@@ -386,6 +391,7 @@
   }
   .grow b {
     font-weight: 600;
+    color: var(--color-text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -479,6 +485,10 @@
     }
     .remixes {
       display: none;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
     }
   }
 </style>

@@ -102,6 +102,7 @@ test('accepting puts the sender into a new project with the message', async () =
   const result = await acceptRequest(db, id, robin);
   const [project] = await db.select().from(projects).where(eq(projects.id, result!.projectId));
   expect(project).toMatchObject({ name: 'Robin × Mara', description: 'Anfrage von Mara: Lust auf einen Remix?', createdById: robin });
+  expect(await contactState(db, profile(robin, 'everyone'), mara)).toBe('connected');
   const members = await db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id));
   expect(members.map((m) => [m.userId, m.role]).sort()).toEqual([[mara, 'artist'], [robin, 'owner']].sort());
   expect(await acceptRequest(db, id, robin)).toBeNull();

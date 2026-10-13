@@ -6,7 +6,7 @@ import { contactRequests, profiles, stars, users } from '@music-hub/db';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
-import { contactState, openTracksOf, suggestHandle, visibleProfile } from '../lib/profiles.js';
+import { contactState, openTracksOf, sharedProject, suggestHandle, visibleProfile } from '../lib/profiles.js';
 import { notifyUser } from '../services/push.js';
 import { sendContactRequestEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
@@ -65,6 +65,7 @@ export const profileRoutes = new Hono<AppEnv>()
       })),
     );
     const sum = (key: 'stars' | 'remixesByOthers' | 'downloads') => rows.reduce((n, t) => n + Number(t[key]), 0);
+    const contact = await contactState(db, profile, viewerId);
 
     return c.json({
       profile: {
@@ -73,13 +74,15 @@ export const profileRoutes = new Hono<AppEnv>()
         avatarUrl: found.avatarUrl,
         bio: profile.bio,
         links: profile.links,
-        artists: [...new Set(rows.map((t) => t.artist).filter((a): a is string => !!a))],
+        // Someone's solo project carries their own name; "spielt in Mara Lenz" would only repeat it
+        artists: [...new Set(rows.map((t) => t.artist).filter((a): a is string => !!a && a !== found.name))],
       },
       stats: profile.showStats
         ? { tracks: rows.length, stars: sum('stars'), remixes: sum('remixesByOthers'), downloads: sum('downloads') }
         : null,
       tracks,
-      contact: await contactState(db, profile, viewerId),
+      contact,
+      sharedProjectId: contact === 'connected' ? await sharedProject(db, profile.userId, viewerId!) : null,
     });
   })
 
@@ -91,6 +94,7 @@ export const profileRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Dieses Profil gibt es nicht.' }, 404);
     const state = await contactState(db, found.profile, userId);
     if (state === 'sent') return c.json({ error: 'Deine Anfrage ist schon unterwegs.' }, 409);
+    if (state === 'connected') return c.json({ error: 'Ihr habt schon ein gemeinsames Projekt.' }, 409);
     if (state !== 'allowed') return c.json({ error: 'Anfragen sind hier gerade nicht möglich.' }, 403);
     if (!(await requestsPerUser.hit(db, userId))) return tooManyRequests(c);
 

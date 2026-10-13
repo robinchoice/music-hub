@@ -86,9 +86,22 @@ export function suggestHandle(name: string) {
   return base.length >= 2 ? base : 'musik';
 }
 
-// What the button on a profile does for the person looking at it:
-// 'login', 'self', 'allowed', 'sent' (one is waiting or was declined lately), 'needs-open' or 'closed'
-export type ContactState = 'login' | 'self' | 'allowed' | 'sent' | 'needs-open' | 'closed';
+// The project an accepted request put two people into, while both are still in it
+export async function sharedProject(db: Database, a: string, b: string) {
+  const [row] = await db.execute<{ projectId: string }>(sql`
+    SELECT cr.project_id AS "projectId" FROM contact_requests cr
+    WHERE cr.status = 'accepted' AND cr.project_id IS NOT NULL
+      AND ((cr.from_user_id = ${a} AND cr.to_user_id = ${b}) OR (cr.from_user_id = ${b} AND cr.to_user_id = ${a}))
+      AND (SELECT count(*) FROM project_members m WHERE m.project_id = cr.project_id AND m.user_id IN (${a}, ${b})) = 2
+    ORDER BY cr.answered_at DESC LIMIT 1
+  `);
+  return row?.projectId;
+}
+
+// What the button on a profile does for the person looking at it: 'login', 'self', 'allowed',
+// 'connected' (a shared project from an accepted request), 'sent' (one is waiting or was declined
+// lately), 'needs-open' or 'closed'
+export type ContactState = 'login' | 'self' | 'allowed' | 'connected' | 'sent' | 'needs-open' | 'closed';
 
 export async function contactState(
   db: Database,
@@ -103,6 +116,7 @@ export async function contactState(
     .from(userBlocks)
     .where(and(eq(userBlocks.userId, profile.userId), eq(userBlocks.blockedUserId, viewerId)));
   if (blocked) return 'closed';
+  if (await sharedProject(db, profile.userId, viewerId)) return 'connected';
 
   const [earlier] = await db
     .select({ id: contactRequests.id })

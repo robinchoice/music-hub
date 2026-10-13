@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { acceptRequestSchema, blockRequestSchema } from '@music-hub/shared';
-import { projects, tracks, users } from '@music-hub/db';
+import { projectMembers, projects, tracks, users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { ADMIN_EMAILS } from '../lib/admin.js';
 import { acceptRequest, declineRequest, pendingRequests } from '../lib/profiles.js';
@@ -21,8 +21,28 @@ export const requestRoutes = new Hono<AppEnv>()
     const names = ids.length
       ? new Map((await db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(inArray(tracks.id, ids))).map((t) => [t.id, t.name]))
       : new Map<string, string>();
+    // Projects of yours the sender is already in, so "In Projekt einladen" leaves them out
+    const senders = [...new Set(rows.map((r) => r.from.id))];
+    const shared = senders.length
+      ? await db
+          .select({ userId: projectMembers.userId, projectId: projectMembers.projectId })
+          .from(projectMembers)
+          .where(
+            and(
+              inArray(projectMembers.userId, senders),
+              inArray(
+                projectMembers.projectId,
+                db.select({ id: projectMembers.projectId }).from(projectMembers).where(eq(projectMembers.userId, c.get('userId'))),
+              ),
+            ),
+          )
+      : [];
     return c.json({
-      requests: rows.map(({ trackId, ...r }) => ({ ...r, track: trackId && names.has(trackId) ? { id: trackId, name: names.get(trackId)! } : null })),
+      requests: rows.map(({ trackId, ...r }) => ({
+        ...r,
+        track: trackId && names.has(trackId) ? { id: trackId, name: names.get(trackId)! } : null,
+        sharedProjectIds: shared.filter((m) => m.userId === r.from.id).map((m) => m.projectId),
+      })),
     });
   })
 

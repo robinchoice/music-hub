@@ -19,7 +19,7 @@
   let projects = $state<Membership[]>([]);
   let target = $state('');
   let blockOpen = $state(false);
-  let report = $state(true);
+  let report = $state(false);
 
   async function accept(projectId?: string) {
     busy = 'accept';
@@ -38,7 +38,7 @@
 
   async function chooseProject() {
     const res = await api.get<{ projects: Membership[] }>('/projects');
-    projects = res.projects.filter((p) => p.role === 'owner' || p.role === 'management');
+    projects = res.projects.filter((p) => (p.role === 'owner' || p.role === 'management') && !request.sharedProjectIds.includes(p.project.id));
     target = projects[0]?.project.id ?? '';
     inviteOpen = true;
   }
@@ -88,7 +88,7 @@
         <label class="choice"><input type="radio" bind:group={target} value={p.project.id} /> {p.project.name}</label>
       {/each}
     {:else}
-      <p class="faint">Du hast noch kein Projekt, in das du einladen darfst. „Annehmen“ legt eins für euch beide an.</p>
+      <p class="faint">Du hast kein Projekt, in das du {request.from.name} noch einladen kannst. „Annehmen“ legt eins für euch beide an.</p>
     {/if}
   </div>
   {#snippet actions()}
@@ -153,6 +153,15 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+  @media (max-width: 640px) {
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .actions > :global(:first-child) {
+      grid-column: 1 / -1;
+    }
   }
   .form {
     display: flex;

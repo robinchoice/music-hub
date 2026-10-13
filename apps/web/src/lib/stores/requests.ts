@@ -8,6 +8,7 @@ export type ContactRequest = {
   createdAt: string;
   from: { id: string; name: string; avatarUrl: string | null; handle: string | null; bio: string | null };
   track: { id: string; name: string } | null;
+  sharedProjectIds: string[];
 };
 
 /** Contact requests waiting on "Für dich"; the sidebar and the bottom bar count them with the tasks */

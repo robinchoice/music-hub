@@ -95,7 +95,7 @@
     <div class="empty">
       <div class="ok"><Icon name="check" size={22} stroke={2.4} /></div>
       <h2>Alles erledigt</h2>
-      <p>Nichts wartet auf dich. Sobald jemand eine Version hochlädt oder dir antwortet, steht es hier.</p>
+      <p>Nichts wartet auf dich. Sobald jemand eine Version hochlädt, dir antwortet oder eine Anfrage schickt, steht es hier.</p>
     </div>
   {/if}
 

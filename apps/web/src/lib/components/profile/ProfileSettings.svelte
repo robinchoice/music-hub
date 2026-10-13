@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { HANDLE_PATTERN, type RequestsFrom } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -32,6 +32,9 @@
     if (res.profile) fill(res.profile);
     else handle = res.suggestedHandle ?? '';
     loaded = true;
+    // "Profil bearbeiten" on the profile page links here; the anchor only exists once loaded
+    await tick();
+    if (location.hash === '#profil') document.getElementById('profil')?.scrollIntoView();
   });
 
   function fill(p: Profile) {
