@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, eq, isNull } from 'drizzle-orm';
-import { guestStemSchema, guestTrackSchema, requestStemUploadUrlSchema } from '@music-hub/shared';
-import { projectMembers, projects, stems, tracks, uploadLinks, users, type Database } from '@music-hub/db';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { guestNoteSchema, guestSettingsSchema, guestStemSchema, guestTrackSchema, requestStemUploadUrlSchema } from '@music-hub/shared';
+import { guestNotes, projectMembers, projects, stems, tracks, uploadLinks, users, type Database } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
 import { createUploadUrl, getObjectSize } from '../storage/s3.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
-import { storageOf, fits, lockStorage, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
+import { storageOf, guestStorageOf, fits, lockStorage, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { freshStemKey } from '../lib/stems.js';
 import { liveTrack } from '../lib/trash.js';
 import { notBlocked } from '../lib/users.js';
@@ -14,7 +14,7 @@ import { notifyProjectMembers } from '../services/push.js';
 import type { Context } from 'hono';
 import type { AppEnv } from '../types.js';
 
-const UNAVAILABLE = 'Dieser Upload-Link gilt nicht mehr.';
+const UNAVAILABLE = 'Dieser Upload-Link ist ausgeschaltet oder gilt nicht mehr.';
 
 // Guests don't get to see how full the storage of whoever shared the link is
 const ownerFull = (c: Context) =>
@@ -22,6 +22,7 @@ const ownerFull = (c: Context) =>
 
 const MINUTE = 60 * 1000;
 const tracksPerLink = rateLimit('guest-tracks', 20, 24 * 60 * MINUTE);
+const notesPerLink = rateLimit('guest-notes', 50, 24 * 60 * MINUTE);
 const filesPerIp = rateLimit('guest-files-per-ip', 200, 60 * MINUTE);
 // One push per track and link, however many files come in
 const uploadAlerts = rateLimit('guest-upload-alerts', 1, 15 * MINUTE);
@@ -36,14 +37,21 @@ async function membershipOf(db: Database, projectId: string, userId: string) {
 }
 
 // The link with its project while it works: the project isn't archived and its creator
-// isn't blocked and may still upload there, since the files count towards their storage
+// lets guests upload, isn't blocked and may still upload there, since the files count towards their storage
 async function liveLink(db: Database, token: string) {
   const [row] = await db
     .select({ link: uploadLinks, project: projects, inviter: users.name })
     .from(uploadLinks)
     .innerJoin(projects, eq(projects.id, uploadLinks.projectId))
     .innerJoin(users, eq(users.id, uploadLinks.createdById))
-    .where(and(eq(uploadLinks.token, token), eq(projects.isArchived, false), notBlocked(uploadLinks.createdById)))
+    .where(
+      and(
+        eq(uploadLinks.token, token),
+        eq(projects.isArchived, false),
+        eq(users.guestUploads, true),
+        notBlocked(uploadLinks.createdById),
+      ),
+    )
     .limit(1);
   if (!row) return null;
   const membership = await membershipOf(db, row.link.projectId, row.link.createdById);
@@ -56,9 +64,20 @@ async function guestTrack(db: Database, projectId: string, trackId: string) {
   return track?.projectId === projectId ? track : null;
 }
 
+// Both the creator's storage and the share of it they leave to guests have to hold the file
+async function fitsForGuests(db: Pick<Database, 'execute'>, ownerId: string, bytes: number) {
+  return fits(await storageOf(db, ownerId), bytes) && fits(await guestStorageOf(db, ownerId), bytes);
+}
+
+// paused: the creator doesn't let guests upload right now
 const linkOf = async (db: Database, projectId: string) => {
   const [row] = await db
-    .select({ token: uploadLinks.token, createdAt: uploadLinks.createdAt, createdByName: users.name })
+    .select({
+      token: uploadLinks.token,
+      createdAt: uploadLinks.createdAt,
+      createdByName: users.name,
+      paused: sql<boolean>`not ${users.guestUploads}`,
+    })
     .from(uploadLinks)
     .innerJoin(users, eq(users.id, uploadLinks.createdById))
     .where(eq(uploadLinks.projectId, projectId))
@@ -67,6 +86,36 @@ const linkOf = async (db: Database, projectId: string) => {
 };
 
 export const uploadLinkRoutes = new Hono<AppEnv>()
+  // --- The account's own rule for guests: whether they may upload and how much ---
+  .get('/settings', requireAuth, async (c) => {
+    return c.json(await guestStorageOf(c.get('db'), c.get('userId')));
+  })
+
+  .patch('/settings', requireAuth, zValidator('json', guestSettingsSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const { allowed, limit } = c.req.valid('json');
+    await db
+      .update(users)
+      .set({ guestUploads: allowed, guestStorageLimit: limit, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    return c.json(await guestStorageOf(db, userId));
+  })
+
+  .delete('/notes/:id', requireAuth, async (c) => {
+    const db = c.get('db');
+    const [note] = await db
+      .select({ id: guestNotes.id, projectId: tracks.projectId })
+      .from(guestNotes)
+      .innerJoin(tracks, eq(tracks.id, guestNotes.trackId))
+      .where(eq(guestNotes.id, c.req.param('id')));
+    if (!note) return c.json({ error: 'Not found' }, 404);
+    const membership = await membershipOf(db, note.projectId, c.get('userId'));
+    if (!membership?.canUpload) return c.json({ error: 'Forbidden' }, 403);
+    await db.delete(guestNotes).where(eq(guestNotes.id, note.id));
+    return c.json({ message: 'Deleted' });
+  })
+
   // --- Members who may upload: show, create or renew, switch off ---
   .get('/project/:projectId', requireAuth, async (c) => {
     const db = c.get('db');
@@ -133,6 +182,19 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     return c.json({ track }, 201);
   })
 
+  .post('/public/:token/track/:trackId/note', zValidator('json', guestNoteSchema), async (c) => {
+    const db = c.get('db');
+    const found = await liveLink(db, c.req.param('token'));
+    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    const track = await guestTrack(db, found.project.id, c.req.param('trackId'));
+    if (!track) return c.json({ error: 'Not found' }, 404);
+    if (!(await notesPerLink.hit(db, found.link.id))) return tooManyRequests(c);
+
+    const { guestName, body } = c.req.valid('json');
+    const [note] = await db.insert(guestNotes).values({ trackId: track.id, guestName, body }).returning({ id: guestNotes.id });
+    return c.json({ note }, 201);
+  })
+
   .post('/public/:token/track/:trackId/upload-url', zValidator('json', requestStemUploadUrlSchema), async (c) => {
     const db = c.get('db');
     const { fileName, mimeType, fileSize } = c.req.valid('json');
@@ -143,8 +205,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     if (!(await filesPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const ownerId = found.link.createdById;
-    const storage = await storageOf(db, ownerId);
-    if (!fits(storage, fileSize)) return ownerFull(c);
+    if (!(await fitsForGuests(db, ownerId, fileSize))) return ownerFull(c);
     if (!(await takeUploadVolume(db, ownerId, fileSize))) return uploadVolumeExceeded(c);
 
     const fileKey = `projects/${track.projectId}/tracks/${track.id}/stems/${crypto.randomUUID()}/${fileName}`;
@@ -170,7 +231,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
       await lockStorage(tx, ownerId);
       // Checked again under the lock, so the same file sent twice at once becomes one stem
       if (!(await freshStemKey(tx, track, input.fileKey))) return 'taken';
-      if (!fits(await storageOf(tx, ownerId), fileSize)) return null;
+      if (!(await fitsForGuests(tx, ownerId, fileSize))) return null;
       const [stem] = await tx
         .insert(stems)
         .values({

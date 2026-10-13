@@ -141,6 +141,7 @@ export const stemRevisions = pgTable('stem_revisions', {
   fileKey: text('file_key').notNull(),
   sha256: varchar('sha256', { length: 64 }),
   forked: boolean('forked').default(false).notNull(),
+  guestName: varchar('guest_name', { length: 100 }),
   createdById: uuid('created_by_id')
     .references(() => users.id)
     .notNull(),

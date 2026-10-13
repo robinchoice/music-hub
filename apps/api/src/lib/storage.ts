@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { sql } from 'drizzle-orm';
-import { MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { GUEST_STORAGE_DEFAULT, MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import type { Database } from '@music-hub/db';
 import { rateLimit } from './rate-limit.js';
 import { keptSql } from './trash.js';
@@ -35,6 +35,21 @@ export async function storageOf(db: Executor, userId: string): Promise<Storage> 
            (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId}) AS limit
   `);
   return { used: Number(used), limit: Number(limit) };
+}
+
+// The part of the user's storage that guests filled through upload links, earlier files of stems included,
+// with the limit the user set for it
+export async function guestStorageOf(db: Executor, userId: string): Promise<Storage & { allowed: boolean }> {
+  const [{ used, limit, allowed }] = await db.execute<{ used: string; limit: string; allowed: boolean }>(sql`
+    SELECT (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
+             WHERE s.created_by_id = ${userId} AND s.guest_name IS NOT NULL AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
+         + (SELECT coalesce(sum(r.file_size), 0) FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
+             WHERE r.created_by_id = ${userId} AND r.guest_name IS NOT NULL AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
+           coalesce(guest_storage_limit, ${GUEST_STORAGE_DEFAULT}) AS limit,
+           guest_uploads AS allowed
+    FROM users WHERE id = ${userId}
+  `);
+  return { used: Number(used), limit: Number(limit), allowed };
 }
 
 export const fits = (storage: Storage, bytes: number) => storage.used + bytes <= storage.limit;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SUPPORTED_AUDIO_FORMATS, MAX_FILE_SIZE } from '../constants/audio.js';
+import { SUPPORTED_AUDIO_FORMATS, MAX_FILE_SIZE, GUEST_STORAGE_CHOICES } from '../constants/audio.js';
 
 export const createTrackSchema = z.object({
   name: z.string().min(1).max(255),
@@ -106,6 +106,16 @@ export const guestTrackSchema = z.object({
 
 export const guestStemSchema = createStemSchema.extend({
   guestName: z.string().trim().min(1).max(100),
+});
+
+export const guestNoteSchema = z.object({
+  guestName: z.string().trim().min(1).max(100),
+  body: z.string().trim().min(1).max(2000),
+});
+
+export const guestSettingsSchema = z.object({
+  allowed: z.boolean().optional(),
+  limit: z.number().refine((n) => GUEST_STORAGE_CHOICES.includes(n)).optional(),
 });
 
 export const guestCommentSchema = z.object({

@@ -40,7 +40,7 @@
   import ShareModal from './components/ShareModal.svelte';
   import InviteCard from './components/InviteCard.svelte';
   import CommentSection from './components/CommentSection.svelte';
-  import StemList, { type Stem } from './components/StemList.svelte';
+  import StemList, { type Stem, type GuestNote } from './components/StemList.svelte';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
   import { openPath, type OpenState } from '$lib/utils/open.js';
   import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
@@ -97,6 +97,7 @@
   let branchLabelInput = $state('');
   let shareOpen = $state(false);
   let stems = $state<Stem[]>([]);
+  let guestNotes = $state<GuestNote[]>([]);
   let openState = $state<OpenState | null>(null);
   let openModal = $state(false);
   // A remix: where it comes from and the credit line it has to carry
@@ -170,7 +171,7 @@
             license?: OpenLicense | null;
           }[];
         }>(`/tracks/project/${projectId}`),
-        api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`, true).catch(() => null),
+        api.get<{ stems: Stem[]; guestNotes?: GuestNote[] }>(`/stems/track/${trackId}`, true).catch(() => null),
         api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null),
       ]);
 
@@ -196,6 +197,7 @@
       openState = openRes?.open ?? null;
       versions = trackVersions.versions;
       stems = stemsRes.stems;
+      guestNotes = stemsRes.guestNotes ?? [];
 
       // "Öffnen" from the overview pages names the version to land on
       const requested = versions.find((v) => v.id === $page.url.searchParams.get('v'));
@@ -952,7 +954,7 @@
             onUpload={openUpload}
           />
         {:else}
-          <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+          <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
         {/if}
       </div>
     </aside>
@@ -982,7 +984,7 @@
         onUpload={openUpload}
       />
     {:else}
-      <StemList {trackId} {trackName} bind:stems {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+      <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
     {/if}
   </Sheet>
 {/if}

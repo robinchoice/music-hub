@@ -21,6 +21,7 @@
 
   let guestName = $state('');
   let songName = $state('');
+  let note = $state('');
   let target = $state<Track | null>(null);
   let starting = $state(false);
   // While files go up the song stays, so they are reported for the right one
@@ -46,14 +47,17 @@
     e.preventDefault();
     if (!guestName.trim() || !songName.trim()) return;
     localStorage.setItem('listenName', guestName.trim());
-    if (existing) {
-      target = existing;
-      return;
-    }
     starting = true;
     try {
-      const { track } = await api.post<{ track: Track }>(`${base}/tracks`, { name: songName.trim() });
-      data!.tracks = [...data!.tracks, track];
+      let track = existing;
+      if (!track) {
+        track = (await api.post<{ track: Track }>(`${base}/tracks`, { name: songName.trim() })).track;
+        data!.tracks = [...data!.tracks, track];
+      }
+      if (note.trim()) {
+        await api.post(`${base}/track/${track.id}/note`, { guestName: guestName.trim(), body: note.trim() });
+        note = '';
+      }
       target = track;
     } finally {
       starting = false;
@@ -107,6 +111,10 @@
           {:else if data.tracks.length}
             <p class="hint">Schon im Projekt: {data.tracks.map((t) => t.name).join(', ')}</p>
           {/if}
+          <label class="note">
+            <span class="input-label">Notiz an {data.invitedBy} (optional)</span>
+            <textarea bind:value={note} rows="3" maxlength="2000" placeholder="Zum Beispiel: Gesang bitte etwas lauter, Tempo 92 BPM"></textarea>
+          </label>
           <Button type="submit" loading={starting} disabled={!guestName.trim() || !songName.trim()}>Weiter</Button>
         </form>
       {:else}
@@ -192,6 +200,26 @@
     margin: calc(-1 * var(--space-2)) 0 0;
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
+  }
+  .note {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .note textarea {
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-raised);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    resize: vertical;
+  }
+  .note textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px var(--color-accent-subtle);
   }
   .target {
     display: flex;

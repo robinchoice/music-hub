@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, replaceStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
-import { stems, stemRevisions, openTracks, projectMembers, users, type Database } from '@music-hub/db';
+import { stems, stemRevisions, guestNotes, openTracks, projectMembers, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { liveTrack } from '../lib/trash.js';
@@ -37,8 +37,13 @@ export const stemRoutes = new Hono<AppEnv>()
       .from(stems)
       .where(and(eq(stems.trackId, trackId), isNull(stems.deletedAt)))
       .orderBy(asc(stems.sortOrder), asc(stems.createdAt));
+    const notes = await db
+      .select()
+      .from(guestNotes)
+      .where(eq(guestNotes.trackId, trackId))
+      .orderBy(desc(guestNotes.createdAt));
 
-    return c.json({ stems: trackStems });
+    return c.json({ stems: trackStems, guestNotes: notes });
   })
 
   .post('/track/:trackId/upload-url', zValidator('json', requestStemUploadUrlSchema), async (c) => {

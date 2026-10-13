@@ -8,6 +8,7 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
+  import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
 
   let name = $state('');
@@ -95,6 +96,7 @@
       </div>
     </section>
     <ProfileSettings />
+    <GuestUploadSettings />
   {/if}
 
   <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>

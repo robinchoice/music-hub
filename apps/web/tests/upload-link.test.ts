@@ -34,6 +34,7 @@ test('a guest without an account sends stems for a new song through the upload l
   await expect(guestPage.locator('.hint')).toHaveText('Die Dateien kommen zu „Nachtbus“.');
   await guestPage.getByLabel('Für welchen Song?').fill('Kreide');
   await expect(guestPage.locator('.hint')).toHaveText('„Kreide“ wird als neuer Song angelegt.');
+  await guestPage.getByLabel('Notiz an Robin Choice (optional)').fill('Gesang bitte etwas lauter');
   await guestPage.getByRole('button', { name: 'Weiter' }).click();
 
   const chooser = guestPage.waitForEvent('filechooser');
@@ -46,6 +47,27 @@ test('a guest without an account sends stems for a new song through the upload l
   // The new song is in the project, created in the name of the link's owner
   const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${project.id}`)).json();
   expect(tracks.map((t: { name: string }) => t.name).sort()).toEqual(['Kreide', 'Nachtbus']);
+
+  // The note waits with the song's stems
+  const kreide = tracks.find((t: { name: string }) => t.name === 'Kreide');
+  await page.goto(`/projects/${project.id}/tracks/${kreide.id}`);
+  await page.getByRole('button', { name: /0 Spuren/ }).click();
+  await expect(page.getByRole('list', { name: 'Notizen von Gästen' }).first()).toContainText('Kai');
+  await expect(page.getByRole('list', { name: 'Notizen von Gästen' }).first()).toContainText('Gesang bitte etwas lauter');
+});
+
+test('the account decides whether guests may upload and how much', async ({ page }) => {
+  await page.goto('/account');
+  const allowed = page.getByLabel('Gäste ohne Konto dürfen hochladen');
+  await expect(allowed).toBeChecked();
+  await expect(page.getByLabel('Höchstens')).toHaveValue(String(2 * 1024 ** 3));
+  await page.getByLabel('Höchstens').selectOption({ label: '5 GB' });
+  const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/upload-links/settings') && r.request().method() === 'PATCH');
+  await allowed.uncheck();
+  await saved;
+  await page.reload();
+  await expect(page.getByLabel('Gäste ohne Konto dürfen hochladen')).not.toBeChecked();
+  await expect(page.getByLabel('Höchstens')).toHaveCount(0);
 });
 
 test('an unknown upload link says so', async ({ page }) => {

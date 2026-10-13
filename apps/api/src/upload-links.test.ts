@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { Hono } from 'hono';
-import { eq, inArray } from 'drizzle-orm';
-import { createDb, migrateDb, projectMembers, projects, sessions, stems, tracks, users } from '@music-hub/db';
+import { and, eq, inArray } from 'drizzle-orm';
+import { createDb, guestNotes, migrateDb, projectMembers, projects, sessions, stems, tracks, users } from '@music-hub/db';
 import { generateToken, hashToken } from './middleware/auth.js';
-import { storageOf } from './lib/storage.js';
+import { guestStorageOf, storageOf } from './lib/storage.js';
+import { replaceStem } from './lib/stems.js';
 import type { AppEnv } from './types.js';
 
 // No bucket needed: every uploaded file is 1234 bytes. The rest of the module stays real for other test files.
@@ -115,4 +116,43 @@ test('the link stops working when it is switched off, the project is archived or
   t = await token();
   expect((await call(`/project/${projectId}`, { method: 'DELETE', headers })).status).toBe(200);
   expect((await call(`/public/${t}`)).status).toBe(404);
+});
+
+test('guests stay within the share of storage the creator leaves them, and the creator can turn them away', async () => {
+  const headers = await sessionOf(owner);
+  const { link } = await (await call(`/project/${projectId}`, { method: 'POST', headers })).json();
+  const [track] = await db.select().from(tracks).where(and(eq(tracks.projectId, projectId), eq(tracks.name, 'Kreide')));
+  const [guestStem] = await db.select().from(stems).where(eq(stems.trackId, track.id));
+
+  // An earlier file a guest sent still counts as theirs after a member replaced it
+  await replaceStem(db, guestStem.id, owner, { originalFileName: 'drums-cut.wav', mimeType: 'audio/wav', fileKey: `test/${crypto.randomUUID()}/drums-cut.wav`, fileSize: 10 });
+  expect((await guestStorageOf(db, owner)).used).toBe(1234);
+
+  await db.update(users).set({ guestStorageLimit: 2000 }).where(eq(users.id, owner));
+  const file = (fileSize: number) => ({ method: 'POST', body: { fileName: 'bass.wav', mimeType: 'audio/wav', fileSize } });
+  expect((await call(`/public/${link.token}/track/${track.id}/upload-url`, file(1000))).status).toBe(413);
+  expect((await call(`/public/${link.token}/track/${track.id}/upload-url`, file(700))).status).toBe(200);
+
+  // Only the offered amounts can be chosen
+  expect((await call('/settings', { method: 'PATCH', headers, body: { limit: 12345 } })).status).toBe(400);
+  const settings = await (await call('/settings', { method: 'PATCH', headers, body: { allowed: false } })).json();
+  expect(settings).toMatchObject({ allowed: false, limit: 2000, used: 1234 });
+  expect((await call(`/public/${link.token}`)).status).toBe(404);
+  expect((await (await call(`/project/${projectId}`, { headers })).json()).link.paused).toBe(true);
+  await call('/settings', { method: 'PATCH', headers, body: { allowed: true } });
+});
+
+test('a guest leaves a note with the song, members who may upload delete it', async () => {
+  const headers = await sessionOf(owner);
+  const { link } = await (await call(`/project/${projectId}`, { headers })).json();
+  const [track] = await db.select().from(tracks).where(and(eq(tracks.projectId, projectId), eq(tracks.name, 'Nachtbus')));
+
+  const res = await call(`/public/${link.token}/track/${track.id}/note`, { method: 'POST', body: { guestName: 'Kai', body: 'Gesang bitte lauter' } });
+  expect(res.status).toBe(201);
+  const { note } = await res.json();
+  expect(await db.select().from(guestNotes).where(eq(guestNotes.trackId, track.id))).toMatchObject([{ guestName: 'Kai', body: 'Gesang bitte lauter' }]);
+
+  expect((await call(`/notes/${note.id}`, { method: 'DELETE', headers: await sessionOf(viewer) })).status).toBe(403);
+  expect((await call(`/notes/${note.id}`, { method: 'DELETE', headers })).status).toBe(200);
+  expect(await db.select().from(guestNotes).where(eq(guestNotes.trackId, track.id))).toHaveLength(0);
 });

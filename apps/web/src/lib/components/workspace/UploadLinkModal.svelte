@@ -5,7 +5,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
 
-  type Link = { token: string; createdAt: string; createdByName: string };
+  type Link = { token: string; createdAt: string; createdByName: string; paused: boolean };
 
   let { open = $bindable(false), projectId }: { open: boolean; projectId: string } = $props();
 
@@ -54,7 +54,7 @@
 
 <Modal bind:open title="Upload-Link">
   <p class="intro">
-    Wer diesen Link hat, kann ohne Konto Spuren in dieses Projekt laden: zu einem bestehenden Song oder als neuen Song. Die Dateien zählen zum Speicher der Person, die den Link erstellt hat.
+    Wer diesen Link hat, kann ohne Konto Spuren und eine Notiz in dieses Projekt laden: zu einem bestehenden Song oder als neuen Song. Die Dateien zählen zum Speicher der Person, die den Link erstellt hat. Ob und wie viel Gäste hochladen dürfen, stellst du <a href="/account#gaeste">in deinem Konto</a> ein.
   </p>
   {#if loading}
     <p class="muted">Lädt…</p>
@@ -64,6 +64,9 @@
       <Button size="sm" onclick={copy}>Kopieren</Button>
     </div>
     <p class="muted">Erstellt von {link.createdByName} am {formatDate(link.createdAt)}</p>
+    {#if link.paused}
+      <p class="paused">Gerade ausgeschaltet: Im Konto von {link.createdByName} sind Uploads von Gästen nicht erlaubt.</p>
+    {/if}
   {:else}
     <Button onclick={create} loading={busy}>Link erstellen</Button>
   {/if}
@@ -95,6 +98,11 @@
     background: var(--color-bg-base);
     color: var(--color-text-primary);
     font: inherit;
+    font-size: var(--text-sm);
+  }
+  .paused {
+    margin: var(--space-3) 0 0;
+    color: var(--color-warning);
     font-size: var(--text-sm);
   }
   .muted {

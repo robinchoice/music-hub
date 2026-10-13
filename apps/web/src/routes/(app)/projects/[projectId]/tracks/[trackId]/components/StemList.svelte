@@ -22,6 +22,8 @@
     revisionCount?: number;
   };
 
+  export type GuestNote = { id: string; guestName: string; body: string; createdAt: string };
+
   type Revision = {
     id: string;
     originalFileName: string;
@@ -36,6 +38,7 @@
     trackId,
     trackName,
     stems = $bindable<Stem[]>([]),
+    notes = $bindable<GuestNote[]>([]),
     canUpload,
     currentUserId,
     role,
@@ -44,6 +47,7 @@
     trackId: string;
     trackName: string;
     stems: Stem[];
+    notes?: GuestNote[];
     canUpload: boolean;
     currentUserId: string | null;
     role: string;
@@ -180,9 +184,33 @@
       deleting = null;
     }
   }
+
+  async function deleteNote(note: GuestNote) {
+    if (!confirm(`Notiz von ${note.guestName} löschen?`)) return;
+    await api.delete(`/upload-links/notes/${note.id}`);
+    notes = notes.filter((n) => n.id !== note.id);
+  }
 </script>
 
 <div class="spuren">
+  {#if notes.length > 0}
+    <ul class="notes" aria-label="Notizen von Gästen">
+      {#each notes as note (note.id)}
+        <li>
+          <p class="note-head">
+            <b>{note.guestName}</b> · {timeAgo(note.createdAt)}
+            {#if canUpload}
+              <button class="row-btn" onclick={() => deleteNote(note)} title="Notiz löschen" aria-label={`Notiz von ${note.guestName} löschen`}>
+                <Icon name="x" size={12} />
+              </button>
+            {/if}
+          </p>
+          <p class="note-body">{note.body}</p>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
   {#if stems.length > 0}
     <p class="summary">
       {stems.length} {stems.length === 1 ? 'Datei' : 'Dateien'} · {formatFileSize(totalSize)}{lastUpload ? ` · zuletzt ${timeAgo(lastUpload)}` : ''}
@@ -305,6 +333,47 @@
     gap: var(--space-2);
     min-height: 0;
     height: 100%;
+  }
+
+  .notes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .notes li {
+    padding: var(--space-2) var(--space-3);
+    border-left: 2px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
+  }
+
+  .note-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .note-head b {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .note-head .row-btn {
+    margin-left: auto;
+  }
+
+  .note-body {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .summary {

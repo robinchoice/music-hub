@@ -14,6 +14,7 @@ const revisionOf = (stem: Stem, replacedAt: Date) => ({
   fileKey: stem.fileKey,
   sha256: stem.sha256,
   forked: stem.forked,
+  guestName: stem.guestName,
   createdById: stem.createdById,
   createdAt: stem.revisedAt ?? stem.createdAt,
   replacedAt,
@@ -46,7 +47,7 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
     await tx.insert(stemRevisions).values(revisionOf(current, now));
     const [stem] = await tx
       .update(stems)
-      .set({ ...file, sha256: file.sha256 ?? null, forked: false, createdById: userId, revisedAt: now })
+      .set({ ...file, sha256: file.sha256 ?? null, forked: false, guestName: null, createdById: userId, revisedAt: now })
       .where(eq(stems.id, stemId))
       .returning();
     return stem;
@@ -77,6 +78,7 @@ export async function restoreRevision(db: Database, revisionId: string) {
         fileKey: restored.fileKey,
         sha256: restored.sha256,
         forked: restored.forked,
+        guestName: restored.guestName,
         createdById: restored.createdById,
         revisedAt: now,
       })

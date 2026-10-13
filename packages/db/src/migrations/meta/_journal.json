@@ -176,6 +176,13 @@
       "when": 1791909416963,
       "tag": "0024_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791913167156,
+      "tag": "0025_guest_notes_limits",
+      "breakpoints": true
     }
   ]
 }

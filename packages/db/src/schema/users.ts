@@ -17,6 +17,9 @@ export const users = pgTable('users', {
   // Mails about new versions go to members without push; the token in the mail's unsubscribe link turns them off
   versionMails: boolean('version_mails').default(true).notNull(),
   mailToken: uuid('mail_token').defaultRandom().notNull(),
+  // Whether guests may add files through this account's upload links, and how many bytes; null means GUEST_STORAGE_DEFAULT
+  guestUploads: boolean('guest_uploads').default(true).notNull(),
+  guestStorageLimit: bigint('guest_storage_limit', { mode: 'number' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

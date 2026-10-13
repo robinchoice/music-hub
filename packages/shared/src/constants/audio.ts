@@ -28,6 +28,10 @@ export const MAX_STORAGE_PER_USER = 20 * 1024 * 1024 * 1024; // 20 GB
 // Accounts created by signing up rather than by an invite
 export const SIGNUP_STORAGE_PER_USER = 5 * 1024 * 1024 * 1024; // 5 GB
 
+// What guests may upload through an account's upload links, out of its own storage
+export const GUEST_STORAGE_DEFAULT = 2 * 1024 * 1024 * 1024; // 2 GB
+export const GUEST_STORAGE_CHOICES = [0.5, 1, 2, 5, 10].map((gb) => gb * 1024 * 1024 * 1024);
+
 // The stem ZIP is written without ZIP64, so its offsets end at 4 GB; 1 MB stays free for headers
 export const MAX_ZIP_SIZE = 4 * 1024 * 1024 * 1024 - 1024 * 1024;
 
