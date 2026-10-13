@@ -39,7 +39,7 @@ async function storageSummary(db: Database, userId: string) {
       (SELECT coalesce(sum(s.file_size), 0)::float8 FROM stems s JOIN tracks t ON t.id = s.track_id
         WHERE s.created_by_id = ${userId} AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
       + (SELECT coalesce(sum(r.file_size), 0)::float8 FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-        WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes",
+        WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes",
       (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER})::float8 FROM users WHERE id = ${userId}) AS "limitBytes"
   `);
   const topTracks = await db.execute<{ trackId: string; name: string; bytes: number }>(sql`
@@ -50,7 +50,7 @@ async function storageSummary(db: Database, userId: string) {
       SELECT track_id, file_size AS size FROM stems WHERE created_by_id = ${userId} AND NOT forked AND deleted_at IS NULL
       UNION ALL
       SELECT s.track_id, r.file_size FROM stem_revisions r JOIN stems s ON s.id = r.stem_id
-        WHERE r.created_by_id = ${userId} AND NOT r.forked AND s.deleted_at IS NULL
+        WHERE r.created_by_id = ${userId} AND NOT r.forked AND r.deleted_at IS NULL AND s.deleted_at IS NULL
     ) x
     JOIN tracks t ON t.id = x.track_id
     WHERE t.deleted_at IS NULL

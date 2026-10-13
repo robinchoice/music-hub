@@ -108,7 +108,7 @@ async function storageByUser(db: Database) {
         WHERE NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')}
       UNION ALL
       SELECT r.created_by_id, r.file_size FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-        WHERE NOT r.forked AND ${keptSql('s')} AND ${keptSql('t')}
+        WHERE NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}
     ) x
     GROUP BY uid
   `);

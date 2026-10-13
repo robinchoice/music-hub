@@ -7,8 +7,10 @@
 
   let {
     versionLabel,
+    versionTitle = null,
     comments,
     carryLabel = null,
+    carryTitle = null,
     carryComments = [],
     canComment = false,
     currentUserId = null,
@@ -24,8 +26,10 @@
     onSeek,
   }: {
     versionLabel: string;
+    versionTitle?: string | null;
     comments: TrackComment[];
     carryLabel?: string | null;
+    carryTitle?: string | null;
     carryComments?: TrackComment[];
     canComment?: boolean;
     currentUserId?: string | null;
@@ -85,6 +89,10 @@
   export { focusComposer };
 </script>
 
+{#snippet versionChip(label: string, title: string | null)}
+  <span class="vchip"><b>{label}</b>{#if title}<span>{title}</span>{/if}</span>
+{/snippet}
+
 <section class="comments">
   {#if canComment}
     <form class="composer" onsubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -103,7 +111,7 @@
   {/if}
 
   <div class="list-head">
-    <h2>Kommentare <span>zu {versionLabel}</span></h2>
+    <h2>Kommentare {@render versionChip(versionLabel, versionTitle)}</h2>
     <div class="filter">
       <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>Offen <i>{openCount}</i></button>
       <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigte <i>{doneCount}</i></button>
@@ -155,7 +163,8 @@
     <div class="carry">
       <button class="carry-head" onclick={() => (carryOpen = !carryOpen)} aria-expanded={carryOpen}>
         <Icon name={carryOpen ? 'chevron-down' : 'chevron-right'} size={14} />
-        <b>Aus {carryLabel} noch offen</b>
+        <b>Noch offen aus</b>
+        {@render versionChip(carryLabel, carryTitle)}
         <i>{carryOpenItems.length}</i>
         <span>In {versionLabel} gelöst?</span>
       </button>
@@ -266,16 +275,43 @@
   }
 
   .list-head h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
     margin: 0;
     font-size: 1.5rem;
     white-space: nowrap;
   }
 
-  .list-head h2 span {
-    margin-left: 4px;
+  /* Same look as the version picker, so a comment list reads as belonging to that version */
+  .vchip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
+    font-family: var(--font-sans);
     font-size: var(--text-xs);
     font-weight: 500;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-secondary);
+  }
+
+  .vchip b {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 78%;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+  }
+
+  .vchip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .filter {
@@ -352,6 +388,10 @@
     cursor: pointer;
   }
 
+  .carry-head .vchip {
+    border-style: dashed;
+  }
+
   .carry-head :global(svg) {
     color: var(--color-text-tertiary);
   }
@@ -365,7 +405,7 @@
     border-radius: var(--radius-full);
   }
 
-  .carry-head span {
+  .carry-head > span:last-child {
     margin-left: auto;
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);

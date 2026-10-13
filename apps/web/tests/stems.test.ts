@@ -7,9 +7,11 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 test.afterEach(() => removeUser(userId));
 
+let projectId: string;
 async function trackWithStem(page: Page, earlier: number) {
   const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
   const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
+  projectId = project.id;
   addVersion(track.id, userId, 'ready');
   const stemId = addStem(track.id, userId, 'Drums', earlier);
   await page.goto(`/projects/${project.id}/tracks/${track.id}`);
@@ -49,4 +51,19 @@ test('an earlier take can become the current one again', async ({ page }) => {
   // The file that was current is now the earlier one
   await expect(page.locator('li.revision')).toHaveAttribute('title', 'Drums.wav');
   await expect(page.getByRole('button', { name: 'Fassung 2' })).toBeVisible();
+});
+
+test('an earlier take goes into the trash and comes back from there', async ({ page }) => {
+  await trackWithStem(page, 2);
+  await page.getByRole('button', { name: 'Fassung 3' }).click();
+  await page.getByRole('button', { name: 'Fassung 1 in den Papierkorb' }).click();
+  await expect(page.locator('.toast-container')).toContainText('Fassung 1 von „Drums“ liegt im Papierkorb des Projekts');
+  await expect(page.getByRole('button', { name: 'Fassung 2', exact: true })).toBeVisible();
+  await expect(page.locator('li.revision')).toHaveCount(1);
+
+  await page.goto(`/projects/${projectId}/trash`);
+  await page.getByRole('tab', { name: /Fassungen/ }).click();
+  await expect(page.getByText('Frühere Fassung von Drums')).toBeVisible();
+  await page.getByRole('button', { name: 'Wiederherstellen' }).click();
+  await expect(page.locator('.toast-container')).toContainText('Fassung „Drums-take1.wav“ ist wieder da');
 });

@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { tracks, versions, stems, comments, projectMembers, type Database } from '@music-hub/db';
+import { tracks, versions, stems, stemRevisions, comments, projectMembers, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
 import type { AppEnv } from '../types.js';
 
-const KINDS = ['track', 'version', 'stem', 'comment'] as const;
+const KINDS = ['track', 'version', 'stem', 'revision', 'comment'] as const;
 type Kind = (typeof KINDS)[number];
 const isKind = (kind: string): kind is Kind => (KINDS as readonly string[]).includes(kind);
 
@@ -19,8 +19,8 @@ async function roleIn(db: Database, projectId: string, userId: string) {
   return membership?.role ?? null;
 }
 
-// What the user may restore in the project: as owner tracks, versions and stems, otherwise their own stems,
-// and always their own comments. Whatever sits below a deleted track or version comes back with it.
+// What the user may restore in the project: as owner tracks, versions, stems and earlier files of stems,
+// otherwise their own stems and earlier files, and always their own comments. Whatever sits below a deleted track or version comes back with it.
 async function trashOf(db: Database, projectId: string, userId: string, owner: boolean) {
   // The subqueries name the outer table: drizzle leaves columns of a single-table select unqualified
   const trackRows = owner
@@ -35,7 +35,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
           commentCount: sql<number>`(select count(*)::int from comments c join versions v on v.id = c.version_id where v.track_id = tracks.id and v.deleted_at is null and c.deleted_at is null)`,
           stemCount: sql<number>`(select count(*)::int from stems s where s.track_id = tracks.id and s.deleted_at is null)`,
           shareLinkCount: sql<number>`(select count(*)::int from share_links l join versions v on v.id = l.version_id where v.track_id = tracks.id and v.deleted_at is null)`,
-          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and s.deleted_at is null))::float8`,
+          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and s.deleted_at is null and r.deleted_at is null))::float8`,
         })
         .from(tracks)
         .where(and(eq(tracks.projectId, projectId), inTrash(tracks)))
@@ -81,6 +81,29 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
       ),
     );
 
+  const revisionRows = await db
+    .select({
+      id: stemRevisions.id,
+      deletedAt: stemRevisions.deletedAt,
+      trackId: tracks.id,
+      trackName: tracks.name,
+      name: stems.name,
+      originalFileName: stemRevisions.originalFileName,
+      bytes: stemRevisions.fileSize,
+    })
+    .from(stemRevisions)
+    .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
+    .innerJoin(tracks, eq(tracks.id, stems.trackId))
+    .where(
+      and(
+        eq(tracks.projectId, projectId),
+        isNull(tracks.deletedAt),
+        isNull(stems.deletedAt),
+        inTrash(stemRevisions),
+        owner ? undefined : eq(stemRevisions.createdById, userId),
+      ),
+    );
+
   const commentRows = await db
     .select({
       id: comments.id,
@@ -116,6 +139,7 @@ async function trashOf(db: Database, projectId: string, userId: string, owner: b
     )),
     ...versionRows.map((v) => ({ kind: 'version' as const, ...v })),
     ...stemRows.map((s) => ({ kind: 'stem' as const, ...s })),
+    ...revisionRows.map((r) => ({ kind: 'revision' as const, ...r })),
     ...commentRows.map((c) => ({ kind: 'comment' as const, ...c })),
   ];
   return entries.sort((a, b) => b.deletedAt!.getTime() - a.deletedAt!.getTime());
@@ -151,6 +175,18 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
     const role = await roleIn(db, row.projectId, userId);
     return role === 'owner' || (role && row.createdById === userId) ? row : null;
   }
+  if (kind === 'revision') {
+    const [row] = await db
+      .select({ projectId: tracks.projectId, createdById: stemRevisions.createdById })
+      .from(stemRevisions)
+      .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
+      .innerJoin(tracks, eq(tracks.id, stems.trackId))
+      .where(and(eq(stemRevisions.id, id), inTrash(stemRevisions), isNull(stems.deletedAt), isNull(tracks.deletedAt)))
+      .limit(1);
+    if (!row) return null;
+    const role = await roleIn(db, row.projectId, userId);
+    return role === 'owner' || (role && row.createdById === userId) ? row : null;
+  }
   const [row] = await db
     .select({ projectId: tracks.projectId, authorId: comments.userId })
     .from(comments)
@@ -167,6 +203,7 @@ async function setState(db: Database, kind: Kind, ids: string[], state: TrashSta
   if (kind === 'track') await db.update(tracks).set(state).where(inArray(tracks.id, ids));
   else if (kind === 'version') await db.update(versions).set(state).where(inArray(versions.id, ids));
   else if (kind === 'stem') await db.update(stems).set(state).where(inArray(stems.id, ids));
+  else if (kind === 'revision') await db.update(stemRevisions).set(state).where(inArray(stemRevisions.id, ids));
   else await db.update(comments).set(state).where(inArray(comments.id, ids));
 }
 

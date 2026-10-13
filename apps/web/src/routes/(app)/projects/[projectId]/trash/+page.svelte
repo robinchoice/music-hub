@@ -37,6 +37,7 @@
         bytes: number;
       })
     | (Base & { kind: 'stem'; name: string; bytes: number })
+    | (Base & { kind: 'revision'; name: string; originalFileName: string; bytes: number })
     | (Base & {
         kind: 'comment';
         versionId: string;
@@ -55,6 +56,7 @@
     ['track', 'Tracks'],
     ['version', 'Versionen'],
     ['stem', 'Spuren'],
+    ['revision', 'Fassungen'],
     ['comment', 'Kommentare'],
   ];
 
@@ -91,6 +93,7 @@
     if (e.kind === 'track') return e.trackName;
     if (e.kind === 'version') return `V${e.versionNumber} · ${versionTitle(e)}`;
     if (e.kind === 'stem') return spurDisplayName(e.name, e.trackName);
+    if (e.kind === 'revision') return e.originalFileName;
     return `„${e.body}“`;
   }
 
@@ -99,6 +102,7 @@
     if (e.kind === 'track') return `„${e.trackName}“`;
     if (e.kind === 'version') return `V${e.versionNumber}`;
     if (e.kind === 'stem') return `Spur „${spurDisplayName(e.name, e.trackName)}“`;
+    if (e.kind === 'revision') return `Fassung „${e.originalFileName}“`;
     return 'Kommentar';
   }
 
@@ -206,7 +210,7 @@
     </div>
   {:else}
     <div class="filter" role="tablist">
-      {#each FILTERS as [f, label]}
+      {#each FILTERS.filter(([f]) => f !== 'revision' || countOf(f) > 0) as [f, label]}
         <button role="tab" aria-selected={filter === f} class:on={filter === f} onclick={() => (filter = f)}>
           {label} <i>{countOf(f)}</i>
         </button>
@@ -224,7 +228,7 @@
               <CoverImage src={e.coverUrl} name={e.trackName} size="sm" rounded="sm" />
             {:else}
               <span class="kind">
-                {#if e.kind === 'version'}V{e.versionNumber}{:else}<Icon name={e.kind === 'stem' ? 'music' : 'comment'} size={15} />{/if}
+                {#if e.kind === 'version'}V{e.versionNumber}{:else}<Icon name={e.kind === 'stem' || e.kind === 'revision' ? 'music' : 'comment'} size={15} />{/if}
               </span>
             {/if}
             <div class="main">
@@ -236,6 +240,8 @@
                   Version von <b>{e.trackName}</b> · {plural(e.commentCount, 'Kommentar', 'Kommentare')}{#if e.shareLinkCount} · {plural(e.shareLinkCount, 'Freigabelink', 'Freigabelinks')}{/if}
                 {:else if e.kind === 'stem'}
                   Spur von <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
+                {:else if e.kind === 'revision'}
+                  Frühere Fassung von <b>{spurDisplayName(e.name, e.trackName)}</b> in <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
                 {:else}
                   Kommentar zu <b>{e.trackName}</b> · V{e.versionNumber}{#if e.timestampSeconds !== null} bei {formatTime(e.timestampSeconds)}{/if}{#if e.replyCount} · {plural(e.replyCount, 'Antwort bleibt', 'Antworten bleiben')} sichtbar{/if}
                 {/if}
@@ -266,8 +272,8 @@
     {/if}
 
     <p class="foot">
-      Du siehst nur, was du wiederherstellen darfst: als Owner Tracks, Versionen und Spuren, sonst deine eigenen
-      Spuren, dazu deine eigenen Kommentare.
+      Du siehst nur, was du wiederherstellen darfst: als Owner Tracks, Versionen, Spuren und ihre Fassungen, sonst
+      deine eigenen Spuren und Fassungen, dazu deine eigenen Kommentare.
     </p>
   {/if}
 </div>
@@ -281,6 +287,8 @@
         <strong>{title(discarding)}</strong> wird mit {plural(discarding.commentCount, 'Kommentar', 'Kommentaren')} endgültig gelöscht, auch die Audiodatei.
       {:else if discarding.kind === 'stem'}
         Die Spur <strong>„{title(discarding)}“</strong> wird endgültig gelöscht, auch die Datei.
+      {:else if discarding.kind === 'revision'}
+        Die frühere Fassung <strong>„{title(discarding)}“</strong> wird endgültig gelöscht, auch die Datei.
       {:else}
         Dein Kommentar <strong>{title(discarding)}</strong> wird endgültig gelöscht.
       {/if}
@@ -632,8 +640,14 @@
   }
 
   @media (max-width: 480px) {
+    /* Hidden from sight only, the button keeps its name for screen readers */
     .btn-label {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
   }
 </style>

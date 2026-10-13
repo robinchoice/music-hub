@@ -134,6 +134,13 @@
       "when": 1791892642198,
       "tag": "0018_stem_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791894688750,
+      "tag": "0019_stem_revision_trash",
+      "breakpoints": true
     }
   ]
 }

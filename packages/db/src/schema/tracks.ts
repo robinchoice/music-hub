@@ -137,4 +137,7 @@ export const stemRevisions = pgTable('stem_revisions', {
   // When this file was uploaded and when a newer one replaced it
   createdAt: timestamp('created_at').notNull(),
   replacedAt: timestamp('replaced_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedById: uuid('deleted_by_id').references(() => users.id),
+  discardedAt: timestamp('discarded_at'),
 });

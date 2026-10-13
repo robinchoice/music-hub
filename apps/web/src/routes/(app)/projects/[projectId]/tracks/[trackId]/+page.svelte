@@ -34,7 +34,7 @@
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
   import { SUPPORTED_EXTENSIONS, TRACK_STATUSES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
-  import { predecessorOf, type Version, type TrackComment } from '$lib/utils/track.js';
+  import { predecessorOf, versionTitle, type Version, type TrackComment } from '$lib/utils/track.js';
   import VersionCard from './components/VersionCard.svelte';
   import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
@@ -913,8 +913,10 @@
         <CommentSection
           bind:this={commentSection}
           versionLabel={`V${selectedVersion.versionNumber}`}
+          versionTitle={versionTitle(selectedVersion)}
           {comments}
           carryLabel={predecessor ? `V${predecessor.versionNumber}` : null}
+          carryTitle={predecessor ? versionTitle(predecessor) : null}
           carryComments={predecessorComments}
           {canComment}
           currentUserId={$user?.id ?? null}

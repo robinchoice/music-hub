@@ -147,6 +147,23 @@
     }
   }
 
+  async function deleteRevision(stem: Stem, revision: Revision, n: number) {
+    const count = (by: number) => (stems = stems.map((s) => (s.id === stem.id ? { ...s, revisionCount: (s.revisionCount ?? 0) + by } : s)));
+    try {
+      await api.delete(`/stems/revisions/${revision.id}`);
+      revisions = revisions.filter((r) => r.id !== revision.id);
+      count(-1);
+      if (!revisions.length) historyOf = null;
+      toastTrash(`Fassung ${n} von „${spurDisplayName(stem.name, trackName)}“ liegt im Papierkorb des Projekts`, async () => {
+        await api.post(`/trash/revision/${revision.id}/restore`);
+        count(1);
+        if (historyOf === stem.id) await loadRevisions(stem.id);
+      });
+    } catch {
+      // The API client already showed the error
+    }
+  }
+
   async function deleteStem(stem: Stem, label: string) {
     deleting = stem.id;
     try {
@@ -256,6 +273,16 @@
                   aria-label={`Fassung ${revisions.length - i} wiederherstellen`}
                 >
                   <Icon name="restore" size={13} />
+                </button>
+              {/if}
+              {#if role === 'owner' || revision.createdById === currentUserId}
+                <button
+                  class="row-btn delete"
+                  onclick={() => deleteRevision(stem, revision, revisions.length - i)}
+                  title="In den Papierkorb"
+                  aria-label={`Fassung ${revisions.length - i} in den Papierkorb`}
+                >
+                  <Icon name="trash" size={13} />
                 </button>
               {/if}
             </li>

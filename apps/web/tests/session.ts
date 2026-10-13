@@ -87,7 +87,7 @@ export function addStem(trackId: string, userId: string, name: string, earlier =
     import { stems, stemRevisions } from '@music-hub/db';
     const file = (n) => ({ originalFileName: n + '.wav', mimeType: 'audio/wav', fileSize: 7, fileKey: 'test/' + crypto.randomUUID() + '/' + n + '.wav', createdById: ${JSON.stringify(userId)} });
     const [s] = await db.insert(stems).values({ trackId: ${JSON.stringify(trackId)}, name: ${JSON.stringify(name)}, ...file(${JSON.stringify(name)}) }).returning();
-    for (let i = 1; i <= ${earlier}; i++) await db.insert(stemRevisions).values({ stemId: s.id, ...file(${JSON.stringify(name)} + '-take' + i), createdAt: new Date(), replacedAt: new Date() });
+    for (let i = 1; i <= ${earlier}; i++) await db.insert(stemRevisions).values({ stemId: s.id, ...file(${JSON.stringify(name)} + '-take' + i), createdAt: new Date(Date.now() - (${earlier} - i + 2) * 60000), replacedAt: new Date(Date.now() - (${earlier} - i + 1) * 60000) });
     console.log(s.id);
   `);
 }

@@ -82,6 +82,10 @@ export async function purgeTrash(db: Database) {
   }
   if (dueStems.length) await db.delete(stems).where(inArray(stems.id, dueStems.map((s) => s.id)));
 
+  const dueRevisions = await db.select().from(stemRevisions).where(due(stemRevisions));
+  for (const r of dueRevisions) collect(r.fileKey);
+  if (dueRevisions.length) await db.delete(stemRevisions).where(inArray(stemRevisions.id, dueRevisions.map((r) => r.id)));
+
   const dueComments = await db.select({ id: comments.id, body: comments.body }).from(comments).where(due(comments));
   const commentIds = dueComments.map((c) => c.id);
   const answered = new Set(
@@ -98,9 +102,9 @@ export async function purgeTrash(db: Database) {
 
   const files = await deleteUnusedFiles(db, keys);
 
-  if (trackIds.length || dueVersions.length || dueStems.length || commentIds.length) {
+  if (trackIds.length || dueVersions.length || dueStems.length || dueRevisions.length || commentIds.length) {
     console.log(
-      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
+      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${dueRevisions.length} earlier stem files, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
     );
   }
 }

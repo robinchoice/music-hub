@@ -31,7 +31,7 @@ export async function storageOf(db: Executor, userId: string): Promise<Storage> 
          + (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
              WHERE s.created_by_id = ${userId} AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
          + (SELECT coalesce(sum(r.file_size), 0) FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-             WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
+             WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
            (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId}) AS limit
   `);
   return { used: Number(used), limit: Number(limit) };

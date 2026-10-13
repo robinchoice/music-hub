@@ -73,3 +73,13 @@ test('restoring swaps the files back, and earlier files are not deleted as unuse
   // Still referenced by the history, so nothing to delete
   expect(await deleteUnusedFiles(db, [cut.fileKey])).toBe(0);
 });
+
+test('an earlier file in the trash still counts, once out of the trash it no longer does', async () => {
+  const [revision] = await db.select().from(stemRevisions).where(eq(stemRevisions.stemId, stemId));
+  await db.update(stemRevisions).set({ deletedAt: new Date(), deletedById: owner }).where(eq(stemRevisions.id, revision.id));
+  expect((await storageOf(db, owner)).used).toBe(400);
+  expect(await restoreRevision(db, revision.id)).toBeNull();
+
+  await db.update(stemRevisions).set({ discardedAt: new Date() }).where(eq(stemRevisions.id, revision.id));
+  expect((await storageOf(db, owner)).used).toBe(0);
+});

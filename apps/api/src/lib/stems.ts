@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { stemRevisions, stems, type Database } from '@music-hub/db';
 import { fits, lockStorage, storageOf } from './storage.js';
 
@@ -38,10 +38,13 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
 }
 
 // Makes an earlier file current again; the current one moves into the history.
-// The storage stays the same, both files were counted already. Returns null if the revision is gone.
+// The storage stays the same, both files were counted already. Returns null if the revision is gone or in the trash.
 export async function restoreRevision(db: Database, revisionId: string) {
   return db.transaction(async (tx) => {
-    const [revision] = await tx.select().from(stemRevisions).where(eq(stemRevisions.id, revisionId));
+    const [revision] = await tx
+      .select()
+      .from(stemRevisions)
+      .where(and(eq(stemRevisions.id, revisionId), isNull(stemRevisions.deletedAt)));
     if (!revision) return null;
     const [current] = await tx.select().from(stems).where(eq(stems.id, revision.stemId)).for('update');
     const [restored] = await tx.delete(stemRevisions).where(eq(stemRevisions.id, revisionId)).returning();

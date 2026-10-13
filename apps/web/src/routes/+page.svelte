@@ -10,7 +10,7 @@
   import DemoFrame from '$lib/components/landing/DemoFrame.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
   import { DEMO, demoRequest } from '$lib/demo/backend.js';
-  import { predecessorOf, type TrackComment, type Version } from '$lib/utils/track.js';
+  import { predecessorOf, versionTitle, type TrackComment, type Version } from '$lib/utils/track.js';
   // The landing page shows the components of the real track page, filled with the demo data
   import VersionList from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionList.svelte';
   import VersionCard from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionCard.svelte';
@@ -331,8 +331,10 @@
           <VersionCard {...card} version={feedback} {versions} canApprove={false} onSelect={(v) => (feedbackId = v.id)} player={feedbackPlayer} />
           <CommentSection
             versionLabel={`V${feedback.versionNumber}`}
+            versionTitle={versionTitle(feedback)}
             comments={comments[feedback.id] ?? []}
             carryLabel={feedbackPred ? `V${feedbackPred.versionNumber}` : null}
+            carryTitle={feedbackPred ? versionTitle(feedbackPred) : null}
             carryComments={feedbackPred ? (comments[feedbackPred.id] ?? []) : []}
             canComment
             currentUserId={DEMO.userId}

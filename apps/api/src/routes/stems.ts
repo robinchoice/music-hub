@@ -32,7 +32,7 @@ export const stemRoutes = new Hono<AppEnv>()
     const trackStems = await db
       .select({
         ...getTableColumns(stems),
-        revisionCount: sql<number>`(select count(*)::int from stem_revisions r where r.stem_id = stems.id)`,
+        revisionCount: sql<number>`(select count(*)::int from stem_revisions r where r.stem_id = stems.id and r.deleted_at is null)`,
       })
       .from(stems)
       .where(and(eq(stems.trackId, trackId), isNull(stems.deletedAt)))
@@ -173,7 +173,7 @@ export const stemRoutes = new Hono<AppEnv>()
       })
       .from(stemRevisions)
       .innerJoin(users, eq(users.id, stemRevisions.createdById))
-      .where(eq(stemRevisions.stemId, access.stem.id))
+      .where(and(eq(stemRevisions.stemId, access.stem.id), isNull(stemRevisions.deletedAt)))
       .orderBy(desc(stemRevisions.replacedAt));
 
     return c.json({ revisions });
@@ -181,7 +181,7 @@ export const stemRoutes = new Hono<AppEnv>()
 
   .get('/revisions/:id/download-url', async (c) => {
     const db = c.get('db');
-    const [revision] = await db.select().from(stemRevisions).where(eq(stemRevisions.id, c.req.param('id')));
+    const revision = await liveRevision(db, c.req.param('id'));
     if (!revision || !(await stemAccess(db, revision.stemId, c.get('userId')))) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(revision.fileKey, 3600, revision.originalFileName);
@@ -192,7 +192,7 @@ export const stemRoutes = new Hono<AppEnv>()
   .post('/revisions/:id/restore', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const [revision] = await db.select().from(stemRevisions).where(eq(stemRevisions.id, c.req.param('id')));
+    const revision = await liveRevision(db, c.req.param('id'));
     const access = revision && (await stemAccess(db, revision.stemId, userId));
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
@@ -202,6 +202,22 @@ export const stemRoutes = new Hono<AppEnv>()
     if (!stem) return c.json({ error: 'Not found' }, 404);
 
     return c.json({ stem });
+  })
+
+  // Into the project's trash, e.g. to free storage; the file goes when it is deleted for good
+  .delete('/revisions/:id', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const revision = await liveRevision(db, c.req.param('id'));
+    const access = revision && (await stemAccess(db, revision.stemId, userId));
+    if (!access) return c.json({ error: 'Not found' }, 404);
+    if (access.membership.role !== 'owner' && revision.createdById !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+    await db
+      .update(stemRevisions)
+      .set({ deletedAt: new Date(), deletedById: userId })
+      .where(eq(stemRevisions.id, revision.id));
+    return c.json({ message: 'Revision deleted' });
   })
 
   .delete('/:id', async (c) => {
@@ -281,6 +297,14 @@ async function isOpen(db: Database, trackId: string) {
     .from(openTracks)
     .where(and(eq(openTracks.trackId, trackId), isNotNull(openTracks.openedAt)));
   return !!row;
+}
+
+async function liveRevision(db: Database, revisionId: string) {
+  const [revision] = await db
+    .select()
+    .from(stemRevisions)
+    .where(and(eq(stemRevisions.id, revisionId), isNull(stemRevisions.deletedAt)));
+  return revision;
 }
 
 // Who may delete a stem may also give it a new file

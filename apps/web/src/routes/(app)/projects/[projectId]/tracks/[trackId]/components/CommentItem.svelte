@@ -104,9 +104,9 @@
     <div class="head">
       <span class="author">{displayName}</span>
       {#if isGuest}<span class="tag">Gast</span>{/if}
-      {#if versionTag}<span class="tag">{versionTag}</span>{/if}
+      {#if versionTag}<span class="vtag" title="Kommentar zu {versionTag}">{versionTag}</span>{/if}
       {#if comment.timestampSeconds !== null}
-        <button class="ts" onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
+        <button class="ts" class:other={!!versionTag} title={versionTag ? `Stelle in ${versionTag}` : undefined} onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
       {:else if !isReply}
         <span class="tag">Allgemein</span>
       {/if}
@@ -228,6 +228,19 @@
     border-radius: var(--radius-sm);
   }
 
+  /* The version a carried-over comment belongs to, styled like the version picker */
+  .vtag {
+    padding: 0 6px;
+    line-height: 18px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 78%;
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-sm);
+  }
+
   .ts {
     padding: 0 6px;
     line-height: 18px;
@@ -243,6 +256,17 @@
 
   .ts:hover {
     background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  }
+
+  /* A position in another version's audio: not on this waveform */
+  .ts.other {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle);
+    border-color: var(--color-border-hover);
+  }
+
+  .ts.other:hover {
+    color: var(--color-text-primary);
   }
 
   .when {
