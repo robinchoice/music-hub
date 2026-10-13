@@ -155,6 +155,13 @@
       "when": 1791906324534,
       "tag": "0021_version_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791907907236,
+      "tag": "0022_producer_role",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@
   import OpenHeader from '$lib/components/open/OpenHeader.svelte';
   import { OPEN_EXAMPLE_ID } from '$lib/demo/mode.js';
   import { formatFileSize } from '$lib/utils/format.js';
+  import { UPLOAD_ROLES } from '$lib/utils/overview.js';
 
   type Remix = { id: string; name: string; artist: string };
   type OpenTrack = {
@@ -92,7 +93,7 @@
     if ($authLoading) await checkAuth();
     if (!$user) return goto(`/login?next=${encodeURIComponent(`/offen/${trackId}?remix=1`)}`);
     const res = await api.get<{ projects: Project[] }>('/projects');
-    projects = res.projects.filter((p) => p.roles.some((r) => r === 'owner' || r.includes('engineer')));
+    projects = res.projects.filter((p) => p.roles.some((r) => UPLOAD_ROLES.includes(r)));
     target = projects[0]?.project.id ?? 'new';
     forkOpen = true;
   }

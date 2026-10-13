@@ -12,6 +12,7 @@ import { users } from './users.js';
 
 export const projectRoleEnum = pgEnum('project_role', [
   'owner',
+  'producer',
   'recording_engineer',
   'mixing_engineer',
   'mastering_engineer',

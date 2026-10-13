@@ -6,7 +6,7 @@
   import { user } from '$lib/stores/auth.js';
   import { toast, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
-  import { trackInfo } from '$lib/utils/overview.js';
+  import { UPLOAD_ROLES, trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
   import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
@@ -84,6 +84,7 @@
   let versionInput = $state<HTMLInputElement>();
   let pickedVersions = $state<File[]>([]);
   let role = $state('');
+  let roles = $state<string[]>([]);
   let loading = $state(true);
   // The track was deleted, or its link is wrong
   let missing = $state(false);
@@ -114,9 +115,9 @@
   let disconnectSse: (() => void) | null = null;
   let selectSeq = 0;
 
-  const canUpload = $derived(role === 'owner' || role.includes('engineer'));
+  const canUpload = $derived(roles.some((r) => UPLOAD_ROLES.includes(r)));
   const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
-  const canComment = $derived(role !== 'viewer');
+  const canComment = $derived(roles.some((r) => r !== 'viewer'));
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
@@ -153,7 +154,7 @@
     await initOfflineStore();
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
-        api.get<{ project: { name: string }; role: string }>(`/projects/${projectId}`),
+        api.get<{ project: { name: string }; role: string; roles: string[] }>(`/projects/${projectId}`),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`, true).catch(() => null),
         api.get<{
           tracks: {
@@ -173,6 +174,7 @@
 
       projectName = projectRes.project.name;
       role = projectRes.role;
+      roles = projectRes.roles;
       inviteDismissed = localStorage.getItem(`invite-dismissed:${trackId}`) === '1';
       if (role === 'owner' && !inviteDismissed) {
         void api

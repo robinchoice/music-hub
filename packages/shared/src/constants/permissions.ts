@@ -19,6 +19,13 @@ const PERMISSIONS: Record<ProjectRole, Permission[]> = {
     'version.comment',
     'version.approve',
   ],
+  producer: [
+    'track.upload',
+    'track.listen',
+    'track.download',
+    'version.comment',
+    'version.approve',
+  ],
   recording_engineer: [
     'track.upload',
     'track.listen',

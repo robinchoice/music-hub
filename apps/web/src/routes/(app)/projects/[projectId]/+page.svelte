@@ -20,7 +20,7 @@
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
-  import { projectGroups, type TrackInfo } from '$lib/utils/overview.js';
+  import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
 
   type Track = { id: string; section: string | null };
 
@@ -56,6 +56,7 @@
   // What the user could restore from the project's trash, newest first
   let trash = $state<{ deletedAt: string }[]>([]);
   let role = $state('');
+  let roles = $state<string[]>([]);
   let tracks = $state<Track[]>([]);
   let doneOpen = $state(false);
   // Rows showing their open comments or rejection reason
@@ -90,11 +91,12 @@
     void loadOverview(true);
     try {
       const [projectRes, trackRes] = await Promise.all([
-        api.get<{ project: Project; role: string }>(`/projects/${projectId}`),
+        api.get<{ project: Project; role: string; roles: string[] }>(`/projects/${projectId}`),
         api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`),
       ]);
       project = projectRes.project;
       role = projectRes.role;
+      roles = projectRes.roles;
       tracks = trackRes.tracks;
     } finally {
       loading = false;
@@ -147,7 +149,7 @@
     }
   }
 
-  const canUpload = $derived(!project?.isArchived && (role === 'owner' || role.includes('engineer')));
+  const canUpload = $derived(!project?.isArchived && roles.some((r) => UPLOAD_ROLES.includes(r)));
   const empty = $derived(!loading && tracks.length === 0);
 
   async function afterDrop() {
@@ -171,7 +173,7 @@
   ]}
 >
   {#snippet actions()}
-    {#if !loading && (role === 'owner' || role === 'management')}
+    {#if !loading && (roles.includes('owner') || roles.includes('management'))}
       <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">Einstellungen</Button>
     {/if}
     {#if canUpload}

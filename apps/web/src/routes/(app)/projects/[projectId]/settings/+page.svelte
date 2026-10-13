@@ -30,6 +30,7 @@
   let project = $state<Project | null>(null);
   let members = $state<Member[]>([]);
   let role = $state('');
+  let roles = $state<string[]>([]);
   let loading = $state(true);
 
   // Edit project
@@ -51,11 +52,12 @@
   onMount(async () => {
     try {
       const [projectRes, membersRes] = await Promise.all([
-        api.get<{ project: Project; role: string }>(`/projects/${projectId}`),
+        api.get<{ project: Project; role: string; roles: string[] }>(`/projects/${projectId}`),
         api.get<{ members: Member[] }>(`/projects/${projectId}/members`),
       ]);
       project = projectRes.project;
       role = projectRes.role;
+      roles = projectRes.roles;
       editName = project.name;
       editArtist = project.artist || '';
       editDesc = project.description || '';
@@ -214,7 +216,7 @@
       </div>
 
       <!-- Invite -->
-      {#if role === 'owner' || role === 'management'}
+      {#if roles.includes('owner') || roles.includes('management')}
         <form class="invite-form" onsubmit={(e) => { e.preventDefault(); inviteMember(); }}>
           <Input type="email" bind:value={inviteEmail} placeholder="name@email.de" />
           <Button type="submit" loading={inviting} size="sm">Einladen</Button>

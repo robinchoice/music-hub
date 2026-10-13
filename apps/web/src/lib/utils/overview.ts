@@ -79,9 +79,9 @@ export type OverviewData = {
 };
 
 /** Roles whose feedback a version waits for */
-export const FEEDBACK_ROLES = ['owner', 'artist', 'label', 'management'];
+export const FEEDBACK_ROLES = ['owner', 'producer', 'artist', 'label', 'management'];
 /** Roles that may upload versions */
-export const UPLOAD_ROLES = ['owner', 'recording_engineer', 'mixing_engineer', 'mastering_engineer'];
+export const UPLOAD_ROLES = ['owner', 'producer', 'recording_engineer', 'mixing_engineer', 'mastering_engineer'];
 
 const REJECTION_PREFIX = '❌ Abgelehnt: ';
 const DAY = 86_400_000;

@@ -25,3 +25,8 @@ test('roles may not be empty or include owner', () => {
   expect(updateMemberSchema.safeParse({ roles: [] }).success).toBe(false);
   expect(updateMemberSchema.safeParse({ roles: ['artist', 'owner'] }).success).toBe(false);
 });
+
+test('label and management go together, production may upload and approve', () => {
+  expect(roleColumns({ roles: ['label', 'management'] })).toMatchObject({ canUpload: false, canApprove: true });
+  expect(roleColumns({ roles: ['producer'] })).toMatchObject({ role: 'producer', canUpload: true, canApprove: true });
+});

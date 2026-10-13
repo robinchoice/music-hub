@@ -1,5 +1,6 @@
 export const PROJECT_ROLES = [
   'owner',
+  'producer',
   'recording_engineer',
   'mixing_engineer',
   'mastering_engineer',
@@ -13,6 +14,7 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export const ROLE_LABELS: Record<ProjectRole, string> = {
   owner: 'Besitzer',
+  producer: 'Produktion',
   recording_engineer: 'Aufnahme',
   mixing_engineer: 'Mixing',
   mastering_engineer: 'Mastering',
