@@ -49,6 +49,7 @@
     name: string;
     description?: string;
     coverUrl: string | null;
+    isArchived: boolean;
   };
 
   let project = $state<Project | null>(null);
@@ -64,6 +65,7 @@
   let loading = $state(true);
   let creating = $state(false);
   let coverEditOpen = $state(false);
+  let restoring = $state(false);
   let drop = $state<ProjectDrop>();
 
   const projectId = $page.params.projectId;
@@ -130,7 +132,22 @@
     void loadOverview(true);
   }
 
-  const canUpload = $derived(role === 'owner' || role.includes('engineer'));
+  async function restore() {
+    restoring = true;
+    try {
+      await api.post(`/projects/${projectId}/restore`);
+      project = { ...project!, isArchived: false };
+      reloadSidebar?.();
+      void loadOverview(true);
+      toastSuccess('Projekt wiederhergestellt');
+    } catch {
+      // The API client already showed the error
+    } finally {
+      restoring = false;
+    }
+  }
+
+  const canUpload = $derived(!project?.isArchived && (role === 'owner' || role.includes('engineer')));
   const empty = $derived(!loading && tracks.length === 0);
 
   async function afterDrop() {
@@ -191,6 +208,25 @@
       </div>
     {/if}
   </header>
+
+  {#if project?.isArchived}
+    <div class="archived" role="status">
+      <span class="archived-icon"><Icon name="archive" size={16} /></span>
+      <span class="archived-text">
+        <b>Dieses Projekt ist archiviert</b>
+        <small>
+          {role === 'owner'
+            ? 'Es ist für alle Beteiligten ausgeblendet, bis du es wiederherstellst.'
+            : 'Es ist für alle Beteiligten ausgeblendet. Nur der Besitzer kann es wiederherstellen.'}
+        </small>
+      </span>
+      {#if role === 'owner'}
+        <Button variant="secondary" size="sm" loading={restoring} onclick={restore}>
+          <Icon name="restore" size={13} /> Wiederherstellen
+        </Button>
+      {/if}
+    </div>
+  {/if}
 
   {#if showNewTrack}
     <form class="new-track-form" onsubmit={(e) => { e.preventDefault(); createTrack(); }}>
@@ -485,6 +521,42 @@
     font-size: var(--text-sm);
   }
   .trash-text small {
+    font-size: var(--text-xs);
+  }
+  .archived {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-overlay);
+    color: var(--color-text-tertiary);
+  }
+  .archived-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+  .archived-text {
+    flex: 1;
+    min-width: 12rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .archived-text b {
+    color: var(--color-text-primary);
+    font-weight: 500;
+    font-size: var(--text-sm);
+  }
+  .archived-text small {
     font-size: var(--text-xs);
   }
 

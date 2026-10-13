@@ -23,3 +23,15 @@ test('an archived project waits in the archive and comes back from there', async
   const { projects } = await (await page.request.get('/api/v1/projects')).json();
   expect(projects.map((m: { project: { id: string } }) => m.project.id)).toContain(project.id);
 });
+
+test('an archived project says so on its page and comes back from there', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  await page.request.delete(`/api/v1/projects/${project.id}`);
+
+  await page.goto(`/projects/${project.id}`);
+  await expect(page.getByText('Dieses Projekt ist archiviert')).toBeVisible();
+  await page.getByRole('button', { name: 'Wiederherstellen' }).click();
+  await expect(page.locator('.toast-container')).toContainText('Projekt wiederhergestellt');
+  await expect(page.getByText('Dieses Projekt ist archiviert')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Neuer Track' })).toBeVisible();
+});
