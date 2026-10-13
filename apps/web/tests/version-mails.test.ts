@@ -11,10 +11,11 @@ test('mails about new versions turn off in the account and through the link in t
   await page.goto('/account');
   const mails = page.getByRole('checkbox', { name: /Mails zu neuen Versionen/ });
   await expect(mails).toBeChecked();
-  await mails.uncheck();
+  const saved = () => page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/me') && r.request().method() === 'PATCH');
+  await Promise.all([saved(), mails.uncheck()]);
   await page.reload();
   await expect(mails).not.toBeChecked();
-  await mails.check();
+  await Promise.all([saved(), mails.check()]);
   await page.reload();
   await expect(mails).toBeChecked();
 
