@@ -75,7 +75,7 @@
       </div>
     {:else}
       <form onsubmit={(e) => { e.preventDefault(); lookup(); }}>
-        <p class="hint">Gib den Code ein, den dir das Plugin anzeigt.</p>
+        <p class="hint">Gib den Code ein, den dir das Plugin oder Music Hub Sync anzeigt.</p>
         <Input bind:value={code} placeholder="XXXX-XXXX" label="Code" {error} autofocus />
         <Button type="submit" size="lg" {loading} disabled={!code.trim()}>Weiter</Button>
       </form>
