@@ -1,25 +1,21 @@
-<script lang="ts" module>
-  import type { ReviewVerdict } from '$lib/utils/track.js';
+<script lang="ts">
+  import Avatar from '$lib/components/ui/Avatar.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import { timeAgo } from '$lib/utils/format.js';
+  import type { FeedbackRow, ReviewVerdict } from '$lib/utils/track.js';
 
-  export const VERDICT_LABEL: Record<ReviewVerdict, string> = {
+  const VERDICT_LABEL: Record<ReviewVerdict, string> = {
     approve: 'Freigegeben',
     fine: 'Passt für mich',
     changes: 'Änderungen nötig',
     notes: 'Nur Anmerkungen',
   };
-  export const VERDICT_VARIANT: Record<ReviewVerdict, 'default' | 'success' | 'warning'> = {
+  const VERDICT_VARIANT: Record<ReviewVerdict, 'default' | 'success' | 'warning'> = {
     approve: 'success',
     fine: 'success',
     changes: 'warning',
     notes: 'default',
   };
-</script>
-
-<script lang="ts">
-  import Avatar from '$lib/components/ui/Avatar.svelte';
-  import Badge from '$lib/components/ui/Badge.svelte';
-  import { timeAgo } from '$lib/utils/format.js';
-  import type { FeedbackRow } from '$lib/utils/track.js';
 
   let {
     rows,

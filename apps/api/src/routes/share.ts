@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, inArray, isNull } from 'drizzle-orm';
 import { createShareLinkSchema, guestCommentSchema, guestReviewSchema, updateListenEventSchema } from '@music-hub/shared';
@@ -38,6 +38,31 @@ async function hashIp(ip: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 import type { AppEnv } from '../types.js';
+
+async function commentableLink(c: Context<AppEnv>, token: string) {
+  const db = c.get('db');
+  const password = c.req.header('x-share-password');
+
+  const [link] = await db
+    .select()
+    .from(shareLinks)
+    .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
+    .limit(1);
+  if (!link) return c.json({ error: 'Not found' }, 404);
+  if (link.expiresAt && link.expiresAt < new Date()) {
+    return c.json({ error: 'Expired' }, 410);
+  }
+  if (!link.allowComments) return c.json({ error: 'Comments disabled' }, 403);
+  if (link.passwordHash) {
+    if (!password) return c.json({ error: 'Password required' }, 401);
+    if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
+    if (!(await Bun.password.verify(password, link.passwordHash))) {
+      return c.json({ error: 'Password required' }, 401);
+    }
+    await failedPasswords.undo(db, link.id);
+  }
+  return link;
+}
 
 export const shareRoutes = new Hono<AppEnv>()
   // --- Authenticated: create / list / revoke ---
@@ -255,27 +280,10 @@ export const shareRoutes = new Hono<AppEnv>()
   .post('/public/:token/comments', zValidator('json', guestCommentSchema), async (c) => {
     const db = c.get('db');
     const token = c.req.param('token');
-    const password = c.req.header('x-share-password');
     const input = c.req.valid('json');
 
-    const [link] = await db
-      .select()
-      .from(shareLinks)
-      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
-      .limit(1);
-    if (!link) return c.json({ error: 'Not found' }, 404);
-    if (link.expiresAt && link.expiresAt < new Date()) {
-      return c.json({ error: 'Expired' }, 410);
-    }
-    if (!link.allowComments) return c.json({ error: 'Comments disabled' }, 403);
-    if (link.passwordHash) {
-      if (!password) return c.json({ error: 'Password required' }, 401);
-      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
-      if (!(await Bun.password.verify(password, link.passwordHash))) {
-        return c.json({ error: 'Password required' }, 401);
-      }
-      await failedPasswords.undo(db, link.id);
-    }
+    const link = await commentableLink(c, token);
+    if (link instanceof Response) return link;
 
     if (!(await liveVersion(db, link.versionId))) return c.json({ error: UNAVAILABLE }, 410);
 
@@ -298,27 +306,10 @@ export const shareRoutes = new Hono<AppEnv>()
   .post('/public/:token/review', zValidator('json', guestReviewSchema), async (c) => {
     const db = c.get('db');
     const token = c.req.param('token');
-    const password = c.req.header('x-share-password');
     const input = c.req.valid('json');
 
-    const [link] = await db
-      .select()
-      .from(shareLinks)
-      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
-      .limit(1);
-    if (!link) return c.json({ error: 'Not found' }, 404);
-    if (link.expiresAt && link.expiresAt < new Date()) {
-      return c.json({ error: 'Expired' }, 410);
-    }
-    if (!link.allowComments) return c.json({ error: 'Comments disabled' }, 403);
-    if (link.passwordHash) {
-      if (!password) return c.json({ error: 'Password required' }, 401);
-      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
-      if (!(await Bun.password.verify(password, link.passwordHash))) {
-        return c.json({ error: 'Password required' }, 401);
-      }
-      await failedPasswords.undo(db, link.id);
-    }
+    const link = await commentableLink(c, token);
+    if (link instanceof Response) return link;
     if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
 
     const found = await liveVersion(db, link.versionId);

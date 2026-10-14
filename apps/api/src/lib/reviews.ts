@@ -44,6 +44,14 @@ function passWhere(versionId: string, author: Author): SQL {
   )!;
 }
 
+function passOf(db: Pick<Database, 'select'>, versionId: string, author: Author) {
+  return db
+    .select({ body: comments.body, timestampSeconds: comments.timestampSeconds })
+    .from(comments)
+    .where(passWhere(versionId, author))
+    .orderBy(asc(comments.timestampSeconds), asc(comments.createdAt));
+}
+
 export async function submitReview(
   db: Database,
   input: { version: Version; track: Track; author: Author; authorName: string; verdict: ReviewVerdict; note?: string | null; canApprove: boolean },
@@ -55,11 +63,7 @@ export async function submitReview(
   const { review, pass } = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('review-summaries'))`);
     const createdAt = new Date();
-    const pass = await tx
-      .select({ body: comments.body, timestampSeconds: comments.timestampSeconds })
-      .from(comments)
-      .where(passWhere(version.id, author))
-      .orderBy(asc(comments.timestampSeconds), asc(comments.createdAt));
+    const pass = await passOf(tx, version.id, author);
     if (status && 'userId' in author) {
       await tx
         .update(versions)
@@ -153,6 +157,7 @@ export async function takeDueFeedback(db: Database) {
     const [{ locked }] = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext('review-summaries')) as locked`);
     if (!locked) return [];
 
+    // Candidate filtering must match passWhere; HAVING additionally requires a quiet pass.
     const due = await tx.execute<{ version_id: string; user_id: string | null; guest_name: string | null; n: number }>(sql`
       select c.version_id, c.user_id, c.guest_name, count(*)::int as n
       from ${comments} c
@@ -176,11 +181,7 @@ export async function takeDueFeedback(db: Database) {
     const taken = [];
     for (const row of due) {
       const author: Author = row.user_id ? { userId: row.user_id } : { guestName: row.guest_name! };
-      const pass = await tx
-        .select({ body: comments.body, timestampSeconds: comments.timestampSeconds })
-        .from(comments)
-        .where(passWhere(row.version_id, author))
-        .orderBy(asc(comments.timestampSeconds), asc(comments.createdAt));
+      const pass = await passOf(tx, row.version_id, author);
       await tx.insert(reviews).values({
         versionId: row.version_id,
         userId: row.user_id,
@@ -271,12 +272,10 @@ export async function withdrawApproval(db: Database, versionId: string, userId: 
 export async function changeNotes(db: Database, versionIds: string[]) {
   if (versionIds.length === 0) return new Map<string, string | null>();
   const rows = await db
-    .select({ versionId: reviews.versionId, note: reviews.note })
+    .selectDistinctOn([reviews.versionId], { versionId: reviews.versionId, note: reviews.note })
     .from(reviews)
     .innerJoin(versions, and(eq(versions.id, reviews.versionId), eq(versions.decidedById, reviews.userId)))
     .where(and(inArray(reviews.versionId, versionIds), eq(reviews.verdict, 'changes'), sql`${reviews.createdAt} <= ${versions.decidedAt}`))
-    .orderBy(desc(reviews.createdAt));
-  const notes = new Map<string, string | null>();
-  for (const row of rows) if (!notes.has(row.versionId)) notes.set(row.versionId, row.note);
-  return notes;
+    .orderBy(reviews.versionId, desc(reviews.createdAt));
+  return new Map(rows.map((row) => [row.versionId, row.note]));
 }

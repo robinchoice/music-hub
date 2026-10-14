@@ -1,4 +1,7 @@
 // Pure helpers for the track page. No $lib imports, so they can be checked with `bun -e`.
+import { REVIEW_PASS_HOURS, type ReviewVerdict } from '@music-hub/shared';
+
+export type { ReviewVerdict } from '@music-hub/shared';
 
 export type Version = {
   id: string;
@@ -85,8 +88,6 @@ export function activeCommentId(comments: Timed[], time: number): string | null 
   return active?.id ?? null;
 }
 
-export type ReviewVerdict = 'approve' | 'fine' | 'changes' | 'notes';
-
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
 /** A finished listening pass; without a verdict it is the summary the server sent on its own. */
@@ -105,7 +106,7 @@ type Authored = { createdAt: string; guestName?: string | null; user?: { id: str
 const authorKey = (x: Authored) => (x.user ? x.user.id : x.guestName ? `guest:${x.guestName}` : null);
 
 // Like the API (REVIEW_PASS_HOURS): only recent comments make up a pass, older threads stay out of it
-const PASS_MS = 2 * 3600_000;
+const PASS_MS = REVIEW_PASS_HOURS * 3600_000;
 const recent = (c: { createdAt: string }, now: number) => new Date(c.createdAt).getTime() > now - PASS_MS;
 
 /** The author's recent comments since their last review on this version: what "Fertig" closes. */
