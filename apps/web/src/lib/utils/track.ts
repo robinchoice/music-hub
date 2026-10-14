@@ -141,5 +141,5 @@ export function feedbackRows(comments: TrackComment[], reviews: Review[], waitin
   for (const p of waiting) if (!rows.has(p.id)) rows.set(p.id, { key: p.id, name: p.name, avatarUrl: p.avatarUrl, review: null, open: 0 });
   // Still listening first, then finished, then waiting
   const rank = (r: FeedbackRow) => (r.open > 0 ? 0 : r.review ? 1 : 2);
-  return [...rows.values()].filter((r) => r.review || r.open > 0 || rank(r) === 2).sort((a, b) => rank(a) - rank(b));
+  return [...rows.values()].sort((a, b) => rank(a) - rank(b));
 }

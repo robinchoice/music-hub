@@ -9,24 +9,20 @@ import {
   createReviewSchema,
   SUPPORTED_AUDIO_FORMATS,
 } from '@music-hub/shared';
-import { versions, projectMembers, comments, users, type Database } from '@music-hub/db';
+import { versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { undoApproval } from '../lib/approval.js';
-import { changeNotes, submitReview, withdrawApproval } from '../lib/reviews.js';
+import { changeNotes, nameOf, submitReview, withdrawApproval } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import type { AppEnv } from '../types.js';
 
-// The reject route used to store the reason as a comment with this prefix; the version list still reads those.
-// Newer reasons are the note of an "Änderungen nötig" review.
+// Rejection comments stay readable by older clients; the current decision also has a review note.
 const REJECTION_PREFIX = '❌ Abgelehnt: ';
-
-const nameOf = async (db: Database, userId: string) =>
-  (await db.select({ name: users.name }).from(users).where(eq(users.id, userId)))[0]?.name ?? 'Jemand';
 
 export const versionRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -83,7 +79,7 @@ export const versionRoutes = new Hono<AppEnv>()
       versions: trackVersions.map((v) => ({
         ...v,
         openCommentCount: openCount.get(v.id) ?? 0,
-        rejectionReason: v.status === 'rejected' ? (notes.get(v.id) ?? rejectionReason.get(v.id) ?? null) : null,
+        rejectionReason: v.status === 'rejected' ? (notes.has(v.id) ? notes.get(v.id) : rejectionReason.get(v.id) ?? null) : null,
       })),
     });
   })

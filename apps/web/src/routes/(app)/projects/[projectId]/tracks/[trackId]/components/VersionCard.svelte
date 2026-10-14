@@ -317,8 +317,8 @@
     min-width: 18px;
     line-height: 18px;
     border-radius: var(--radius-full);
-    background: var(--color-on-accent);
-    color: var(--color-accent);
+    background: var(--color-warning);
+    color: var(--color-on-accent);
     font-size: var(--text-xs);
     font-weight: 700;
   }

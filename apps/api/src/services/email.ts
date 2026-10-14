@@ -358,8 +358,9 @@ export async function sendFeedbackEmail(
         <a href="${appUrl}/projects/${projectId}/tracks/${trackId}" style="
           display: inline-block;
           padding: 0.8rem 1.6rem;
-          background: linear-gradient(135deg, #f43f5e, #fb923c);
-          color: #fff;
+          background: #F97F4A;
+          background-image: linear-gradient(45deg, #F56853, #F97F4A, #F99747);
+          color: #17171A;
           border-radius: 10px;
           text-decoration: none;
           font-weight: 600;

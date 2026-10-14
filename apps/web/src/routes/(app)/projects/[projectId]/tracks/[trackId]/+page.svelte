@@ -289,7 +289,7 @@
       api.get<CommentsResponse>(`/comments/version/${version.id}`),
       pred
         ? api
-            .get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`, true)
+            .get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}?commentsOnly=true`, true)
             .catch(() => ({ comments: [] as TrackComment[] }))
         : Promise.resolve({ comments: [] as TrackComment[] }),
     ]);
@@ -333,7 +333,7 @@
     const [res, predRes] = await Promise.all([
       api.get<CommentsResponse>(`/comments/version/${id}`),
       pred
-        ? api.get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`)
+        ? api.get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}?commentsOnly=true`)
         : Promise.resolve({ comments: [] as TrackComment[] }),
     ]);
     // Skip if the user switched versions meanwhile; selectVersion loads the new comments

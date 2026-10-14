@@ -7,10 +7,10 @@
     changes: 'Änderungen nötig',
     notes: 'Nur Anmerkungen',
   };
-  export const VERDICT_VARIANT: Record<ReviewVerdict, 'default' | 'success' | 'error'> = {
+  export const VERDICT_VARIANT: Record<ReviewVerdict, 'default' | 'success' | 'warning'> = {
     approve: 'success',
     fine: 'success',
-    changes: 'error',
+    changes: 'warning',
     notes: 'default',
   };
 </script>
@@ -120,7 +120,7 @@
     height: 7px;
     margin-right: 6px;
     border-radius: 50%;
-    background: var(--color-accent);
+    background: var(--color-text-tertiary);
     animation: pulse 1.4s infinite;
     vertical-align: 1px;
   }

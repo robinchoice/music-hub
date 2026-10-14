@@ -23,6 +23,9 @@ export type Author = { userId: string } | { guestName: string };
 type Version = typeof versions.$inferSelect;
 type Track = typeof tracks.$inferSelect;
 
+export const nameOf = async (db: Database, userId: string) =>
+  (await db.select({ name: users.name }).from(users).where(eq(users.id, userId)))[0]?.name ?? 'Jemand';
+
 function authorIs(table: typeof comments | typeof reviews, author: Author): SQL {
   return 'userId' in author
     ? eq(table.userId, author.userId)
@@ -47,22 +50,26 @@ export async function submitReview(
 ) {
   const { version, track, author, verdict, canApprove } = input;
   const note = input.note?.trim() || null;
-  const pass = await db
-    .select({ body: comments.body, timestampSeconds: comments.timestampSeconds })
-    .from(comments)
-    .where(passWhere(version.id, author))
-    .orderBy(asc(comments.timestampSeconds), asc(comments.createdAt));
-
   // Approving decides the version, and so does "Änderungen nötig" from someone who may approve
   const status = verdict === 'approve' ? 'approved' : verdict === 'changes' && canApprove ? 'rejected' : null;
-  const [review] = await db.transaction(async (tx) => {
+  const { review, pass } = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('review-summaries'))`);
+    const createdAt = new Date();
+    const pass = await tx
+      .select({ body: comments.body, timestampSeconds: comments.timestampSeconds })
+      .from(comments)
+      .where(passWhere(version.id, author))
+      .orderBy(asc(comments.timestampSeconds), asc(comments.createdAt));
     if (status && 'userId' in author) {
       await tx
         .update(versions)
-        .set({ status, decidedById: author.userId, decidedAt: new Date() })
+        .set({ status, decidedById: author.userId, decidedAt: createdAt })
         .where(eq(versions.id, version.id));
+      if (status === 'rejected' && note) {
+        await tx.insert(comments).values({ versionId: version.id, userId: author.userId, body: `❌ Abgelehnt: ${note}`, createdAt });
+      }
     }
-    return tx
+    const [review] = await tx
       .insert(reviews)
       .values({
         versionId: version.id,
@@ -71,14 +78,16 @@ export async function submitReview(
         verdict,
         note,
         commentCount: pass.length,
+        createdAt,
       })
       .returning();
+    return { review, pass };
   });
 
   if (status) publish(db, track.id, { type: 'version:status', data: { versionId: version.id, status } });
   publish(db, track.id, { type: 'review:new', data: { versionId: version.id } });
   if (!('userId' in author) || author.userId !== version.createdById) {
-    await deliverFeedback(db, { version, track, authorName: input.authorName, verdict, note, comments: pass }).catch((err) =>
+    void deliverFeedback(db, { version, track, authorName: 'guestName' in author ? `${input.authorName} (Gast)` : input.authorName, verdict, note, comments: pass }).catch((err) =>
       console.error('[Reviews] Delivery failed:', err),
     );
   }
@@ -117,6 +126,7 @@ async function deliverFeedback(
       hasPush: sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`,
     })
     .from(users)
+    .innerJoin(projectMembers, and(eq(projectMembers.userId, users.id), eq(projectMembers.projectId, track.projectId)))
     .where(eq(users.id, version.createdById));
   if (!uploader || uploader.blocked) return;
 
@@ -148,6 +158,7 @@ export async function takeDueFeedback(db: Database) {
       from ${comments} c
       join ${versions} v on v.id = c.version_id and v.deleted_at is null
       join ${tracks} t on t.id = v.track_id and t.deleted_at is null
+      join ${projectMembers} pm on pm.project_id = t.project_id and pm.user_id = v.created_by_id
       where c.deleted_at is null
         and c.created_at > now() - ${WINDOW}::interval
         and (c.user_id is not null or c.guest_name is not null)
@@ -176,6 +187,7 @@ export async function takeDueFeedback(db: Database) {
         guestName: row.user_id ? null : row.guest_name,
         verdict: null,
         commentCount: pass.length,
+        createdAt: new Date(),
       });
       taken.push({ versionId: row.version_id, author, comments: pass });
     }
@@ -193,8 +205,8 @@ export async function sendDueFeedback(db: Database) {
     if (!row) continue;
     const authorName =
       'userId' in item.author
-        ? ((await db.select({ name: users.name }).from(users).where(eq(users.id, item.author.userId)))[0]?.name ?? 'Jemand')
-        : item.author.guestName;
+        ? await nameOf(db, item.author.userId)
+        : `${item.author.guestName} (Gast)`;
     publish(db, row.track.id, { type: 'review:new', data: { versionId: item.versionId } });
     await deliverFeedback(db, { ...row, authorName, verdict: null, note: null, comments: item.comments }).catch((err) =>
       console.error('[Reviews] Delivery failed:', err),
@@ -241,20 +253,30 @@ export async function reviewsOf(db: Database, version: Version, projectId: strin
 // Undoing an approval takes back its verdict. Comments and note already reached the uploader, so a review
 // that carried them stays without a verdict; otherwise its pass would open again and go out a second time.
 export async function withdrawApproval(db: Database, versionId: string, userId: string) {
-  const mine = and(eq(reviews.versionId, versionId), eq(reviews.userId, userId), eq(reviews.verdict, 'approve'));
-  await db.delete(reviews).where(and(mine, eq(reviews.commentCount, 0), isNull(reviews.note)));
-  await db.update(reviews).set({ verdict: null }).where(mine);
+  const [review] = await db
+    .select()
+    .from(reviews)
+    .where(and(eq(reviews.versionId, versionId), eq(reviews.userId, userId), eq(reviews.verdict, 'approve')))
+    .orderBy(desc(reviews.createdAt))
+    .limit(1);
+  if (!review) return;
+  if (review.commentCount === 0 && review.note === null) {
+    await db.delete(reviews).where(eq(reviews.id, review.id));
+  } else {
+    await db.update(reviews).set({ verdict: null }).where(eq(reviews.id, review.id));
+  }
 }
 
 // The note of the newest "Änderungen nötig" per version, shown as the reason of a rejected version
 export async function changeNotes(db: Database, versionIds: string[]) {
-  if (versionIds.length === 0) return new Map<string, string>();
+  if (versionIds.length === 0) return new Map<string, string | null>();
   const rows = await db
     .select({ versionId: reviews.versionId, note: reviews.note })
     .from(reviews)
-    .where(and(inArray(reviews.versionId, versionIds), eq(reviews.verdict, 'changes'), sql`${reviews.note} is not null`))
+    .innerJoin(versions, and(eq(versions.id, reviews.versionId), eq(versions.decidedById, reviews.userId)))
+    .where(and(inArray(reviews.versionId, versionIds), eq(reviews.verdict, 'changes'), sql`${reviews.createdAt} <= ${versions.decidedAt}`))
     .orderBy(desc(reviews.createdAt));
-  const notes = new Map<string, string>();
-  for (const row of rows) if (!notes.has(row.versionId)) notes.set(row.versionId, row.note!);
+  const notes = new Map<string, string | null>();
+  for (const row of rows) if (!notes.has(row.versionId)) notes.set(row.versionId, row.note);
   return notes;
 }

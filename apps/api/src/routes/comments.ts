@@ -72,6 +72,8 @@ export const commentRoutes = new Hono<AppEnv>()
         };
       });
 
+    if (c.req.query('commentsOnly') === 'true') return c.json({ comments: versionComments });
+
     // Who finished listening, and with which verdict, travels with the comments it closes
     return c.json({ comments: versionComments, ...(await reviewsOf(db, version, track!.projectId)) });
   })
