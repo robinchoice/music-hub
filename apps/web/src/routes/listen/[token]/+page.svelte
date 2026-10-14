@@ -6,6 +6,8 @@
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
   import { formatTime } from '$lib/utils/format.js';
+  import { openPass, type ReviewVerdict } from '$lib/utils/track.js';
+  import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
 
   type Comment = {
     id: string;
@@ -23,6 +25,7 @@
     track: { id: string; name: string };
     version: {
       id: string;
+      versionNumber: number;
       label: string | null;
       notes: string | null;
       duration: number | null;
@@ -34,6 +37,9 @@
     downloadUrl: string | null;
     allowComments: boolean;
     comments: Comment[];
+    /** Guest reviews of the version, to tell which of your comments the next "Fertig" sends */
+    reviews: { guestName: string | null; createdAt: string }[];
+    uploaderName: string | null;
   };
 
   const token = ($page.params as Record<string, string>).token;
@@ -49,6 +55,10 @@
   let commentTimestamp = $state<number | null>(null);
   let submitting = $state(false);
   let playerRef = $state<WaveformPlayer>();
+  let reviewOpen = $state(false);
+  let reviewSent = $state(false);
+  // Your comments since your last "Fertig", recognised by the name you comment with
+  const guestPass = $derived(data && guestName.trim() ? openPass(data.comments, data.reviews ?? [], `guest:${guestName.trim()}`) : []);
 
   // Analytics tracking
   let eventId = $state<string | null>(null);
@@ -178,6 +188,23 @@
     return () => window.removeEventListener('beforeunload', handleUnload);
   });
 
+  async function submitReview(verdict: ReviewVerdict, note: string) {
+    const res = await fetch(`/api/v1/share/public/${token}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(password ? { 'X-Share-Password': password } : {}),
+      },
+      body: JSON.stringify({ verdict, note: note || undefined, guestName: guestName.trim() }),
+    });
+    if (!res.ok) {
+      error = res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.' : 'Rückmeldung fehlgeschlagen';
+      throw new Error(error);
+    }
+    reviewSent = true;
+    await load();
+  }
+
   async function submitComment(e: Event) {
     e.preventDefault();
     if (!body.trim() || !guestName.trim() || !data) return;
@@ -291,6 +318,29 @@
             Senden
           </Button>
         </form>
+
+        {#if guestName.trim()}
+          <div class="finish">
+            <p>
+              {#if reviewSent && guestPass.length === 0}
+                Danke, deine Rückmeldung ist angekommen.
+              {:else if guestPass.length > 0}
+                {guestPass.length === 1 ? 'Deine Anmerkung geht' : `Deine ${guestPass.length} Anmerkungen gehen`} gesammelt raus, sobald du fertig bist.
+              {:else}
+                Durchgehört? Sag kurz, wie du es findest.
+              {/if}
+            </p>
+            <Button variant={guestPass.length > 0 ? 'primary' : 'secondary'} onclick={() => (reviewOpen = true)}>Fertig mit dem Song</Button>
+          </div>
+          <ReviewSheet
+            bind:open={reviewOpen}
+            versionNumber={data.version.versionNumber}
+            uploaderName={data.uploaderName ?? 'Wer hochgeladen hat'}
+            guest
+            pass={guestPass}
+            onSubmit={submitReview}
+          />
+        {/if}
       {/if}
 
       <section class="comments">
@@ -495,5 +545,25 @@
   }
   .legal a:hover {
     color: var(--color-text-primary);
+  }
+
+  /* A guest's "Fertig": their comments and verdict reach the uploader in one message */
+  .finish {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: space-between;
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-raised);
+  }
+
+  .finish p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
   }
 </style>

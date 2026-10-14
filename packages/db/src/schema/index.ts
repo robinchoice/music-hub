@@ -13,3 +13,4 @@ export * from './open.js';
 export * from './notices.js';
 export * from './uploadLinks.js';
 export * from './profiles.js';
+export * from './reviews.js';

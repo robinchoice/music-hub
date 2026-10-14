@@ -74,10 +74,10 @@
 
 <h2>6. E-Mails</h2>
 <p>
-  Einladungen, Login-Links, Hör-Benachrichtigungen und Mails zu neuen Versionen verschickt Music Hub von noreply@pleasance.org über Proton
+  Einladungen, Login-Links, Hör-Benachrichtigungen und Mails zu neuen Versionen und Rückmeldungen verschickt Music Hub von noreply@pleasance.org über Proton
   (Proton AG, Route de la Galaise 32, 1228 Plan-les-Ouates, Schweiz). Für die Schweiz liegt ein
   Angemessenheitsbeschluss der EU-Kommission vor (Art. 45 DSGVO). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.
-  Mails zu neuen Versionen bekommst du nur, solange du auf keinem Gerät Push aktiviert hast. Abbestellen kannst du
+  Mails zu neuen Versionen und Rückmeldungen bekommst du nur, solange du auf keinem Gerät Push aktiviert hast. Abbestellen kannst du
   sie in deinem Konto oder über den Link in jeder dieser Mails.
 </p>
 

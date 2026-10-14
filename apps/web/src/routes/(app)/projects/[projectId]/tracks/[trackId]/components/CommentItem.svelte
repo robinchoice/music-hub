@@ -8,6 +8,7 @@
     comment,
     versionTag = null,
     active = false,
+    fresh = false,
     isReply = false,
     currentUserId = null,
     canComment = false,
@@ -22,6 +23,8 @@
     comment: TrackComment;
     versionTag?: string | null;
     active?: boolean;
+    /** One of your comments that your next "Fertig" sends */
+    fresh?: boolean;
     isReply?: boolean;
     currentUserId?: string | null;
     canComment?: boolean;
@@ -98,13 +101,14 @@
     </div>
   </div>
 {:else}
-<div class="comment" class:active class:reply={isReply} class:resolved={!!comment.resolvedAt}>
+<div class="comment" class:active class:fresh class:reply={isReply} class:resolved={!!comment.resolvedAt}>
   <Avatar name={displayName} src={comment.user?.avatarUrl ?? null} size="sm" />
   <div class="body">
     <div class="head">
       <span class="author">{displayName}</span>
       {#if isGuest}<span class="tag">Gast</span>{/if}
       {#if versionTag}<span class="vtag" title="Kommentar zu {versionTag}">{versionTag}</span>{/if}
+      {#if fresh}<span class="fresh-tag" title="Geht mit deinem nächsten „Fertig“ an den Uploader">neu in deinem Durchgang</span>{/if}
       {#if comment.timestampSeconds !== null}
         <button class="ts" class:other={!!versionTag} title={versionTag ? `Stelle in ${versionTag}` : undefined} onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
       {:else if !isReply}
@@ -225,6 +229,19 @@
     color: var(--color-text-secondary);
     background: var(--color-bg-subtle);
     border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-sm);
+  }
+
+  .fresh {
+    box-shadow: inset 3px 0 0 var(--color-accent);
+  }
+
+  .fresh-tag {
+    padding: 0 6px;
+    line-height: 18px;
+    font-size: var(--text-xs);
+    color: var(--color-accent);
+    background: var(--color-accent-subtle);
     border-radius: var(--radius-sm);
   }
 

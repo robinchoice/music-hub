@@ -12,6 +12,7 @@
     carryLabel = null,
     carryTitle = null,
     carryComments = [],
+    freshIds = new Set<string>(),
     canComment = false,
     currentUserId = null,
     currentTime = 0,
@@ -31,6 +32,8 @@
     carryLabel?: string | null;
     carryTitle?: string | null;
     carryComments?: TrackComment[];
+    /** Your comments that the next "Fertig" sends */
+    freshIds?: Set<string>;
     canComment?: boolean;
     currentUserId?: string | null;
     currentTime?: number;
@@ -132,6 +135,7 @@
         <CommentItem
           {comment}
           active={comment.id === activeId}
+          fresh={freshIds.has(comment.id)}
           {currentUserId}
           {canComment}
           {onSeek}
@@ -147,6 +151,7 @@
             <CommentItem
               comment={reply}
               isReply
+              fresh={freshIds.has(reply.id)}
               {currentUserId}
               {canComment}
               {onSeek}

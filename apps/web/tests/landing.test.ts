@@ -64,7 +64,27 @@ test('an approval shows open points first and can be undone', async ({ page }) =
   const toast = page.getByRole('alert').filter({ hasText: 'V4 ist freigegeben' });
   await toast.getByRole('button', { name: 'Rückgängig' }).click();
   await expect(decision.locator('.version-card .status')).toHaveText('Bereit');
-  await expect(decision.getByRole('button', { name: 'Ablehnen' })).toBeVisible();
+  await expect(decision.getByRole('button', { name: /Fertig mit V4/ })).toBeVisible();
+});
+
+test('"Fertig" sends the open pass with a verdict and shows up under Rückmeldungen', async ({ page }) => {
+  await page.goto('/');
+  const decision = page.locator('.frag-stack').nth(1);
+  await decision.scrollIntoViewIfNeeded();
+  // Mara's comment on V4 from ten minutes ago is still open
+  await decision.getByRole('button', { name: 'Fertig mit V4 1' }).click();
+
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByText('Eine Anmerkung geht gesammelt an Kai.')).toBeVisible();
+  await sheet.getByRole('radio', { name: /Änderungen nötig/ }).click();
+  await sheet.getByLabel('Gesamteindruck').fill('Höhen noch etwas runter');
+  await sheet.getByRole('button', { name: 'Abschicken' }).click();
+
+  await expect(decision.locator('.version-card .status')).toHaveText('Abgelehnt');
+  const feedback = decision.locator('.feedback');
+  await expect(feedback.getByText('Änderungen nötig')).toBeVisible();
+  await expect(feedback.getByText('„Höhen noch etwas runter“')).toBeVisible();
+  await expect(decision.getByRole('button', { name: 'Fertig mit V4', exact: true })).toBeVisible();
 });
 
 test('resolving a comment and the filter of resolved ones have different names', async ({ page }) => {

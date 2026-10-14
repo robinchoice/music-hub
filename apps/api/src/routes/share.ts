@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, inArray, isNull } from 'drizzle-orm';
-import { createShareLinkSchema, guestCommentSchema, updateListenEventSchema } from '@music-hub/shared';
+import { createShareLinkSchema, guestCommentSchema, guestReviewSchema, updateListenEventSchema } from '@music-hub/shared';
 import {
   shareLinks,
   listenEvents,
@@ -11,6 +11,7 @@ import {
   comments,
   users,
   projectMembers,
+  reviews,
 } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -18,6 +19,7 @@ import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
 import { notBlocked } from '../lib/users.js';
+import { submitReview } from '../lib/reviews.js';
 
 // Links of a version in the trash pause until it is restored
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
@@ -28,6 +30,8 @@ const failedPasswords = rateLimit('failed-share-passwords', 10, 15 * MINUTE);
 const listensPerIp = rateLimit('listens-per-ip', 30, 60 * MINUTE);
 // Listen alert emails per share link
 const listenAlerts = rateLimit('listen-alerts', 1, 60 * MINUTE);
+// Each guest review pushes to the uploader, so a link can't send many of them
+const guestReviews = rateLimit('guest-reviews', 10, 60 * MINUTE);
 
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + 'musichub-salt'));
@@ -218,11 +222,20 @@ export const shareRoutes = new Hono<AppEnv>()
       .where(and(eq(comments.versionId, version.id), isNull(comments.deletedAt)))
       .orderBy(asc(comments.createdAt));
 
+    // Guests finish their pass by name; the page counts their comments since their last review
+    const guestReviewRows = await db
+      .select({ guestName: reviews.guestName, createdAt: reviews.createdAt })
+      .from(reviews)
+      .where(and(eq(reviews.versionId, version.id), isNull(reviews.userId)))
+      .orderBy(asc(reviews.createdAt));
+    const [uploader] = await db.select({ name: users.name }).from(users).where(eq(users.id, version.createdById));
+
     return c.json({
       project: { name: project!.name },
       track: { id: track!.id, name: track!.name },
       version: {
         id: version.id,
+        versionNumber: version.versionNumber,
         label: version.label,
         notes: version.notes,
         duration: version.duration,
@@ -234,6 +247,8 @@ export const shareRoutes = new Hono<AppEnv>()
       downloadUrl,
       allowComments: link.allowComments,
       comments: versionComments,
+      reviews: guestReviewRows,
+      uploaderName: uploader?.name ?? null,
     });
   })
 
@@ -277,6 +292,48 @@ export const shareRoutes = new Hono<AppEnv>()
       .returning();
 
     return c.json({ comment }, 201);
+  })
+
+  // A guest's "Fertig": their verdict on the version goes to the uploader
+  .post('/public/:token/review', zValidator('json', guestReviewSchema), async (c) => {
+    const db = c.get('db');
+    const token = c.req.param('token');
+    const password = c.req.header('x-share-password');
+    const input = c.req.valid('json');
+
+    const [link] = await db
+      .select()
+      .from(shareLinks)
+      .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
+      .limit(1);
+    if (!link) return c.json({ error: 'Not found' }, 404);
+    if (link.expiresAt && link.expiresAt < new Date()) {
+      return c.json({ error: 'Expired' }, 410);
+    }
+    if (!link.allowComments) return c.json({ error: 'Comments disabled' }, 403);
+    if (link.passwordHash) {
+      if (!password) return c.json({ error: 'Password required' }, 401);
+      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
+      if (!(await Bun.password.verify(password, link.passwordHash))) {
+        return c.json({ error: 'Password required' }, 401);
+      }
+      await failedPasswords.undo(db, link.id);
+    }
+    if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
+
+    const found = await liveVersion(db, link.versionId);
+    if (!found) return c.json({ error: UNAVAILABLE }, 410);
+
+    await submitReview(db, {
+      version: found.version,
+      track: found.track!,
+      author: { guestName: input.guestName },
+      authorName: input.guestName,
+      verdict: input.verdict,
+      note: input.note,
+      canApprove: false,
+    });
+    return c.json({ ok: true }, 201);
   })
 
   // --- Listen tracking (public, no auth) ---

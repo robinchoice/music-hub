@@ -2,7 +2,7 @@
 // does, so the landing page can show the current frontend without a server. Changes stay in this browser window.
 // When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … fehlt".
 import type { TrackStatus } from '@music-hub/shared';
-import type { TrackComment, Version } from '$lib/utils/track.js';
+import type { Review, ReviewVerdict, TrackComment, Version } from '$lib/utils/track.js';
 import { OPEN_EXAMPLE_ID } from './mode.js';
 
 // UUIDs that gen_random_uuid() never produces, so a stray request to the API only gets a 404.
@@ -55,6 +55,7 @@ type DemoVersion = Omit<Version, 'openCommentCount' | 'rejectionReason'> & {
   integratedLufs: number;
 };
 type DemoComment = TrackComment & { versionId: string };
+type DemoReview = Review & { versionId: string };
 type DemoStem = {
   id: string;
   trackId: string;
@@ -158,7 +159,24 @@ function seed() {
     stem(509, 'Gitarre L', 40.9), stem(510, 'Gitarre R', 40.9), stem(511, 'Lead Vocal', 52.4), stem(512, 'Backings', 48.1),
   ];
 
-  return { projects, tracks, versions, comments, stems };
+  // Jonas has finished V4; Lisa forgot "Fertig", so her comments went out on their own
+  const review = (n: number, versionN: number, by: Person, verdict: ReviewVerdict | null, commentCount: number, minutesAgo: number, note: string | null = null): DemoReview => ({
+    id: uuid(n),
+    versionId: uuid(versionN),
+    verdict,
+    note,
+    commentCount,
+    createdAt: ago(minutesAgo),
+    guestName: null,
+    user: by,
+  });
+  const reviews: DemoReview[] = [
+    review(601, 104, JONAS, 'notes', 2, 35, 'Bass sitzt, die Backings fehlen mir noch.'),
+    review(602, 104, LISA, null, 2, 15),
+    review(603, 102, MARA, 'changes', 1, 3 * DAY - 60, 'Bass zu dünn, Hangtom klingt hohl'),
+  ];
+
+  return { projects, tracks, versions, comments, stems, reviews };
 }
 
 const db = seed();
@@ -251,10 +269,13 @@ function withCounts(v: DemoVersion): Version & DemoVersion {
     .filter((c) => c.versionId === v.id && !c.parentId && !c.deletedAt)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const rejection = topLevel.find((c) => c.body.startsWith(REJECTION_PREFIX));
+  const change = db.reviews
+    .filter((r) => r.versionId === v.id && r.verdict === 'changes' && r.note)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   return {
     ...v,
     openCommentCount: topLevel.filter((c) => !c.resolvedAt).length,
-    rejectionReason: v.status === 'rejected' && rejection ? rejection.body.slice(REJECTION_PREFIX.length) : null,
+    rejectionReason: v.status === 'rejected' ? (change?.note ?? (rejection ? rejection.body.slice(REJECTION_PREFIX.length) : null)) : null,
   };
 }
 
@@ -266,6 +287,18 @@ function trackRow(t: DemoTrack) {
     versionCount: own.length,
     branchCount: new Set(own.map((v) => v.branchLabel).filter(Boolean)).size,
   };
+}
+
+// Like the API: closes Mara's pass, approving and "Änderungen nötig" decide the version
+function addReview(versionId: string, verdict: ReviewVerdict, note: string | null) {
+  const v = find(db.versions, versionId);
+  const last = db.reviews.filter((r) => r.versionId === versionId && r.user?.id === MARA.id).reduce((max, r) => (r.createdAt > max ? r.createdAt : max), '');
+  const commentCount = db.comments.filter((c) => c.versionId === versionId && c.user?.id === MARA.id && !c.deletedAt && c.createdAt > last).length;
+  if (verdict === 'approve') v.status = 'approved';
+  if (verdict === 'changes') v.status = 'rejected';
+  const review: DemoReview = { id: uuid(nextId++), versionId, verdict, note: note || null, commentCount, createdAt: new Date().toISOString(), guestName: null, user: MARA };
+  db.reviews.push(review);
+  return review;
 }
 
 function addComment(versionId: string, input: { body: string; timestampSeconds?: number; parentId?: string }) {
@@ -349,21 +382,22 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['GET', /^\/versions\/([\w-]+)\/(?:stream|download)-url$/, ([id]) => ({ url: find(db.versions, id).audio })],
   ['GET', /^\/versions\/([\w-]+)\/waveform-data$/, ([id]) => demoPeaks(find(db.versions, id))],
   ['POST', /^\/versions\/([\w-]+)\/approve$/, ([id]) => {
-    const v = find(db.versions, id);
-    v.status = 'approved';
-    return { version: withCounts(v) };
+    addReview(id, 'approve', null);
+    return { version: withCounts(find(db.versions, id)) };
   }],
   ['POST', /^\/versions\/([\w-]+)\/unapprove$/, ([id]) => {
     const v = find(db.versions, id);
     v.status = 'ready';
+    db.reviews = db.reviews.filter((r) => !(r.versionId === id && r.user?.id === MARA.id && r.verdict === 'approve'));
     return { version: withCounts(v) };
   }],
   ['POST', /^\/versions\/([\w-]+)\/reject$/, ([id], body) => {
-    const v = find(db.versions, id);
-    v.status = 'rejected';
-    addComment(id, { body: `${REJECTION_PREFIX}${String(body?.reason ?? '')}` });
-    return { version: withCounts(v) };
+    addReview(id, 'changes', String(body?.reason ?? ''));
+    return { version: withCounts(find(db.versions, id)) };
   }],
+  ['POST', /^\/versions\/([\w-]+)\/reviews$/, ([id], body) => ({
+    review: addReview(id, body?.verdict as ReviewVerdict, (body?.note as string | undefined) ?? null),
+  })],
   ['POST', /^\/versions\/([\w-]+)\/promote$/, ([id]) => {
     const v = find(db.versions, id);
     v.branchLabel = null;
@@ -379,11 +413,17 @@ const ROUTES: [string, RegExp, Handler][] = [
     // Like the API: a deleted comment with replies stays as an empty placeholder
     const own = db.comments.filter((c) => c.versionId === id);
     const answered = new Set(own.filter((c) => !c.deletedAt && c.parentId).map((c) => c.parentId));
+    const v = find(db.versions, id);
+    const reviewed = new Set(db.reviews.filter((r) => r.versionId === id).map((r) => r.user?.id));
     return {
       comments: own
         .filter((c) => !c.deletedAt || (!c.parentId && answered.has(c.id)))
         .map((c) => (c.deletedAt ? { ...c, body: '', guestName: null, restorable: c.user?.id === MARA.id } : c))
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+      reviews: db.reviews.filter((r) => r.versionId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      // Mara, Lisa and Jonas may approve in the demo; Kai uploads
+      waiting: [JONAS, LISA, MARA].filter((p) => p.id !== v.createdById && !reviewed.has(p.id)),
+      uploader: [MARA, KAI, LISA, JONAS].find((p) => p.id === v.createdById) ?? null,
     };
   }],
   ['POST', /^\/comments\/version\/([\w-]+)$/, ([id], body) => ({

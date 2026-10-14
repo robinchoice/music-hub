@@ -6,22 +6,27 @@ import {
   createVersionSchema,
   updateVersionSchema,
   rejectVersionSchema,
+  createReviewSchema,
   SUPPORTED_AUDIO_FORMATS,
 } from '@music-hub/shared';
-import { versions, projectMembers, comments } from '@music-hub/db';
+import { versions, projectMembers, comments, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { undoApproval } from '../lib/approval.js';
-import { notifyUser } from '../services/push.js';
+import { changeNotes, dropApprovalReviews, submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import type { AppEnv } from '../types.js';
 
-// The reject route stores the reason as a comment with this prefix; the version list reads it back.
+// The reject route used to store the reason as a comment with this prefix; the version list still reads those.
+// Newer reasons are the note of an "Änderungen nötig" review.
 const REJECTION_PREFIX = '❌ Abgelehnt: ';
+
+const nameOf = async (db: Database, userId: string) =>
+  (await db.select({ name: users.name }).from(users).where(eq(users.id, userId)))[0]?.name ?? 'Jemand';
 
 export const versionRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -73,11 +78,12 @@ export const versionRoutes = new Hono<AppEnv>()
       }
     }
 
+    const notes = await changeNotes(db, versionIds);
     return c.json({
       versions: trackVersions.map((v) => ({
         ...v,
         openCommentCount: openCount.get(v.id) ?? 0,
-        rejectionReason: v.status === 'rejected' ? (rejectionReason.get(v.id) ?? null) : null,
+        rejectionReason: v.status === 'rejected' ? (notes.get(v.id) ?? rejectionReason.get(v.id) ?? null) : null,
       })),
     });
   })
@@ -411,19 +417,9 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const [updated] = await db
-      .update(versions)
-      .set({ status: 'approved', decidedById: userId, decidedAt: new Date() })
-      .where(eq(versions.id, versionId))
-      .returning();
-
-    notifyUser(db, version.createdById, {
-      title: 'Version freigegeben',
-      body: `${track!.name} V${version.versionNumber} wurde freigegeben`,
-      url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
-    }).catch(() => {});
-
-    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'approved' } });
+    // Approving is a review like any other, so it closes the approver's pass and tells the uploader
+    await submitReview(db, { version, track: track!, author: { userId }, authorName: await nameOf(db, userId), verdict: 'approve', canApprove: true });
+    const [updated] = await db.select().from(versions).where(eq(versions.id, versionId));
 
     return c.json({ version: updated });
   })
@@ -447,6 +443,8 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const updated = await undoApproval(db, versionId, userId);
     if (!updated) return c.json({ error: 'Die Freigabe lässt sich nicht mehr zurücknehmen.' }, 409);
+    await dropApprovalReviews(db, versionId, userId);
+    publish(db, version.trackId, { type: 'review:new', data: { versionId } });
 
     // undone: the audio stays the same, the player needn't reload
     publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready', undone: true } });
@@ -541,27 +539,40 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const [updated] = await db
-      .update(versions)
-      .set({ status: 'rejected', decidedById: userId, decidedAt: new Date() })
-      .where(eq(versions.id, versionId))
-      .returning();
-
-    await db.insert(comments).values({
-      versionId,
-      userId,
-      body: `${REJECTION_PREFIX}${reason}`,
-      timestampSeconds: null,
-      parentId: null,
-    });
-
-    notifyUser(db, version.createdById, {
-      title: 'Version abgelehnt',
-      body: `${track!.name} V${version.versionNumber}: ${reason.slice(0, 80)}`,
-      url: `/projects/${track!.projectId}/tracks/${version.trackId}`,
-    }).catch(() => {});
-
-    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'rejected' } });
+    // Older web versions still reject here; it is "Änderungen nötig" with the reason as note
+    await submitReview(db, { version, track: track!, author: { userId }, authorName: await nameOf(db, userId), verdict: 'changes', note: reason, canApprove: true });
+    const [updated] = await db.select().from(versions).where(eq(versions.id, versionId));
 
     return c.json({ version: updated });
+  })
+
+  // "Fertig mit V4": closes your listening pass with a verdict and tells the uploader
+  .post('/:id/reviews', zValidator('json', createReviewSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const versionId = c.req.param('id');
+    const { verdict, note } = c.req.valid('json');
+
+    const found = await liveVersion(db, versionId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { version, track } = found;
+
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership || (!membership.canComment && !membership.canApprove)) return c.json({ error: 'Forbidden' }, 403);
+    if (verdict === 'approve' && !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
+
+    const review = await submitReview(db, {
+      version,
+      track: track!,
+      author: { userId },
+      authorName: await nameOf(db, userId),
+      verdict,
+      note,
+      canApprove: membership.canApprove,
+    });
+    return c.json({ review }, 201);
   });

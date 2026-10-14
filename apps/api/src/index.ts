@@ -24,6 +24,7 @@ import { syncRoutes } from './routes/sync.js';
 import { noticeRoutes } from './routes/notices.js';
 import { uploadLinkRoutes } from './routes/upload-links.js';
 import { sendDueNotices } from './lib/notices.js';
+import { sendDueFeedback } from './lib/reviews.js';
 import { profileRoutes } from './routes/profiles.js';
 import { requestRoutes } from './routes/requests.js';
 import { listenForEvents } from './services/sse.js';
@@ -97,14 +98,17 @@ const app = new Hono<AppEnv>()
 
 // Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
 // Each instance runs it; taking a batch deletes it first, so none goes out twice.
-setInterval(
-  () =>
-    sendDueNotices(db).catch((err) => {
-      console.error('[Notices] Sending failed:', err);
-      captureException(err);
-    }),
-  30_000,
-);
+// Feedback whose author forgot "Fertig" goes out the same way, under a lock.
+setInterval(() => {
+  sendDueNotices(db).catch((err) => {
+    console.error('[Notices] Sending failed:', err);
+    captureException(err);
+  });
+  sendDueFeedback(db).catch((err) => {
+    console.error('[Reviews] Sending failed:', err);
+    captureException(err);
+  });
+}, 30_000);
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

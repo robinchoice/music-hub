@@ -6,6 +6,7 @@ import { comments, projectMembers, users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { publish } from '../services/sse.js';
 import { liveVersion } from '../lib/trash.js';
+import { reviewsOf } from '../lib/reviews.js';
 import type { AppEnv } from '../types.js';
 
 export const commentRoutes = new Hono<AppEnv>()
@@ -19,7 +20,7 @@ export const commentRoutes = new Hono<AppEnv>()
 
     const found = await liveVersion(db, versionId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
+    const { version, track } = found;
 
     const [membership] = await db
       .select()
@@ -71,7 +72,8 @@ export const commentRoutes = new Hono<AppEnv>()
         };
       });
 
-    return c.json({ comments: versionComments });
+    // Who finished listening, and with which verdict, travels with the comments it closes
+    return c.json({ comments: versionComments, ...(await reviewsOf(db, version, track!.projectId)) });
   })
 
   // Create comment

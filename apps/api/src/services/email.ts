@@ -256,7 +256,7 @@ export async function sendVersionsEmail(
           font-weight: 600;
           margin: 1rem 0 1.5rem;
         ">Projekt öffnen</a>
-        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Du bekommst diese Mail, weil du im Projekt mitarbeitest und keine Push-Benachrichtigungen aktiviert hast. Uploads kurz hintereinander kommen in einer Mail. <a href="${unsubscribeUrl}" style="color: #9b96a8;">Mails zu neuen Versionen abbestellen</a></p>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Du bekommst diese Mail, weil du im Projekt mitarbeitest und keine Push-Benachrichtigungen aktiviert hast. Uploads kurz hintereinander kommen in einer Mail. <a href="${unsubscribeUrl}" style="color: #9b96a8;">Mails zu Versionen und Rückmeldungen abbestellen</a></p>
       </div>
     `,
   });
@@ -309,6 +309,63 @@ export async function sendRequestReportEmail(to: string[], fromName: string, sen
         <p style="color: #9b96a8; line-height: 1.55; margin: 0 0 0.5rem;"><strong style="color: #f4f0ec;">${escapeHtml(toName)}</strong> hat eine Anfrage von <strong style="color: #f4f0ec;">${escapeHtml(fromName)}</strong> (${escapeHtml(senderEmail)}) blockiert und gemeldet:</p>
         <p style="color: #f4f0ec; line-height: 1.55; margin: 0 0 1.5rem; white-space: pre-wrap;">${escapeHtml(message)}</p>
         <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Sperren lässt sich das Konto in der Nutzerliste.</p>
+      </div>
+    `,
+  });
+}
+
+// One finished listening pass, for an uploader without push. Shares the opt-out with the version mails.
+export async function sendFeedbackEmail(
+  to: string,
+  mailToken: string,
+  feedback: { title: string; projectId: string; trackId: string; trackName: string; versionNumber: number; note: string | null; comments: { body: string; timestampSeconds: number | null }[] },
+) {
+  const appUrl = process.env.APP_URL;
+  const { title, projectId, trackId, trackName, versionNumber, note, comments } = feedback;
+  const subject = `${title} – ${trackName}`;
+  const unsubscribeUrl = `${appUrl}/abbestellen?t=${mailToken}`;
+
+  if (!transport) {
+    console.log(`[DEV] Feedback mail to ${to}: ${subject}`);
+    return;
+  }
+
+  const time = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const list = comments
+    .map(
+      (c) => `
+        <p style="margin: 0 0 0.5rem; padding: 0.6rem 0.9rem; background: #16151b; border-radius: 10px; color: #f4f0ec; line-height: 1.5;">
+          ${c.timestampSeconds !== null ? `<span style="color: #f5ad4a; font-family: monospace;">${time(c.timestampSeconds)}</span> ` : ''}${escapeHtml(c.body)}
+        </p>`,
+    )
+    .join('');
+
+  await transport.sendMail({
+    from: fromEmail,
+    to,
+    subject,
+    headers: {
+      'List-Unsubscribe': `<${appUrl}/api/v1/notices/unsubscribe?t=${mailToken}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
+        <h1 style="font-size: 1.6rem; margin: 0 0 1rem; background: linear-gradient(135deg, #f43f5e, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; display: inline-block;">Music Hub</h1>
+        <p style="color: #f4f0ec; font-weight: 600; margin: 0 0 0.5rem;">${escapeHtml(title)}</p>
+        <p style="color: #9b96a8; margin: 0 0 1rem;">${escapeHtml(trackName)} V${versionNumber}</p>
+        ${note ? `<p style="color: #f4f0ec; line-height: 1.55; margin: 0 0 1rem; white-space: pre-wrap;">„${escapeHtml(note)}“</p>` : ''}
+        ${list}
+        <a href="${appUrl}/projects/${projectId}/tracks/${trackId}" style="
+          display: inline-block;
+          padding: 0.8rem 1.6rem;
+          background: linear-gradient(135deg, #f43f5e, #fb923c);
+          color: #fff;
+          border-radius: 10px;
+          text-decoration: none;
+          font-weight: 600;
+          margin: 1rem 0 1.5rem;
+        ">Zum Track</a>
+        <p style="color: #5e596b; font-size: 0.85rem; margin: 0;">Du bekommst diese Mail, weil du die Version hochgeladen und keine Push-Benachrichtigungen aktiviert hast. <a href="${unsubscribeUrl}" style="color: #9b96a8;">Mails zu Versionen und Rückmeldungen abbestellen</a></p>
       </div>
     `,
   });

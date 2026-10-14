@@ -17,11 +17,11 @@
   <title>Mails abbestellen — Music Hub</title>
 </svelte:head>
 
-<h1>Mails zu neuen Versionen</h1>
+<h1>Mails zu Versionen und Rückmeldungen</h1>
 {#if state === 'done'}
-  <p>Abbestellt. Du bekommst keine Mails zu neuen Versionen mehr. In deinem Konto kannst du sie wieder einschalten.</p>
+  <p>Abbestellt. Du bekommst keine Mails zu neuen Versionen und Rückmeldungen mehr. In deinem Konto kannst du sie wieder einschalten.</p>
 {:else}
-  <p>Du bekommst eine Mail, wenn in deinen Projekten neue Versionen hochgeladen werden und du keinen Push aktiviert hast.</p>
+  <p>Du bekommst eine Mail, wenn in deinen Projekten neue Versionen hochgeladen werden oder jemand mit deiner Version fertig ist und du keinen Push aktiviert hast.</p>
   {#if state === 'error'}
     <p>Das hat nicht geklappt. Versuch es noch einmal oder schalte die Mails in deinem Konto aus.</p>
   {/if}

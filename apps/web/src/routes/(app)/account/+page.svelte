@@ -64,7 +64,7 @@
         </div>
       {:else}
         <div class="push-row">
-          <span class="push-desc">Werde benachrichtigt wenn neue Versionen hochgeladen oder freigegeben werden.</span>
+          <span class="push-desc">Werde benachrichtigt, wenn neue Versionen hochgeladen werden oder jemand mit deiner Version fertig ist.</span>
           <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>Aktivieren</Button>
         </div>
       {/if}
@@ -76,7 +76,7 @@
           checked={$user.versionMails ?? true}
           onchange={(e) => setVersionMails(e.currentTarget.checked)}
         />
-        <span>Mails zu neuen Versionen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.</span>
+        <span>Mails zu neuen Versionen und Rückmeldungen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.</span>
       </label>
     {/if}
   </section>

@@ -33,8 +33,20 @@
     isOffline,
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
-  import { SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
-  import { predecessorOf, versionTitle, type Version, type TrackComment } from '$lib/utils/track.js';
+  import { REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, hasPermission, type ProjectRole, type TrackStatus } from '@music-hub/shared';
+  import {
+    feedbackRows,
+    openPass,
+    predecessorOf,
+    versionTitle,
+    type Person,
+    type Review,
+    type ReviewVerdict,
+    type Version,
+    type TrackComment,
+  } from '$lib/utils/track.js';
+  import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
+  import FeedbackList from './components/FeedbackList.svelte';
   import VersionCard from './components/VersionCard.svelte';
   import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
@@ -74,6 +86,11 @@
   let memberCount = $state<number | null>(null);
   let inviteDismissed = $state(false);
   let comments = $state<TrackComment[]>([]);
+  // Finished listening passes on the selected version, the approvers still missing, and who uploaded it
+  let reviews = $state<Review[]>([]);
+  let waiting = $state<Person[]>([]);
+  let uploader = $state<{ id: string; name: string } | null>(null);
+  let reviewOpen = $state(false);
   let predecessorComments = $state<TrackComment[]>([]);
   let currentTime = $state(0);
   let commentSection = $state<CommentSection>();
@@ -112,16 +129,18 @@
   let savingVersion = $state(false);
   let offlineDownloading = $state(false);
   let offlineProgress = $state(0);
-  let rejectOpen = $state(false);
-  let rejectReason = $state('');
-  let rejecting = $state(false);
   let disconnectSse: (() => void) | null = null;
   let selectSeq = 0;
 
   const canUpload = $derived(roles.some((r) => UPLOAD_ROLES.includes(r)));
-  const canApprove = $derived(['owner', 'artist', 'label', 'management'].includes(role));
+  const canApprove = $derived(roles.some((r) => hasPermission(r as ProjectRole, 'version.approve')));
   const canComment = $derived(roles.some((r) => r !== 'viewer'));
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
+  // Your comments since your last "Fertig", and everyone's feedback on the selected version
+  const myPass = $derived($user ? openPass(comments, reviews, $user.id) : []);
+  const freshIds = $derived(new Set(myPass.map((c) => c.id)));
+  const canFinish = $derived((canComment || canApprove) && !!selectedVersion && !!$user && selectedVersion.createdById !== $user.id);
+  const feedbackRowsShown = $derived(feedbackRows(comments, reviews, waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
   // Loudness and stage of every version come from the overview
@@ -220,6 +239,8 @@
         if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
           await selectVersion(selectedVersion, true);
         }
+      } else if (type === 'review:new') {
+        if (data.versionId === selectedVersion?.id) await reloadComments();
       } else if (type === 'comment:new') {
         if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
         else await refreshVersions();
@@ -251,6 +272,8 @@
         processing = false;
         grow = false;
         comments = [];
+        reviews = [];
+        waiting = [];
         predecessorComments = [];
         return;
       }
@@ -261,7 +284,7 @@
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
       // 404 until the server has processed the upload
       api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []),
-      api.get<{ comments: TrackComment[] }>(`/comments/version/${version.id}`),
+      api.get<CommentsResponse>(`/comments/version/${version.id}`),
       pred
         ? api
             .get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`, true)
@@ -273,8 +296,17 @@
     streamUrl = streamRes.url;
     processing = version.status === 'uploaded' || version.status === 'processing';
     grow = grown;
-    comments = commentRes.comments;
+    applyComments(commentRes);
     predecessorComments = predRes.comments;
+  }
+
+  type CommentsResponse = { comments: TrackComment[]; reviews?: Review[]; waiting?: Person[]; uploader?: { id: string; name: string } | null };
+
+  function applyComments(res: CommentsResponse) {
+    comments = res.comments;
+    reviews = res.reviews ?? [];
+    waiting = res.waiting ?? [];
+    uploader = res.uploader ?? null;
   }
 
   // Reloads the list and selects the newest version, e.g. after an upload
@@ -297,14 +329,14 @@
     const id = selectedVersion.id;
     const pred = predecessor;
     const [res, predRes] = await Promise.all([
-      api.get<{ comments: TrackComment[] }>(`/comments/version/${id}`),
+      api.get<CommentsResponse>(`/comments/version/${id}`),
       pred
         ? api.get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}`)
         : Promise.resolve({ comments: [] as TrackComment[] }),
     ]);
     // Skip if the user switched versions meanwhile; selectVersion loads the new comments
     if (selectedVersion?.id === id) {
-      comments = res.comments;
+      applyComments(res);
       predecessorComments = predRes.comments;
     }
     await refreshVersions();
@@ -407,24 +439,18 @@
     openState = (await api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null))?.open ?? openState;
   }
 
-  function handleReject() {
-    rejectReason = '';
-    rejectOpen = true;
-  }
-
-  async function submitReject() {
-    if (!selectedVersion || !rejectReason.trim()) return;
-    rejecting = true;
-    try {
-      await api.post(`/versions/${selectedVersion.id}/reject`, { reason: rejectReason.trim() });
-      rejectOpen = false;
-      toastSuccess('Version abgelehnt');
-      await reloadComments();
-    } catch {
-      // The API client already showed the error
-    } finally {
-      rejecting = false;
+  // "Fertig mit V4": the verdict closes your pass and goes to the uploader in one message
+  async function submitReview(verdict: ReviewVerdict, note: string) {
+    if (!selectedVersion) return;
+    const { id, versionNumber } = selectedVersion;
+    await api.post(`/versions/${id}/reviews`, { verdict, note: note || undefined });
+    if (verdict === 'approve') {
+      toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => undoApprove(id) });
+      await reloadOpenState();
+    } else {
+      toastSuccess(`${uploader?.name ?? 'Der Uploader'} bekommt Bescheid`);
     }
+    await reloadComments();
   }
 
   async function handleComment(body: string, timestamp: number | null) {
@@ -869,7 +895,8 @@
           onOpenVersions={() => showPanel('versions')}
           onUpload={openUpload}
           onApprove={handleApprove}
-          onReject={handleReject}
+          finishCount={myPass.length}
+          onFinish={canFinish ? () => (reviewOpen = true) : null}
           onCompare={() => setView('compare')}
           onEdit={openVersionEdit}
           onDownload={handleDownload}
@@ -901,6 +928,16 @@
               />
             {/key}
           {/snippet}
+          {#snippet feedback()}
+            {#if canFinish && myPass.length > 0}
+              <p class="finish-hint">
+                {uploader?.name ?? 'Wer hochgeladen hat'} bekommt Bescheid, sobald du „Fertig“ drückst, sonst automatisch {REVIEW_QUIET_MINUTES} Minuten nach deinem letzten Kommentar.
+              </p>
+            {/if}
+            {#if feedbackRowsShown.length > 0}
+              <FeedbackList rows={feedbackRowsShown} versionNumber={selectedVersion!.versionNumber} currentUserId={$user?.id ?? null} />
+            {/if}
+          {/snippet}
         </VersionCard>
 
         {#if showInvite}
@@ -924,6 +961,7 @@
           carryLabel={predecessor ? `V${predecessor.versionNumber}` : null}
           carryTitle={predecessor ? versionTitle(predecessor) : null}
           carryComments={predecessorComments}
+          {freshIds}
           {canComment}
           currentUserId={$user?.id ?? null}
           {currentTime}
@@ -997,18 +1035,16 @@
   <OpenModal bind:open={openModal} bind:openState {trackId} {trackName} isOwner={role === 'owner'} userId={$user.id} />
 {/if}
 
-<Modal bind:open={rejectOpen} title="Version ablehnen">
-  <div class="edit-form">
-    <label>
-      <span class="lbl">Begründung <span style="color: var(--color-error)">*</span></span>
-      <textarea bind:value={rejectReason} rows="4" placeholder="Was muss geändert werden? (Pflichtfeld)"></textarea>
-    </label>
-  </div>
-  {#snippet actions()}
-    <Button variant="ghost" onclick={() => (rejectOpen = false)}>Abbrechen</Button>
-    <Button onclick={submitReject} loading={rejecting} disabled={!rejectReason.trim()}>Ablehnen</Button>
-  {/snippet}
-</Modal>
+{#if selectedVersion}
+  <ReviewSheet
+    bind:open={reviewOpen}
+    versionNumber={selectedVersion.versionNumber}
+    uploaderName={uploader?.name ?? 'Wer hochgeladen hat'}
+    {canApprove}
+    pass={myPass}
+    onSubmit={submitReview}
+  />
+{/if}
 
 <Modal bind:open={coverEditOpen} title="Track-Cover ändern">
   <div class="cover-modal">
@@ -1514,5 +1550,16 @@
     color: var(--color-accent);
     border-color: var(--color-accent);
     background: var(--color-accent-subtle);
+  }
+
+  /* Your open pass: the uploader hears of it with "Fertig", or on their own after a while */
+  .finish-hint {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    background: var(--color-accent-subtle);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    border-radius: var(--radius-md);
   }
 </style>

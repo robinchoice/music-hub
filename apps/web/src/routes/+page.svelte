@@ -4,17 +4,28 @@
   import { toast, toastError } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
-  import Modal from '$lib/components/ui/Modal.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import DemoFrame from '$lib/components/landing/DemoFrame.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
   import { DEMO, demoRequest } from '$lib/demo/backend.js';
-  import { predecessorOf, versionTitle, type TrackComment, type Version } from '$lib/utils/track.js';
+  import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
+  import {
+    feedbackRows,
+    openPass,
+    predecessorOf,
+    versionTitle,
+    type Person,
+    type Review,
+    type ReviewVerdict,
+    type TrackComment,
+    type Version,
+  } from '$lib/utils/track.js';
   // The landing page shows the components of the real track page, filled with the demo data
   import VersionList from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionList.svelte';
   import VersionCard from './(app)/projects/[projectId]/tracks/[trackId]/components/VersionCard.svelte';
   import CommentSection from './(app)/projects/[projectId]/tracks/[trackId]/components/CommentSection.svelte';
+  import FeedbackList from './(app)/projects/[projectId]/tracks/[trackId]/components/FeedbackList.svelte';
 
   const REPO = 'https://github.com/robinchoice/music-hub';
   const SELF_HOSTING = `${REPO}#self-hosting`;
@@ -34,8 +45,8 @@
   let currentTime = $state(0);
   let commentTimestamp = $state<number | null>(42);
   let player = $state<WaveformPlayer>();
-  let rejectOpen = $state(false);
-  let rejectReason = $state('');
+  let reviews = $state<Record<string, { reviews: Review[]; waiting: Person[]; uploader: { id: string; name: string } | null }>>({});
+  let reviewOpen = $state(false);
   let introDone = false;
 
   const byId = (id: string | null) => versions.find((v) => v.id === id) ?? versions[0] ?? null;
@@ -43,6 +54,11 @@
   const feedback = $derived(byId(feedbackId));
   const decision = $derived(byId(decisionId));
   const feedbackPred = $derived(feedback ? predecessorOf(feedback, versions) : null);
+  // The demo listener's comments on V4 that "Fertig" would send, and everyone's feedback on it
+  const decisionPass = $derived(decision ? openPass(comments[decision.id] ?? [], reviews[decision.id]?.reviews ?? [], DEMO.userId) : []);
+  const decisionRows = $derived(
+    decision ? feedbackRows(comments[decision.id] ?? [], reviews[decision.id]?.reviews ?? [], reviews[decision.id]?.waiting ?? [], decision.createdById ?? null) : [],
+  );
 
   onMount(() => {
     const mq = matchMedia('(max-width: 759px)');
@@ -69,10 +85,16 @@
   async function load() {
     const res = await demoRequest<{ versions: Version[] }>('GET', `/versions/track/${DEMO.trackId}`);
     const lists = await Promise.all(
-      res.versions.map((v) => demoRequest<{ comments: TrackComment[] }>('GET', `/comments/version/${v.id}`)),
+      res.versions.map((v) =>
+        demoRequest<{ comments: TrackComment[]; reviews: Review[]; waiting: Person[]; uploader: { id: string; name: string } | null }>(
+          'GET',
+          `/comments/version/${v.id}`,
+        ),
+      ),
     );
     versions = res.versions;
     comments = Object.fromEntries(res.versions.map((v, i) => [v.id, lists[i].comments]));
+    reviews = Object.fromEntries(res.versions.map((v, i) => [v.id, lists[i]]));
   }
 
   // Same requests as the track page; the demo data answers them in this window
@@ -104,7 +126,6 @@
     onPromote: elsewhere,
     onDelete: elsewhere,
     onApprove: elsewhere,
-    onReject: elsewhere,
   };
 
   function audioOf(v: Version) {
@@ -122,10 +143,15 @@
       }));
   }
 
-  async function submitReject() {
-    if (!decision || !rejectReason.trim()) return;
-    rejectOpen = false;
-    await send('POST', `/versions/${decision.id}/reject`, { reason: rejectReason.trim() });
+  async function submitReview(verdict: ReviewVerdict, note: string) {
+    if (!decision) return;
+    const { id, versionNumber } = decision;
+    await send('POST', `/versions/${id}/reviews`, { verdict, note: note || undefined });
+    if (verdict === 'approve') {
+      toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => send('POST', `/versions/${id}/unapprove`) });
+    } else {
+      toast(`${reviews[id]?.uploader?.name ?? 'Kai'} bekommt Bescheid`, 'success');
+    }
   }
 
   function visible(node: HTMLElement, onVisible: () => void) {
@@ -362,10 +388,10 @@
       <div class="feat-text">
         <h3>Freigeben oder zurück an den Mix.</h3>
         <p>
-          Wer freigeben darf, sagt Ja oder Nein, und ein Nein braucht einen Grund. Der steht danach bei der
-          Version, für alle sichtbar.
+          Wer fertig gehört hat, sagt es mit einem Klick: freigeben, Änderungen nötig oder nur Anmerkungen. Wer
+          hochgeladen hat, bekommt das Urteil und alle Anmerkungen in einer Nachricht.
         </p>
-        <p class="hint">Gib V4 frei oder lehn sie mit Grund ab.</p>
+        <p class="hint">Gib V4 frei oder schick sie mit „Fertig mit V4“ zurück an den Mix.</p>
       </div>
       <div class="frag frag-stack">
         {#if decision}
@@ -383,11 +409,10 @@
                 run: () => send('POST', `/versions/${id}/unapprove`),
               });
             }}
-            onReject={() => {
-              rejectReason = '';
-              rejectOpen = true;
-            }}
+            finishCount={decisionPass.length}
+            onFinish={() => (reviewOpen = true)}
             player={noPlayer}
+            feedback={decisionFeedback}
           />
           <div class="frag-panel">
             <VersionList {versions} selectedId={decision.id} onSelect={(v) => (decisionId = v.id)} />
@@ -447,16 +472,22 @@
   </main>
 </div>
 
-<Modal bind:open={rejectOpen} title="Version ablehnen">
-  <label class="reject-form">
-    <span>Begründung</span>
-    <textarea bind:value={rejectReason} rows="4" placeholder="Was muss geändert werden?"></textarea>
-  </label>
-  {#snippet actions()}
-    <Button variant="ghost" onclick={() => (rejectOpen = false)}>Abbrechen</Button>
-    <Button onclick={submitReject} disabled={!rejectReason.trim()}>Ablehnen</Button>
-  {/snippet}
-</Modal>
+{#snippet decisionFeedback()}
+  {#if decision && decisionRows.length > 0}
+    <FeedbackList rows={decisionRows} versionNumber={decision.versionNumber} currentUserId={DEMO.userId} />
+  {/if}
+{/snippet}
+
+{#if decision}
+  <ReviewSheet
+    bind:open={reviewOpen}
+    versionNumber={decision.versionNumber}
+    uploaderName={reviews[decision.id]?.uploader?.name ?? 'Kai'}
+    canApprove
+    pass={decisionPass}
+    onSubmit={submitReview}
+  />
+{/if}
 
 <style>
   /* The glow behind the demo is wider than phones */
@@ -950,30 +981,6 @@
     margin: 56px 0 72px;
     font-size: 15px;
     color: var(--color-text-secondary);
-  }
-
-  .reject-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .reject-form span {
-    font-size: var(--text-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
-  }
-  .reject-form textarea {
-    padding: 0.7rem 0.9rem;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-raised);
-    color: var(--color-text-primary);
-    font: inherit;
-    font-size: var(--text-sm);
-  }
-  .reject-form textarea:focus {
-    outline: none;
-    border-color: var(--color-accent);
   }
 
   @media (max-width: 1100px) {

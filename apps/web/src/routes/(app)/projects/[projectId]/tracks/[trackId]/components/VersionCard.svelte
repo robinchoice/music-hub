@@ -23,7 +23,8 @@
     onOpenVersions,
     onUpload,
     onApprove,
-    onReject,
+    finishCount = 0,
+    onFinish = null,
     onCompare,
     onEdit,
     onDownload,
@@ -33,6 +34,7 @@
     onPromote,
     onDelete,
     player,
+    feedback,
   }: {
     version: Version;
     versions: Version[];
@@ -49,7 +51,10 @@
     onOpenVersions: () => void;
     onUpload: () => void;
     onApprove: () => void;
-    onReject: () => void;
+    /** Your comments since your last "Fertig" */
+    finishCount?: number;
+    /** "Fertig mit V4": closes your listening pass, offered to everyone but the uploader */
+    onFinish?: (() => void) | null;
     onCompare: () => void;
     onEdit: () => void;
     onDownload: () => void;
@@ -59,6 +64,8 @@
     onPromote: () => void;
     onDelete: () => void;
     player: Snippet;
+    /** Below the player: your open pass and who has given feedback */
+    feedback?: Snippet;
   } = $props();
 
   const STATUS_LABEL: Record<string, string> = {
@@ -154,8 +161,10 @@
         >
           <span class="ok"><Icon name="check" size={14} /> Freigeben</span>
         </Button>
-        <Button variant="ghost" size="sm" onclick={onReject}>
-          <span class="err"><Icon name="x" size={14} /> Ablehnen</span>
+      {/if}
+      {#if onFinish}
+        <Button variant={finishCount > 0 ? 'primary' : 'ghost'} size="sm" onclick={onFinish}>
+          <Icon name="check" size={14} /> Fertig mit V{version.versionNumber}{#if finishCount > 0}{' '}<span class="count">{finishCount}</span>{/if}
         </Button>
       {/if}
 
@@ -230,6 +239,7 @@
   {:else}
     <div class="player" class:grow>{@render player()}</div>
   {/if}
+  {@render feedback?.()}
 </section>
 
 <style>
@@ -294,19 +304,23 @@
     gap: var(--space-1);
   }
 
-  .ok,
-  .err {
+  .ok {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-  }
-
-  .ok {
     color: var(--color-success);
   }
 
-  .err {
-    color: var(--color-error);
+  /* Comments the next "Fertig" sends */
+  .count {
+    padding: 0 6px;
+    min-width: 18px;
+    line-height: 18px;
+    border-radius: var(--radius-full);
+    background: var(--color-on-accent);
+    color: var(--color-accent);
+    font-size: var(--text-xs);
+    font-weight: 700;
   }
 
   .icon-btn {

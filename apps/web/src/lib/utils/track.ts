@@ -13,6 +13,7 @@ export type Version = {
   branchLabel: string | null;
   openCommentCount: number;
   rejectionReason: string | null;
+  createdById?: string;
 };
 
 export type TrackComment = {
@@ -82,4 +83,63 @@ export function activeCommentId(comments: Timed[], time: number): string | null 
     if (!active || c.timestampSeconds >= (active.timestampSeconds ?? 0)) active = c;
   }
   return active?.id ?? null;
+}
+
+export type ReviewVerdict = 'approve' | 'fine' | 'changes' | 'notes';
+
+export type Person = { id: string; name: string; avatarUrl: string | null };
+
+/** A finished listening pass; without a verdict it is the summary the server sent on its own. */
+export type Review = {
+  id: string;
+  verdict: ReviewVerdict | null;
+  note: string | null;
+  commentCount: number;
+  createdAt: string;
+  guestName: string | null;
+  user: Person | null;
+};
+
+type Authored = { createdAt: string; guestName?: string | null; user?: { id: string } | null };
+
+const authorKey = (x: Authored) => (x.user ? x.user.id : x.guestName ? `guest:${x.guestName}` : null);
+
+// Like the API (REVIEW_PASS_HOURS): only recent comments make up a pass, older threads stay out of it
+const PASS_MS = 2 * 3600_000;
+const recent = (c: { createdAt: string }, now: number) => new Date(c.createdAt).getTime() > now - PASS_MS;
+
+/** The author's recent comments since their last review on this version: what "Fertig" closes. */
+export function openPass<T extends Authored & { deletedAt?: string | null }>(comments: T[], reviews: Authored[], key: string, now = Date.now()): T[] {
+  const last = reviews.filter((r) => authorKey(r) === key).reduce((max, r) => (r.createdAt > max ? r.createdAt : max), '');
+  return comments.filter((c) => !c.deletedAt && authorKey(c) === key && c.createdAt > last && recent(c, now));
+}
+
+export type FeedbackRow = { key: string; name: string; avatarUrl: string | null; review: Review | null; open: number };
+
+/**
+ * Who has finished listening to a version and how, who is still at it, and which approvers haven't
+ * said anything yet. The uploader's own comments don't count.
+ */
+export function feedbackRows(comments: TrackComment[], reviews: Review[], waiting: Person[], uploaderId: string | null, now = Date.now()): FeedbackRow[] {
+  const rows = new Map<string, FeedbackRow>();
+  const person = (x: { user: Person | null; guestName?: string | null }) =>
+    x.user ? { name: x.user.name, avatarUrl: x.user.avatarUrl } : { name: x.guestName ?? 'Gast', avatarUrl: null };
+
+  // Newest first: the first review of each author is their current verdict
+  for (const r of [...reviews].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    const key = authorKey(r);
+    if (!key || rows.has(key)) continue;
+    rows.set(key, { key, ...person(r), review: r, open: 0 });
+  }
+  for (const c of comments) {
+    const key = authorKey(c);
+    if (!key || c.deletedAt || c.user?.id === uploaderId || !recent(c, now)) continue;
+    const row = rows.get(key) ?? { key, ...person(c), review: null, open: 0 };
+    if (c.createdAt > (row.review?.createdAt ?? '')) row.open++;
+    rows.set(key, row);
+  }
+  for (const p of waiting) if (!rows.has(p.id)) rows.set(p.id, { key: p.id, name: p.name, avatarUrl: p.avatarUrl, review: null, open: 0 });
+  // Still listening first, then finished, then waiting
+  const rank = (r: FeedbackRow) => (r.open > 0 ? 0 : r.review ? 1 : 2);
+  return [...rows.values()].filter((r) => r.review || r.open > 0 || rank(r) === 2).sort((a, b) => rank(a) - rank(b));
 }
