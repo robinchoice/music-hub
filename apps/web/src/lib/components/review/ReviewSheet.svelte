@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import { formatTime } from '$lib/utils/format.js';
@@ -6,6 +7,7 @@
 
   let {
     open = $bindable(false),
+    title = null,
     versionNumber,
     uploaderName,
     canApprove = false,
@@ -14,6 +16,8 @@
     onSubmit,
   }: {
     open: boolean;
+    /** Defaults to "Fertig mit V4"; guests see no version numbers */
+    title?: string | null;
     versionNumber: number;
     uploaderName: string;
     canApprove?: boolean;
@@ -26,12 +30,15 @@
   let verdict = $state<ReviewVerdict | null>(null);
   let note = $state('');
   let sending = $state(false);
+  let list = $state<HTMLElement>();
+  const name = `verdict-${Math.random().toString(36).slice(2)}`;
 
-  // Each opening starts over
+  // Each opening starts over, with the focus on the first choice instead of the page behind
   $effect(() => {
     if (open) {
       verdict = null;
       note = '';
+      void tick().then(() => list?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus());
     }
   });
 
@@ -71,7 +78,7 @@
   }
 </script>
 
-<Modal bind:open title="Fertig mit V{versionNumber}">
+<Modal bind:open title={title ?? `Fertig mit V${versionNumber}`}>
   <p class="sub">{summary}</p>
   {#if pass.length > 0}
     <ul class="pass">
@@ -83,22 +90,16 @@
       {/each}
     </ul>
   {/if}
-  <div class="verdicts" role="radiogroup" aria-label="Urteil">
+  <fieldset class="verdicts" bind:this={list}>
+    <legend class="sr-only">Urteil</legend>
     {#each options as option (option.value + option.title)}
-      <button
-        type="button"
-        role="radio"
-        class="verdict"
-        class:on={verdict === option.value && !option.disabled}
-        aria-checked={verdict === option.value && !option.disabled}
-        disabled={option.disabled}
-        onclick={() => (verdict = option.value)}
-      >
+      <label class="verdict" class:on={verdict === option.value && !option.disabled} class:disabled={option.disabled}>
+        <input type="radio" {name} value={option.value} bind:group={verdict} disabled={option.disabled} />
         <span class="dot" aria-hidden="true"></span>
         <span><b>{option.title}</b><small>{option.text}</small></span>
-      </button>
+      </label>
     {/each}
-  </div>
+  </fieldset>
   <textarea bind:value={note} rows="3" maxlength="2000" placeholder="Gesamteindruck (optional)" aria-label="Gesamteindruck"></textarea>
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (open = false)}>Weiter hören</Button>
@@ -139,9 +140,23 @@
   .verdicts {
     display: grid;
     gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .sr-only,
+  .verdict input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .verdict {
+    position: relative;
     display: grid;
     grid-template-columns: 20px 1fr;
     gap: var(--space-3);
@@ -156,8 +171,13 @@
     transition: border-color var(--transition-fast), background var(--transition-fast);
   }
 
-  .verdict:hover:not(:disabled) {
+  .verdict:hover:not(.disabled) {
     border-color: var(--color-text-tertiary);
+  }
+
+  .verdict:has(input:focus-visible) {
+    outline: 2px solid var(--color-border-focus, var(--color-accent));
+    outline-offset: 2px;
   }
 
   .verdict.on {
@@ -165,7 +185,7 @@
     background: var(--color-accent-subtle);
   }
 
-  .verdict:disabled {
+  .verdict.disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }

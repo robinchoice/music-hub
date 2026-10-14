@@ -47,7 +47,9 @@
         {#if row.review.verdict}
           <Badge variant={VERDICT_VARIANT[row.review.verdict]}>{VERDICT_LABEL[row.review.verdict]}</Badge>
         {/if}
-        <span class="what">{row.review.commentCount ? notes(row.review.commentCount) : row.review.verdict ? '' : 'ohne Anmerkungen'}</span>
+        <span class="what">
+          {[row.review.commentCount ? notes(row.review.commentCount) : null, row.review.verdict ? null : 'ohne Urteil'].filter(Boolean).join(', ')}
+        </span>
         <span class="when">{timeAgo(row.review.createdAt)}</span>
       {:else}
         <span class="what">steht noch aus</span>
@@ -75,24 +77,27 @@
     color: var(--color-text-tertiary);
   }
 
+  /* On phones the count and the time move to a second line instead of squeezing the badge */
   .row {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    gap: 2px var(--space-2);
     min-height: 30px;
     font-size: var(--text-sm);
   }
 
+  .row :global(.badge) {
+    white-space: nowrap;
+  }
+
   .who {
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .what {
     color: var(--color-text-secondary);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .when {

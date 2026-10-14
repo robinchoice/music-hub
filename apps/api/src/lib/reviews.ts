@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, ne, notExists, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notExists, sql, type SQL } from 'drizzle-orm';
 import {
   comments,
   projectMembers,
@@ -228,7 +228,8 @@ export async function reviewsOf(db: Database, version: Version, projectId: strin
         eq(projectMembers.projectId, projectId),
         eq(projectMembers.canApprove, true),
         ne(projectMembers.userId, version.createdById),
-        notExists(db.select().from(reviews).where(and(eq(reviews.versionId, version.id), eq(reviews.userId, users.id)))),
+        // An automatic summary sent their comments, but their verdict is still missing
+        notExists(db.select().from(reviews).where(and(eq(reviews.versionId, version.id), eq(reviews.userId, users.id), isNotNull(reviews.verdict)))),
       ),
     )
     .orderBy(asc(users.name));
@@ -237,9 +238,12 @@ export async function reviewsOf(db: Database, version: Version, projectId: strin
   return { reviews: list, waiting, uploader: uploader ?? null };
 }
 
-// Undoing an approval takes back its review too
-export async function dropApprovalReviews(db: Database, versionId: string, userId: string) {
-  await db.delete(reviews).where(and(eq(reviews.versionId, versionId), eq(reviews.userId, userId), eq(reviews.verdict, 'approve')));
+// Undoing an approval takes back its verdict. Comments and note already reached the uploader, so a review
+// that carried them stays without a verdict; otherwise its pass would open again and go out a second time.
+export async function withdrawApproval(db: Database, versionId: string, userId: string) {
+  const mine = and(eq(reviews.versionId, versionId), eq(reviews.userId, userId), eq(reviews.verdict, 'approve'));
+  await db.delete(reviews).where(and(mine, eq(reviews.commentCount, 0), isNull(reviews.note)));
+  await db.update(reviews).set({ verdict: null }).where(mine);
 }
 
 // The note of the newest "Änderungen nötig" per version, shown as the reason of a rejected version

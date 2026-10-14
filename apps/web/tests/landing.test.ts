@@ -76,7 +76,8 @@ test('"Fertig" sends the open pass with a verdict and shows up under Rückmeldun
 
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByText('Eine Anmerkung geht gesammelt an Kai.')).toBeVisible();
-  await sheet.getByRole('radio', { name: /Änderungen nötig/ }).click();
+  await sheet.getByText('Änderungen nötig', { exact: true }).click();
+  await expect(sheet.getByRole('radio', { name: /Änderungen nötig/ })).toBeChecked();
   await sheet.getByLabel('Gesamteindruck').fill('Höhen noch etwas runter');
   await sheet.getByRole('button', { name: 'Abschicken' }).click();
 

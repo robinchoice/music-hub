@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
-  import { toast, toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { toast, toasts, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
   import { UPLOAD_ROLES, trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
@@ -140,7 +140,9 @@
   const myPass = $derived($user ? openPass(comments, reviews, $user.id) : []);
   const freshIds = $derived(new Set(myPass.map((c) => c.id)));
   const canFinish = $derived((canComment || canApprove) && !!selectedVersion && !!$user && selectedVersion.createdById !== $user.id);
-  const feedbackRowsShown = $derived(feedbackRows(comments, reviews, waiting, selectedVersion?.createdById ?? null));
+  // Once the version is decided, nobody is "still missing" anymore
+  const decided = $derived(selectedVersion?.status === 'approved' || selectedVersion?.status === 'rejected');
+  const feedbackRowsShown = $derived(feedbackRows(comments, reviews, decided ? [] : waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
   // Loudness and stage of every version come from the overview
@@ -431,12 +433,18 @@
 
   async function undoApprove(id: string) {
     await api.post(`/versions/${id}/unapprove`).catch(() => {});
-    await refreshVersions();
+    await reloadComments();
     await reloadOpenState();
   }
 
   async function reloadOpenState() {
     openState = (await api.get<{ open: OpenState }>(`/tracks/${trackId}/open`, true).catch(() => null))?.open ?? openState;
+  }
+
+  function openReview() {
+    // "Kommentar gespeichert" would sit on the sheet's buttons on phones right when you tap "Fertig"
+    toasts.update((list) => list.filter((t) => t.action || t.type === 'error'));
+    reviewOpen = true;
   }
 
   // "Fertig mit V4": the verdict closes your pass and goes to the uploader in one message
@@ -896,7 +904,7 @@
           onUpload={openUpload}
           onApprove={handleApprove}
           finishCount={myPass.length}
-          onFinish={canFinish ? () => (reviewOpen = true) : null}
+          onFinish={canFinish ? openReview : null}
           onCompare={() => setView('compare')}
           onEdit={openVersionEdit}
           onDownload={handleDownload}

@@ -56,7 +56,8 @@
   let submitting = $state(false);
   let playerRef = $state<WaveformPlayer>();
   let reviewOpen = $state(false);
-  let reviewSent = $state(false);
+  // The name the last "Fertig" went out under; a new name starts over
+  let reviewSentAs = $state<string | null>(null);
   // Your comments since your last "Fertig", recognised by the name you comment with
   const guestPass = $derived(data && guestName.trim() ? openPass(data.comments, data.reviews ?? [], `guest:${guestName.trim()}`) : []);
 
@@ -201,7 +202,7 @@
       error = res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.' : 'Rückmeldung fehlgeschlagen';
       throw new Error(error);
     }
-    reviewSent = true;
+    reviewSentAs = guestName.trim();
     await load();
   }
 
@@ -322,7 +323,7 @@
         {#if guestName.trim()}
           <div class="finish">
             <p>
-              {#if reviewSent && guestPass.length === 0}
+              {#if reviewSentAs === guestName.trim() && guestPass.length === 0}
                 Danke, deine Rückmeldung ist angekommen.
               {:else if guestPass.length > 0}
                 {guestPass.length === 1 ? 'Deine Anmerkung geht' : `Deine ${guestPass.length} Anmerkungen gehen`} gesammelt raus, sobald du fertig bist.
@@ -334,6 +335,7 @@
           </div>
           <ReviewSheet
             bind:open={reviewOpen}
+            title="Fertig mit dem Song"
             versionNumber={data.version.versionNumber}
             uploaderName={data.uploaderName ?? 'Wer hochgeladen hat'}
             guest

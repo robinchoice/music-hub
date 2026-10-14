@@ -388,7 +388,9 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['POST', /^\/versions\/([\w-]+)\/unapprove$/, ([id]) => {
     const v = find(db.versions, id);
     v.status = 'ready';
-    db.reviews = db.reviews.filter((r) => !(r.versionId === id && r.user?.id === MARA.id && r.verdict === 'approve'));
+    // Like the API: the verdict goes, what was already sent stays
+    for (const r of db.reviews) if (r.versionId === id && r.user?.id === MARA.id && r.verdict === 'approve') r.verdict = null;
+    db.reviews = db.reviews.filter((r) => r.verdict || r.commentCount || r.note);
     return { version: withCounts(v) };
   }],
   ['POST', /^\/versions\/([\w-]+)\/reject$/, ([id], body) => {
@@ -414,7 +416,7 @@ const ROUTES: [string, RegExp, Handler][] = [
     const own = db.comments.filter((c) => c.versionId === id);
     const answered = new Set(own.filter((c) => !c.deletedAt && c.parentId).map((c) => c.parentId));
     const v = find(db.versions, id);
-    const reviewed = new Set(db.reviews.filter((r) => r.versionId === id).map((r) => r.user?.id));
+    const reviewed = new Set(db.reviews.filter((r) => r.versionId === id && r.verdict).map((r) => r.user?.id));
     return {
       comments: own
         .filter((c) => !c.deletedAt || (!c.parentId && answered.has(c.id)))

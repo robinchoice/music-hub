@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { comments, createDb, migrateDb, projectMembers, projects, reviews, tracks, users, versions } from '@music-hub/db';
-import { reviewsOf, submitReview, takeDueFeedback } from './lib/reviews.js';
+import { reviewsOf, submitReview, takeDueFeedback, withdrawApproval } from './lib/reviews.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
 const db = createDb(process.env.DATABASE_URL!);
@@ -127,4 +127,29 @@ test('approvers without feedback are listed as waiting, the uploader is not', as
   await submitReview(db, { version: v, track, author: { userId: label }, authorName: 'Tom', verdict: 'notes', canApprove: true });
   ({ waiting } = await reviewsOf(db, v, projectId));
   expect(waiting).toHaveLength(0);
+});
+
+test('undoing an approval keeps what was already sent, so it does not go out again', async () => {
+  const v = await version(mixer);
+  await comment(v.id, { userId: artist }, 20);
+  await submitReview(db, { version: v, track, author: { userId: artist }, authorName: 'Mara', verdict: 'approve', canApprove: true });
+  await withdrawApproval(db, v.id, artist);
+
+  const [left] = await db.select().from(reviews).where(eq(reviews.versionId, v.id));
+  expect(left).toMatchObject({ verdict: null, commentCount: 1 });
+  expect((await takeDueFeedback(db)).filter((t) => t.versionId === v.id)).toHaveLength(0);
+
+  // A bare approval leaves nothing behind
+  const bare = await version(mixer);
+  await submitReview(db, { version: bare, track, author: { userId: artist }, authorName: 'Mara', verdict: 'approve', canApprove: true });
+  await withdrawApproval(db, bare.id, artist);
+  expect(await db.select().from(reviews).where(eq(reviews.versionId, bare.id))).toHaveLength(0);
+});
+
+test('an approver whose comments went out without a verdict is still waiting', async () => {
+  const v = await version(mixer);
+  await comment(v.id, { userId: label }, 20);
+  await takeDueFeedback(db);
+  const { waiting } = await reviewsOf(db, v, projectId);
+  expect(waiting.map((w) => w.id)).toContain(label);
 });

@@ -57,7 +57,14 @@
   // The demo listener's comments on V4 that "Fertig" would send, and everyone's feedback on it
   const decisionPass = $derived(decision ? openPass(comments[decision.id] ?? [], reviews[decision.id]?.reviews ?? [], DEMO.userId) : []);
   const decisionRows = $derived(
-    decision ? feedbackRows(comments[decision.id] ?? [], reviews[decision.id]?.reviews ?? [], reviews[decision.id]?.waiting ?? [], decision.createdById ?? null) : [],
+    decision
+      ? feedbackRows(
+          comments[decision.id] ?? [],
+          reviews[decision.id]?.reviews ?? [],
+          decision.status === 'approved' || decision.status === 'rejected' ? [] : (reviews[decision.id]?.waiting ?? []),
+          decision.createdById ?? null,
+        )
+      : [],
   );
 
   onMount(() => {

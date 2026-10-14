@@ -16,7 +16,7 @@ import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolu
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
 import { undoApproval } from '../lib/approval.js';
-import { changeNotes, dropApprovalReviews, submitReview } from '../lib/reviews.js';
+import { changeNotes, submitReview, withdrawApproval } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import type { AppEnv } from '../types.js';
@@ -443,7 +443,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const updated = await undoApproval(db, versionId, userId);
     if (!updated) return c.json({ error: 'Die Freigabe lässt sich nicht mehr zurücknehmen.' }, 409);
-    await dropApprovalReviews(db, versionId, userId);
+    await withdrawApproval(db, versionId, userId);
     publish(db, version.trackId, { type: 'review:new', data: { versionId } });
 
     // undone: the audio stays the same, the player needn't reload
