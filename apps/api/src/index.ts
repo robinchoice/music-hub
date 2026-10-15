@@ -27,6 +27,7 @@ import { sendDueNotices } from './lib/notices.js';
 import { sendDueFeedback } from './lib/reviews.js';
 import { profileRoutes } from './routes/profiles.js';
 import { requestRoutes } from './routes/requests.js';
+import { agentRoutes } from './routes/agents.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -71,6 +72,8 @@ const app = new Hono<AppEnv>()
   })
   // The CI compares revision with the deployed commit
   .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
+  // /llms.txt, /llms-full.txt and <page>.md, forwarded by the web server
+  .route('/', agentRoutes)
   .basePath('/api/v1')
   .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
   .route('/auth', authRoutes)

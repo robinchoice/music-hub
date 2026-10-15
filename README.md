@@ -111,6 +111,17 @@ Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/mus
 
 Jeder Push auf `main` deployt automatisch: Ein GitHub-Webhook ruft Coolify auf, Coolify baut Web und API neu. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
+## Für Agenten
+
+Fremde Agenten lesen die öffentlichen Inhalte ohne HTML, nach [llms.txt](https://llmstxt.org). Quelle ist `publicPages` in `apps/api/src/lib/public-pages.ts`, die Routen stehen in `apps/api/src/routes/agents.ts`. Der Web-Server leitet die Pfade an die API weiter.
+
+- `/llms.txt`: Einstieg mit Name, Tagline und allen öffentlichen Seiten als Links auf ihr Markdown.
+- `/llms-full.txt`: alle Seiten in einer Datei.
+- `<seite>.md`: jede Seite als Markdown, die Startseite als `/index.md`. Fragt ein Agent mit `Accept: text/markdown` nach einer Seite, die es als Markdown gibt, bekommt er unter derselben URL gleich das Markdown, alle anderen das HTML.
+- Sprache: `?lang=de|en`, sonst `Accept-Language`, sonst Deutsch. Links behalten ein `?lang=`. Impressum und Datenschutz gibt es nur auf Deutsch, die englische Fassung sagt das vorneweg.
+- Nur Startseite, Datenschutz und Impressum, nichts aus Projekten, offenen Tracks oder Profilen.
+- Ausprobieren: `curl localhost:5173/llms.txt` bei laufendem `bun run dev`.
+
 ## Secret-Scan
 
 Das Repo ist öffentlich, Code, Historie und CI-Logs. Der Workflow `.github/workflows/secrets.yml` läuft bei jedem Push auf jedem Branch und bei PRs aus Forks, ohne `paths-ignore`, und scannt mit gitleaks (Docker-Image, Version per Digest fest) die neuen Commits. Ein Fund macht den Lauf rot, der Wert steht dank `--redact` nicht im Log.
