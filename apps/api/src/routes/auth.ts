@@ -38,6 +38,18 @@ const mailsPerIp = rateLimit('mails-per-ip', 20, 60 * MINUTE);
 const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einladung zu einem Projekt.';
 const BLOCKED = 'Dieses Konto ist gesperrt.';
 
+// The user as every auth route returns it
+const userColumns = { id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails };
+type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean };
+const toUser = ({ id, email, name, avatarUrl, versionMails }: UserRow) => ({
+  id,
+  email,
+  name,
+  avatarUrl,
+  versionMails,
+  isAdmin: isAdminEmail(email),
+});
+
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
@@ -95,15 +107,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (user.blockedAt) return c.json({ error: BLOCKED }, 403);
 
     await createSession(c, db, user.id);
-    return c.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-        isAdmin: isAdminEmail(user.email),
-      },
-    });
+    return c.json({ user: toUser(user) });
   })
 
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
@@ -181,7 +185,7 @@ export const authRoutes = new Hono<AppEnv>()
       }
 
       await createSession(c, tx, user.id);
-      return c.json({ user: { id: user.id, email: user.email, name: user.name, isAdmin: isAdminEmail(user.email) } });
+      return c.json({ user: toUser(user) });
     });
   })
 
@@ -216,7 +220,7 @@ export const authRoutes = new Hono<AppEnv>()
     }
 
     const [user] = await db
-      .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails })
+      .select(userColumns)
       .from(users)
       .where(and(eq(users.id, session.userId), isNull(users.blockedAt)))
       .limit(1);
@@ -224,7 +228,7 @@ export const authRoutes = new Hono<AppEnv>()
 
     await renewSession(c, db, session, sessionToken);
     await markSeen(db, user.id);
-    return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
+    return c.json({ user: toUser(user) });
   })
 
   .patch('/me', requireAuth, async (c) => {
@@ -241,7 +245,7 @@ export const authRoutes = new Hono<AppEnv>()
       .update(users)
       .set({ name: body.name?.trim() || undefined, versionMails, updatedAt: new Date() })
       .where(eq(users.id, userId))
-      .returning({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails });
+      .returning(userColumns);
 
-    return c.json({ user: { ...user, isAdmin: isAdminEmail(user.email) } });
+    return c.json({ user: toUser(user) });
   });

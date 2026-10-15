@@ -183,7 +183,7 @@ export async function sendOpenReportEmail(to: string[], trackName: string, url: 
   await transport.sendMail({
     from: fromEmail,
     to,
-    replyTo: contact ?? undefined,
+    replyTo: contact ? { name: '', address: contact } : undefined,
     subject: `Meldung zu "${trackName}"`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 460px; margin: 0 auto; padding: 2.5rem 2rem; color: #f4f0ec; background: #0a0910;">
