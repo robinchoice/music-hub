@@ -111,6 +111,14 @@ Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/mus
 
 Jeder Push auf `main` deployt automatisch: Ein GitHub-Webhook ruft Coolify auf, Coolify baut Web und API neu. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
+## Secret-Scan
+
+Das Repo ist öffentlich, Code, Historie und CI-Logs. Der Workflow `.github/workflows/secrets.yml` läuft bei jedem Push auf jedem Branch und bei PRs aus Forks, ohne `paths-ignore`, und scannt mit gitleaks (Docker-Image, Version per Digest fest) die neuen Commits. Ein Fund macht den Lauf rot, der Wert steht dank `--redact` nicht im Log.
+
+- Regeln: die Standardregeln von gitleaks über `.gitleaks.toml`, bisher ohne Ausnahmen.
+- Fehlalarm: den `Fingerprint` aus dem Log als Zeile in `.gitleaksignore` eintragen.
+- Echter Fund: Der Scan läuft erst nach dem Push, das Secret ist also schon öffentlich. Sofort rotieren, Entfernen aus dem Code oder der Historie reicht nicht.
+
 ## Login in der Savor-Vorschau
 
 Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 30 Tage, also bleibt die Vorschau angemeldet. Sessions des Plugins behalten ihre 180 Tage.

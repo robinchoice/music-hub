@@ -1,0 +1,4 @@
+# Secret scan in .github/workflows/secrets.yml: the gitleaks default rules. Narrow
+# exceptions go here by path and rule, single false positives into .gitleaksignore.
+[extend]
+useDefault = true
