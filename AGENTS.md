@@ -34,6 +34,10 @@
 - Track-Status: `sketch` heißt in der Oberfläche „Demo“. `in_progress` („In Arbeit“) stammt von vor den Produktionsphasen und wird nur noch angeboten, solange ein Track ihn hat. Neue Status kennt eine ältere, noch offene Web-Version nicht.
 - `test@onboarding.invalid` ist der Test-Account für das Onboarding und zählt nicht gegen `MAX_USERS`. „Als neue Person testen“ im Lagebild setzt ihn zurück (`lib/test-account.ts`, löscht seine Projekte samt Dateien) und kopiert einen Login-Link fürs private Fenster.
 
+## Konventionen
+
+- Ein Push ist nur ein Signal: Ereignistyp und Objekt-ID oder Cursor, keine Inhalte und keine personenbezogenen Daten, wegen des Datenschutzes (Grundsätze 1 und 2). Die App holt die Daten über einen Endpunkt hinter `requireAuth` ab ihrem letzten Cursor (`since`) und fragt ihn auch beim Öffnen und regelmäßig ab, so schaden verlorene oder doppelte Pushes nicht. Die SSE-Events (`services/sse.ts`) folgen dem schon. Die Web-Pushes (`services/push.ts`) tragen noch Titel und Text der Benachrichtigung mit Namen von Personen und Tracks; ob sie auf Signal plus Abruf im Service Worker umgestellt werden, entscheidet Robin (Backlog).
+
 ## Abweichungen vom Standard
 
 - Die Health-Route der API heißt `/api/v1/health` statt `/api/health`, umbenennen verbietet die Rückwärtskompatibilität. Der Deploy-Job prüft dort die `revision`.
