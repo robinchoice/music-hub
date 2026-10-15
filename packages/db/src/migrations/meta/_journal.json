@@ -190,6 +190,13 @@
       "when": 1792004321942,
       "tag": "0026_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792083366441,
+      "tag": "0027_comment_reactions",
+      "breakpoints": true
     }
   ]
 }

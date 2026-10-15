@@ -32,7 +32,11 @@ export type TrackComment = {
   deletedAt?: string | null;
   /** Its author may still restore that placeholder from the trash */
   restorable?: boolean;
+  /** Grouped by emoji in picker order; missing from an older API */
+  reactions?: Reaction[];
 };
+
+export type Reaction = { emoji: string; users: { id: string; name: string }[] };
 
 type VersionRef = {
   id: string;

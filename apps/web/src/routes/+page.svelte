@@ -382,6 +382,7 @@
               send('POST', `/comments/version/${onCarry && feedbackPred ? feedbackPred.id : feedback.id}`, { body, parentId })}
             onResolve={(id) => send('POST', `/comments/${id}/resolve`)}
             onReopen={(id) => send('POST', `/comments/${id}/reopen`)}
+            onReact={(id, emoji) => send('POST', `/comments/${id}/reactions`, { emoji })}
             onEdit={(id, body) => send('PATCH', `/comments/${id}`, { body })}
             onDelete={(id) => send('DELETE', `/comments/${id}`)}
             onRestore={(id) => send('POST', `/trash/comment/${id}/restore`)}

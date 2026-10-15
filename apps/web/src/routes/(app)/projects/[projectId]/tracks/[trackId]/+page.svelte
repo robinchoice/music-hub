@@ -246,6 +246,8 @@
       } else if (type === 'comment:new') {
         if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
         else await refreshVersions();
+      } else if (type === 'comment:reaction') {
+        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
       }
     });
   });
@@ -485,6 +487,11 @@
 
   async function handleReopen(id: string) {
     await api.post(`/comments/${id}/reopen`);
+    await reloadComments();
+  }
+
+  async function handleReact(id: string, emoji: string) {
+    await api.post(`/comments/${id}/reactions`, { emoji });
     await reloadComments();
   }
 
@@ -978,6 +985,7 @@
           onReply={handleReply}
           onResolve={handleResolve}
           onReopen={handleReopen}
+          onReact={handleReact}
           onEdit={handleEditComment}
           onDelete={handleDeleteComment}
           onRestore={handleRestoreComment}

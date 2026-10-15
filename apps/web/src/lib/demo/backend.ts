@@ -1,7 +1,7 @@
 // Sample data and request handlers for the demo. They answer the requests of the real pages the way the API
 // does, so the landing page can show the current frontend without a server. Changes stay in this browser window.
 // When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … fehlt".
-import type { TrackStatus } from '@music-hub/shared';
+import { COMMENT_REACTIONS, type TrackStatus } from '@music-hub/shared';
 import type { Review, ReviewVerdict, TrackComment, Version } from '$lib/utils/track.js';
 import { OPEN_EXAMPLE_ID } from './mode.js';
 
@@ -142,6 +142,11 @@ function seed() {
     comment(101, 101, JONAS, 'Tempo passt, Groove auch.', 22, 7 * DAY - 60, { resolved: 6 * DAY }),
     comment(102, 101, MARA, 'Zweite Strophe noch mal neu singen', 94, 7 * DAY - 30, { resolved: 4 * DAY }),
   ];
+  const react = (n: number, emoji: string, people: Person[]) =>
+    (comments.find((c) => c.id === uuid(n))!.reactions = [{ emoji, users: people.map(({ id, name }) => ({ id, name })) }]);
+  react(404, '👍', [LISA, MARA]);
+  react(405, '🔥', [JONAS]);
+  react(406, '❤️', [KAI, JONAS, LISA]);
 
   const stem = (n: number, name: string, mb: number): DemoStem => ({
     id: uuid(n),
@@ -440,6 +445,21 @@ const ROUTES: [string, RegExp, Handler][] = [
     const c = find(db.comments, id);
     c.resolvedAt = null;
     return { comment: c };
+  }],
+  ['POST', /^\/comments\/([\w-]+)\/reactions$/, ([id], body) => {
+    // Like the API: Mara's reaction comes or goes, the groups stay in picker order
+    const c = find(db.comments, id);
+    const emoji = String(body?.emoji);
+    const groups = c.reactions ?? [];
+    const group = groups.find((r) => r.emoji === emoji);
+    const reacted = !group?.users.some((u) => u.id === MARA.id);
+    if (group && !reacted) group.users = group.users.filter((u) => u.id !== MARA.id);
+    else if (group) group.users.push({ id: MARA.id, name: MARA.name });
+    else groups.push({ emoji, users: [{ id: MARA.id, name: MARA.name }] });
+    c.reactions = groups
+      .filter((r) => r.users.length > 0)
+      .sort((a, b) => COMMENT_REACTIONS.indexOf(a.emoji as never) - COMMENT_REACTIONS.indexOf(b.emoji as never));
+    return { reacted, reactions: c.reactions };
   }],
   ['PATCH', /^\/comments\/([\w-]+)$/, ([id], body) => {
     const c = find(db.comments, id);

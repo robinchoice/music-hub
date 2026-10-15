@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { COMMENT_REACTIONS } from '@music-hub/shared';
   import { formatTime, timeAgo } from '$lib/utils/format.js';
   import type { TrackComment } from '$lib/utils/track.js';
 
@@ -16,6 +17,7 @@
     onReply,
     onResolve,
     onReopen,
+    onReact,
     onEdit,
     onDelete,
     onRestore,
@@ -32,6 +34,7 @@
     onReply?: (body: string) => Promise<void>;
     onResolve?: () => Promise<void>;
     onReopen?: () => Promise<void>;
+    onReact?: (emoji: string) => Promise<void>;
     onEdit?: (body: string) => Promise<void>;
     onDelete?: () => Promise<void>;
     onRestore?: () => Promise<void>;
@@ -46,6 +49,15 @@
   let replying = $state(false);
   let replyBody = $state('');
   let busy = $state(false);
+  let picking = $state(false);
+  // On touch screens a tap on a reaction shows who reacted; you change your own in the picker
+  let whoShown = $state<string | null>(null);
+  let whoTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const reactions = $derived(comment.reactions ?? []);
+  const canReact = $derived(!!onReact && canComment && !!currentUserId);
+  const reactedByMe = (emoji: string) => !!reactions.find((r) => r.emoji === emoji)?.users.some((u) => u.id === currentUserId);
+  const reactorNames = (users: { id: string; name: string }[]) => users.map((u) => (u.id === currentUserId ? 'Du' : u.name)).join(', ');
 
   // False when the action failed, the API client already showed the error
   async function run(action: () => Promise<void>) {
@@ -58,6 +70,20 @@
     } finally {
       busy = false;
     }
+  }
+
+  function react(emoji: string) {
+    const fn = onReact;
+    if (!fn || busy) return;
+    picking = false;
+    run(() => fn(emoji));
+  }
+
+  function tapReaction(emoji: string) {
+    if (canReact && matchMedia('(hover: hover)').matches) return react(emoji);
+    clearTimeout(whoTimer);
+    whoShown = whoShown === emoji ? null : emoji;
+    if (whoShown) whoTimer = setTimeout(() => (whoShown = null), 3000);
   }
 
   function startEdit() {
@@ -127,9 +153,35 @@
       </form>
     {:else}
       <p class="text">{comment.body}</p>
+      {#if reactions.length > 0 || picking}
+        <div class="reactions">
+          {#each reactions as r (r.emoji)}
+            <span class="reaction" class:shown={whoShown === r.emoji}>
+              <button
+                class="chip"
+                class:mine={reactedByMe(r.emoji)}
+                aria-pressed={reactedByMe(r.emoji)}
+                aria-label="{r.emoji} {r.users.length}: {reactorNames(r.users)}"
+                onclick={() => tapReaction(r.emoji)}
+              >{r.emoji} <b>{r.users.length}</b></button>
+              <span class="who" role="tooltip">{reactorNames(r.users)}</span>
+            </span>
+          {/each}
+          {#if picking}
+            <div class="picker" role="group" aria-label="Reaktion wählen">
+              {#each COMMENT_REACTIONS as emoji (emoji)}
+                <button class:mine={reactedByMe(emoji)} aria-pressed={reactedByMe(emoji)} onclick={() => react(emoji)} disabled={busy}>{emoji}</button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
       <div class="actions">
         {#if onReply && canComment && !isReply}
           <button onclick={() => (replying = !replying)}><Icon name="comment" size={12} /> Antworten</button>
+        {/if}
+        {#if canReact}
+          <button onclick={() => (picking = !picking)} aria-expanded={picking}><Icon name="smile" size={12} /> Reagieren</button>
         {/if}
         {#if canComment && !isReply}
           {#if comment.resolvedAt && onReopen}
@@ -304,6 +356,100 @@
 
   .comment.resolved .text {
     color: var(--color-text-secondary);
+  }
+
+  .reactions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .reaction {
+    position: relative;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    line-height: 20px;
+    font-family: inherit;
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-hover);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .chip b {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chip.mine {
+    color: var(--color-accent);
+    background: var(--color-accent-subtle);
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+
+  .who {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 5;
+    width: max-content;
+    max-width: 220px;
+    padding: 4px 8px;
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    color: var(--color-text-primary);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+  }
+
+  .reaction.shown .who,
+  .reaction:focus-within .who {
+    display: block;
+  }
+
+  @media (hover: hover) {
+    .reaction:hover .who {
+      display: block;
+    }
+  }
+
+  .picker {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border-hover);
+    border-radius: 999px;
+  }
+
+  .picker button {
+    width: 30px;
+    height: 26px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+    background: none;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .picker button:hover,
+  .picker button.mine {
+    background: var(--color-accent-subtle);
   }
 
   .actions {

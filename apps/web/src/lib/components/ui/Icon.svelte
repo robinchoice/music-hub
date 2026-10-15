@@ -12,7 +12,7 @@
     | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
     | 'users' | 'activity' | 'layers' | 'reply' | 'restore' | 'archive'
     | 'mail' | 'log-in' | 'bell' | 'plug' | 'smartphone' | 'monitor' | 'external'
-    | 'arrow-left' | 'chevron-up' | 'alert' | 'star';
+    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile';
 
   let {
     name,
@@ -251,6 +251,11 @@
     <line x1="12" y1="17" x2="12.01" y2="17" />
   {:else if name === 'star'}
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  {:else if name === 'smile'}
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <line x1="9" y1="9" x2="9.01" y2="9" />
+    <line x1="15" y1="9" x2="15.01" y2="9" />
   {/if}
 </svg>
 

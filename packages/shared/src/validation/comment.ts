@@ -36,3 +36,11 @@ export const guestReviewSchema = z.object({
 
 export type CreateReviewInput = z.infer<typeof createReviewSchema>;
 export type GuestReviewInput = z.infer<typeof guestReviewSchema>;
+
+// Reactions on a comment: a small fixed set, one of each per person
+export const COMMENT_REACTIONS = ['👍', '❤️', '🔥', '😂', '🤔'] as const;
+export type CommentReaction = (typeof COMMENT_REACTIONS)[number];
+
+export const reactionSchema = z.object({
+  emoji: z.enum(COMMENT_REACTIONS),
+});

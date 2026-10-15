@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, isNull } from 'drizzle-orm';
-import { createCommentSchema, updateCommentSchema, TRASH_DAYS } from '@music-hub/shared';
+import { createCommentSchema, updateCommentSchema, reactionSchema, TRASH_DAYS } from '@music-hub/shared';
 import { comments, projectMembers, users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { publish } from '../services/sse.js';
 import { liveVersion } from '../lib/trash.js';
 import { reviewsOf } from '../lib/reviews.js';
+import { reactionsOf, toggleReaction } from '../lib/reactions.js';
 import type { AppEnv } from '../types.js';
 
 export const commentRoutes = new Hono<AppEnv>()
@@ -58,19 +59,20 @@ export const commentRoutes = new Hono<AppEnv>()
     // Only its author sees who wrote it, and may restore it while it is in the trash.
     const answered = new Set(rows.filter((r) => !r.deletedAt && r.parentId).map((r) => r.parentId));
     const trashCutoff = Date.now() - TRASH_DAYS * 86_400_000;
-    const versionComments = rows
-      .filter((r) => !r.deletedAt || (!r.parentId && answered.has(r.id)))
-      .map(({ discardedAt, ...r }) => {
-        if (!r.deletedAt) return r;
-        const mine = r.user?.id === userId;
-        return {
-          ...r,
-          body: '',
-          guestName: null,
-          user: mine ? r.user : null,
-          restorable: mine && !discardedAt && r.deletedAt.getTime() > trashCutoff,
-        };
-      });
+    const shown = rows.filter((r) => !r.deletedAt || (!r.parentId && answered.has(r.id)));
+    const reactions = await reactionsOf(db, shown.filter((r) => !r.deletedAt).map((r) => r.id));
+    const versionComments = shown.map(({ discardedAt, ...r }) => {
+      if (!r.deletedAt) return { ...r, reactions: reactions.get(r.id) ?? [] };
+      const mine = r.user?.id === userId;
+      return {
+        ...r,
+        body: '',
+        guestName: null,
+        user: mine ? r.user : null,
+        restorable: mine && !discardedAt && r.deletedAt.getTime() > trashCutoff,
+        reactions: [],
+      };
+    });
 
     if (c.req.query('commentsOnly') === 'true') return c.json({ comments: versionComments });
 
@@ -197,6 +199,37 @@ export const commentRoutes = new Hono<AppEnv>()
       .returning();
 
     return c.json({ comment: updated });
+  })
+
+  // React with an emoji, or take the reaction back. Sends no push and no mail.
+  .post('/:id/reactions', zValidator('json', reactionSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const commentId = c.req.param('id');
+    const { emoji } = c.req.valid('json');
+
+    const [comment] = await db
+      .select()
+      .from(comments)
+      .where(and(eq(comments.id, commentId), isNull(comments.deletedAt)))
+      .limit(1);
+    if (!comment) return c.json({ error: 'Not found' }, 404);
+
+    const found = await liveVersion(db, comment.versionId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track } = found;
+    const [membership] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not found' }, 404);
+    if (!membership.canComment && !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
+
+    const reacted = await toggleReaction(db, commentId, userId, emoji);
+    publish(db, track!.id, { type: 'comment:reaction', data: { versionId: comment.versionId, commentId } });
+
+    return c.json({ reacted, reactions: (await reactionsOf(db, [commentId])).get(commentId) ?? [] });
   })
 
   // Reopen a resolved comment

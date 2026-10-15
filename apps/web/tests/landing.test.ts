@@ -107,3 +107,26 @@ test('signed in, the server-rendered nav already leads to the dashboard', async 
     removeUser(userId);
   }
 });
+
+test('a reaction shows who reacted and a second tap takes it back', async ({ page, isMobile }) => {
+  await page.goto('/');
+  const feedback = page.locator('.frag-stack').first();
+  await feedback.scrollIntoViewIfNeeded();
+  const item = feedback.locator('.comment', { hasText: 'Backings im Refrain noch etwas lauter?' });
+  const thumbs = item.locator('.reaction', { hasText: '👍' });
+  await expect(thumbs.locator('.chip')).toHaveText('👍 2');
+  await expect(thumbs.locator('.chip')).toHaveAttribute('aria-pressed', 'true');
+
+  // Hover on desktop, a tap on phones
+  if (isMobile) await thumbs.locator('.chip').tap();
+  else await thumbs.hover();
+  await expect(thumbs.locator('.who')).toHaveText('Lisa, Du');
+
+  await item.getByRole('button', { name: 'Reagieren' }).first().click();
+  await item.locator('.picker').getByRole('button', { name: '🔥' }).click();
+  await expect(item.locator('.reaction', { hasText: '🔥' }).locator('.chip')).toHaveText('🔥 1');
+
+  await item.getByRole('button', { name: 'Reagieren' }).first().click();
+  await item.locator('.picker').getByRole('button', { name: '🔥' }).click();
+  await expect(item.locator('.reaction', { hasText: '🔥' })).toHaveCount(0);
+});

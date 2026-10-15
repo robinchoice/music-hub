@@ -21,6 +21,7 @@
     onReply,
     onResolve,
     onReopen,
+    onReact,
     onEdit,
     onDelete,
     onRestore,
@@ -42,6 +43,7 @@
     onReply: (parentId: string, body: string, onCarry: boolean) => Promise<void>;
     onResolve: (id: string) => Promise<void>;
     onReopen: (id: string) => Promise<void>;
+    onReact?: (id: string, emoji: string) => Promise<void>;
     onEdit: (id: string, body: string) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     onRestore: (id: string) => Promise<void>;
@@ -142,6 +144,7 @@
           onReply={(text) => onReply(comment.id, text, false)}
           onResolve={() => onResolve(comment.id)}
           onReopen={() => onReopen(comment.id)}
+          onReact={onReact && ((emoji) => onReact(comment.id, emoji))}
           onEdit={(text) => onEdit(comment.id, text)}
           onDelete={() => onDelete(comment.id)}
           onRestore={() => onRestore(comment.id)}
@@ -155,6 +158,7 @@
               {currentUserId}
               {canComment}
               {onSeek}
+              onReact={onReact && ((emoji) => onReact(reply.id, emoji))}
               onEdit={(text) => onEdit(reply.id, text)}
               onDelete={() => onDelete(reply.id)}
             />
@@ -183,10 +187,18 @@
             {onSeek}
             onReply={(text) => onReply(comment.id, text, true)}
             onResolve={() => onResolve(comment.id)}
+            onReact={onReact && ((emoji) => onReact(comment.id, emoji))}
           />
           {#each repliesOf(carryComments, comment.id) as reply (reply.id)}
             <div class="replies">
-              <CommentItem comment={reply} isReply {currentUserId} {onSeek} />
+              <CommentItem
+                comment={reply}
+                isReply
+                {currentUserId}
+                {canComment}
+                {onSeek}
+                onReact={onReact && ((emoji) => onReact(reply.id, emoji))}
+              />
             </div>
           {/each}
         {/each}
