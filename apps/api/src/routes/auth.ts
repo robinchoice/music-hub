@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { deleteCookie, getCookie } from 'hono/cookie';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
   magicLinkSchema,
   verifyTokenSchema,
@@ -39,16 +39,28 @@ const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einlad
 const BLOCKED = 'Dieses Konto ist gesperrt.';
 
 // The user as every auth route returns it
-const userColumns = { id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, versionMails: users.versionMails };
-type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean };
-const toUser = ({ id, email, name, avatarUrl, versionMails }: UserRow) => ({
+const userColumns = {
+  id: users.id,
+  email: users.email,
+  name: users.name,
+  avatarUrl: users.avatarUrl,
+  versionMails: users.versionMails,
+  updatesConsentAt: users.updatesConsentAt,
+};
+type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null };
+const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: UserRow) => ({
   id,
   email,
   name,
   avatarUrl,
   versionMails,
+  // Since when the account gets update mails, null = off
+  updatesSince: updatesConsentAt?.toISOString() ?? null,
   isAdmin: isAdminEmail(email),
 });
+
+// Switching update mails on keeps the time of the first consent as proof
+const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
 async function createSession(c: any, db: any, userId: string) {
   const sessionToken = generateToken();
@@ -61,7 +73,7 @@ async function createSession(c: any, db: any, userId: string) {
 export const authRoutes = new Hono<AppEnv>()
   // Register with password
   .post('/register', zValidator('json', registerSchema), async (c) => {
-    const { name, email, password } = c.req.valid('json');
+    const { name, email, password, updates } = c.req.valid('json');
     const db = c.get('db');
 
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
@@ -84,9 +96,10 @@ export const authRoutes = new Hono<AppEnv>()
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 h
       name,
       passwordHash: await Bun.password.hash(password),
+      updatesOptIn: updates ?? false,
     });
 
-    await sendRegistrationEmail(email, token);
+    await sendRegistrationEmail(email, token, updates);
 
     return c.json({ user: null, verificationRequired: true }, 202);
   })
@@ -111,7 +124,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
-    const { email, next } = c.req.valid('json');
+    const { email, next, updates } = c.req.valid('json');
     const db = c.get('db');
 
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
@@ -128,9 +141,10 @@ export const authRoutes = new Hono<AppEnv>()
       email,
       token: tokenHash,
       expiresAt,
+      updatesOptIn: updates ?? false,
     });
 
-    await sendMagicLinkEmail(email, token, safeNextPath(next));
+    await sendMagicLinkEmail(email, token, safeNextPath(next), updates);
 
     return c.json({ message: 'Magic link sent' });
   })
@@ -176,10 +190,12 @@ export const authRoutes = new Hono<AppEnv>()
         .set({ usedAt: new Date() })
         .where(eq(magicLinks.id, link.id));
 
-      if (registration) {
+      // The ticked opt-in for update mails counts now that the link is opened
+      const consent = link.updatesOptIn ? { updatesConsentAt: consentNow } : {};
+      if (registration || link.updatesOptIn) {
         [user] = await tx
           .update(users)
-          .set({ ...registration, updatedAt: new Date() })
+          .set({ ...registration, ...consent, updatedAt: new Date() })
           .where(eq(users.id, user.id))
           .returning();
       }
@@ -235,15 +251,21 @@ export const authRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const userId = c.get('userId');
 
-    const body = await c.req.json<{ name?: string; versionMails?: boolean }>();
+    const body = await c.req.json<{ name?: string; versionMails?: boolean; updates?: boolean }>();
     const versionMails = typeof body.versionMails === 'boolean' ? body.versionMails : undefined;
-    if (body.name !== undefined || versionMails === undefined) {
+    const updates = typeof body.updates === 'boolean' ? body.updates : undefined;
+    if (body.name !== undefined || (versionMails === undefined && updates === undefined)) {
       if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
     }
 
     const [user] = await db
       .update(users)
-      .set({ name: body.name?.trim() || undefined, versionMails, updatedAt: new Date() })
+      .set({
+        name: body.name?.trim() || undefined,
+        versionMails,
+        ...(updates !== undefined && { updatesConsentAt: updates ? consentNow : null }),
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, userId))
       .returning(userColumns);
 

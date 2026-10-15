@@ -167,6 +167,8 @@ Wer einen geteilten Link öffnet, braucht kein Konto. Dabei speichere ich den Ze
 
 Einladungen, Login-Links, Hör-Benachrichtigungen und Mails zu neuen Versionen und Rückmeldungen verschickt Music Hub von noreply@pleasance.org über Proton (Proton AG, Route de la Galaise 32, 1228 Plan-les-Ouates, Schweiz). Für die Schweiz liegt ein Angemessenheitsbeschluss der EU-Kommission vor (Art. 45 DSGVO). Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Mails zu neuen Versionen und Rückmeldungen bekommst du nur, solange du auf keinem Gerät Push aktiviert hast. Abbestellen kannst du sie in deinem Konto oder über den Link in jeder dieser Mails.
 
+Updates zu neuen Funktionen bekommst du nur, wenn du sie beim Login oder bei der Registrierung ankreuzt und mit dem Link in der Mail bestätigst oder sie in deinem Konto einschaltest. Dafür speichere ich, seit wann du sie bekommst. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Abbestellen kannst du sie jederzeit in deinem Konto oder über den Link in jeder Update-Mail.
+
 ## 7. Push-Benachrichtigungen
 
 Benachrichtigungen über neue oder freigegebene Versionen gibt es nur, wenn du sie in deinem Konto aktivierst und im Browser erlaubst. Dafür speichere ich die Push-Adresse deines Browsers, die zugehörigen Schlüssel und die Kennung deines Browsers. Zugestellt werden die Nachrichten verschlüsselt über den Push-Dienst deines Browser-Herstellers, etwa Google, Mozilla oder Apple. Dabei können Daten in die USA übertragen werden. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Du kannst Push jederzeit in deinem Konto oder im Browser abschalten.

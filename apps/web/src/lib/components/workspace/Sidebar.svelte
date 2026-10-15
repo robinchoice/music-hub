@@ -30,6 +30,7 @@
     { href: '/admin', icon: 'gauge', label: 'Lagebild' },
     { href: '/admin/users', icon: 'users', label: 'Nutzerliste' },
     { href: '/admin/log', icon: 'activity', label: 'Protokoll' },
+    { href: '/admin/updates', icon: 'mail', label: 'Updates' },
   ] as const;
 
   let {

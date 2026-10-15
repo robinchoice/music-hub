@@ -12,11 +12,11 @@ const bun = (code: string) =>
     .at(-1)!;
 
 // A fresh user, logged in for the context
-export async function logIn(context: BrowserContext, baseURL: string, name = 'Testperson') {
+export async function logIn(context: BrowserContext, baseURL: string, name = 'Testperson', email = `test-${crypto.randomUUID()}@example.com`) {
   const { id, token } = JSON.parse(
     bun(`
       import { generateToken, hashToken } from './src/middleware/auth.ts';
-      const [u] = await db.insert(users).values({ email: 'test-' + crypto.randomUUID() + '@example.com', name: ${JSON.stringify(name)} }).returning();
+      const [u] = await db.insert(users).values({ email: ${JSON.stringify(email)}, name: ${JSON.stringify(name)} }).returning();
       const token = generateToken();
       await db.insert(sessions).values({ userId: u.id, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + 3600_000) });
       console.log(JSON.stringify({ id: u.id, token }));
@@ -99,4 +99,17 @@ export function mailTokenOf(userId: string) {
     const [u] = await db.select({ mailToken: users.mailToken }).from(users).where(eq(users.id, ${JSON.stringify(userId)}));
     console.log(u.mailToken);
   `);
+}
+
+// Address and update-mail state of a user: consent and the opt-in of the last login link
+export function updatesOf(userId: string) {
+  return JSON.parse(
+    bun(`
+      import { desc, eq } from 'drizzle-orm';
+      import { magicLinks } from '@music-hub/db';
+      const [u] = await db.select().from(users).where(eq(users.id, ${JSON.stringify(userId)}));
+      const [link] = await db.select().from(magicLinks).where(eq(magicLinks.email, u.email)).orderBy(desc(magicLinks.createdAt)).limit(1);
+      console.log(JSON.stringify({ email: u.email, consent: u.updatesConsentAt, optIn: link?.updatesOptIn ?? null }));
+    `),
+  ) as { email: string; consent: string | null; optIn: boolean | null };
 }

@@ -29,6 +29,16 @@
     }
   }
 
+  async function setUpdates(updates: boolean) {
+    try {
+      const res = await api.patch<{ user: typeof $user }>('/auth/me', { updates });
+      user.set(res.user);
+      toastSuccess(updates ? 'Updates per Mail eingeschaltet' : 'Updates per Mail ausgeschaltet');
+    } catch {
+      // The API client already showed the error
+    }
+  }
+
   async function save() {
     if (!name.trim()) return;
     saving = true;
@@ -77,6 +87,13 @@
           onchange={(e) => setVersionMails(e.currentTarget.checked)}
         />
         <span>Mails zu neuen Versionen und Rückmeldungen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.</span>
+      </label>
+      <label class="mail-row">
+        <input type="checkbox" checked={!!$user.updatesSince} onchange={(e) => setUpdates(e.currentTarget.checked)} />
+        <span>
+          Updates per Mail: neue Funktionen in Music Hub, ein paar Mal im Monat.
+          {#if $user.updatesSince}Eingeschaltet am {new Date($user.updatesSince).toLocaleDateString('de-DE')}.{/if}
+        </span>
       </label>
     {/if}
   </section>

@@ -111,6 +111,16 @@ Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/mus
 
 Jeder Push auf `main` deployt automatisch: Ein GitHub-Webhook ruft Coolify auf, Coolify baut Web und API neu. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
+## Update-Mails
+
+Mails zu neuen Funktionen an alle, die sie bestellt haben. Ohne Opt-in geht nichts raus.
+
+- Opt-in: ein nicht vorausgewähltes Kästchen beim Magic Link und bei der Registrierung. Es zählt erst, wenn der Link in der Mail geöffnet wird (Double-Opt-in), `users.updates_consent_at` hält den Zeitpunkt fest. Im Konto lässt es sich ein- und ausschalten.
+- Abbestellen: Link in jeder Update-Mail (`/abbestellen?liste=updates`) und One-Click im Mailprogramm (`List-Unsubscribe`), beides mit `users.mail_token` wie bei den Versions-Mails, aber unabhängig von deren Schalter.
+- Entwürfe: Agenten legen sie als `updates/<slug>.md` an, `# Titel`, dann `- Feature` je Zeile, optional `![](bild.png)` aus demselben Ordner. Die API übernimmt jede Datei beim Start einmal als Entwurf, spätere Änderungen an der Datei nicht mehr. Der API-Test prüft, dass alle Dateien lesbar sind.
+- Senden: nur Admins aus `ADMIN_EMAILS` unter `/admin/updates`, mit Vorschau und Testmail an sich selbst. Danach lässt sich das Update nicht mehr ändern.
+- Versand: die API, eine Mail alle `UPDATE_MAIL_INTERVAL_MS` (Standard 6000) über alle Instanzen, mit drei Versuchen pro Empfänger. Die Logs nennen keine Adressen.
+
 ## Für Agenten
 
 Fremde Agenten lesen die öffentlichen Inhalte ohne HTML, nach [llms.txt](https://llmstxt.org). Quelle ist `publicPages` in `apps/api/src/lib/public-pages.ts`, die Routen stehen in `apps/api/src/routes/agents.ts`. Der Web-Server leitet die Pfade an die API weiter.

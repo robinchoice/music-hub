@@ -28,6 +28,8 @@ import { sendDueFeedback } from './lib/reviews.js';
 import { profileRoutes } from './routes/profiles.js';
 import { requestRoutes } from './routes/requests.js';
 import { agentRoutes } from './routes/agents.js';
+import { updateRoutes } from './routes/updates.js';
+import { deliverUpdates, importDrafts } from './lib/updates.js';
 import { listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
 import type { AppEnv } from './types.js';
@@ -37,6 +39,7 @@ const db = createDb(process.env.DATABASE_URL!);
 // Auto-migrate on startup. A failed migration aborts the boot.
 await migrateDb(process.env.DATABASE_URL!);
 console.log('[Boot] Migrations up to date.');
+await importDrafts(db);
 
 // Delivers the events of all instances and the worker to this instance's SSE clients
 await listenForEvents(db);
@@ -97,7 +100,8 @@ const app = new Hono<AppEnv>()
   .route('/notices', noticeRoutes)
   .route('/upload-links', uploadLinkRoutes)
   .route('/profiles', profileRoutes)
-  .route('/requests', requestRoutes);
+  .route('/requests', requestRoutes)
+  .route('/updates', updateRoutes);
 
 // Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
 // Each instance runs it; taking a batch deletes it first, so none goes out twice.
@@ -112,6 +116,9 @@ setInterval(() => {
     captureException(err);
   });
 }, 30_000);
+
+// Update mails go out one by one in the background, see lib/updates.ts
+void deliverUpdates(db, captureException);
 
 const port = parseInt(process.env.PORT || '3000');
 console.log(`Music Hub API running on port ${port}`);

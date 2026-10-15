@@ -28,7 +28,8 @@ export default defineConfig({
     {
       command: 'bun src/index.ts',
       cwd: '../api',
-      env: { PORT: String(API_PORT), APP_URL: WEB },
+      // One admin address per browser project, see updates.test.ts
+      env: { PORT: String(API_PORT), APP_URL: WEB, ADMIN_EMAILS: 'e2e-admin-desktop@example.com,e2e-admin-handy@example.com' },
       url: `http://127.0.0.1:${API_PORT}/api/v1/health`,
       reuseExistingServer: false,
     },

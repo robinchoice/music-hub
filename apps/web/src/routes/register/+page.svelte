@@ -10,6 +10,8 @@
   let email = $state('');
   let password = $state('');
   let passwordConfirm = $state('');
+  // Unticked: update mails are opt-in, see README „Update-Mails“
+  let updates = $state(false);
   let loading = $state(false);
   let error = $state('');
   let sent = $state(false);
@@ -34,7 +36,7 @@
 
     loading = true;
     try {
-      const registered = await register(name, email, password);
+      const registered = await register(name, email, password, updates);
       if (registered) goto('/dashboard');
       else sent = true;
     } catch (err) {
@@ -47,7 +49,7 @@
     error = '';
     resending = true;
     try {
-      await register(name, email, password);
+      await register(name, email, password, updates);
       toastSuccess('Link erneut gesendet');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Senden fehlgeschlagen';
@@ -89,6 +91,10 @@
           <Input label="E-Mail" type="email" bind:value={email} placeholder="deine@email.de" />
           <Input label="Passwort" type="password" bind:value={password} placeholder="Mindestens 8 Zeichen" />
           <Input label="Passwort wiederholen" type="password" bind:value={passwordConfirm} placeholder="Nochmal eingeben" />
+          <label class="check">
+            <input type="checkbox" bind:checked={updates} />
+            <span>Schick mir Updates zu neuen Funktionen per Mail. Abbestellen geht jederzeit.</span>
+          </label>
 
           {#if error}
             <p class="error">{error}</p>
@@ -109,6 +115,18 @@
 </div>
 
 <style>
+  .check {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .check input {
+    accent-color: var(--color-accent);
+    margin-top: 3px;
+  }
   .shell {
     display: flex;
     flex-direction: column;

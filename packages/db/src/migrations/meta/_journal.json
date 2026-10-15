@@ -197,6 +197,13 @@
       "when": 1792083366441,
       "tag": "0027_comment_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792102913283,
+      "tag": "0028_update_mails",
+      "breakpoints": true
     }
   ]
 }

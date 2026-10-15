@@ -4,6 +4,8 @@ export const magicLinkSchema = z.object({
   email: z.string().email().max(255),
   // Page to return to after login, see safeNextPath
   next: z.string().max(2000).optional(),
+  // The unticked checkbox for update mails. Counts once the link is opened, a double opt-in.
+  updates: z.boolean().optional(),
 });
 
 // A path on this site to return to after login. Anything that would resolve to
@@ -30,6 +32,7 @@ export const registerSchema = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email().max(255),
   password: z.string().min(8).max(200),
+  updates: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({

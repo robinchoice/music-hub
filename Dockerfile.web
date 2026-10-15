@@ -19,7 +19,8 @@ WORKDIR /app
 COPY --from=build /app/apps/web/build build
 # Set by CI, the monitoring release
 ARG APP_VERSION=dev
-ENV NODE_ENV=production PORT=3000 APP_VERSION=$APP_VERSION
+# adapter-node accepts 512 KB by default, too little for images of update mails
+ENV NODE_ENV=production PORT=3000 BODY_SIZE_LIMIT=4M APP_VERSION=$APP_VERSION
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
   CMD bun -e "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"

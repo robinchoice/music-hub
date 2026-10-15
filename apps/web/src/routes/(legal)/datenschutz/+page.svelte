@@ -80,6 +80,9 @@
   Mails zu neuen Versionen und Rückmeldungen bekommst du nur, solange du auf keinem Gerät Push aktiviert hast. Abbestellen kannst du
   sie in deinem Konto oder über den Link in jeder dieser Mails.
 </p>
+<p>
+  Updates zu neuen Funktionen bekommst du nur, wenn du sie beim Login oder bei der Registrierung ankreuzt und mit dem Link in der Mail bestätigst oder sie in deinem Konto einschaltest. Dafür speichere ich, seit wann du sie bekommst. Rechtsgrundlage ist deine Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Abbestellen kannst du sie jederzeit in deinem Konto oder über den Link in jeder Update-Mail.
+</p>
 
 <h2>7. Push-Benachrichtigungen</h2>
 <p>

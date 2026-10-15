@@ -24,6 +24,8 @@
   let magicSent = $state(false);
   let magicLoading = $state(false);
   let magicError = $state('');
+  // Unticked: update mails are opt-in, see README „Update-Mails“
+  let updates = $state(false);
 
   $effect(() => {
     if ($user) goto(next ?? '/dashboard');
@@ -48,7 +50,7 @@
     magicError = '';
     magicLoading = true;
     try {
-      await sendMagicLink(magicEmail, next ?? undefined);
+      await sendMagicLink(magicEmail, next ?? undefined, updates);
       magicSent = true;
     } catch (err) {
       magicError = err instanceof Error ? err.message : 'Fehler beim Senden';
@@ -96,6 +98,10 @@
           <form onsubmit={handleMagicLink}>
             <p class="hint">Kein Passwort? Wir schicken dir einen Login-Link per E-Mail.</p>
             <Input type="email" bind:value={magicEmail} placeholder="deine@email.de" label="E-Mail" error={magicError} />
+            <label class="check">
+              <input type="checkbox" bind:checked={updates} />
+              <span>Schick mir Updates zu neuen Funktionen per Mail. Abbestellen geht jederzeit.</span>
+            </label>
             <Button type="submit" size="lg" loading={magicLoading}>
               Login-Link senden
             </Button>
@@ -209,6 +215,18 @@
     color: var(--color-error);
     font-size: var(--text-sm);
     margin: 0;
+  }
+  .check {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .check input {
+    accent-color: var(--color-accent);
+    margin-top: 3px;
   }
   .hint {
     color: var(--color-text-tertiary);

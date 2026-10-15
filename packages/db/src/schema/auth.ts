@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
 export const magicLinks = pgTable('magic_links', {
@@ -10,6 +10,8 @@ export const magicLinks = pgTable('magic_links', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   name: varchar('name', { length: 255 }),
   passwordHash: text('password_hash'),
+  // Ticked "send me updates", applied when the link is opened (double opt-in)
+  updatesOptIn: boolean('updates_opt_in').default(false).notNull(),
 });
 
 export const sessions = pgTable('sessions', {

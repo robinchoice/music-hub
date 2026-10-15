@@ -15,3 +15,4 @@ export * from './uploadLinks.js';
 export * from './profiles.js';
 export * from './reviews.js';
 export * from './reactions.js';
+export * from './updates.js';
