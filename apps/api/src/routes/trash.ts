@@ -46,7 +46,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
           commentCount: sql<number>`(select count(*)::int from comments c join versions v on v.id = c.version_id where v.track_id = tracks.id and v.deleted_at is null and c.deleted_at is null)`,
           stemCount: sql<number>`(select count(*)::int from stems s where s.track_id = tracks.id and s.deleted_at is null)`,
           shareLinkCount: sql<number>`(select count(*)::int from share_links l join versions v on v.id = l.version_id where v.track_id = tracks.id and v.deleted_at is null)`,
-          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and s.deleted_at is null and r.deleted_at is null))::float8`,
+          bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and not s.forked and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and not r.forked and s.deleted_at is null and r.deleted_at is null))::float8`,
         })
         .from(tracks)
         .where(and(inArray(tracks.projectId, ownedIds), inTrash(tracks)))
@@ -81,7 +81,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
       trackId: tracks.id,
       trackName: tracks.name,
       name: stems.name,
-      bytes: stems.fileSize,
+      bytes: sql<number>`case when ${stems.forked} then 0 else ${stems.fileSize} end`,
     })
     .from(stems)
     .innerJoin(tracks, eq(tracks.id, stems.trackId))
@@ -103,7 +103,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
       trackName: tracks.name,
       name: stems.name,
       originalFileName: stemRevisions.originalFileName,
-      bytes: stemRevisions.fileSize,
+      bytes: sql<number>`case when ${stemRevisions.forked} then 0 else ${stemRevisions.fileSize} end`,
     })
     .from(stemRevisions)
     .innerJoin(stems, eq(stems.id, stemRevisions.stemId))

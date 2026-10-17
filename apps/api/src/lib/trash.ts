@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { TRASH_DAYS } from '@music-hub/shared';
-import { comments, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
+import { comments, projects, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
 import { deleteObject } from '../storage/s3.js';
 
 // After leaving the trash, deleted things are kept this long so they can be restored on request
@@ -124,7 +124,9 @@ export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
       .from(stemRevisions)
       .where(eq(stemRevisions.fileKey, key))
       .limit(1);
-    if (versionRef || stemRef || revisionRef) continue;
+    const [projectCoverRef] = await db.select({ id: projects.id }).from(projects).where(eq(projects.coverImageUrl, key)).limit(1);
+    const [trackCoverRef] = await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.coverImageUrl, key)).limit(1);
+    if (versionRef || stemRef || revisionRef || projectCoverRef || trackCoverRef) continue;
     try {
       await deleteObject(key);
       files++;

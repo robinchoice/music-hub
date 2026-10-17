@@ -20,6 +20,7 @@ import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
+import { publish } from '../services/sse.js';
 
 // Links of a version in the trash pause until it is restored
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
@@ -285,7 +286,8 @@ export const shareRoutes = new Hono<AppEnv>()
     const link = await commentableLink(c, token);
     if (link instanceof Response) return link;
 
-    if (!(await liveVersion(db, link.versionId))) return c.json({ error: UNAVAILABLE }, 410);
+    const found = await liveVersion(db, link.versionId);
+    if (!found) return c.json({ error: UNAVAILABLE }, 410);
 
     if (input.parentId) {
       const [parent] = await db
@@ -308,6 +310,7 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .returning();
 
+    publish(db, found.track.id, { type: 'comment:new', data: { versionId: link.versionId, commentId: comment.id } });
     return c.json({ comment }, 201);
   })
 

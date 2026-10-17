@@ -75,22 +75,22 @@ export const overviewRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const userId = c.get('userId');
 
-    const [me] = await db.select({ tracksSeenAt: users.tracksSeenAt }).from(users).where(eq(users.id, userId)).limit(1);
-    const dismissed = await db
-      .select({ taskKey: taskDismissals.taskKey })
-      .from(taskDismissals)
-      .where(eq(taskDismissals.userId, userId));
+    const [[me], dismissed, storage, memberships] = await Promise.all([
+      db.select({ tracksSeenAt: users.tracksSeenAt }).from(users).where(eq(users.id, userId)).limit(1),
+      db.select({ taskKey: taskDismissals.taskKey }).from(taskDismissals).where(eq(taskDismissals.userId, userId)),
+      storageSummary(db, userId),
+      db
+        .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
+        .from(projectMembers)
+        .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+        .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false))),
+    ]);
     const personal = {
-      storage: await storageSummary(db, userId),
+      storage,
       dismissedTaskKeys: dismissed.map((d) => d.taskKey),
       tracksSeenAt: iso(me?.tracksSeenAt),
     };
 
-    const memberships = await db
-      .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
-      .from(projectMembers)
-      .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-      .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)));
     const projectIds = memberships.map((m) => m.project.id);
     if (projectIds.length === 0) {
       return c.json({ projects: [], users: [], tracks: [], versions: [], comments: [], listens: [], ...personal });
@@ -138,48 +138,53 @@ export const overviewRoutes = new Hono<AppEnv>()
     const versionIds = versionRows.map((v) => v.id);
 
     const cutoff = new Date(Date.now() - COMMENT_WINDOW_DAYS * DAY_MS);
-    const commentRows = versionIds.length
-      ? await db
-          .select({
-            id: comments.id,
-            versionId: comments.versionId,
-            parentId: comments.parentId,
-            userId: comments.userId,
-            guestName: comments.guestName,
-            timestampSeconds: comments.timestampSeconds,
-            resolvedAt: comments.resolvedAt,
-            createdAt: comments.createdAt,
-            body: comments.body,
-          })
-          .from(comments)
-          .where(
-            and(
-              inArray(comments.versionId, versionIds),
-              isNull(comments.deletedAt),
-              or(isNull(comments.resolvedAt), gte(comments.createdAt, cutoff)),
-            ),
-          )
-      : [];
+    const [commentRows, rejectionRows, links] = await Promise.all([
+      versionIds.length
+        ? db
+            .select({
+              id: comments.id,
+              versionId: comments.versionId,
+              parentId: comments.parentId,
+              userId: comments.userId,
+              guestName: comments.guestName,
+              timestampSeconds: comments.timestampSeconds,
+              resolvedAt: comments.resolvedAt,
+              createdAt: comments.createdAt,
+              body: comments.body,
+            })
+            .from(comments)
+            .where(
+              and(
+                inArray(comments.versionId, versionIds),
+                isNull(comments.deletedAt),
+                or(isNull(comments.resolvedAt), gte(comments.createdAt, cutoff)),
+              ),
+            )
+        : [],
 
-    // The newest rejection comment of each version, regardless of age
-    const rejectionRows = versionIds.length
-      ? await db
-          .select({ versionId: comments.versionId, body: comments.body })
-          .from(comments)
-          .where(
-            and(
-              inArray(comments.versionId, versionIds),
-              isNull(comments.parentId),
-              isNull(comments.deletedAt),
-              sql`${comments.body} LIKE ${REJECTION_PREFIX + '%'}`,
-            ),
-          )
-          .orderBy(desc(comments.createdAt))
-      : [];
-    const rejectionReason = new Map<string, string>();
-    for (const r of rejectionRows) {
-      if (!rejectionReason.has(r.versionId)) rejectionReason.set(r.versionId, r.body.slice(REJECTION_PREFIX.length));
-    }
+      // The newest rejection comment of each version, regardless of age
+      versionIds.length
+        ? db
+            .selectDistinctOn([comments.versionId], { versionId: comments.versionId, body: comments.body })
+            .from(comments)
+            .where(
+              and(
+                inArray(comments.versionId, versionIds),
+                isNull(comments.parentId),
+                isNull(comments.deletedAt),
+                sql`${comments.body} LIKE ${REJECTION_PREFIX + '%'}`,
+              ),
+            )
+            .orderBy(comments.versionId, desc(comments.createdAt))
+        : [],
+      versionIds.length
+        ? db
+            .select({ id: shareLinks.id, versionId: shareLinks.versionId, expiresAt: shareLinks.expiresAt })
+            .from(shareLinks)
+            .where(inArray(shareLinks.versionId, versionIds))
+        : [],
+    ]);
+    const rejectionReason = new Map(rejectionRows.map((r) => [r.versionId, r.body.slice(REJECTION_PREFIX.length)]));
 
     const isRejection = (row: { parentId: string | null; body: string }) =>
       !row.parentId && row.body.startsWith(REJECTION_PREFIX);
@@ -194,12 +199,6 @@ export const overviewRoutes = new Hono<AppEnv>()
       }));
 
     const now = new Date();
-    const links = versionIds.length
-      ? await db
-          .select({ id: shareLinks.id, versionId: shareLinks.versionId, expiresAt: shareLinks.expiresAt })
-          .from(shareLinks)
-          .where(inArray(shareLinks.versionId, versionIds))
-      : [];
     const activeLink = new Set(links.filter((l) => !l.expiresAt || l.expiresAt > now).map((l) => l.versionId));
 
     const listenRows = links.length

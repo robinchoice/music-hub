@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'svelte';
 import type { ProjectRole } from '@music-hub/shared';
+import { isoWeek } from './format.js';
 import type Icon from '$lib/components/ui/Icon.svelte';
 
 type IconName = ComponentProps<typeof Icon>['name'];
@@ -196,12 +197,6 @@ export function pointLabel(start: string, unit: 'day' | 'week'): string {
   const date = new Date(y!, m! - 1, d!);
   if (unit === 'week') return `KW ${isoWeek(date)}`;
   return `${date.toLocaleDateString('de-DE', { weekday: 'short' })} ${date.getDate()}.${date.getMonth() + 1}.`;
-}
-
-function isoWeek(d: Date): number {
-  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
 }
 
 /** "Dienstag, 6. Oktober · Stand 14:12" */

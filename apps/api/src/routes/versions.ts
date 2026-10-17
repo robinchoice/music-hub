@@ -51,30 +51,34 @@ export const versionRoutes = new Hono<AppEnv>()
       .orderBy(desc(versions.versionNumber));
 
     const versionIds = trackVersions.map((v) => v.id);
-    const topLevel = versionIds.length
-      ? await db
-          .select({
-            versionId: comments.versionId,
-            body: comments.body,
-            resolvedAt: comments.resolvedAt,
-          })
-          .from(comments)
-          .where(and(inArray(comments.versionId, versionIds), isNull(comments.parentId), isNull(comments.deletedAt)))
-          .orderBy(desc(comments.createdAt))
-      : [];
+    const [counts, rejections, notes] = await Promise.all([
+      versionIds.length
+        ? db
+            .select({
+              versionId: comments.versionId,
+              count: sql<number>`count(*) filter (where ${comments.resolvedAt} is null)::int`,
+            })
+            .from(comments)
+            .where(and(inArray(comments.versionId, versionIds), isNull(comments.parentId), isNull(comments.deletedAt)))
+            .groupBy(comments.versionId)
+        : [],
+      versionIds.length
+        ? db
+            .selectDistinctOn([comments.versionId], { versionId: comments.versionId, body: comments.body })
+            .from(comments)
+            .where(and(
+              inArray(comments.versionId, versionIds),
+              isNull(comments.parentId),
+              isNull(comments.deletedAt),
+              sql`${comments.body} LIKE ${REJECTION_PREFIX + '%'}`,
+            ))
+            .orderBy(comments.versionId, desc(comments.createdAt))
+        : [],
+      changeNotes(db, versionIds),
+    ]);
+    const openCount = new Map(counts.map((row) => [row.versionId, row.count]));
+    const rejectionReason = new Map(rejections.map((row) => [row.versionId, row.body.slice(REJECTION_PREFIX.length)]));
 
-    const openCount = new Map<string, number>();
-    const rejectionReason = new Map<string, string>();
-    for (const comment of topLevel) {
-      if (!comment.resolvedAt) {
-        openCount.set(comment.versionId, (openCount.get(comment.versionId) ?? 0) + 1);
-      }
-      if (comment.body.startsWith(REJECTION_PREFIX) && !rejectionReason.has(comment.versionId)) {
-        rejectionReason.set(comment.versionId, comment.body.slice(REJECTION_PREFIX.length));
-      }
-    }
-
-    const notes = await changeNotes(db, versionIds);
     return c.json({
       versions: trackVersions.map((v) => ({
         ...v,

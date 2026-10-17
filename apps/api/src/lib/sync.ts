@@ -21,51 +21,53 @@ export async function syncState(db: Database, userId: string) {
     : [];
   const trackIds = trackRows.map((t) => t.id);
 
-  const versionRows = trackIds.length
-    ? await db
-        .select({
-          id: versions.id,
-          trackId: versions.trackId,
-          versionNumber: versions.versionNumber,
-          label: versions.label,
-          originalFileName: versions.originalFileName,
-          fileSize: versions.fileSize,
-          sha256: versions.sha256,
-          createdAt: versions.createdAt,
-        })
-        .from(versions)
-        .where(and(inArray(versions.trackId, trackIds), isNull(versions.deletedAt)))
-        .orderBy(asc(versions.versionNumber))
-    : [];
-  const stemRows = trackIds.length
-    ? await db
-        .select({
-          id: stems.id,
-          trackId: stems.trackId,
-          name: stems.name,
-          originalFileName: stems.originalFileName,
-          fileSize: stems.fileSize,
-          sha256: stems.sha256,
-          createdAt: stems.createdAt,
-          revisedAt: stems.revisedAt,
-        })
-        .from(stems)
-        .where(and(inArray(stems.trackId, trackIds), isNull(stems.deletedAt)))
-        .orderBy(asc(stems.sortOrder), asc(stems.name))
-    : [];
+  const [versionRows, stemRows] = await Promise.all([
+    trackIds.length
+      ? db
+          .select({
+            id: versions.id,
+            trackId: versions.trackId,
+            versionNumber: versions.versionNumber,
+            label: versions.label,
+            originalFileName: versions.originalFileName,
+            fileSize: versions.fileSize,
+            sha256: versions.sha256,
+            createdAt: versions.createdAt,
+          })
+          .from(versions)
+          .where(and(inArray(versions.trackId, trackIds), isNull(versions.deletedAt)))
+          .orderBy(asc(versions.versionNumber))
+      : [],
+    trackIds.length
+      ? db
+          .select({
+            id: stems.id,
+            trackId: stems.trackId,
+            name: stems.name,
+            originalFileName: stems.originalFileName,
+            fileSize: stems.fileSize,
+            sha256: stems.sha256,
+            createdAt: stems.createdAt,
+            revisedAt: stems.revisedAt,
+          })
+          .from(stems)
+          .where(and(inArray(stems.trackId, trackIds), isNull(stems.deletedAt)))
+          .orderBy(asc(stems.sortOrder), asc(stems.name))
+      : [],
+  ]);
+  const tracksByProject = Map.groupBy(trackRows, (t) => t.projectId);
+  const versionsByTrack = Map.groupBy(versionRows, (v) => v.trackId);
+  const stemsByTrack = Map.groupBy(stemRows, (s) => s.trackId);
 
   return {
     projects: projectRows.map((project) => ({
       ...project,
-      tracks: trackRows
-        .filter((t) => t.projectId === project.id)
-        .map(({ projectId, ...track }) => ({
-          ...track,
-          versions: versionRows.filter((v) => v.trackId === track.id).map(({ trackId, ...v }) => v),
-          stems: stemRows
-            .filter((s) => s.trackId === track.id)
-            .map(({ trackId, createdAt, revisedAt, ...s }) => ({ ...s, updatedAt: revisedAt ?? createdAt })),
-        })),
+      tracks: (tracksByProject.get(project.id) ?? []).map(({ projectId, ...track }) => ({
+        ...track,
+        versions: (versionsByTrack.get(track.id) ?? []).map(({ trackId, ...v }) => v),
+        stems: (stemsByTrack.get(track.id) ?? [])
+          .map(({ trackId, createdAt, revisedAt, ...s }) => ({ ...s, updatedAt: revisedAt ?? createdAt })),
+      })),
     })),
   };
 }

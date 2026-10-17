@@ -1,6 +1,6 @@
 <script lang="ts">
   import { STEM_MIME_TYPE } from '@music-hub/shared';
-  import { checkFileSize, MAX_FILE_SIZE_LABEL } from '$lib/audio/upload.js';
+  import { checkFileSize, MAX_FILE_SIZE_LABEL, unreadableFiles } from '$lib/audio/upload.js';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
   import { toast } from '$lib/stores/toast.js';
@@ -81,8 +81,7 @@
 
     uploading = true;
     inFlight = true;
-    const readable = await Promise.all(selected.map((f) => f.slice(0, 1).arrayBuffer().then(() => true, () => false)));
-    const unreadable = selected.filter((_, i) => !readable[i]);
+    const unreadable = await unreadableFiles(selected);
     if (unreadable.length > 0) {
       globalError = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
       uploading = false;

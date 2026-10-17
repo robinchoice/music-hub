@@ -42,6 +42,12 @@ export function timeAgo(dateStr: string): string {
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
+export function isoWeek(d: Date): number {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / (24 * HOUR) + 1) / 7);
+}
+
 // Start of the local day `daysBack` days before `now`
 function dayStart(now: number, daysBack = 0): number {
   const d = new Date(now);

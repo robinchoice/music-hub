@@ -1,8 +1,8 @@
 // Pure helpers for the overview pages: Übersicht, Für dich, Tracks, Timeline and Mixer.
 // No $lib imports, so they can be checked with Bun like track.ts.
-import { formatDate, formatTime, initials } from './format.js';
+import { formatDate, formatTime, initials, isoWeek } from './format.js';
 
-import type { TrackStatus } from '@music-hub/shared';
+import { hasPermission, PROJECT_ROLES, type TrackStatus } from '@music-hub/shared';
 
 export type { TrackStatus };
 
@@ -92,9 +92,9 @@ export type OverviewData = {
 };
 
 /** Roles whose feedback a version waits for */
-export const FEEDBACK_ROLES = ['owner', 'producer', 'artist', 'label', 'management'];
+export const FEEDBACK_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermission(r, 'version.approve'));
 /** Roles that may upload versions */
-export const UPLOAD_ROLES = ['owner', 'producer', 'recording_engineer', 'mixing_engineer', 'mastering_engineer'];
+export const UPLOAD_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermission(r, 'track.upload'));
 
 const REJECTION_PREFIX = '❌ Abgelehnt: ';
 const DAY = 86_400_000;
@@ -446,12 +446,6 @@ function startOfWeek(d: Date): Date {
   x.setHours(0, 0, 0, 0);
   x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
   return x;
-}
-
-function isoWeek(d: Date): number {
-  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
 }
 
 export type WeekBucket = { start: Date; end: Date; week: number; versions: number; comments: number; current: boolean };
