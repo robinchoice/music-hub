@@ -14,6 +14,7 @@
 
 - Jeder Push auf `main` geht sofort live: Die CI prüft, baut die Images und deployt über die Coolify-API erst die API, dann den Worker, dann das Web. Auf VPS 1 wird nicht gebaut.
 - Prüfen: `gh run watch`. Der Deploy-Job ist erst grün, wenn `https://hub.pleasance.org/api/v1/health` den Commit als `revision` meldet.
+- Nach erfolgreichem Deploy fotografiert `screenshots` ausschließlich `/` (Demo mit Beispieldaten) und `/login` ohne Anmeldung in Desktop und Handy. Bilder landen als WebP in `docs/screenshots`, der Bot committet mit `[skip ci]` ohne erneuten Deploy. Danach meldet der Job `prototype-deployed` an `robinchoice/pleasance` über `PLEASANCE_DISPATCH_TOKEN`. Vor dem nächsten Push den Bot-Commit holen.
 - Destruktive Aktionen (Daten oder Volumes löschen, manuelle Änderungen an der Prod-DB) nur nach ausdrücklicher Freigabe.
 
 ## Fallen
