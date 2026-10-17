@@ -79,7 +79,7 @@ export async function deliverNotices(db: Database, batch: NoticeBatch) {
     batch.items.length === 1
       ? { title: 'Neue Version', body: `${first.trackName} — V${first.versionNumber} hochgeladen`, url: `/projects/${batch.projectId}/tracks/${first.trackId}` }
       : { title: 'Neue Versionen', body: `${batch.actorName}: ${batch.items.length} neue Versionen in ${batch.projectName}`, url: `/projects/${batch.projectId}` };
-  await notifyUsers(db, batch.pushTo, payload);
+  await notifyUsers(db, batch.pushTo, { ...payload, projectId: batch.projectId, ...(batch.items.length === 1 ? { trackId: first.trackId } : {}) });
   for (const { email, mailToken } of batch.mailTo) {
     await sendVersionsEmail(email, mailToken, batch).catch((err) => console.error('[Notices] Mail failed:', err));
   }

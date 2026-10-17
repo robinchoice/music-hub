@@ -252,6 +252,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
 
     if (await uploadAlerts.hit(db, `${found.link.id}:${track.id}`)) {
       notifyProjectMembers(db, track.projectId, '', {
+        projectId: track.projectId, trackId: track.id,
         title: 'Neue Spuren',
         body: `${input.guestName} hat Spuren zu ${track.name} hochgeladen`,
         url: `/projects/${track.projectId}/tracks/${track.id}`,

@@ -136,7 +136,7 @@ async function deliverFeedback(
 
   const text = feedbackText(input.authorName, track.name, version.versionNumber, input.verdict, input.comments.length, input.note);
   if (uploader.hasPush) {
-    await notifyUser(db, version.createdById, { ...text, url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}` });
+    await notifyUser(db, version.createdById, { projectId: track.projectId, trackId: track.id, ...text, url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}` });
   } else if (uploader.versionMails) {
     await sendFeedbackEmail(uploader.email, uploader.mailToken, {
       title: text.title,

@@ -38,11 +38,12 @@
 
 ## Konventionen
 
-- Ein Push ist nur ein Signal: Ereignistyp und Objekt-ID oder Cursor, keine Inhalte und keine personenbezogenen Daten, wegen des Datenschutzes (Grundsätze 1 und 2). Die App holt die Daten über einen Endpunkt hinter `requireAuth` ab ihrem letzten Cursor (`since`) und fragt ihn auch beim Öffnen und regelmäßig ab, so schaden verlorene oder doppelte Pushes nicht. Die SSE-Events (`services/sse.ts`) folgen dem schon. Die Web-Pushes (`services/push.ts`) tragen noch Titel und Text der Benachrichtigung mit Namen von Personen und Tracks; ob sie auf Signal plus Abruf im Service Worker umgestellt werden, entscheidet Robin (Backlog).
+- Ein Push ist nur ein Signal: Ereignistyp und Objekt-ID oder Cursor, keine Inhalte und keine personenbezogenen Daten, wegen des Datenschutzes (Grundsätze 1 und 2). Die App holt die Daten über einen Endpunkt hinter `requireAuth` ab ihrem letzten Cursor (`since`) und fragt ihn auch beim Öffnen und regelmäßig ab, so schaden verlorene oder doppelte Pushes nicht. SSE und Web-Push folgen dem. Web-Push enthält nur `type: notification` und eine ID; Details stehen sieben Tage in `push_notifications`, das API-Intervall löscht ältere Einträge. Der Service Worker ruft sie mit Session-Cookie über `/api/v1/push/notifications/:id` ab, mit erneuter Empfänger- und Berechtigungsprüfung. Fehler bleiben neutral. Beim Öffnen und jede Minute im Vordergrund holt er verpasste Einträge über `since` nach; der Cursor ist kontogebunden, Benachrichtigungs-Tags sind stabile IDs, bereits angezeigte IDs merkt er sich sieben Tage ohne Inhalte. Ein geschlossener Browser kann ohne zugestelltes Push-Signal erst beim nächsten Öffnen nachholen.
 
 ## Abweichungen vom Standard
 
-- Music Hub spricht nur Deutsch, es gibt keinen Sprach-Umschalter. Neue Texte kommen auf Deutsch, Update-Mails haben eine Sprache. Nur die Seiten für Agenten (`/llms.txt`) gibt es auch auf Englisch. Ob Music Hub zweisprachig wird, entscheidet Robin (Backlog).
+- PostHog bleibt nach Robins Entscheidung vom 17.10.2026 deaktiviert.
+- Music Hub spricht nur Deutsch, es gibt keinen Sprach-Umschalter. Neue Texte kommen auf Deutsch, Update-Mails haben eine Sprache. Nur die Seiten für Agenten (`/llms.txt`) gibt es auch auf Englisch. Robin hat dies am 17.10.2026 bestätigt; erst bei konkretem Bedarf oder einem englischsprachigen Tester erneut entscheiden.
 - Update-Mails verschickt die API in einer Schleife (`deliverUpdates`), nicht ein eigener Worker wie im starter: Der Audio-Worker hat kein SMTP. Takt und Sperre liegen in Postgres, mehrere API-Instanzen teilen sich den Versand.
 - Die Health-Route der API heißt `/api/v1/health` statt `/api/health`, umbenennen verbietet die Rückwärtskompatibilität. Der Deploy-Job prüft dort die `revision`.
 - Der Papierkorb-Purge läuft im Worker per `setInterval` statt über eine Zeitplan-Tabelle: Er ist idempotent, ein doppelter Lauf findet nichts mehr, ein verpasster holt beim nächsten nach.

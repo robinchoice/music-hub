@@ -23,6 +23,7 @@ import { openRoutes } from './routes/open.js';
 import { syncRoutes } from './routes/sync.js';
 import { noticeRoutes } from './routes/notices.js';
 import { uploadLinkRoutes } from './routes/upload-links.js';
+import { pruneNotifications } from './lib/push-notifications.js';
 import { sendDueNotices } from './lib/notices.js';
 import { sendDueFeedback } from './lib/reviews.js';
 import { profileRoutes } from './routes/profiles.js';
@@ -107,6 +108,7 @@ const app = new Hono<AppEnv>()
 // Each instance runs it; taking a batch deletes it first, so none goes out twice.
 // Feedback whose author forgot "Fertig" goes out the same way, under a lock.
 setInterval(() => {
+  pruneNotifications(db).catch((err) => console.error('[Push] Cleanup failed:', err));
   sendDueNotices(db).catch((err) => {
     console.error('[Notices] Sending failed:', err);
     captureException(err);

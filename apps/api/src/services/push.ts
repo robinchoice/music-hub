@@ -1,13 +1,11 @@
 import webpush from 'web-push';
 import { eq, inArray } from 'drizzle-orm';
-import { pushSubscriptions, projectMembers } from '@music-hub/db';
+import { pushSubscriptions, projectMembers, type Database } from '@music-hub/db';
+import { saveNotifications, type NotificationDetails } from '../lib/push-notifications.js';
 
-export type PushPayload = {
-  title: string;
-  body: string;
-  url?: string;
-  icon?: string;
-};
+export function pushSignal(id: bigint) {
+  return { type: 'notification', id: id.toString() };
+}
 
 function initVapid() {
   const pub = process.env.VAPID_PUBLIC_KEY;
@@ -22,12 +20,13 @@ initVapid();
 
 async function send(
   sub: { endpoint: string; p256dh: string; auth: string },
-  payload: PushPayload,
+  payload: ReturnType<typeof pushSignal>,
 ): Promise<boolean> {
   try {
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       JSON.stringify(payload),
+      { TTL: 7 * 86400 },
     );
     return true;
   } catch (err: any) {
@@ -38,10 +37,10 @@ async function send(
 }
 
 export async function notifyProjectMembers(
-  db: any,
+  db: Database,
   projectId: string,
   excludeUserId: string,
-  payload: PushPayload,
+  payload: NotificationDetails,
 ): Promise<void> {
   if (!process.env.VAPID_PUBLIC_KEY) return;
 
@@ -57,7 +56,7 @@ export async function notifyProjectMembers(
   await notifyUsers(db, userIds, payload);
 }
 
-export async function notifyUsers(db: any, userIds: string[], payload: PushPayload): Promise<void> {
+export async function notifyUsers(db: Database, userIds: string[], payload: NotificationDetails): Promise<void> {
   if (!process.env.VAPID_PUBLIC_KEY || userIds.length === 0) return;
 
   const subs = await db
@@ -65,10 +64,12 @@ export async function notifyUsers(db: any, userIds: string[], payload: PushPaylo
     .from(pushSubscriptions)
     .where(inArray(pushSubscriptions.userId, userIds));
 
+  const notifications = await saveNotifications(db, subs.map((sub) => sub.userId), payload);
   const stale: string[] = [];
   await Promise.all(
-    subs.map(async (sub: typeof pushSubscriptions.$inferSelect) => {
-      const ok = await send(sub, payload);
+    subs.map(async (sub) => {
+      const notification = notifications.find((n) => n.userId === sub.userId)!;
+      const ok = await send(sub, pushSignal(notification.id));
       if (!ok) stale.push(sub.id);
     }),
   );
@@ -79,26 +80,9 @@ export async function notifyUsers(db: any, userIds: string[], payload: PushPaylo
 }
 
 export async function notifyUser(
-  db: any,
+  db: Database,
   userId: string,
-  payload: PushPayload,
+  payload: NotificationDetails,
 ): Promise<void> {
-  if (!process.env.VAPID_PUBLIC_KEY) return;
-
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.userId, userId));
-
-  const stale: string[] = [];
-  await Promise.all(
-    subs.map(async (sub: typeof pushSubscriptions.$inferSelect) => {
-      const ok = await send(sub, payload);
-      if (!ok) stale.push(sub.id);
-    }),
-  );
-
-  if (stale.length > 0) {
-    await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.id, stale));
-  }
+  await notifyUsers(db, [userId], payload);
 }

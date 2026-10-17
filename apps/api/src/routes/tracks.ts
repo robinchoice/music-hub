@@ -25,6 +25,7 @@ async function membershipOf(db: Database, projectId: string, userId: string) {
 
 function askForConsent(db: Database, track: { id: string; name: string; projectId: string }, userId: string) {
   return notifyUser(db, userId, {
+    projectId: track.projectId, trackId: track.id,
     title: 'Offen stellen?',
     body: `${track.name} soll offen werden. Stimmst du zu?`,
     url: `/projects/${track.projectId}/tracks/${track.id}`,

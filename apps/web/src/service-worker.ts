@@ -8,6 +8,7 @@
 // for offline-aware behaviour, but never cache API responses.
 
 import { build, files, version } from '$service-worker';
+import { showPush, syncPush } from './lib/push-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `musichub-${version}`;
@@ -36,32 +37,25 @@ sw.addEventListener('activate', (event) => {
 });
 
 sw.addEventListener('push', (event) => {
-  if (!event.data) return;
-  let payload: { title?: string; body?: string; url?: string } = {};
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: 'Music Hub', body: event.data.text() };
-  }
-  event.waitUntil(
-    sw.registration.showNotification(payload.title ?? 'Music Hub', {
-      body: payload.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-72.png',
-      data: { url: payload.url ?? '/' },
-    }),
-  );
+  let signal: unknown;
+  try { signal = event.data?.json(); } catch { /* Malformed signals stay neutral. */ }
+  event.waitUntil(showPush(sw.registration, signal));
+});
+
+sw.addEventListener('message', (event) => {
+  if (event.data?.type === 'push:sync') event.waitUntil(syncPush(sw.registration));
 });
 
 sw.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? '/';
+  const target = new URL(event.notification.data?.url ?? '/for-you', sw.location.origin);
+  const url = target.origin === sw.location.origin ? target.href : `${sw.location.origin}/for-you`;
   event.waitUntil(
     sw.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
-          if (client.url.includes(sw.location.origin) && 'focus' in client) {
+          if (new URL(client.url).origin === sw.location.origin && 'focus' in client) {
             (client as WindowClient).navigate(url);
             return client.focus();
           }

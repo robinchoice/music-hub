@@ -58,6 +58,7 @@ export const requestRoutes = new Hono<AppEnv>()
       db.select({ email: users.email }).from(users).where(eq(users.id, result.fromUserId)),
     ]);
     notifyUser(db, result.fromUserId, {
+      projectId: result.projectId,
       title: `${me.name} hat angenommen`,
       body: `Ihr arbeitet jetzt zusammen in „${project.name}“.`,
       url: `/projects/${result.projectId}`,

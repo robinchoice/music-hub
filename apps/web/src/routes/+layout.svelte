@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { APP_BAND, GLOW, bandColor, bandGradient } from '@music-hub/shared';
   import { page } from '$app/stores';
-  import { checkAuth, authLoading } from '$lib/stores/auth.js';
+  import { checkAuth, authLoading, user } from '$lib/stores/auth.js';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
   // @ts-ignore — no types shipped for fontsource
   import '@fontsource-variable/inter';
@@ -24,6 +24,21 @@
 
   onMount(() => {
     checkAuth();
+    const sync = () => {
+      if ($user && document.visibilityState === 'visible' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.controller?.postMessage({ type: 'push:sync' });
+      }
+    };
+    const unsubscribe = user.subscribe(() => sync());
+    const timer = setInterval(sync, 60_000);
+    document.addEventListener('visibilitychange', sync);
+    navigator.serviceWorker?.addEventListener('controllerchange', sync);
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', sync);
+      navigator.serviceWorker?.removeEventListener('controllerchange', sync);
+    };
   });
 
   // Link previews. Public pages override them with meta in their server load,

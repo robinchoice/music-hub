@@ -110,6 +110,7 @@ export const profileRoutes = new Hono<AppEnv>()
       db.select({ email: users.email }).from(users).where(eq(users.id, found.profile.userId)),
     ]);
     notifyUser(db, found.profile.userId, {
+      requestId: request.id,
       title: `Anfrage von ${sender.name}`,
       body: message.length > 120 ? `${message.slice(0, 119)}…` : message,
       url: '/for-you',
