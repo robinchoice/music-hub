@@ -39,7 +39,7 @@ export const coverUploadSchema = z.object({
 });
 
 export const requestUploadUrlSchema = z.object({
-  fileName: z.string().min(1),
+  fileName: z.string().min(1).max(255).regex(/^[^/]+$/),
   mimeType: z.enum(SUPPORTED_AUDIO_FORMATS),
   fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
 });
@@ -72,7 +72,7 @@ export const rejectVersionSchema = z.object({
 export const STEM_MIME_TYPE = /^((audio|video)\/[\w.+-]+|application\/(ogg|octet-stream))$/;
 
 export const requestStemUploadUrlSchema = z.object({
-  fileName: z.string().min(1),
+  fileName: z.string().min(1).max(255).regex(/^[^/]+$/),
   mimeType: z.string().regex(STEM_MIME_TYPE),
   fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
 });

@@ -11,7 +11,7 @@ import {
 } from '@music-hub/shared';
 import { versions, projectMembers, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { liveTrack, liveVersion } from '../lib/trash.js';
@@ -471,11 +471,13 @@ export const versionRoutes = new Hono<AppEnv>()
       ? (SUPPORTED_AUDIO_FORMATS.find((type) => type === version.mimeType) ?? 'application/octet-stream')
       : 'audio/mpeg';
 
-    const buffer = await getObjectBuffer(key);
-    return new Response(buffer, {
+    const size = await getObjectSize(key);
+    if (size === null) return c.json({ error: 'Not found' }, 404);
+    const stream = await getObjectStream(key);
+    return new Response(stream, {
       headers: {
         'Content-Type': contentType,
-        'Content-Length': String(buffer.byteLength),
+        'Content-Length': String(size),
         'Cache-Control': 'private, max-age=3600',
         'ETag': `"${versionId}-${quality}"`,
         'X-Content-Type-Options': 'nosniff',

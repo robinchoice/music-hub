@@ -7,6 +7,7 @@ import {
   verifyTokenSchema,
   registerSchema,
   loginSchema,
+  updateMeSchema,
   safeNextPath,
 } from '@music-hub/shared';
 import { users, magicLinks, sessions } from '@music-hub/db';
@@ -247,21 +248,16 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ user: toUser(user) });
   })
 
-  .patch('/me', requireAuth, async (c) => {
+  .patch('/me', requireAuth, zValidator('json', updateMeSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
 
-    const body = await c.req.json<{ name?: string; versionMails?: boolean; updates?: boolean }>();
-    const versionMails = typeof body.versionMails === 'boolean' ? body.versionMails : undefined;
-    const updates = typeof body.updates === 'boolean' ? body.updates : undefined;
-    if (body.name !== undefined || (versionMails === undefined && updates === undefined)) {
-      if (!body.name?.trim()) return c.json({ error: 'Name is required' }, 400);
-    }
+    const { name, versionMails, updates } = c.req.valid('json');
 
     const [user] = await db
       .update(users)
       .set({
-        name: body.name?.trim() || undefined,
+        name,
         versionMails,
         ...(updates !== undefined && { updatesConsentAt: updates ? consentNow : null }),
         updatedAt: new Date(),

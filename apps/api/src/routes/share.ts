@@ -287,6 +287,15 @@ export const shareRoutes = new Hono<AppEnv>()
 
     if (!(await liveVersion(db, link.versionId))) return c.json({ error: UNAVAILABLE }, 410);
 
+    if (input.parentId) {
+      const [parent] = await db
+        .select({ id: comments.id })
+        .from(comments)
+        .where(and(eq(comments.id, input.parentId), eq(comments.versionId, link.versionId), isNull(comments.deletedAt)));
+      if (!parent) return c.json({ error: 'Comment not found' }, 404);
+    }
+    if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
+
     const [comment] = await db
       .insert(comments)
       .values({

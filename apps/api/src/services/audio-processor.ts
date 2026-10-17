@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { publish } from './sse.js';
@@ -13,7 +13,7 @@ export async function processVersion(db: Database, versionId: string) {
   // Mark as processing
   const [version] = await db
     .update(versions)
-    .set({ status: 'processing' })
+    .set({ status: sql`case when ${versions.status} in ('uploaded', 'processing') then 'processing'::version_status else ${versions.status} end` })
     .where(eq(versions.id, versionId))
     .returning();
 
@@ -48,7 +48,6 @@ export async function processVersion(db: Database, versionId: string) {
     await db
       .update(versions)
       .set({
-        status: 'ready',
         duration: metadata.duration,
         sampleRate: metadata.sampleRate,
         bitDepth: metadata.bitDepth,
@@ -61,12 +60,12 @@ export async function processVersion(db: Database, versionId: string) {
     console.log(`[Worker] Version ${versionId} ready`);
   } catch (error) {
     console.error(`[Worker] Failed to process version ${versionId}:`, error);
-    // Still mark as ready so user can listen to original
-    await db
-      .update(versions)
-      .set({ status: 'ready' })
-      .where(eq(versions.id, versionId));
   }
+
+  await db
+    .update(versions)
+    .set({ status: sql`case when ${versions.status} in ('uploaded', 'processing') then 'ready'::version_status else ${versions.status} end` })
+    .where(eq(versions.id, versionId));
 
   // Lets open track pages switch to the MP3 and the waveform
   publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready' } });

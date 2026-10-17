@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
 import {
   users,
@@ -13,6 +13,10 @@ import {
   stemRevisions,
   pushSubscriptions,
   taskDismissals,
+  profiles,
+  contactRequests,
+  stars,
+  userBlocks,
   type Database,
 } from '@music-hub/db';
 import { generateToken, hashToken } from '../middleware/auth.js';
@@ -63,6 +67,10 @@ export async function resetTestAccount(db: Database) {
     await tx.delete(deviceCodes).where(eq(deviceCodes.userId, user.id));
     await tx.delete(sessions).where(eq(sessions.userId, user.id));
     await tx.delete(magicLinks).where(eq(magicLinks.email, TEST_ACCOUNT_EMAIL));
+    await tx.delete(profiles).where(eq(profiles.userId, user.id));
+    await tx.delete(contactRequests).where(or(eq(contactRequests.fromUserId, user.id), eq(contactRequests.toUserId, user.id)));
+    await tx.delete(stars).where(eq(stars.userId, user.id));
+    await tx.delete(userBlocks).where(or(eq(userBlocks.userId, user.id), eq(userBlocks.blockedUserId, user.id)));
     await tx
       .update(users)
       .set({
@@ -73,6 +81,10 @@ export async function resetTestAccount(db: Database) {
         lastSeenAt: null,
         blockedAt: null,
         storageLimit: SIGNUP_STORAGE_PER_USER,
+        guestUploads: true,
+        guestStorageLimit: null,
+        versionMails: true,
+        updatesConsentAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

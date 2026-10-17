@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
-import { hasPermission, type RequestsFrom } from '@music-hub/shared';
+import { hasPermission, memberRoles, type RequestsFrom } from '@music-hub/shared';
 import {
   contactRequests,
   profiles,
@@ -169,10 +169,10 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
 
     if (projectId) {
       const [membership] = await tx
-        .select({ role: projectMembers.role })
+        .select({ role: projectMembers.role, extraRoles: projectMembers.extraRoles })
         .from(projectMembers)
         .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
-      if (membership?.role !== 'owner' && membership?.role !== 'management') return null;
+      if (!membership || !memberRoles(membership).some((role) => hasPermission(role, 'project.invite'))) return null;
     } else {
       const [[me], [sender]] = await Promise.all([
         tx.select({ name: users.name }).from(users).where(eq(users.id, userId)),

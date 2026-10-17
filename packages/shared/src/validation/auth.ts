@@ -40,6 +40,14 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+export const updateMeSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  versionMails: z.boolean().optional(),
+  updates: z.boolean().optional(),
+}).refine((input) => input.name !== undefined || input.versionMails !== undefined || input.updates !== undefined, {
+  message: 'Name is required',
+});
+
 export type MagicLinkInput = z.infer<typeof magicLinkSchema>;
 export type VerifyTokenInput = z.infer<typeof verifyTokenSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;

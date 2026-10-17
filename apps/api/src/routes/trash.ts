@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { tracks, versions, stems, stemRevisions, comments, projects, projectMembers, type Database } from '@music-hub/db';
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { tracks, versions, stems, stemRevisions, comments, projects, projectMembers, openTracks, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
@@ -166,7 +166,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
 async function trashedItem(db: Database, kind: Kind, id: string, userId: string) {
   if (kind === 'track') {
     const [row] = await db
-      .select({ projectId: tracks.projectId })
+      .select({ projectId: tracks.projectId, trackId: tracks.id })
       .from(tracks)
       .where(and(eq(tracks.id, id), inTrash(tracks)))
       .limit(1);
@@ -174,7 +174,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
   }
   if (kind === 'version') {
     const [row] = await db
-      .select({ projectId: tracks.projectId })
+      .select({ projectId: tracks.projectId, trackId: tracks.id })
       .from(versions)
       .innerJoin(tracks, eq(tracks.id, versions.trackId))
       .where(and(eq(versions.id, id), inTrash(versions), isNull(tracks.deletedAt)))
@@ -183,7 +183,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
   }
   if (kind === 'stem') {
     const [row] = await db
-      .select({ projectId: tracks.projectId, createdById: stems.createdById })
+      .select({ projectId: tracks.projectId, trackId: tracks.id, createdById: stems.createdById })
       .from(stems)
       .innerJoin(tracks, eq(tracks.id, stems.trackId))
       .where(and(eq(stems.id, id), inTrash(stems), isNull(tracks.deletedAt)))
@@ -194,7 +194,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
   }
   if (kind === 'revision') {
     const [row] = await db
-      .select({ projectId: tracks.projectId, createdById: stemRevisions.createdById })
+      .select({ projectId: tracks.projectId, trackId: tracks.id, createdById: stemRevisions.createdById })
       .from(stemRevisions)
       .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
       .innerJoin(tracks, eq(tracks.id, stems.trackId))
@@ -205,7 +205,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
     return role === 'owner' || (role && row.createdById === userId) ? row : null;
   }
   const [row] = await db
-    .select({ projectId: tracks.projectId, authorId: comments.userId })
+    .select({ projectId: tracks.projectId, trackId: tracks.id, authorId: comments.userId })
     .from(comments)
     .innerJoin(versions, eq(versions.id, comments.versionId))
     .innerJoin(tracks, eq(tracks.id, versions.trackId))
@@ -216,7 +216,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
 
 type TrashState = { deletedAt?: null; deletedById?: null; discardedAt: Date | null };
 
-async function setState(db: Database, kind: Kind, ids: string[], state: TrashState) {
+async function setState(db: Pick<Database, 'update'>, kind: Kind, ids: string[], state: TrashState) {
   if (kind === 'track') await db.update(tracks).set(state).where(inArray(tracks.id, ids));
   else if (kind === 'version') await db.update(versions).set(state).where(inArray(versions.id, ids));
   else if (kind === 'stem') await db.update(stems).set(state).where(inArray(stems.id, ids));
@@ -273,10 +273,22 @@ export const trashRoutes = new Hono<AppEnv>()
     const kind = c.req.param('kind');
     const id = c.req.param('id');
 
-    if (!isKind(kind) || !(await trashedItem(db, kind, id, userId))) return c.json({ error: 'Not found' }, 404);
+    if (!isKind(kind)) return c.json({ error: 'Not found' }, 404);
+    const item = await trashedItem(db, kind, id, userId);
+    if (!item) return c.json({ error: 'Not found' }, 404);
 
-    await setState(db, kind, [id], { deletedAt: null, deletedById: null, discardedAt: null });
-    return c.json({ ok: true });
+    return db.transaction(async (tx) => {
+      if (kind === 'stem' || kind === 'revision') {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'open:' + item.trackId}))`);
+        const [open] = await tx
+          .select({ trackId: openTracks.trackId })
+          .from(openTracks)
+          .where(and(eq(openTracks.trackId, item.trackId), isNotNull(openTracks.openedAt)));
+        if (open) return c.json({ error: 'Der Track ist offen. Schließe ihn, um Spuren wiederherzustellen.' }, 409);
+      }
+      await setState(tx, kind, [id], { deletedAt: null, deletedById: null, discardedAt: null });
+      return c.json({ ok: true });
+    });
   })
 
   // Deletes for good before the time in the trash runs out
