@@ -80,9 +80,6 @@
     rejected: 'error',
   };
 
-  // The worker still marks a version ready when it can't read the file, it then has no duration
-  const unreadable = $derived(version.status === 'ready' && version.duration == null);
-
   // Placeholder bars that breathe until the worker has computed the real waveform
   const PENDING_BARS = Array.from({ length: 64 }, (_, i) => 30 + (i % 5) * 6);
 
@@ -90,7 +87,10 @@
   // The badge celebrates an approval made right here, not one loaded with the page
   let approvedHere = $state<string | null>(null);
 
-  const showDecision = $derived(canApprove && version.status !== 'approved' && version.status !== 'rejected');
+  // The worker still marks a version ready when it can't read the file, it then has no duration
+  const unreadable = $derived(version.status === 'ready' && version.duration == null);
+  // Nobody can judge a mix that isn't playable yet, or never will be
+  const showDecision = $derived(canApprove && !processing && !unreadable && version.status !== 'approved' && version.status !== 'rejected');
 
   function toggle(name: 'picker' | 'more') {
     menu = menu === name ? null : name;
