@@ -17,5 +17,13 @@
     "@types/bun": "latest",
     "turbo": "latest",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@sveltejs/kit": {
+      "cookie": "0.7.2"
+    },
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

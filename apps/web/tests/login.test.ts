@@ -43,6 +43,9 @@ test(`a discoverable passkey can be added, used by ${mode} and removed`, async (
     const section = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Passkeys', exact: true }) });
     await expect(section.getByRole('button', { name: 'Entfernen', exact: true })).toBeVisible();
     await page.screenshot({ path: `/tmp/musichub-passkey-account-${test.info().project.name}.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Passkey anlegen' }).click();
+    await expect(page.locator('.toast')).toContainText('Auf diesem Gerät gibt es schon einen Passkey für dein Konto.');
+    await expect(section.getByRole('button', { name: 'Entfernen', exact: true })).toHaveCount(1);
     const credentials = await cdp.send('WebAuthn.getCredentials', { authenticatorId });
     expect(credentials.credentials).toHaveLength(1);
     expect(credentials.credentials[0].rpId).toBe('localhost');
@@ -54,7 +57,16 @@ test(`a discoverable passkey can be added, used by ${mode} and removed`, async (
     }
     await expect(page).toHaveURL(`${baseURL}/account`);
     expect(sessionClientOf(id)).toBe('passkey');
+    let removal: Route | undefined;
+    await page.route('**/api/v1/auth/passkeys/*', (route) => {
+      if (route.request().method() === 'DELETE') removal = route;
+      else return route.continue();
+    });
     await section.getByRole('button', { name: 'Entfernen', exact: true }).click();
+    await expect(section.getByRole('button', { name: 'Entfernen', exact: true })).toBeDisabled();
+    await expect(section.getByRole('button').last()).toBeDisabled();
+    await expect.poll(() => !!removal).toBe(true);
+    await removal!.continue();
     await expect(section.getByText('Noch kein Passkey angelegt.')).toBeVisible();
     const removed = await context.request.post('/api/v1/auth/passkeys/login', { data: { response: { id: credentials.credentials[0].credentialId } } });
     expect(removed.status()).toBe(400);
@@ -65,6 +77,19 @@ test(`a discoverable passkey can be added, used by ${mode} and removed`, async (
   }
 });
 }
+
+test('a failed authenticator shows an error toast when adding a passkey', async ({ page, context, baseURL }) => {
+  const id = await logIn(context, baseURL!);
+  await page.addInitScript(() => {
+    navigator.credentials.create = async () => { throw new DOMException('Unsupported authenticator', 'NotSupportedError'); };
+  });
+  try {
+    await page.goto('/account');
+    await page.getByRole('button', { name: 'Passkey anlegen' }).click();
+    await expect(page.locator('.toast')).toContainText('Der Passkey ließ sich nicht anlegen.');
+    await expect(page.getByRole('button', { name: 'Passkey anlegen' })).toBeEnabled();
+  } finally { removeUser(id); }
+});
 
 test('a passkey button error remains visible when autofill resumes', async ({ page, context, baseURL }) => {
   const id = await logIn(context, baseURL!);

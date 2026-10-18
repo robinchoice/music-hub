@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
+  import { browserSupportsWebAuthn, WebAuthnError } from '@simplewebauthn/browser';
   import { loginTexts, type Passkey } from '@music-hub/shared';
   import { addPasskey, listPasskeys, removePasskey } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
+  import { toastError } from '$lib/stores/toast.js';
 
   let passkeys = $state<Passkey[]>([]);
   let supported = $state(false);
@@ -30,8 +31,13 @@
     try {
       passkeys = [...passkeys, await addPasskey()];
     } catch (err) {
-      if (!(err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError')))
-        error = err instanceof Error && 'status' in err ? err.message : texts.failed;
+      if (err instanceof WebAuthnError && err.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') {
+        error = texts.exists;
+        toastError(error);
+      } else if (!(err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError'))) {
+        error = err instanceof Error && 'status' in err ? err.message : texts.notAdded;
+        if (!(err instanceof Error && 'status' in err)) toastError(error);
+      }
     } finally {
       busy = false;
     }
