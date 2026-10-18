@@ -50,7 +50,7 @@ test('login-link prints a magic link that logs in', async () => {
   expect((await verify.json()).user.email).toBe(email);
 });
 
-test('a browser session in use is renewed, a bearer session is not', async () => {
+test('browser and bearer sessions renew for a year, at most once daily', async () => {
   const [user] = await db.insert(users).values({ email: freshEmail(), name: 'Lena' }).returning({ id: users.id });
   const session = async (token: string) => {
     const [row] = await db
@@ -64,15 +64,98 @@ test('a browser session in use is renewed, a bearer session is not', async () =>
   const cookieExpiry = await session(cookieToken);
   const me = await app.request('/auth/me', { headers: { cookie: `session=${cookieToken}` } });
   expect(me.headers.get('set-cookie')).toContain(`session=${cookieToken}`);
-  expect(await cookieExpiry()).toBeGreaterThan(Date.now() + 29 * DAY);
+  expect(await cookieExpiry()).toBeGreaterThan(Date.now() + 364 * DAY);
 
   // Renewed sessions are left alone for a day
   const again = await app.request('/auth/me', { headers: { cookie: `session=${cookieToken}` } });
   expect(again.headers.get('set-cookie')).toBeNull();
 
-  // The plugin keeps the expiry it was given
+  // The plugin renews too, without setting a browser cookie
   const bearerToken = generateToken();
   const bearerExpiry = await session(bearerToken);
-  await app.request('/auth/me', { headers: { authorization: `Bearer ${bearerToken}` } });
-  expect(await bearerExpiry()).toBeLessThan(Date.now() + 60_000);
+  const bearer = await app.request('/auth/me', { headers: { authorization: `Bearer ${bearerToken}` } });
+  expect(bearer.headers.get('set-cookie')).toBeNull();
+  expect(await bearerExpiry()).toBeGreaterThan(Date.now() + 364 * DAY);
+});
+
+const post = (path: string, body: unknown) => app.request(`/auth${path}`, {
+  method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': crypto.randomUUID() },
+  body: JSON.stringify(body),
+});
+
+async function codeLink(email: string, code = '123456', expiresAt = new Date(Date.now() + 60_000)) {
+  const token = generateToken();
+  await db.insert(magicLinks).values({ email, token: await hashToken(token), codeHash: await hashToken(code), expiresAt, updatesOptIn: true });
+  return token;
+}
+
+test('requesting a login mail stores a hashed code', async () => {
+  const email = freshEmail();
+  await db.insert(users).values({ email, name: 'Lena' });
+  const { spyOn } = await import('bun:test');
+  // Local dev has no SMTP; capture the mail log without printing a login token.
+  const log = spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    expect((await post('/magic-link', { email })).status).toBe(200);
+    const [link] = await db.select().from(magicLinks).where(eq(magicLinks.email, email));
+    expect(link.codeHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(link.codeAttempts).toBe(0);
+  } finally { log.mockRestore(); }
+});
+
+test('a code issues only an httpOnly cookie and consumes the matching link, including consent', async () => {
+  const email = freshEmail();
+  await db.insert(users).values({ email, name: 'Lena' });
+  const token = await codeLink(email);
+  const res = await post('/code/verify', { email: email.toUpperCase(), code: '123456' });
+  expect(res.status).toBe(200);
+  expect(res.headers.get('set-cookie')).toContain('HttpOnly');
+  expect(res.headers.get('set-cookie')).toContain('Max-Age=31536000');
+  const body = await res.json();
+  expect(body.token).toBeUndefined();
+  expect(body.user.updatesSince).not.toBeNull();
+  expect((await post('/verify', { token })).status).toBe(400);
+  expect((await post('/code/verify', { email, code: '123456' })).status).toBe(400);
+});
+
+test('using the link also consumes its code', async () => {
+  const email = freshEmail();
+  await db.insert(users).values({ email, name: 'Lena' });
+  const token = await codeLink(email);
+  expect((await post('/verify', { token })).status).toBe(200);
+  expect((await post('/code/verify', { email, code: '123456' })).status).toBe(400);
+});
+
+test('five wrong guesses lock every active code even with parallel requests and different IPs', async () => {
+  const email = freshEmail();
+  await codeLink(email);
+  await codeLink(email, '654321');
+  const guesses = await Promise.all(Array.from({ length: 5 }, () => post('/code/verify', { email, code: '000000' })));
+  expect(guesses.every((r) => r.status === 400)).toBe(true);
+  expect((await post('/code/verify', { email, code: '123456' })).status).toBe(400);
+  expect((await post('/code/verify', { email, code: '654321' })).status).toBe(400);
+});
+
+test('a code cannot be redeemed concurrently twice, after expiry or for a blocked user', async () => {
+  const email = freshEmail();
+  await db.insert(users).values({ email, name: 'Lena' });
+  await codeLink(email);
+  const res = await Promise.all([post('/code/verify', { email, code: '123456' }), post('/code/verify', { email, code: '123456' })]);
+  expect(res.map((r) => r.status).sort()).toEqual([200, 400]);
+  await codeLink(email, '654321', new Date(Date.now() - 1000));
+  expect((await post('/code/verify', { email, code: '654321' })).status).toBe(400);
+  await db.update(users).set({ blockedAt: new Date() }).where(eq(users.email, email));
+  await codeLink(email, '111111');
+  expect((await post('/code/verify', { email, code: '111111' })).status).toBe(403);
+});
+
+test('renewal preserves the passkey login method for the admin history', async () => {
+  const [user] = await db.insert(users).values({ email: freshEmail(), name: 'Lena' }).returning();
+  const token = generateToken();
+  const [session] = await db.insert(sessions).values({ userId: user.id, client: 'passkey', tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + 60_000) }).returning();
+  const res = await app.request('/auth/me', { headers: { cookie: `session=${token}` } });
+  expect(res.status).toBe(200);
+  const [renewed] = await db.select().from(sessions).where(eq(sessions.id, session.id));
+  expect(renewed.client).toBe('passkey');
+  expect(renewed.expiresAt.getTime()).toBeGreaterThan(Date.now() + 364 * DAY);
 });

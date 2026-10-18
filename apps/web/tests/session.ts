@@ -113,3 +113,21 @@ export function updatesOf(userId: string) {
     `),
   ) as { email: string; consent: string | null; optIn: boolean | null };
 }
+
+export function addLoginCode(userId: string) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    import { magicLinks } from '@music-hub/db';
+    import { generateToken, hashToken } from './src/middleware/auth.ts';
+    const [u] = await db.select().from(users).where(eq(users.id, ${JSON.stringify(userId)}));
+    await db.insert(magicLinks).values({ email: u.email, token: await hashToken(generateToken()), codeHash: await hashToken('123456'), expiresAt: new Date(Date.now() + 600000) });
+  `);
+}
+
+export function sessionClientOf(userId: string) {
+  return bun(`
+    import { desc, eq } from 'drizzle-orm';
+    const [session] = await db.select().from(sessions).where(eq(sessions.userId, ${JSON.stringify(userId)})).orderBy(desc(sessions.createdAt)).limit(1);
+    console.log(session.client);
+  `);
+}

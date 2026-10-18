@@ -146,7 +146,7 @@ Das Repo ist öffentlich, Code, Historie und CI-Logs. Der Workflow `.github/work
 
 ## Login in der Savor-Vorschau
 
-Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 30 Tage, also bleibt die Vorschau angemeldet. Sessions des Plugins behalten ihre 180 Tage.
+Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 365 Tage, also bleibt die Vorschau angemeldet. Auch Sessions des Plugins gelten 365 Tage und verlängern sich gleitend.
 
 ## Projektstruktur
 

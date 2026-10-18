@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { deleteCookie, getCookie } from 'hono/cookie';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, isNotNull, gt, lt, sql } from 'drizzle-orm';
 import {
   magicLinkSchema,
+  verifyCodeSchema,
+  loginTexts,
   verifyTokenSchema,
   registerSchema,
   loginSchema,
@@ -34,6 +36,7 @@ const failedLogins = rateLimit('failed-logins', 10, 15 * MINUTE);
 // Magic link and registration emails
 const mailsPerAddress = rateLimit('mails-per-address', 5, 60 * MINUTE);
 const mailsPerIp = rateLimit('mails-per-ip', 20, 60 * MINUTE);
+const codeChecksPerIp = rateLimit('code-checks-per-ip', 30, 15 * MINUTE);
 
 // New accounts beyond MAX_USERS only come from project invites
 const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einladung zu einem Projekt.';
@@ -49,7 +52,7 @@ const userColumns = {
   updatesConsentAt: users.updatesConsentAt,
 };
 type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null };
-const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: UserRow) => ({
+export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: UserRow) => ({
   id,
   email,
   name,
@@ -63,12 +66,51 @@ const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: 
 // Switching update mails on keeps the time of the first consent as proof
 const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
-async function createSession(c: any, db: any, userId: string) {
+export async function createSession(c: any, db: any, userId: string, client = 'web') {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({ userId, tokenHash, expiresAt });
+  await db.insert(sessions).values({ userId, tokenHash, expiresAt, client });
   setSessionCookie(c, sessionToken);
+}
+
+async function completeLink(c: any, tx: any, link: typeof magicLinks.$inferSelect, password?: string) {
+  const defaultName = link.email.split('@')[0];
+  let registration: { name: string; passwordHash: string } | null = null;
+  if (link.passwordHash && password !== undefined) {
+    if (!(await Bun.password.verify(password, link.passwordHash))) {
+      return c.json({ error: 'Passwort falsch' }, 401);
+    }
+    registration = { name: link.name ?? defaultName, passwordHash: link.passwordHash };
+  }
+
+  let user = await findUserByEmail(tx, link.email);
+  if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
+  if (!user) {
+    // Music Hub may have filled up since the link went out
+    const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration });
+    if (!created) return c.json({ error: FULL }, 403);
+    user = created;
+    registration = null;
+  }
+
+  await tx
+    .update(magicLinks)
+    .set({ usedAt: new Date() })
+    .where(eq(magicLinks.id, link.id));
+
+  // The ticked opt-in for update mails counts now that the link is opened
+  const consent = link.updatesOptIn ? { updatesConsentAt: consentNow } : {};
+  if (registration || link.updatesOptIn) {
+    [user] = await tx
+      .update(users)
+      .set({ ...registration, ...consent, updatedAt: new Date() })
+      .where(eq(users.id, user.id))
+      .returning();
+  }
+
+  await createSession(c, tx, user.id);
+  return c.json({ user: toUser(user) });
 }
 
 export const authRoutes = new Hono<AppEnv>()
@@ -135,17 +177,19 @@ export const authRoutes = new Hono<AppEnv>()
     if (!(await mailsPerAddress.hit(db, email.toLowerCase()))) return tooManyRequests(c);
 
     const token = generateToken();
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 1_000_000).padStart(6, '0');
     const tokenHash = await hashToken(token);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
     await db.insert(magicLinks).values({
       email,
       token: tokenHash,
+      codeHash: await hashToken(code),
       expiresAt,
       updatesOptIn: updates ?? false,
     });
 
-    await sendMagicLinkEmail(email, token, safeNextPath(next), updates);
+    await sendMagicLinkEmail(email, token, safeNextPath(next), updates, code, c.req.header('accept-language'));
 
     return c.json({ message: 'Magic link sent' });
   })
@@ -167,42 +211,27 @@ export const authRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
       }
 
-      const defaultName = link.email.split('@')[0];
-      let registration: { name: string; passwordHash: string } | null = null;
-      if (link.passwordHash && password !== undefined) {
-        if (!(await Bun.password.verify(password, link.passwordHash))) {
-          return c.json({ error: 'Passwort falsch' }, 401);
-        }
-        registration = { name: link.name ?? defaultName, passwordHash: link.passwordHash };
-      }
+      return completeLink(c, tx, link, password);
+    });
+  })
 
-      let user = await findUserByEmail(tx, link.email);
-      if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
-      if (!user) {
-        // Music Hub may have filled up since the link went out
-        const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration });
-        if (!created) return c.json({ error: FULL }, 403);
-        user = created;
-        registration = null;
-      }
-
-      await tx
-        .update(magicLinks)
-        .set({ usedAt: new Date() })
-        .where(eq(magicLinks.id, link.id));
-
-      // The ticked opt-in for update mails counts now that the link is opened
-      const consent = link.updatesOptIn ? { updatesConsentAt: consentNow } : {};
-      if (registration || link.updatesOptIn) {
-        [user] = await tx
-          .update(users)
-          .set({ ...registration, ...consent, updatedAt: new Date() })
-          .where(eq(users.id, user.id))
-          .returning();
-      }
-
-      await createSession(c, tx, user.id);
-      return c.json({ user: toUser(user) });
+  .post('/code/verify', zValidator('json', verifyCodeSchema), async (c) => {
+    const db = c.get('db');
+    if (!(await codeChecksPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
+    const { email, code } = c.req.valid('json');
+    const codeHash = await hashToken(code);
+    return db.transaction(async (tx) => {
+      // Count each guess against every active code of this address, under row locks.
+      const links = await tx.update(magicLinks)
+        .set({ codeAttempts: sql`${magicLinks.codeAttempts} + 1` })
+        .where(and(
+          sql`lower(${magicLinks.email}) = ${email.toLowerCase()}`,
+          isNotNull(magicLinks.codeHash), isNull(magicLinks.usedAt),
+          gt(magicLinks.expiresAt, new Date()), lt(magicLinks.codeAttempts, 5),
+        )).returning();
+      const link = links.find((row) => row.codeHash === codeHash);
+      if (!link) return c.json({ error: loginTexts(c.req.header('accept-language')).wrongCode }, 400);
+      return completeLink(c, tx, link);
     });
   })
 

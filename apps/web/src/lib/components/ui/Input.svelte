@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { HTMLInputAttributes } from 'svelte/elements';
   let {
     type = 'text',
     value = $bindable(''),
@@ -8,6 +9,9 @@
     disabled = false,
     autofocus = false,
     list,
+    autocomplete,
+    inputmode,
+    maxlength,
   }: {
     type?: 'text' | 'email' | 'password';
     value?: string;
@@ -18,6 +22,9 @@
     autofocus?: boolean;
     /** id of a <datalist> with suggestions */
     list?: string;
+    autocomplete?: HTMLInputAttributes['autocomplete'];
+    inputmode?: 'numeric' | 'email' | 'text';
+    maxlength?: number;
   } = $props();
   const id = $props.id();
 </script>
@@ -34,6 +41,9 @@
     {disabled}
     {autofocus}
     {list}
+    {autocomplete}
+    {inputmode}
+    {maxlength}
     class:has-error={!!error}
   />
   {#if error}

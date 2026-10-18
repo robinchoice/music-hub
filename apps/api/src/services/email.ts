@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { APP_BAND, bandColor, GLOW, type UpdateContent } from '@music-hub/shared';
+import { APP_BAND, bandColor, GLOW, type UpdateContent, loginTexts } from '@music-hub/shared';
 
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 
@@ -72,14 +72,15 @@ function layout(body: string) {
     `;
 }
 
-export async function sendMagicLinkEmail(email: string, token: string, next: string | null, updates = false) {
+export async function sendMagicLinkEmail(email: string, token: string, next: string | null, updates = false, code?: string, language?: string) {
   const url = `${process.env.APP_URL}/auth/verify?token=${token}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+  const texts = loginTexts(language);
   await sendMail(
     {
       to: email,
-      subject: 'Dein Login-Link für Music Hub',
+      subject: code ? `${code} – ${texts.mailSubject}` : 'Dein Login-Link für Music Hub',
       html: layout(
-        `${paragraph('Klick auf den Button um dich einzuloggen:')}${button('Einloggen', url)}${optIn(updates)}${small('Der Link läuft in 15 Minuten ab.', '0 0 0.5rem')}${small('Wenn du das nicht angefordert hast, ignorier diese Mail einfach.')}`,
+        `${paragraph('Klick auf den Button um dich einzuloggen:')}${button('Einloggen', url)}${code ? paragraph(`${texts.mailCode} ${strong(code)}`) : ''}${optIn(updates)}${small('Der Link läuft in 15 Minuten ab.', '0 0 0.5rem')}${small('Wenn du das nicht angefordert hast, ignorier diese Mail einfach.')}`,
       ),
     },
     `Magic link for ${email}: ${url}`,

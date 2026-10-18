@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { createDb, migrateDb } from '@music-hub/db';
+import { passkeyRoutes } from './routes/passkeys.js';
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import { trackRoutes } from './routes/tracks.js';
@@ -81,6 +82,7 @@ const app = new Hono<AppEnv>()
   .basePath('/api/v1')
   .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
   .route('/auth', authRoutes)
+  .route('/auth/passkeys', passkeyRoutes)
   .route('/auth/device', deviceRoutes)
   .route('/projects', projectRoutes)
   .route('/tracks', trackRoutes)

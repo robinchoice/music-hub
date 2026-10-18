@@ -53,7 +53,7 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
     const text = typeof error?.error === 'string' ? error.error : null;
     const message = (text && ENGLISH_ERRORS[text]) ?? text ?? (res.status === 400 ? 'Bitte prüfe deine Eingaben.' : 'Das hat nicht geklappt. Versuch es bitte noch einmal.');
     if (!silent) toastError(message);
-    throw Object.assign(new Error(message), { status: res.status });
+    throw Object.assign(new Error(message), { status: res.status, code: error?.code });
   }
 
   return res.json();

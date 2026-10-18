@@ -3,16 +3,14 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, lt, gt, isNull } from 'drizzle-orm';
 import { deviceStartSchema, deviceApproveSchema, deviceTokenSchema } from '@music-hub/shared';
 import { deviceCodes, sessions, users } from '@music-hub/db';
-import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
+import { requireAuth, generateToken, hashToken, SESSION_DAYS } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import type { AppEnv } from '../types.js';
 
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
 const CODE_LIFETIME = 10 * MINUTE;
-// The token lives in the user's profile directory and a DAW shouldn't ask
-// for a login every month, so plugin sessions outlive browser sessions.
-export const SESSION_LIFETIME = 180 * DAY;
+export const SESSION_LIFETIME = SESSION_DAYS * DAY;
 const POLL_INTERVAL_SECONDS = 5;
 
 const startsPerIp = rateLimit('device-starts-per-ip', 20, 60 * MINUTE);
@@ -130,7 +128,7 @@ export const deviceRoutes = new Hono<AppEnv>()
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_LIFETIME);
-    await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt });
+    await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt, client: 'plugin' });
 
     return c.json({ token, expiresAt, user });
   });

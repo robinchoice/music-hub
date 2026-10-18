@@ -52,3 +52,19 @@ export type MagicLinkInput = z.infer<typeof magicLinkSchema>;
 export type VerifyTokenInput = z.infer<typeof verifyTokenSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const verifyCodeSchema = z.object({
+  email: z.string().email().max(255),
+  code: z.string().regex(/^\d{6}$/),
+});
+
+export const passkeyResponseSchema = z.object({
+  response: z.object({ id: z.string().min(1).max(1400) }).passthrough(),
+});
+
+export type Passkey = {
+  id: string;
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+};

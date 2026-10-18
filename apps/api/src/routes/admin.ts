@@ -21,7 +21,6 @@ import {
   type Database,
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { SESSION_LIFETIME as PLUGIN_SESSION_MS } from './device.js';
 import { requireAdmin, isAdminEmail, deviceLabel } from '../lib/admin.js';
 import { keptSql } from '../lib/trash.js';
 import { resetTestAccount } from '../lib/test-account.js';
@@ -307,7 +306,7 @@ type AdminEvent = {
   projectName?: string;
   trackName?: string;
   versionNumber?: number;
-  // login: password, magic_link, invite, registration or plugin
+  // login: password, magic_link, invite, registration, plugin or passkey
   via?: string;
   count?: number;
   status?: string;
@@ -346,7 +345,7 @@ async function loadEvents(db: Database, { from, to, userId }: { from: Date; to: 
     allLinks,
   ] = await Promise.all([
     db
-      .select({ userId: sessions.userId, createdAt: sessions.createdAt, expiresAt: sessions.expiresAt })
+      .select({ userId: sessions.userId, createdAt: sessions.createdAt, expiresAt: sessions.expiresAt, client: sessions.client })
       .from(sessions)
       .where(and(within(sessions.createdAt), by(sessions.userId))),
     db
@@ -474,9 +473,10 @@ async function loadEvents(db: Database, { from, to, userId }: { from: Date; to: 
   }
   sessionRows.forEach((s, i) => {
     if (matched.has(i)) return;
-    // Plugin sessions keep their lifetime, browser sessions in use grow past it
+    // Old plugin sessions had a fixed 180-day lifetime. New sessions store their client.
     const lifetime = s.expiresAt.getTime() - s.createdAt.getTime();
-    const via = Math.abs(lifetime - PLUGIN_SESSION_MS) < DAY ? 'plugin' : 'password';
+    const plugin = s.client === 'plugin' || (s.client === null && Math.abs(lifetime - 180 * DAY) < DAY);
+    const via = plugin ? 'plugin' : s.client === 'passkey' ? 'passkey' : 'password';
     events.push({ type: 'login', at: toIso(s.createdAt), userId: s.userId, via });
   });
 
@@ -594,7 +594,7 @@ export const adminRoutes = new Hono<AppEnv>()
           and(
             eq(sessions.userId, id),
             gt(sessions.expiresAt, new Date()),
-            sql`abs(extract(epoch from ${sessions.expiresAt} - ${sessions.createdAt}) - ${PLUGIN_SESSION_MS / 1000}) < ${DAY / 1000}`,
+            sql`(${sessions.client} = 'plugin' or (${sessions.client} is null and abs(extract(epoch from ${sessions.expiresAt} - ${sessions.createdAt}) - ${180 * DAY / 1000}) < ${DAY / 1000}))`,
           ),
         ),
     ]);

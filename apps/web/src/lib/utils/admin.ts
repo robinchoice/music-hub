@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'svelte';
-import type { ProjectRole } from '@music-hub/shared';
+import { loginMessages, type ProjectRole } from '@music-hub/shared';
 import { isoWeek } from './format.js';
 import type Icon from '$lib/components/ui/Icon.svelte';
 
@@ -152,6 +152,7 @@ export const ACTION_LABEL: Record<ActionType, string> = {
 
 export const VIA_LABEL: Record<string, string> = {
   password: 'mit Passwort',
+  passkey: loginMessages.de.passkeyVia,
   magic_link: 'per Magic Link',
   invite: 'über den Link aus der Einladung',
   registration: 'über die Registrierung',

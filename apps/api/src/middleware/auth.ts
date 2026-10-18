@@ -1,11 +1,11 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { sessions, users, type Database } from '@music-hub/db';
 import type { AppEnv } from '../types.js';
 
-export const SESSION_DAYS = 30;
+export const SESSION_DAYS = 365;
 const DAY = 24 * 60 * 60 * 1000;
 
 // users.last_seen_at is written at most this often per user; the admin pages count
@@ -66,22 +66,20 @@ export function setSessionCookie(c: Context, token: string) {
   });
 }
 
-// Browser sessions in use don't expire: at most once a day they run SESSION_DAYS
-// from now again, the cookie with them. Bearer sessions of the plugin keep the
-// expiry it was given.
+// Sessions in use renew at most once a day, across all API instances.
 export async function renewSession(
   c: Context,
   db: Database,
   session: { id: string; expiresAt: Date },
   token: string,
 ) {
-  if (getCookie(c, 'session') !== token) return;
   if (session.expiresAt.getTime() >= Date.now() + (SESSION_DAYS - 1) * DAY) return;
-  await db
+  const changed = await db
     .update(sessions)
-    .set({ expiresAt: new Date(Date.now() + SESSION_DAYS * DAY) })
-    .where(eq(sessions.id, session.id));
-  setSessionCookie(c, token);
+    .set({ expiresAt: new Date(Date.now() + SESSION_DAYS * DAY), client: sql`coalesce(${sessions.client}, ${getCookie(c, 'session') === token ? 'web' : 'plugin'})` })
+    .where(and(eq(sessions.id, session.id), eq(sessions.expiresAt, session.expiresAt)))
+    .returning({ id: sessions.id });
+  if (changed.length && getCookie(c, 'session') === token) setSessionCookie(c, token);
 }
 
 export function generateToken(): string {

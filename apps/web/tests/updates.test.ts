@@ -19,7 +19,7 @@ test('the login form asks for update mails without a preset tick, the link confi
   await page.getByLabel('E-Mail').fill(updatesOf(id).email);
   await optIn.check();
   await page.getByRole('button', { name: 'Login-Link senden' }).click();
-  await expect(page.getByText('Check deine E-Mails')).toBeVisible();
+  await expect(page.getByLabel('Login-Code')).toBeVisible();
 
   // Counts only once the link is opened
   expect(updatesOf(id)).toMatchObject({ optIn: true, consent: null });

@@ -7,6 +7,7 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import PasskeySettings from '$lib/components/PasskeySettings.svelte';
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
@@ -112,6 +113,7 @@
         </div>
       </div>
     </section>
+    <PasskeySettings />
     <ProfileSettings />
     <GuestUploadSettings />
   {/if}

@@ -16,6 +16,7 @@
     "@music-hub/db": "workspace:*",
     "@music-hub/shared": "workspace:*",
     "@sentry/bun": "^11.4.0",
+    "@simplewebauthn/server": "^14.0.3",
     "drizzle-orm": "^0.45.3",
     "fflate": "^0.8.2",
     "hono": "^4.13.12",
