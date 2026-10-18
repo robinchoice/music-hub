@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { loginTexts, safeNextPath } from '@music-hub/shared';
-  import { user, login, sendMagicLink, verifyCode, passkeyLogin } from '$lib/stores/auth.js';
+  import { user, login, sendMagicLink, verifyCode, passkeyLogin, isPasskeyCancelled } from '$lib/stores/auth.js';
   import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
   import { onMount, onDestroy, tick } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -40,14 +40,10 @@
     const updateVisibility = () => (visible = document.visibilityState === 'visible');
     updateVisibility();
     document.addEventListener('visibilitychange', updateVisibility);
-    return () => document.removeEventListener('visibilitychange', updateVisibility);
-  });
-
-  onMount(async () => {
-    if (lifetime.signal.aborted) return;
     language = navigator.language;
     passkeys = browserSupportsWebAuthn();
-    autofillAvailable = await browserSupportsWebAuthnAutofill();
+    browserSupportsWebAuthnAutofill().then((available) => (autofillAvailable = available));
+    return () => document.removeEventListener('visibilitychange', updateVisibility);
   });
 
   $effect(() => {
@@ -86,7 +82,7 @@
       await passkeyLogin(autofill, signal);
       await goto(next ?? '/dashboard', { replaceState: true });
     } catch (err) {
-      if (!autofill && !signal.aborted && !(err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError'))) {
+      if (!autofill && !signal.aborted && !isPasskeyCancelled(err)) {
         passkeyError = err instanceof Error && 'status' in err ? err.message : texts.failed;
       }
     } finally {

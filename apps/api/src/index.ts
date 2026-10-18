@@ -2,7 +2,8 @@ import { captureException } from './monitoring';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { createDb, migrateDb } from '@music-hub/db';
+import { createDb, migrateDb, passkeyChallenges } from '@music-hub/db';
+import { lt } from 'drizzle-orm';
 import { passkeyRoutes } from './routes/passkeys.js';
 import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
@@ -111,6 +112,8 @@ const app = new Hono<AppEnv>()
 // Feedback whose author forgot "Fertig" goes out the same way, under a lock.
 setInterval(() => {
   pruneNotifications(db).catch((err) => console.error('[Push] Cleanup failed:', err));
+  db.delete(passkeyChallenges).where(lt(passkeyChallenges.expiresAt, new Date()))
+    .catch((err) => console.error('[Passkeys] Cleanup failed:', err));
   sendDueNotices(db).catch((err) => {
     console.error('[Notices] Sending failed:', err);
     captureException(err);

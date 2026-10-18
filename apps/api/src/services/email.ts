@@ -72,15 +72,15 @@ function layout(body: string) {
     `;
 }
 
-export async function sendMagicLinkEmail(email: string, token: string, next: string | null, updates = false, code?: string, language?: string) {
+export async function sendMagicLinkEmail(email: string, token: string, next: string | null, updates = false, code: string, language?: string) {
   const url = `${process.env.APP_URL}/auth/verify?token=${token}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
   const texts = loginTexts(language);
   await sendMail(
     {
       to: email,
-      subject: code ? `${code} – ${texts.mailSubject}` : 'Dein Login-Link für Music Hub',
+      subject: `${code} – ${texts.mailSubject}`,
       html: layout(
-        `${paragraph('Klick auf den Button um dich einzuloggen:')}${button('Einloggen', url)}${code ? paragraph(`${texts.mailCode} ${strong(code)}`) : ''}${optIn(updates)}${small('Der Link läuft in 15 Minuten ab.', '0 0 0.5rem')}${small('Wenn du das nicht angefordert hast, ignorier diese Mail einfach.')}`,
+        `${paragraph('Klick auf den Button um dich einzuloggen:')}${button('Einloggen', url)}${paragraph(`${texts.mailCode} ${strong(code)}`)}${optIn(updates)}${small('Der Link läuft in 15 Minuten ab.', '0 0 0.5rem')}${small('Wenn du das nicht angefordert hast, ignorier diese Mail einfach.')}`,
       ),
     },
     `Magic link for ${email}: ${url}`,

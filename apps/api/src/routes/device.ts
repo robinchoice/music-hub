@@ -10,7 +10,6 @@ import type { AppEnv } from '../types.js';
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
 const CODE_LIFETIME = 10 * MINUTE;
-export const SESSION_LIFETIME = SESSION_DAYS * DAY;
 const POLL_INTERVAL_SECONDS = 5;
 
 const startsPerIp = rateLimit('device-starts-per-ip', 20, 60 * MINUTE);
@@ -127,7 +126,7 @@ export const deviceRoutes = new Hono<AppEnv>()
     if (!redeemed) return c.json({ error: 'Code abgelaufen — bitte im Plugin neu anmelden' }, 400);
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + SESSION_LIFETIME);
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY);
     await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt, client: 'plugin' });
 
     return c.json({ token, expiresAt, user });

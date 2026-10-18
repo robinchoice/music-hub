@@ -19,6 +19,12 @@ export const user = writable<User>(null);
 export const authLoading = writable(true);
 let authRevision = 0;
 
+function setAuthUser(u: User) {
+  authRevision++;
+  user.set(u);
+  return u;
+}
+
 export async function checkAuth() {
   const revision = authRevision;
   try {
@@ -34,16 +40,12 @@ export async function checkAuth() {
 // updates: the unticked checkbox for update mails, counts once the link is opened
 export async function register(name: string, email: string, password: string, updates = false) {
   const res = await api.post<{ user: User }>('/auth/register', { name, email, password, updates });
-  authRevision++;
-  user.set(res.user);
-  return res.user;
+  return setAuthUser(res.user);
 }
 
 export async function login(email: string, password: string) {
   const res = await api.post<{ user: User }>('/auth/login', { email, password });
-  authRevision++;
-  user.set(res.user);
-  return res.user;
+  return setAuthUser(res.user);
 }
 
 export async function sendMagicLink(email: string, next?: string, updates = false) {
@@ -53,22 +55,18 @@ export async function sendMagicLink(email: string, next?: string, updates = fals
 // Silent: the verify page shows the error itself
 export async function verifyToken(token: string, password?: string) {
   const res = await api.post<{ user: User }>('/auth/verify', { token, password }, true);
-  authRevision++;
-  user.set(res.user);
-  return res.user;
+  return setAuthUser(res.user);
 }
 
 export async function logout() {
   await api.post('/auth/logout');
-  authRevision++;
-  user.set(null);
+  setAuthUser(null);
 }
 
 // The code from the same mail, for when the link opens in another browser
 export async function verifyCode(email: string, code: string) {
   const res = await api.post<{ user: User }>('/auth/code/verify', { email, code });
-  authRevision++;
-  user.set(res.user);
+  setAuthUser(res.user);
 }
 
 // autofill: the conditional request behind the address field, silent until
@@ -85,14 +83,17 @@ export async function passkeyLogin(autofill: boolean, signal: AbortSignal) {
   signal.throwIfAborted();
   try {
     const res = await api.post<{ user: User }>('/auth/passkeys/login', { response });
-    authRevision++;
-    user.set(res.user);
+    setAuthUser(res.user);
   } catch (err) {
     // Removed in the settings, still on the device: the browser may forget it
     if (err instanceof Error && 'code' in err && err.code === 'passkeyUnknown')
       sendSignal({ signalName: 'unknownCredential', rpID: options.rpId!, credentialID: response.id }).catch(() => {});
     throw err;
   }
+}
+
+export function isPasskeyCancelled(err: unknown) {
+  return err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError');
 }
 
 export async function listPasskeys() {

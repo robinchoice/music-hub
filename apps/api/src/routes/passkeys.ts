@@ -8,7 +8,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
-import { and, eq, gt, isNull, lt } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import { relyingParty } from '../lib/passkeys.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -22,11 +22,9 @@ const MINUTE = 60 * 1000;
 const optionsPerIp = rateLimit('passkey-options-per-ip', 60, 15 * MINUTE);
 const loginsPerIp = rateLimit('passkey-logins-per-ip', 30, 15 * MINUTE);
 
-// A challenge is good for one ceremony within five minutes. Expired ones go
-// whenever a new one is made.
+// A challenge is good for one ceremony within five minutes.
 async function saveChallenge(c: Context<AppEnv>, challenge: string, userId: string | null) {
   const db = c.get('db');
-  await db.delete(passkeyChallenges).where(lt(passkeyChallenges.expiresAt, new Date()));
   await db.insert(passkeyChallenges).values({ challenge, userId, expiresAt: new Date(Date.now() + 5 * MINUTE) });
 }
 
@@ -76,7 +74,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
 
   .post('/register/options', requireAuth, async (c) => {
     if (!(await optionsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
-    const [user] = await c.get('db').select().from(users).where(eq(users.id, c.get('userId')));
+    const [user] = await c.get('db').select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, c.get('userId')));
     const existing = await c
       .get('db')
       .select({ id: passkeys.id, transports: passkeys.transports })
@@ -97,16 +95,17 @@ export const passkeyRoutes = new Hono<AppEnv>()
   })
 
   .post('/register', requireAuth, zValidator('json', passkeyResponseSchema), async (c) => {
-    const [user] = await c.get('db').select().from(users).where(eq(users.id, c.get('userId')));
+    const userId = c.get('userId');
+    const texts = loginTexts(c.req.header('accept-language'));
     const { rpID, origins } = relyingParty();
     const result = await verifyRegistrationResponse({
       response: c.req.valid('json').response as unknown as RegistrationResponseJSON,
-      expectedChallenge: useChallenge(c, user.id),
+      expectedChallenge: useChallenge(c, userId),
       expectedOrigin: origins,
       expectedRPID: rpID,
       requireUserVerification: false,
     }).catch(() => null);
-    if (!result?.verified) return c.json({ error: loginTexts(c.req.header('accept-language')).failed }, 400);
+    if (!result?.verified) return c.json({ error: texts.failed }, 400);
 
     const { credential, credentialBackedUp } = result.registrationInfo;
     const [row] = await c
@@ -114,7 +113,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
       .insert(passkeys)
       .values({
         id: credential.id,
-        userId: user.id,
+        userId,
         publicKey: Buffer.from(credential.publicKey),
         counter: credential.counter,
         transports: credential.transports ?? null,
@@ -122,7 +121,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
       })
       .onConflictDoNothing({ target: passkeys.id })
       .returning(passkeyColumns);
-    if (!row) return c.json({ error: loginTexts(c.req.header('accept-language')).failed }, 409);
+    if (!row) return c.json({ error: texts.failed }, 409);
     return c.json({ passkey: toPasskey(row) });
   })
 
@@ -146,6 +145,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
 
   .post('/login', zValidator('json', passkeyResponseSchema), async (c) => {
     if (!(await loginsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
+    const texts = loginTexts(c.req.header('accept-language'));
     const { response } = c.req.valid('json');
     const db = c.get('db');
     const [passkey] = await db
@@ -160,8 +160,8 @@ export const passkeyRoutes = new Hono<AppEnv>()
       .innerJoin(users, eq(users.id, passkeys.userId))
       .where(eq(passkeys.id, response.id));
     // Removed here, still on the device. The web asks the browser to forget it.
-    if (!passkey) return c.json({ error: loginTexts(c.req.header('accept-language')).unknown, code: 'passkeyUnknown' }, 400);
-    if (passkey.user.blockedAt) return c.json({ error: loginTexts(c.req.header('accept-language')).failed }, 403);
+    if (!passkey) return c.json({ error: texts.unknown, code: 'passkeyUnknown' }, 400);
+    if (passkey.user.blockedAt) return c.json({ error: texts.failed }, 403);
 
     const { rpID, origins } = relyingParty();
     const result = await verifyAuthenticationResponse({
@@ -177,7 +177,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
       },
       requireUserVerification: false,
     }).catch(() => null);
-    if (!result?.verified) return c.json({ error: loginTexts(c.req.header('accept-language')).failed }, 400);
+    if (!result?.verified) return c.json({ error: texts.failed }, 400);
 
     await db
       .update(passkeys)

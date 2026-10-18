@@ -27,6 +27,8 @@ import { resetTestAccount } from '../lib/test-account.js';
 import type { AppEnv } from '../types.js';
 
 const DAY = 86_400_000;
+// Old plugin sessions had a fixed lifetime; new sessions store their client.
+const LEGACY_PLUGIN_SESSION_MS = 180 * DAY;
 // Seen this recently counts as online; markSeen() writes last_seen_at every two minutes
 const ONLINE_MS = 5 * 60_000;
 // Days and weeks of the charts follow the clock of the people using Music Hub
@@ -473,9 +475,8 @@ async function loadEvents(db: Database, { from, to, userId }: { from: Date; to: 
   }
   sessionRows.forEach((s, i) => {
     if (matched.has(i)) return;
-    // Old plugin sessions had a fixed 180-day lifetime. New sessions store their client.
     const lifetime = s.expiresAt.getTime() - s.createdAt.getTime();
-    const plugin = s.client === 'plugin' || (s.client === null && Math.abs(lifetime - 180 * DAY) < DAY);
+    const plugin = s.client === 'plugin' || (s.client === null && Math.abs(lifetime - LEGACY_PLUGIN_SESSION_MS) < DAY);
     const via = plugin ? 'plugin' : s.client === 'passkey' ? 'passkey' : 'password';
     events.push({ type: 'login', at: toIso(s.createdAt), userId: s.userId, via });
   });
@@ -594,7 +595,7 @@ export const adminRoutes = new Hono<AppEnv>()
           and(
             eq(sessions.userId, id),
             gt(sessions.expiresAt, new Date()),
-            sql`(${sessions.client} = 'plugin' or (${sessions.client} is null and abs(extract(epoch from ${sessions.expiresAt} - ${sessions.createdAt}) - ${180 * DAY / 1000}) < ${DAY / 1000}))`,
+            sql`(${sessions.client} = 'plugin' or (${sessions.client} is null and abs(extract(epoch from ${sessions.expiresAt} - ${sessions.createdAt}) - ${LEGACY_PLUGIN_SESSION_MS / 1000}) < ${DAY / 1000}))`,
           ),
         ),
     ]);

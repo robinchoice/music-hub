@@ -74,12 +74,13 @@ export async function renewSession(
   token: string,
 ) {
   if (session.expiresAt.getTime() >= Date.now() + (SESSION_DAYS - 1) * DAY) return;
+  const cookieSession = getCookie(c, 'session') === token;
   const changed = await db
     .update(sessions)
-    .set({ expiresAt: new Date(Date.now() + SESSION_DAYS * DAY), client: sql`coalesce(${sessions.client}, ${getCookie(c, 'session') === token ? 'web' : 'plugin'})` })
+    .set({ expiresAt: new Date(Date.now() + SESSION_DAYS * DAY), client: sql`coalesce(${sessions.client}, ${cookieSession ? 'web' : 'plugin'})` })
     .where(and(eq(sessions.id, session.id), eq(sessions.expiresAt, session.expiresAt)))
     .returning({ id: sessions.id });
-  if (changed.length && getCookie(c, 'session') === token) setSessionCookie(c, token);
+  if (changed.length && cookieSession) setSessionCookie(c, token);
 }
 
 export function generateToken(): string {
