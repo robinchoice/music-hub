@@ -180,12 +180,16 @@
 >
   {#snippet actions()}
     {#if !loading && (roles.includes('owner') || roles.includes('management'))}
-      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">Einstellungen</Button>
+      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">
+        <Icon name="settings" size={14} /> <span class="btn-label">Einstellungen</span>
+      </Button>
     {/if}
     {#if canUpload}
-      <Button variant="ghost" size="sm" onclick={() => (uploadLinkOpen = true)}>Upload-Link</Button>
+      <Button variant="ghost" size="sm" onclick={() => (uploadLinkOpen = true)}>
+        <Icon name="link" size={14} /> <span class="btn-label">Upload-Link</span>
+      </Button>
       <Button variant="ghost" size="sm" onclick={() => showNewTrack = !showNewTrack}>
-        {showNewTrack ? 'Abbrechen' : 'Neuer Track'}
+        <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{showNewTrack ? 'Abbrechen' : 'Neuer Track'}</span>
       </Button>
       {#if !empty}
         <Button size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>
@@ -393,7 +397,16 @@
     min-width: 0;
     flex: 1 1 240px;
   }
+  /* On phones the header actions show only their icons, so the bar fits the screen; the label stays for screen readers */
   @media (max-width: 540px) {
+    .btn-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
     .project-head {
       gap: var(--space-3);
     }
