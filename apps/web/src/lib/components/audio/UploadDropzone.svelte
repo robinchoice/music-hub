@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
-  import { MAX_FILE_SIZE_LABEL, checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
+  import { MAX_FILE_SIZE_LABEL, byFileName, checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -69,7 +69,7 @@
     error = checkAudioFiles(selected) ?? '';
     if (error) return;
 
-    selected.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    selected.sort(byFileName);
     uploading = true;
     inFlight = true;
     total = selected.length;

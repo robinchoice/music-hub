@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
-  import { checkAudioFiles, trackNameFromFile, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
+  import { byFileName, checkAudioFiles, trackNameFromFile, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -44,7 +44,7 @@
       return;
     }
 
-    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    files.sort(byFileName);
     rows = files.map((f) => ({ name: trackNameFromFile(f.name), file: f.name, progress: 0, state: 'wartet' }));
     let lastTrackId = '';
     for (const [i, file] of files.entries()) {

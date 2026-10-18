@@ -29,6 +29,12 @@ export async function unreadableFiles(files: File[]) {
   return files.filter((_, i) => !readable[i]);
 }
 
+// In the order people number their files: "Mix 3.wav" before "Mix 3 lauter.wav", "Mix 2" before "Mix 10"
+export function byFileName(a: File, b: File) {
+  const base = (f: File) => f.name.replace(/\.[^.]+$/, '');
+  return base(a).localeCompare(base(b), undefined, { numeric: true });
+}
+
 // "Letzte Bahn – Mix 1.wav" → "Letzte Bahn"
 export function trackNameFromFile(fileName: string) {
   const base = fileName.replace(/\.[^.]+$/, '').replace(/_+/g, ' ').trim();
