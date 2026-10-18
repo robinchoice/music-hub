@@ -36,6 +36,7 @@
   import { REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, hasPermission, type ProjectRole, type TrackStatus } from '@music-hub/shared';
   import {
     feedbackRows,
+    hasWaveform,
     openPass,
     predecessorOf,
     versionTitle,
@@ -286,8 +287,8 @@
     const pred = predecessorOf(version, versions);
     const [streamRes, peaksRes, commentRes, predRes] = await Promise.all([
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
-      // 404 until the server has processed the upload
-      api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []),
+      // There is no waveform while the worker runs or after it gave up on the file, so don't ask for one
+      hasWaveform(version) ? api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []) : Promise.resolve([]),
       api.get<CommentsResponse>(`/comments/version/${version.id}`),
       pred
         ? api

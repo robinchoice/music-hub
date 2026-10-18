@@ -65,7 +65,8 @@
   });
 
   $effect(() => {
-    if (!visible) return;
+    // Without a duration the worker hasn't read the file yet (or gave up), so there are no peaks to ask for
+    if (!visible || !duration) return;
     let current = true;
     loadPeaks(versionId).then((p) => {
       if (current) peaks = p;

@@ -59,6 +59,11 @@ export function predecessorOf<T extends VersionRef>(version: T, versions: T[]): 
   return best;
 }
 
+// The worker writes a waveform once it has read the file; one it gave up on stays without duration
+export function hasWaveform(v: { status: string; duration: number | null }): boolean {
+  return v.status !== 'uploaded' && v.status !== 'processing' && v.duration != null;
+}
+
 /** Label for lists: version label, then branch label, then the file name without extension. */
 export function versionTitle(v: { label: string | null; branchLabel?: string | null; originalFileName: string }): string {
   return v.label || v.branchLabel || v.originalFileName.replace(/\.[^.]+$/, '');
