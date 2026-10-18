@@ -26,8 +26,11 @@ test('the project header fits the screen and "Mix hochladen" opens the file dial
 });
 
 for (const state of ['processing', 'unreadable'] as const) {
-  test(`a ${state} version can't be approved and asks for no waveform, so the console stays clean`, async ({ page }) => {
+  test(`a ${state} version can't be approved and asks for no waveform, so the console stays clean`, async ({ page, baseURL }) => {
     const { projectId, trackId } = await newTrack(page);
+    // The CI bucket holds no files, so the player gets a short silence
+    await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/fake-s3/mix.wav` } }));
+    await page.route('**/fake-s3/**', (route) => route.fulfill({ body: Buffer.alloc(0), contentType: 'audio/wav' }));
     if (state === 'processing') addVersion(trackId, userId, 'processing');
     else addUnprocessedVersion(trackId, userId);
     const asked: string[] = [];
