@@ -806,7 +806,7 @@
 
       {#if showUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Schließen" aria-label="Upload schließen">
+          <button class="close-upload" onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Upload abbrechen" aria-label="Upload abbrechen">
             <Icon name="x" size={16} />
           </button>
           <p class="upload-title">
@@ -845,7 +845,7 @@
 
       {#if showStemUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => { stemZone?.cancel(); showStemUpload = false; }} title="Schließen" aria-label="Upload schließen">
+          <button class="close-upload" onclick={() => { stemZone?.cancel(); showStemUpload = false; }} title="Upload abbrechen" aria-label="Upload abbrechen">
             <Icon name="x" size={16} />
           </button>
           <p class="upload-title">

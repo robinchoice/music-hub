@@ -113,7 +113,7 @@ test('closing the upload zone cancels the upload, no version turns up later', as
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
   await pickVersion(page);
   await expect(page.locator('.progress-container')).toBeVisible();
-  await page.getByRole('button', { name: 'Upload schließen' }).click();
+  await page.getByRole('button', { name: 'Upload abbrechen' }).click();
 
   await expect(page.locator('.toast-container')).toContainText('Upload abgebrochen');
   await expect.poll(() => aborted).toBe(true);
