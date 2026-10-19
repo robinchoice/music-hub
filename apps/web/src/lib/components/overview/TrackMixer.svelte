@@ -204,8 +204,8 @@
   <section class="desk" aria-label="Kanalzüge">
     <div class="legend-strip" aria-hidden="true">
       <div class="lbl" style="height: 52px">Version</div>
-      <div class="lbl" style="height: 22px">Von</div>
-      <div class="lbl" style="height: 26px">Stand</div>
+      <div class="lbl" style="height: 36px">Von</div>
+      <div class="lbl" style="height: 44px">Stand</div>
       <div class="lbl" style="height: 150px">Pegel L/R</div>
       <div class="lbl" style="height: 16px">Lautheit</div>
       <div class="scale">

@@ -153,7 +153,8 @@
     overflow-wrap: anywhere;
   }
   .lamp {
-    min-height: 36px;
+    height: 44px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;

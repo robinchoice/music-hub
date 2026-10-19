@@ -89,8 +89,9 @@ test('upload validation errors are announced for projects, versions and stems', 
 
 test('ready versions keep compact actions and the comparison metadata fits each strip', async ({ page, isMobile, baseURL }) => {
   const { projectId, trackId } = await newTrack(page);
-  addVersion(trackId, userId, 'ready', 1);
+  const firstId = addVersion(trackId, userId, 'ready', 1);
   addVersion(trackId, userId, 'ready', 2);
+  await page.request.post(`/api/v1/versions/${firstId}/approve`);
   await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/demo/nachtbus-v1.mp3` } }));
   await page.route('**/waveform-data', (route) => route.fulfill({ json: [0.2, 0.4, 0.1] }));
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
@@ -111,6 +112,9 @@ test('ready versions keep compact actions and the comparison metadata fits each 
   await page.getByRole('tab', { name: /Vergleichen/ }).click();
   await expect(page.locator('.strip')).toHaveCount(2);
   await expect(page.locator('.strip .lamp.s-feedback')).toHaveText('Wartet auf Feedback');
+  await expect(page.locator('.strip .lamp.s-approved')).toHaveText('Frei');
+  const meterTops = await page.locator('.strip .meters').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+  expect(new Set(meterTops).size).toBe(1);
   for (const strip of await page.locator('.strip').all()) {
     await expect(strip.locator('.who')).toContainText('Testperson');
     expect(await strip.locator('.who').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
