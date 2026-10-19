@@ -194,7 +194,7 @@
         <div class="file-row" class:done={f.progress === 100} class:error={!!f.error}>
           <span class="file-name">{f.name}</span>
           {#if f.error}
-            <span class="file-error">{f.error}</span>
+            <span class="file-error" role="alert">{f.error}</span>
           {:else}
             <div class="file-progress">
               <div class="file-bar" style="width: {f.progress}%"></div>
@@ -207,7 +207,7 @@
   {/if}
 
   {#if globalError}
-    <p class="error">{globalError}</p>
+    <p class="error" role="alert">{globalError}</p>
   {/if}
 </div>
 

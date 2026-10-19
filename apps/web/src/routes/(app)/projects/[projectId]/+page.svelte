@@ -180,15 +180,15 @@
 >
   {#snippet actions()}
     {#if !loading && (roles.includes('owner') || roles.includes('management'))}
-      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings">
+      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title="Einstellungen">
         <Icon name="settings" size={14} /> <span class="btn-label">Einstellungen</span>
       </Button>
     {/if}
     {#if canUpload}
-      <Button variant="ghost" size="sm" onclick={() => (uploadLinkOpen = true)}>
+      <Button variant="ghost" size="sm" title="Upload-Link" onclick={() => (uploadLinkOpen = true)}>
         <Icon name="link" size={14} /> <span class="btn-label">Upload-Link</span>
       </Button>
-      <Button variant="ghost" size="sm" onclick={() => showNewTrack = !showNewTrack}>
+      <Button variant="ghost" size="sm" title={showNewTrack ? 'Abbrechen' : 'Neuer Track'} onclick={() => showNewTrack = !showNewTrack}>
         <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{showNewTrack ? 'Abbrechen' : 'Neuer Track'}</span>
       </Button>
       {#if !empty}

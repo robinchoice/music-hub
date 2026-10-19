@@ -120,13 +120,13 @@
 <section class="version-card">
   <div class="head">
     <div class="menu-root">
-      <button class="picker" onclick={openPicker} aria-haspopup="menu" aria-expanded={menu === 'picker'}>
+      <button class="picker" onclick={openPicker} aria-expanded={menu === 'picker'}>
         <b>V{version.versionNumber}</b>
         <span>{versionTitle(version)}</span>
         <Icon name="chevron-down" size={14} />
       </button>
       {#if menu === 'picker'}
-        <div class="menu picker-menu" role="menu">
+        <div class="menu picker-menu">
           <VersionList
             {versions}
             selectedId={version.id}
@@ -569,11 +569,7 @@
       flex-basis: 100%;
       margin-left: 0;
       justify-content: flex-end;
-    }
-
-    .actions :global(.btn) {
-      flex: 1;
-      justify-content: center;
+      flex-wrap: wrap;
     }
   }
 </style>

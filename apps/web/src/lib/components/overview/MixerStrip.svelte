@@ -65,12 +65,12 @@
   </div>
   <div class="who">
     <Avatar name={uploader} src={avatarOf(ix, version.createdById)} size="xs" />
-    <span>{firstName(uploader)}, {formatDay(version.createdAt)}</span>
+    <span class="who-text"><span title={uploader}>{firstName(uploader)}</span><time datetime={version.createdAt}>{formatDay(version.createdAt)}</time></span>
   </div>
   {#if broken}
     <div class="lamp s-rejected" data-tt="Diese Version lässt sich gerade nicht abspielen."><span class="bulb"></span>nicht abspielbar</div>
   {:else}
-    <div class="lamp s-{lamp.key}" data-tt={decisionText(ix, version) || lamp.text}><span class="bulb"></span>{lamp.text}</div>
+    <div class="lamp s-{lamp.key}" data-tt={decisionText(ix, version) || lamp.text}><span class="bulb"></span><span>{lamp.text}</span></div>
   {/if}
   <div class="meters" data-tt={meterTip}>
     {#each lit as n, side (side)}
@@ -138,18 +138,22 @@
     text-overflow: ellipsis;
   }
   .who {
-    height: 22px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     font-size: 11px;
     color: var(--color-text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
+  }
+  .who-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-wrap: anywhere;
   }
   .lamp {
-    height: 26px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -160,9 +164,11 @@
     font-size: 11.5px;
     font-weight: 600;
     color: var(--color-text-secondary);
-    white-space: nowrap;
+    padding: 3px 5px;
+    text-align: center;
   }
   .bulb {
+    flex-shrink: 0;
     width: 7px;
     height: 7px;
     border-radius: 50%;

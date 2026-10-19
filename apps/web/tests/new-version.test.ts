@@ -19,7 +19,11 @@ test('the project header fits the screen and "Mix hochladen" opens the file dial
   await expect(page.getByRole('heading', { name: 'Nachtbus EP' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   // Icon-only on phones, the buttons keep their names
-  for (const name of ['Einstellungen', 'Upload-Link', 'Neuer Track']) await expect(page.getByRole('button', { name }).or(page.getByRole('link', { name }))).toBeVisible();
+  for (const name of ['Einstellungen', 'Upload-Link', 'Neuer Track']) {
+    const action = page.getByRole('button', { name }).or(page.getByRole('link', { name }));
+    await expect(action).toBeVisible();
+    await expect(action).toHaveAttribute('title', name);
+  }
   const chooser = page.waitForEvent('filechooser', { timeout: 5000 });
   await page.getByRole('button', { name: 'Mix hochladen' }).click();
   await chooser;
@@ -60,4 +64,56 @@ test('picked files upload in the order people number them', async ({ page }) => 
   await (await chooser).setFiles([wav('Bridge 10.wav'), wav('Bridge 3 lauter.wav'), wav('Bridge 3.wav')]);
   await expect(page.locator('.rows li')).toHaveCount(3);
   await expect(page.locator('.rows li')).toContainText(['Bridge 3.wav', 'Bridge 3 lauter.wav', 'Bridge 10.wav']);
+  await expect(page.locator('.rows [role="alert"]')).toHaveCount(3);
+});
+
+test('upload validation errors are announced for projects, versions and stems', async ({ page }) => {
+  const { projectId, trackId } = await newTrack(page);
+  const invalid = { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not audio') };
+  await page.goto(`/projects/${projectId}`);
+  await page.locator('input[type="file"]').setInputFiles(invalid);
+  await expect(page.getByRole('alert').filter({ hasText: /notes.txt/ })).toBeVisible();
+
+  await page.goto(`/projects/${projectId}/tracks/${trackId}`);
+  let chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Neue Version', exact: true }).click();
+  await (await chooser).setFiles(invalid);
+  await expect(page.locator('.upload-section').getByRole('alert')).toContainText('notes.txt');
+  await page.getByRole('button', { name: 'Upload abbrechen' }).click();
+
+  chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Spuren hochladen', exact: true }).click();
+  await (await chooser).setFiles(invalid);
+  await expect(page.locator('.stem-upload').getByRole('alert')).toContainText('notes.txt');
+});
+
+test('ready versions keep compact actions and the comparison metadata fits each strip', async ({ page, isMobile, baseURL }) => {
+  const { projectId, trackId } = await newTrack(page);
+  addVersion(trackId, userId, 'ready', 1);
+  addVersion(trackId, userId, 'ready', 2);
+  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/demo/nachtbus-v1.mp3` } }));
+  await page.route('**/waveform-data', (route) => route.fulfill({ json: [0.2, 0.4, 0.1] }));
+  await page.goto(`/projects/${projectId}/tracks/${trackId}`);
+  const approval = page.locator('.version-card').getByRole('button', { name: 'Freigeben', exact: true });
+  await expect(approval).toBeVisible();
+  expect((await approval.boundingBox())!.width).toBeLessThan(150);
+  const picker = page.locator('.version-card .picker');
+  await picker.click();
+  await expect(page.locator('.picker-menu[role="menu"]')).toHaveCount(0);
+  if (!isMobile) {
+    await expect(page.locator('.picker-menu')).toBeVisible();
+    await page.locator('.picker-menu').getByRole('button', { name: /V1/ }).click();
+    await expect(picker).toContainText('V1');
+  } else {
+    await page.keyboard.press('Escape');
+  }
+
+  await page.getByRole('tab', { name: /Vergleichen/ }).click();
+  await expect(page.locator('.strip')).toHaveCount(2);
+  await expect(page.locator('.strip .lamp.s-feedback')).toHaveText('Wartet auf Feedback');
+  for (const strip of await page.locator('.strip').all()) {
+    await expect(strip.locator('.who')).toContainText('Testperson');
+    expect(await strip.locator('.who').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await strip.locator('.lamp').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
 });

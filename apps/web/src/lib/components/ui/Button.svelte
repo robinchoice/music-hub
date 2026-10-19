@@ -7,6 +7,7 @@
     loading = false,
     disabled = false,
     href,
+    title,
     type = 'button',
     onclick,
     children,
@@ -16,6 +17,7 @@
     loading?: boolean;
     disabled?: boolean;
     href?: string;
+    title?: string;
     type?: 'button' | 'submit';
     onclick?: (e: MouseEvent) => void;
     children: Snippet;
@@ -23,12 +25,13 @@
 </script>
 
 {#if href}
-  <a {href} class="btn {variant} {size}" class:disabled {onclick}>
+  <a {href} {title} class="btn {variant} {size}" class:disabled {onclick}>
     {@render children()}
   </a>
 {:else}
   <button
     {type}
+    {title}
     class="btn {variant} {size}"
     class:loading
     disabled={disabled || loading}

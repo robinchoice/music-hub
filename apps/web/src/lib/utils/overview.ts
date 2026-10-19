@@ -548,7 +548,7 @@ export function versionLamp(v: { status: string }, isLatest: boolean, topLevel: 
   if (v.status === 'rejected') return { key: 'rejected', text: 'Abgelehnt' };
   const open = topLevel.filter((c) => !c.resolvedAt).length;
   if (open) return { key: 'open', text: `${open} offen` };
-  if (isLatest) return { key: 'feedback', text: 'Feedback' };
+  if (isLatest) return { key: 'feedback', text: 'Wartet auf Feedback' };
   return { key: 'none', text: topLevel.length ? 'erledigt' : 'ohne Feedback' };
 }
 

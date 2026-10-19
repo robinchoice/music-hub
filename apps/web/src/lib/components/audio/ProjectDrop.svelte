@@ -114,7 +114,7 @@
 {/if}
 
 {#if error}
-  <p class="error">{error}</p>
+  <p class="error" role="alert">{error}</p>
 {/if}
 
 {#if rows.length}
@@ -127,7 +127,7 @@
           {#if row.state === 'lädt hoch'}
             <span class="bar"><i style="width: {row.progress}%"></i></span>
           {/if}
-          {#if row.error}<small class="row-error">{row.error}</small>{/if}
+          {#if row.error}<small class="row-error" role="alert">{row.error}</small>{/if}
         </div>
         <span class="state" class:bad={row.state === 'fehler'}>
           {row.state === 'lädt hoch' ? `${row.progress} %` : row.state === 'fehler' ? 'Fehler' : row.state}
