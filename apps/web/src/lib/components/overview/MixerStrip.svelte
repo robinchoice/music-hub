@@ -138,7 +138,8 @@
     text-overflow: ellipsis;
   }
   .who {
-    min-height: 36px;
+    height: var(--row-who);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -153,7 +154,7 @@
     overflow-wrap: anywhere;
   }
   .lamp {
-    height: 44px;
+    height: var(--row-lamp);
     flex-shrink: 0;
     display: flex;
     align-items: center;

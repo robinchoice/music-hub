@@ -67,6 +67,7 @@
   let expanded = $state<Record<string, boolean>>({});
   let newTrackName = $state('');
   let showNewTrack = $state(false);
+  const newTrackLabel = $derived(showNewTrack ? 'Abbrechen' : 'Neuer Track');
   let loading = $state(true);
   let creating = $state(false);
   let coverEditOpen = $state(false);
@@ -188,8 +189,8 @@
       <Button variant="ghost" size="sm" title="Upload-Link" onclick={() => (uploadLinkOpen = true)}>
         <Icon name="link" size={14} /> <span class="btn-label">Upload-Link</span>
       </Button>
-      <Button variant="ghost" size="sm" title={showNewTrack ? 'Abbrechen' : 'Neuer Track'} onclick={() => showNewTrack = !showNewTrack}>
-        <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{showNewTrack ? 'Abbrechen' : 'Neuer Track'}</span>
+      <Button variant="ghost" size="sm" title={newTrackLabel} onclick={() => showNewTrack = !showNewTrack}>
+        <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{newTrackLabel}</span>
       </Button>
       {#if !empty}
         <Button size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>

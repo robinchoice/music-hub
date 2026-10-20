@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { loginTexts, safeNextPath } from '@music-hub/shared';
+  import { isApiError } from '$lib/api/client.js';
   import { user, login, sendMagicLink, verifyCode, passkeyLogin, isPasskeyCancelled } from '$lib/stores/auth.js';
   import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
   import { onMount, onDestroy, tick } from 'svelte';
@@ -83,7 +84,7 @@
       await goto(next ?? '/dashboard', { replaceState: true });
     } catch (err) {
       if (!autofill && !signal.aborted && !isPasskeyCancelled(err)) {
-        passkeyError = err instanceof Error && 'status' in err ? err.message : texts.failed;
+        passkeyError = isApiError(err) ? err.message : texts.failed;
       }
     } finally {
       if (!autofill) passkeyLoading = false;

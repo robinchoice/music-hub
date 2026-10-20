@@ -204,8 +204,8 @@
   <section class="desk" aria-label="Kanalzüge">
     <div class="legend-strip" aria-hidden="true">
       <div class="lbl" style="height: 52px">Version</div>
-      <div class="lbl" style="height: 36px">Von</div>
-      <div class="lbl" style="height: 44px">Stand</div>
+      <div class="lbl" style="height: var(--row-who)">Von</div>
+      <div class="lbl" style="height: var(--row-lamp)">Stand</div>
       <div class="lbl" style="height: 150px">Pegel L/R</div>
       <div class="lbl" style="height: 16px">Lautheit</div>
       <div class="scale">
@@ -371,6 +371,8 @@
     color: var(--color-text-secondary);
   }
   .desk {
+    --row-who: 36px;
+    --row-lamp: 44px;
     display: flex;
     gap: 8px;
     overflow-x: auto;

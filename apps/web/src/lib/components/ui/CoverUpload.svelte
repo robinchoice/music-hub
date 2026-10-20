@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api } from '$lib/api/client.js';
+  import { api, isApiError } from '$lib/api/client.js';
   import { toastError } from '$lib/stores/toast.js';
   import CoverImage from './CoverImage.svelte';
   import Icon from './Icon.svelte';
@@ -54,7 +54,7 @@
     try {
       await onChange(null);
     } catch (e) {
-      if (!(e instanceof Error && 'status' in e)) {
+      if (!isApiError(e)) {
         toastError(e instanceof Error ? e.message : 'Cover konnte nicht entfernt werden');
       }
     } finally {

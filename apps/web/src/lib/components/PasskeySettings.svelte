@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { browserSupportsWebAuthn, WebAuthnError } from '@simplewebauthn/browser';
   import { loginTexts, type Passkey } from '@music-hub/shared';
+  import { isApiError } from '$lib/api/client.js';
   import { addPasskey, isPasskeyCancelled, listPasskeys, removePasskey } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import { toastError } from '$lib/stores/toast.js';
@@ -35,7 +36,7 @@
         error = texts.exists;
         toastError(error);
       } else if (!isPasskeyCancelled(err)) {
-        const apiError = err instanceof Error && 'status' in err;
+        const apiError = isApiError(err);
         error = apiError ? err.message : texts.notAdded;
         if (!apiError) toastError(error);
       }

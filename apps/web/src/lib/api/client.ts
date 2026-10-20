@@ -24,6 +24,10 @@ const ENGLISH_ERRORS: Record<string, string> = {
   'Push not configured': 'Benachrichtigungen sind auf diesem Server nicht eingerichtet.',
 };
 
+export function isApiError(error: unknown) {
+  return error instanceof Error && 'status' in error;
+}
+
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {}, silent = false } = options;
 
