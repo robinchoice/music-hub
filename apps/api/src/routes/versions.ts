@@ -9,7 +9,7 @@ import {
   createReviewSchema,
   SUPPORTED_AUDIO_FORMATS,
 } from '@music-hub/shared';
-import { versions, projectMembers, comments } from '@music-hub/db';
+import { versions, projectMembers, projects, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
@@ -88,6 +88,24 @@ export const versionRoutes = new Hono<AppEnv>()
     });
   })
 
+  .post('/project/:projectId/upload-url', zValidator('json', requestUploadUrlSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const projectId = c.req.param('projectId');
+    const { fileName, mimeType, fileSize } = c.req.valid('json');
+    const [membership] = await db.select().from(projectMembers)
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId))).limit(1);
+    if (!membership?.canUpload) return c.json({ error: 'Forbidden' }, 403);
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.isArchived, false))).limit(1);
+    if (!project) return c.json({ error: 'Not found' }, 404);
+    const storage = await storageOf(db, userId);
+    if (!fits(storage, fileSize)) return storageFull(c, storage);
+    if (!(await takeUploadVolume(db, userId, fileSize))) return uploadVolumeExceeded(c);
+    const fileKey = `projects/${projectId}/uploads/${crypto.randomUUID()}/original/${fileName}`;
+    return c.json({ uploadUrl: await createUploadUrl(fileKey, mimeType, fileSize), fileKey });
+  })
+
   // Request presigned upload URL
   .post(
     '/track/:trackId/upload-url',
@@ -148,9 +166,11 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const expectedPrefix = `projects/${track.projectId}/tracks/${trackId}/versions/`;
-    const keySuffix = input.fileKey.slice(expectedPrefix.length);
-    if (!input.fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/original\/[^/]+$/.test(keySuffix)) {
+    const expectedPrefix = [
+      `projects/${track.projectId}/tracks/${trackId}/versions/`,
+      `projects/${track.projectId}/uploads/`,
+    ].find((prefix) => input.fileKey.startsWith(prefix));
+    if (!expectedPrefix || !/^[0-9a-f-]{36}\/original\/[^/]+$/.test(input.fileKey.slice(expectedPrefix.length))) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 

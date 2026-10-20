@@ -11,6 +11,7 @@ export type Version = {
   status: string;
   originalFileName: string;
   duration: number | null;
+  integratedLufs?: number | null;
   createdAt: string;
   parentVersionId: string | null;
   branchLabel: string | null;

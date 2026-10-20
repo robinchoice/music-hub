@@ -4,7 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
-  import { versionTitle, type Version } from '$lib/utils/track.js';
+  import { hasWaveform, versionTitle, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
 
   let {
@@ -90,7 +90,7 @@
   // The worker still marks a version ready when it can't read the file, it then has no duration
   const unreadable = $derived(version.status === 'ready' && version.duration == null);
   // Nobody can judge a mix that isn't playable yet, or never will be
-  const showDecision = $derived(canApprove && !processing && !unreadable && version.status !== 'approved' && version.status !== 'rejected');
+  const showDecision = $derived(canApprove && !processing && hasWaveform(version) && version.status !== 'approved' && version.status !== 'rejected');
 
   function toggle(name: 'picker' | 'more') {
     menu = menu === name ? null : name;
@@ -218,7 +218,14 @@
     <p class="notes"><span>Neu</span>{version.notes}</p>
   {/if}
   {#if unreadable}
-    <p class="open-hint">Die Datei ließ sich nicht verarbeiten, deshalb fehlen Wellenform und Länge. Ist sie beschädigt, lade sie am besten noch einmal hoch.</p>
+    <div class="unreadable" role="alert">
+      <b>Diese Datei lässt sich nicht verarbeiten.</b>
+      <p>„{version.originalFileName}“ hat keine Wellenform und keine Länge. Prüfe den Export und lade die Datei erneut hoch.</p>
+      <div class="retry-actions">
+        {#if canUpload}<Button size="sm" onclick={onUpload}>Neu hochladen</Button>{/if}
+        {#if isOwner}<Button size="sm" variant="secondary" onclick={onDelete}>Version in den Papierkorb</Button>{/if}
+      </div>
+    </div>
   {/if}
   {#if version.rejectionReason}
     <p class="reason">Abgelehnt: „{version.rejectionReason}“</p>
@@ -236,13 +243,17 @@
         Hochgeladen. Wir rechnen die Wellenform und eine Version zum Streamen, das dauert meist unter einer Minute. Du kannst die Seite verlassen.
       </p>
     </div>
-  {:else}
+  {:else if !unreadable}
     <div class="player" class:grow>{@render player()}</div>
   {/if}
   {@render feedback?.()}
 </section>
 
 <style>
+  .unreadable { margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border-hover); border-radius: var(--radius-md); }
+  .unreadable b { color: var(--color-warning); }
+  .unreadable p { color: var(--color-text-secondary); overflow-wrap: anywhere; }
+  .retry-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   .version-card {
     background: var(--color-bg-raised);
     border: 1px solid var(--color-border);

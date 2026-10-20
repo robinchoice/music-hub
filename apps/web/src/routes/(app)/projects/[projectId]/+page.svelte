@@ -23,7 +23,7 @@
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
 
-  type Track = { id: string; section: string | null };
+  type Track = { id: string; name: string; section: string | null };
 
   type Group = { name: string; list: TrackInfo[] };
 
@@ -262,6 +262,7 @@
     <ProjectDrop
       bind:this={drop}
       projectId={projectId!}
+      {tracks}
       big={empty}
       onDone={afterDrop}
       onEmptyTrack={showNewTrack ? undefined : () => (showNewTrack = true)}

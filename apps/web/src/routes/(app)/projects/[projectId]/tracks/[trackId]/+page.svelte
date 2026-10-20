@@ -49,6 +49,8 @@
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
   import FeedbackList from './components/FeedbackList.svelte';
   import VersionCard from './components/VersionCard.svelte';
+  import VersionComparison from './components/VersionComparison.svelte';
+  import { formatTime } from '$lib/utils/format.js';
   import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
   import InviteCard from './components/InviteCard.svelte';
@@ -96,6 +98,7 @@
   let currentTime = $state(0);
   let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
+  let savingUpload = $state(false);
   let showStemUpload = $state(false);
   let versionZone = $state<UploadDropzone>();
   let stemZone = $state<StemUploadDropzone>();
@@ -132,15 +135,36 @@
   let offlineProgress = $state(0);
   let disconnectSse: (() => void) | null = null;
   let selectSeq = 0;
+  let comparePair = $state(false);
+  let compareTime = $state(0);
+  let dismissedVersions = $state<string[]>([]);
+  const comparisonKey = $derived(`version-comparison:${$user?.id}:${trackId}`);
+
+  function dismissComparison() {
+    if (!selectedVersion) return;
+    dismissedVersions = [...dismissedVersions, selectedVersion.id];
+    localStorage.setItem(comparisonKey, JSON.stringify(dismissedVersions));
+  }
+  function openComparison() {
+    compareTime = playerRef?.getCurrentTime() ?? currentTime;
+    playerRef?.pause();
+    comparePair = true;
+  }
+  function closeComparison(time: number) {
+    nextInitialTime = currentTime = time;
+    nextAutoPlay = false;
+    comparePair = false;
+  }
 
   const canUpload = $derived(roles.some((r) => UPLOAD_ROLES.includes(r)));
   const canApprove = $derived(roles.some((r) => hasPermission(r as ProjectRole, 'version.approve')));
   const canComment = $derived(roles.some((r) => r !== 'viewer'));
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
+  const showNewVersion = $derived(selectedVersion?.id === versions[0]?.id && !!predecessor && !processing && hasWaveform(selectedVersion!) && hasWaveform(predecessor) && !dismissedVersions.includes(selectedVersion!.id));
   // Your comments since your last "Fertig", and everyone's feedback on the selected version
   const myPass = $derived($user ? openPass(comments, reviews, $user.id) : []);
   const freshIds = $derived(new Set(myPass.map((c) => c.id)));
-  const canFinish = $derived((canComment || canApprove) && !!selectedVersion && !!$user && selectedVersion.createdById !== $user.id);
+  const canFinish = $derived((canComment || canApprove) && !!selectedVersion && hasWaveform(selectedVersion) && !!$user && selectedVersion.createdById !== $user.id);
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(selectedVersion?.status === 'approved' || selectedVersion?.status === 'rejected');
   const feedbackRowsShown = $derived(feedbackRows(comments, reviews, decided ? [] : waiting, selectedVersion?.createdById ?? null));
@@ -157,7 +181,7 @@
     !!openState?.license && !openState.openedAt && !!openState.contributors.find((p) => p.id === $user?.id && !p.consented),
   );
   const showInvite = $derived(
-    versions.length === 1 && memberCount === 1 && !processing && !inviteDismissed && selectedVersion?.id === versions[0].id,
+    versions.length === 1 && memberCount === 1 && !processing && !inviteDismissed && !!selectedVersion && hasWaveform(selectedVersion) && selectedVersion.id === versions[0].id,
   );
   const nextVersionNumber = $derived(versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1);
 
@@ -177,6 +201,7 @@
 
   onMount(async () => {
     await initOfflineStore();
+    try { dismissedVersions = JSON.parse(localStorage.getItem(comparisonKey) ?? '[]'); } catch { dismissedVersions = []; }
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string; roles: string[] }>(`/projects/${projectId}`),
@@ -237,7 +262,10 @@
       if (type === 'version:new') {
         await loadVersions();
       } else if (type === 'version:status') {
+        const wasProcessing = versions.some((v) => v.id === data.versionId && (v.status === 'uploaded' || v.status === 'processing'));
         await refreshVersions();
+        const finished = versions.find((v) => v.id === data.versionId);
+        if (wasProcessing && finished && hasWaveform(finished) && data.status === 'ready' && !data.undone) toastSuccess(`V${finished.versionNumber} ist fertig`);
         // Processing finished: reload so the player gets the MP3 and the waveform
         if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
           await selectVersion(selectedVersion, true);
@@ -262,6 +290,7 @@
     nextInitialTime = cont?.initialTime ?? 0;
     nextAutoPlay = cont?.autoPlay ?? false;
 
+    comparePair = false;
     selectedVersion = version;
     // Only the latest selection may apply its responses, so fast switching can't mix versions
     const seq = ++selectSeq;
@@ -523,6 +552,7 @@
 
   // The tab and the version stay in the URL, so a reload lands on the same view
   function setView(id: string) {
+    comparePair = false;
     if (id === 'compare') void loadOverview();
     const v = selectedVersion ? `v=${selectedVersion.id}` : '';
     void goto(id === 'compare' ? `?view=compare${v && `&${v}`}` : `?${v}`, { replaceState: true, noScroll: true, keepFocus: true });
@@ -806,8 +836,8 @@
 
       {#if showUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Upload abbrechen" aria-label="Upload abbrechen">
-            <Icon name="x" size={16} />
+          <button class="close-upload cancel-version" disabled={savingUpload} onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Upload abbrechen" aria-label="Upload abbrechen">
+            {savingUpload ? 'Wird gespeichert' : 'Abbrechen'}
           </button>
           <p class="upload-title">
             <b>{branchFromId ? 'Variante hochladen' : 'Neue Version hochladen'}</b>
@@ -824,6 +854,8 @@
           <UploadDropzone
             bind:this={versionZone}
             {trackId}
+            {nextVersionNumber}
+            onRegistering={(saving) => (savingUpload = saving)}
             initialFiles={pickedVersions}
             parentVersionId={branchFromId}
             branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
@@ -831,7 +863,7 @@
               showUpload = false;
               branchFromId = null;
               loadVersions();
-              toastSuccess(count === 1 ? 'Version hochgeladen' : `${count} Versionen hochgeladen`);
+              toast(count === 1 ? 'Datei hochgeladen · wird verarbeitet' : `${count} Dateien hochgeladen · wird verarbeitet`);
             }}
           />
           {/key}
@@ -895,6 +927,11 @@
           {/snippet}
         </EmptyState>
       {:else if selectedVersion && streamUrl}
+        {#if comparePair && predecessor}
+          {#key selectedVersion.id}
+            <VersionComparison previous={predecessor} version={selectedVersion} comments={predecessorComments} {canComment} initialTime={compareTime} onResolve={handleResolve} onClose={closeComparison} />
+          {/key}
+        {:else}
         <VersionCard
           version={selectedVersion}
           {versions}
@@ -955,6 +992,21 @@
             {/if}
           {/snippet}
         </VersionCard>
+        {/if}
+
+        {#if showNewVersion && !comparePair && selectedVersion && predecessor}
+          <section class="new-version" aria-label="Neue Version vergleichen">
+            <h2>V{selectedVersion.versionNumber} ist da</h2>
+            <dl>
+              <div><dt>Dauer</dt><dd>{formatTime(predecessor.duration ?? 0)} → {formatTime(selectedVersion.duration ?? 0)}</dd></div>
+              {#if predecessor.integratedLufs != null && selectedVersion.integratedLufs != null}
+                <div><dt>Lautheit</dt><dd>{predecessor.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {selectedVersion.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} LUFS</dd></div>
+              {/if}
+              <div><dt>Offen aus V{predecessor.versionNumber}</dt><dd>{predecessorComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length} {predecessorComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length === 1 ? 'offener Punkt' : 'offene Punkte'}</dd></div>
+            </dl>
+            <div class="new-version-actions"><Button onclick={openComparison}>V{predecessor.versionNumber} ↔ V{selectedVersion.versionNumber} vergleichen</Button><Button variant="ghost" onclick={dismissComparison}>Ausblenden</Button></div>
+          </section>
+        {/if}
 
         {#if showInvite}
           <InviteCard
@@ -969,6 +1021,7 @@
           />
         {/if}
 
+        {#if !comparePair}
         <CommentSection
           bind:this={commentSection}
           versionLabel={`V${selectedVersion.versionNumber}`}
@@ -992,6 +1045,7 @@
           onRestore={handleRestoreComment}
           onSeek={(time) => playerRef?.seekToTime(time)}
         />
+        {/if}
       {/if}
     {/if}
   </main>
@@ -1103,6 +1157,14 @@
 </Modal>
 
 <style>
+  .new-version { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--color-border-hover); background: var(--color-accent-subtle); border-radius: var(--radius-lg); }
+  .new-version h2 { margin: 0; font: 800 1.5rem var(--font-display); }
+  .new-version dl { margin: 0; }
+  .new-version dl div { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; flex-wrap: wrap; }
+  .new-version dt { color: var(--color-text-secondary); }
+  .new-version dd { margin: 0; }
+  .new-version-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .close-upload.cancel-version { width: auto; padding: 0 var(--space-2); font: inherit; font-size: var(--text-xs); }
   .track-workspace {
     display: flex;
     flex: 1;

@@ -80,7 +80,7 @@ test('several mixes become several tracks, the page stays', async ({ page, baseU
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Dateien auswählen' }).click();
   await (await chooser).setFiles([wav('Letzte Bahn_final.wav'), wav('Nachtbus - Master v2.wav')]);
-  await expect(page.locator('.toast-container')).toContainText('2 Tracks angelegt');
+  await expect(page.locator('.toast-container')).toContainText('2 Dateien hochgeladen · wird verarbeitet');
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
   const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${projectId}`)).json();
   expect(tracks.map((t: { name: string }) => t.name).sort()).toEqual(['Letzte Bahn', 'Nachtbus']);
@@ -131,7 +131,7 @@ test('a finished upload only reports success', async ({ page, baseURL }) => {
   );
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
   await pickVersion(page);
-  await expect(page.locator('.toast-container')).toContainText('Version hochgeladen');
+  await expect(page.locator('.toast-container')).toContainText('Datei hochgeladen · wird verarbeitet');
   await page.waitForTimeout(500);
   await expect(page.locator('.toast-container')).not.toContainText('Upload abgebrochen');
 });
@@ -146,7 +146,7 @@ test('a file the worker could not read is not shown as ready', async ({ page, ba
   const card = page.locator('.version-card');
   await expect(card.getByText('Nicht verarbeitet')).toBeVisible();
   await expect(card.getByText('Bereit', { exact: true })).toHaveCount(0);
-  await expect(card).toContainText('Die Datei ließ sich nicht verarbeiten');
+  await expect(card).toContainText('Diese Datei lässt sich nicht verarbeiten');
 });
 
 test('form labels name their fields', async ({ page }) => {

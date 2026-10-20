@@ -7,17 +7,21 @@
 
   let {
     trackId,
+    nextVersionNumber = 1,
     parentVersionId = null,
     branchLabel = null,
     initialFiles = [],
     onUploaded,
+    onRegistering = () => {},
   }: {
     trackId: string;
+    nextVersionNumber?: number;
     parentVersionId?: string | null;
     branchLabel?: string | null;
     /** Picked before the zone opened, they start uploading right away */
     initialFiles?: File[];
     onUploaded: (count: number) => void;
+    onRegistering?: (saving: boolean) => void;
   } = $props();
 
   let dragOver = $state(false);
@@ -27,6 +31,10 @@
   let total = $state(0);
   let error = $state('');
   let label = $state('');
+  let files = $state<File[]>([]);
+  let loaded = $state(0);
+  let firstNumber = $state(1);
+  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   // The close button cancels the upload, so nothing turns up as a version later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
@@ -70,6 +78,8 @@
     if (error) return;
 
     selected.sort(byFileName);
+    files = selected;
+    firstNumber = nextVersionNumber;
     uploading = true;
     inFlight = true;
     total = selected.length;
@@ -85,13 +95,17 @@
       for (const [i, file] of selected.entries()) {
         current = i + 1;
         progress = 0;
+        loaded = 0;
         const done = await uploadVersion(trackId, file, {
           label,
           parentVersionId,
           branchLabel,
           onProgress: (p) => (progress = p),
+          onBytes: (bytes) => (loaded = bytes),
+          onRegister: () => onRegistering(true),
           signal: abort.signal,
         });
+        onRegistering(false);
         if (!done) return;
       }
 
@@ -106,6 +120,7 @@
           ? `${selected[current - 1].name}: ${message} (${current - 1} von ${total} hochgeladen)`
           : message;
     } finally {
+      onRegistering(false);
       inFlight = false;
       uploading = false;
       progress = 0;
@@ -120,6 +135,7 @@
     <input
       type="text"
       bind:value={label}
+      aria-label="Versionsbezeichnung"
       placeholder="Versionsbezeichnung, z. B. „Rough Mix“"
       disabled={uploading}
     />
@@ -147,9 +163,20 @@
     />
 
     {#if uploading}
-      <div class="progress-container">
-        <div class="progress-bar" style="width: {progress}%"></div>
-        <span class="progress-text">{total > 1 ? `${current}/${total} · ` : ''}{progress}%</span>
+      <div class="upload-files" aria-live="polite">
+        {#if total > 1}<b>Datei {current || 1} von {total}</b>{/if}
+        {#each files as file, i}
+          <div class="upload-file">
+            <b>{file.name}</b>
+            <span>{mb(file.size)} MB · wird V{firstNumber + i}</span>
+            {#if i + 1 === current}
+              <div class="progress-container" role="progressbar" aria-label={file.name} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: {progress}%"></div>
+                <span class="progress-text">{mb(loaded)} von {mb(file.size)} MB</span>
+              </div>
+            {:else}<small>{i + 1 < current ? 'Hochgeladen' : 'Wartet'}</small>{/if}
+          </div>
+        {/each}
       </div>
     {:else}
       <div class="dropzone-content">
@@ -166,6 +193,9 @@
 </div>
 
 <style>
+  .upload-files { display: grid; gap: var(--space-3); text-align: left; width: 100%; }
+  .upload-file { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
+  .upload-file span, .upload-file small { color: var(--color-text-secondary); font-size: var(--text-sm); }
   .upload-section {
     display: flex;
     flex-direction: column;

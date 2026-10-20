@@ -1,5 +1,6 @@
 import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
 import { api } from '$lib/api/client.js';
+import { demoMode } from '$lib/demo/mode.js';
 
 export const MAX_FILE_SIZE_LABEL = `${MAX_FILE_SIZE / 1024 ** 2} MB`;
 
@@ -52,32 +53,45 @@ type VersionUpload = {
   parentVersionId?: string | null;
   branchLabel?: string | null;
   onProgress?: (percent: number) => void;
+  onBytes?: (loaded: number) => void;
+  onRegister?: () => void;
   // Aborting stops the transfer and registers no version
   signal?: AbortSignal;
 };
 
-// Upload URL, file straight to S3, then the version. Returns false when aborted before the version exists.
-export async function uploadVersion(trackId: string, file: File, opts: VersionUpload = {}) {
+export async function uploadAudioFile(uploadPath: string, file: File, opts: VersionUpload = {}) {
   const mimeType = AUDIO_MIME_BY_EXTENSION[extension(file.name) as keyof typeof AUDIO_MIME_BY_EXTENSION];
-  const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string; versionId: string }>(
-    `/versions/track/${trackId}/upload-url`,
-    { fileName: file.name, mimeType, fileSize: file.size },
-  );
-  if (opts.signal?.aborted) return false;
+  const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(uploadPath,
+    { fileName: file.name, mimeType, fileSize: file.size });
+  if (opts.signal?.aborted) return null;
+  if (demoMode) {
+    opts.onProgress?.(100);
+    opts.onBytes?.(file.size);
+    return fileKey;
+  }
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
     xhr.setRequestHeader('Content-Type', mimeType);
-    xhr.upload.onprogress = (e) => e.lengthComputable && opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
+      opts.onBytes?.(e.loaded);
+    };
     xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload fehlgeschlagen (${xhr.status})`)));
     xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
     xhr.onabort = () => reject(new Error('Upload abgebrochen'));
     opts.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
     xhr.send(file);
   });
-  if (opts.signal?.aborted) return false;
+  return opts.signal?.aborted ? null : fileKey;
+}
 
+export async function registerVersion(trackId: string, file: File, fileKey: string, opts: VersionUpload = {}) {
+  if (opts.signal?.aborted) return false;
+  const mimeType = AUDIO_MIME_BY_EXTENSION[extension(file.name) as keyof typeof AUDIO_MIME_BY_EXTENSION];
+  opts.onRegister?.();
   await api.post(`/versions/track/${trackId}`, {
     fileKey,
     label: opts.label || undefined,
@@ -88,6 +102,11 @@ export async function uploadVersion(trackId: string, file: File, opts: VersionUp
     branchLabel: opts.branchLabel ?? undefined,
   });
   return true;
+}
+
+export async function uploadVersion(trackId: string, file: File, opts: VersionUpload = {}) {
+  const fileKey = await uploadAudioFile(`/versions/track/${trackId}/upload-url`, file, opts);
+  return fileKey ? registerVersion(trackId, file, fileKey, opts) : false;
 }
 
 // Upload URL, file straight to S3, then the stem gets it as its new file. Returns the updated stem.

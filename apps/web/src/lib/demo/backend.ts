@@ -375,6 +375,12 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['GET', /^\/tracks\/project\/([\w-]+)$/, ([id]) => ({
     tracks: db.tracks.filter((t) => t.projectId === id).sort((a, b) => a.sortOrder - b.sortOrder).map(trackRow),
   })],
+  ['POST', /^\/tracks\/([\w-]+)$/, ([projectId], body) => {
+    const now = new Date().toISOString();
+    const track: DemoTrack = { id: uuid(1000 + db.tracks.length), projectId, name: String(body?.name ?? ''), description: null, coverUrl: null, status: 'sketch', section: null, sortOrder: db.tracks.length, createdAt: now, updatedAt: now };
+    db.tracks.push(track);
+    return { track: trackRow(track) };
+  }],
   ['PATCH', /^\/tracks\/([\w-]+)$/, ([id], body) => {
     const t = find(db.tracks, id);
     if (typeof body?.name === 'string') t.name = body.name;
@@ -384,6 +390,19 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['GET', /^\/versions\/track\/([\w-]+)$/, ([id]) => ({
     versions: db.versions.filter((v) => v.trackId === id).sort((a, b) => b.versionNumber - a.versionNumber).map(withCounts),
   })],
+  ['POST', /^\/versions\/(?:project|track)\/([\w-]+)\/upload-url$/, ([id], body) => ({ uploadUrl: '', fileKey: `demo/${id}/${String(body?.fileName)}` })],
+  ['POST', /^\/versions\/track\/([\w-]+)$/, ([trackId], body) => {
+    const version: DemoVersion = {
+      id: uuid(2000 + db.versions.length), trackId,
+      versionNumber: Math.max(0, ...db.versions.filter((v) => v.trackId === trackId).map((v) => v.versionNumber)) + 1,
+      label: (body?.label as string) || null, notes: null, status: 'ready', originalFileName: String(body?.originalFileName),
+      mimeType: String(body?.mimeType), fileSize: Number(body?.fileSize), duration: DEMO.duration,
+      createdAt: new Date().toISOString(), createdById: MARA.id, parentVersionId: (body?.parentVersionId as string) ?? null,
+      branchLabel: (body?.branchLabel as string) ?? null, audio: '/demo/nachtbus-v1.mp3', integratedLufs: -15.5,
+    };
+    db.versions.push(version);
+    return { version: withCounts(version) };
+  }],
   ['GET', /^\/versions\/([\w-]+)\/(?:stream|download)-url$/, ([id]) => ({ url: find(db.versions, id).audio })],
   ['GET', /^\/versions\/([\w-]+)\/waveform-data$/, ([id]) => demoPeaks(find(db.versions, id))],
   ['POST', /^\/versions\/([\w-]+)\/approve$/, ([id]) => {

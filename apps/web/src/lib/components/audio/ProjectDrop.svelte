@@ -1,20 +1,22 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
-  import { byFileName, checkAudioFiles, trackNameFromFile, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
-  import { toastSuccess } from '$lib/stores/toast.js';
+  import { byFileName, checkAudioFiles, trackNameFromFile, unreadableFiles, uploadAudioFile, registerVersion } from '$lib/audio/upload.js';
+  import { toast } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
-  // Files dropped on a project become tracks, each with the file as V1. The name comes from the file name.
   let {
     projectId,
+    tracks = [],
     big = false,
     onDone,
     onEmptyTrack,
   }: {
     projectId: string;
+    tracks?: { id: string; name: string }[];
     /** The project has no tracks yet: the zone is the way in */
     big?: boolean;
     onDone: () => void;
@@ -22,13 +24,23 @@
     onEmptyTrack?: () => void;
   } = $props();
 
-  type Row = { name: string; file: string; progress: number; state: 'wartet' | 'lädt hoch' | 'fertig' | 'fehler'; error?: string };
+  type Row = {
+    name: string; file: string; size: number; loaded: number; progress: number;
+    state: 'wartet' | 'lädt hoch' | 'speichert' | 'fertig' | 'fehler' | 'abgebrochen';
+    matchId: string | null; newTrack: boolean; locked: boolean; number: number; matchedNumber: number; abort: AbortController; error?: string;
+  };
+  const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   let input = $state<HTMLInputElement>();
   let rows = $state<Row[]>([]);
   let dragOver = $state(false);
   let error = $state('');
-  const busy = $derived(rows.some((r) => r.state === 'wartet' || r.state === 'lädt hoch'));
+  let preparing = $state(false);
+  let transferring = $state(false);
+  const busy = $derived(preparing || transferring);
+
+  onDestroy(() => rows.forEach((row) => { if (row.state === 'wartet' || row.state === 'lädt hoch') row.abort.abort(); }));
 
   export function pick() {
     input?.click();
@@ -38,37 +50,84 @@
     if (busy || !files.length) return;
     error = checkAudioFiles(files) ?? '';
     if (error) return;
+    preparing = true;
     const unreadable = await unreadableFiles(files);
     if (unreadable.length > 0) {
+      preparing = false;
       error = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
       return;
     }
 
     files.sort(byFileName);
-    rows = files.map((f) => ({ name: trackNameFromFile(f.name), file: f.name, progress: 0, state: 'wartet' }));
+    const known = [...tracks];
+    const counts = new Map<string, number>();
+    rows = files.map((f) => {
+      const name = trackNameFromFile(f.name);
+      const matches = known.filter((t) => normalize(t.name) === normalize(name));
+      return { name, file: f.name, size: f.size, loaded: 0, progress: 0, state: 'wartet', matchId: matches.length === 1 ? matches[0].id : null, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matches.length === 1 ? 0 : 1 };
+    });
+    transferring = true;
+    preparing = false;
     let lastTrackId = '';
     for (const [i, file] of files.entries()) {
-      rows[i].state = 'lädt hoch';
+      const row = rows[i];
+      if (row.abort.signal.aborted) continue;
+      row.state = 'lädt hoch';
       try {
-        const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: rows[i].name });
-        lastTrackId = track.id;
-        await uploadVersion(track.id, file, { onProgress: (p) => (rows[i].progress = p) });
-        rows[i].state = 'fertig';
+        const matches = known.filter((t) => normalize(t.name) === normalize(row.name));
+        row.matchId = matches.length === 1 ? matches[0].id : null;
+        if (row.matchId && !counts.has(row.matchId)) {
+          const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
+          counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
+        }
+        row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
+        if (!row.newTrack) row.number = row.matchedNumber;
+        const fileKey = await uploadAudioFile(`/versions/project/${projectId}/upload-url`, file, {
+          onProgress: (p) => (row.progress = p),
+          onBytes: (bytes) => (row.loaded = bytes),
+          signal: row.abort.signal,
+        });
+        if (!fileKey) { row.state = 'abgebrochen'; continue; }
+        row.locked = true;
+        row.state = 'speichert';
+        let targetId = row.newTrack ? null : row.matchId;
+        if (!targetId) {
+          const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: row.name });
+          targetId = track.id;
+          known.push({ id: targetId, name: row.name });
+        }
+        row.number = (counts.get(targetId) ?? 0) + 1;
+        await registerVersion(targetId, file, fileKey);
+        counts.set(targetId, row.number);
+        lastTrackId = targetId;
+        row.state = 'fertig';
       } catch (err) {
-        rows[i] = { ...rows[i], state: 'fehler', error: err instanceof Error ? err.message : 'Upload fehlgeschlagen' };
+        if (row.abort.signal.aborted) { row.state = 'abgebrochen'; continue; }
+        row.state = 'fehler';
+        row.error = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
       }
     }
-
     onDone();
     const ok = rows.filter((r) => r.state === 'fertig').length;
     if (files.length === 1 && ok === 1) {
-      // One mix: straight into its track, where the waveform turns up
+      transferring = false;
       goto(`/projects/${projectId}/tracks/${lastTrackId}`);
       return;
     }
-    if (ok) toastSuccess(ok === 1 ? '1 Track angelegt' : `${ok} Tracks angelegt`);
-    // Failed rows stay, so it's clear which file to try again
-    rows = rows.filter((r) => r.state === 'fehler');
+    if (ok) toast(`${ok} ${ok === 1 ? 'Datei hochgeladen' : 'Dateien hochgeladen'} · wird verarbeitet`);
+    rows = rows.filter((r) => r.state === 'fehler' || r.state === 'abgebrochen');
+    transferring = false;
+  }
+
+  function cancel(row: Row) {
+    row.abort.abort();
+    row.state = 'abgebrochen';
+    toast('Upload abgebrochen');
+  }
+
+  function toggleTarget(row: Row) {
+    row.newTrack = !row.newTrack;
+    row.number = row.newTrack ? 1 : row.matchedNumber;
   }
 
   function handlePick(e: Event) {
@@ -104,7 +163,7 @@
   >
     <span class="icon"><Icon name="upload" size={22} /></span>
     <h2>Mix hier ablegen</h2>
-    <p>Jede Datei wird ein Track mit V1. Den Namen nehmen wir aus dem Dateinamen.</p>
+    <p>Den Track erkennen wir am Dateinamen. Weitere Mixe desselben Songs werden neue Versionen.</p>
     <Button onclick={pick}>Dateien auswählen</Button>
     <span class="formats">WAV, MP3, FLAC, AIFF · max. 500 MB</span>
   </div>
@@ -119,16 +178,24 @@
 
 {#if rows.length}
   <ul class="rows" aria-live="polite">
-    {#each rows as row (row.file)}
+    {#each rows as row}
       <li class="row">
         <div>
           <b>{row.name}</b>
-          <small>V1 · {row.file}</small>
+          <small>{row.file} · {mb(row.size)} MB</small>
+          <small class="target">{#if row.matchId && !row.newTrack}wird {row.number ? `V${row.number}` : 'eine neue Version'} von „{row.name}“{:else}Neuer Track · wird V1{/if}</small>
+          {#if row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
+            <button type="button" class="switch-target" onclick={() => toggleTarget(row)}>{row.newTrack ? 'Stattdessen als neue Version anhängen' : 'Stattdessen neuer Track'}</button>
+          {/if}
           {#if row.state === 'lädt hoch'}
-            <span class="bar"><i style="width: {row.progress}%"></i></span>
+            <span class="bar" role="progressbar" aria-label={row.file} aria-valuenow={row.progress} aria-valuemin="0" aria-valuemax="100"><i style="width: {row.progress}%"></i></span>
+            <small>{mb(row.loaded)} von {mb(row.size)} MB</small>
           {/if}
           {#if row.error}<small class="row-error" role="alert">{row.error}</small>{/if}
         </div>
+        {#if row.state === 'wartet' || row.state === 'lädt hoch'}
+          <button type="button" class="switch-target" aria-label={`Upload von ${row.file} abbrechen`} onclick={() => cancel(row)}>Abbrechen</button>
+        {/if}
         <span class="state" class:bad={row.state === 'fehler'}>
           {row.state === 'lädt hoch' ? `${row.progress} %` : row.state === 'fehler' ? 'Fehler' : row.state}
         </span>
@@ -138,6 +205,9 @@
 {/if}
 
 <style>
+  .switch-target { justify-self: start; background: none; border: 0; padding: 4px 0; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; font: inherit; font-size: var(--text-xs); text-align: left; }
+  .row b { overflow-wrap: anywhere; }
+  .row .target { white-space: normal; color: var(--color-text-primary); }
   .zone {
     display: grid;
     justify-items: center;
