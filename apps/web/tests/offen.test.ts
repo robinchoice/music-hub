@@ -66,3 +66,12 @@ test('the page ends with a clear next step', async ({ page }) => {
   await expect(cta.getByRole('link', { name: 'Konto anlegen und Track freigeben' })).toHaveAttribute('href', '/register');
   await expect(cta.getByRole('link', { name: 'Schon dabei? Einloggen' })).toHaveAttribute('href', '/login?next=%2Foffen');
 });
+
+test('playing puts title and artist on the lock screen, even when titles are hidden', async ({ page }) => {
+  await page.goto('/offen/beispiel');
+  await page.evaluate(() => localStorage.setItem('media-session-hide', '1'));
+  await page.locator('.play-btn:not(:disabled)').click();
+  await expect.poll(() => page.evaluate(() => navigator.mediaSession.playbackState)).toBe('playing');
+  const meta = await page.evaluate(() => ({ title: navigator.mediaSession.metadata?.title, artist: navigator.mediaSession.metadata?.artist }));
+  expect(meta).toEqual({ title: 'Nachtbus', artist: 'Fernlicht' });
+});

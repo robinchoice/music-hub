@@ -5,6 +5,7 @@
   import { formatTime, initials } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { CommentMarker } from '$lib/utils/track.js';
+  import { claimSession, releaseSession, sessionPlaying, sessionPosition, type SessionInfo } from '$lib/media-session.js';
 
   let {
     url,
@@ -16,6 +17,7 @@
     label = '',
     initialTime = 0,
     autoPlay = false,
+    session = null,
     onTimeClick,
     onReady,
     onSeek,
@@ -32,6 +34,8 @@
     label?: string;
     initialTime?: number;
     autoPlay?: boolean;
+    /** Title and buttons for the lock screen; without it the player stays off it */
+    session?: SessionInfo | null;
     onTimeClick?: (time: number) => void;
     onReady?: (duration: number) => void;
     onSeek?: (time: number) => void;
@@ -55,6 +59,7 @@
   let bubble = $state<{ left: number; items: CommentMarker[]; pinned: boolean } | null>(null);
   let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
   let lastTime = 0;
+  const sessionOwner = {};
 
   // Markers closer than one marker width merge into a bundle with a count
   const MARKER_SIZE = 22;
@@ -158,14 +163,23 @@
         const passed = markers.filter((m) => !m.resolved && m.timestampSeconds > lastTime && m.timestampSeconds <= time);
         if (passed.length) showBubble((passed[0].timestampSeconds / duration) * width, passed, false);
       }
+      if (Math.floor(time) !== Math.floor(lastTime)) sessionPosition(sessionOwner, duration, time);
       lastTime = time;
       currentTime = time;
       onSeek?.(time);
     });
 
-    ws.on('play', () => { isPlaying = true; onPlay?.(); });
-    ws.on('pause', () => { isPlaying = false; onPause?.(); });
-    ws.on('finish', () => { isPlaying = false; onFinish?.(); });
+    ws.on('play', () => {
+      isPlaying = true;
+      if (session) {
+        claimSession(sessionOwner, session, { play, pause, seekTo: seekToTime, skip });
+        sessionPosition(sessionOwner, duration, currentTime);
+      }
+      sessionPlaying(sessionOwner, true);
+      onPlay?.();
+    });
+    ws.on('pause', () => { isPlaying = false; sessionPlaying(sessionOwner, false); onPause?.(); });
+    ws.on('finish', () => { isPlaying = false; sessionPlaying(sessionOwner, false); onFinish?.(); });
 
     ws.on('click', (relativeX) => {
       if (onTimeClick) {
@@ -189,6 +203,7 @@
 
   onDestroy(() => {
     clearTimeout(bubbleTimer);
+    releaseSession(sessionOwner);
     resizeObserver?.disconnect();
     ws?.destroy();
   });

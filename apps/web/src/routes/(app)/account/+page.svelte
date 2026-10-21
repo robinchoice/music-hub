@@ -11,11 +11,16 @@
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
+  import { titleHidden, setTitleHidden } from '$lib/media-session.js';
 
   let name = $state('');
   let saving = $state(false);
+  let hideTitle = $state(false);
 
-  onMount(() => initPush());
+  onMount(() => {
+    initPush();
+    hideTitle = titleHidden();
+  });
 
   $effect(() => {
     if ($user && !name) name = $user.name;
@@ -97,6 +102,14 @@
         </span>
       </label>
     {/if}
+  </section>
+
+  <section class="card">
+    <h2>Wiedergabe</h2>
+    <label class="mail-row">
+      <input type="checkbox" checked={hideTitle} onchange={(e) => setTitleHidden((hideTitle = e.currentTarget.checked))} />
+      <span>Titel auf Sperrbildschirm, Uhr und Autodisplay verbergen, dort steht dann nur „Music Hub“. Gilt für dieses Gerät, offene Tracks zeigen ihren Titel immer.</span>
+    </label>
   </section>
 
   {#if $user}

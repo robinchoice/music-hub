@@ -195,7 +195,12 @@
 
       {#if data.track.description}<p class="description">{data.track.description}</p>{/if}
 
-      <WaveformPlayer url={data.streamUrl} {peaks} audioDuration={data.version.duration} />
+      <WaveformPlayer
+        url={data.streamUrl}
+        {peaks}
+        audioDuration={data.version.duration}
+        session={{ title: data.track.name, artist: data.artist, artwork: data.coverUrl, public: true }}
+      />
 
       <p class="summary">{info.summary}</p>
 

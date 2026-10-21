@@ -261,6 +261,7 @@
         {peaks}
         audioDuration={data.version.duration}
         markers={commentMarkers(data.comments)}
+        session={{ title: data.track.name, artist: data.project.name }}
         onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
         onPlay={onPlay}
         onPause={onPause}

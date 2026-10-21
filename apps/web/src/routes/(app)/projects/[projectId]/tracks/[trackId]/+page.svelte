@@ -279,6 +279,13 @@
     });
   });
 
+  // Lock screen: the neighbouring playable version, older for "previous"
+  function versionStep(step: 1 | -1) {
+    const playable = versions.filter((v) => !isProcessing(v)).sort((a, b) => a.versionNumber - b.versionNumber);
+    const target = playable[playable.findIndex((v) => v.id === selectedVersion?.id) + step];
+    return target ? () => selectVersion(target) : undefined;
+  }
+
   async function selectVersion(version: Version, grown = false) {
     // Snapshot current playhead so the new version picks up where we left off
     if (playerRef && selectedVersion) {
@@ -895,6 +902,13 @@
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
                 markers={commentMarkers(trackComments.comments)}
+                session={{
+                  title: `${trackName} · V${selectedVersion!.versionNumber}`,
+                  artist: projectName,
+                  artwork: trackCoverUrl,
+                  previous: versionStep(-1),
+                  next: versionStep(1),
+                }}
                 onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
                 onSeek={(time) => (currentTime = time)}
               />
