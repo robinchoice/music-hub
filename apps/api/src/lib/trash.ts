@@ -51,24 +51,10 @@ export async function purgeTrash(db: Database) {
       isNotNull(t.deletedAt),
       sql`coalesce(${t.discardedAt}, ${t.deletedAt} + make_interval(days => ${TRASH_DAYS})) < now() - make_interval(days => ${KEEP_DAYS})`,
     );
-  const keys = new Set<string>();
-  const collect = (...list: (string | null)[]) => list.forEach((key) => key && keys.add(key));
-
   const trackIds = (await db.select({ id: tracks.id }).from(tracks).where(due(tracks))).map((t) => t.id);
-  if (trackIds.length) {
-    for (const v of await db.select().from(versions).where(inArray(versions.trackId, trackIds))) {
-      collect(v.originalFileKey, v.streamFileKey, v.waveformDataKey);
-    }
-    for (const s of await db.select().from(stems).where(inArray(stems.trackId, trackIds))) collect(s.fileKey);
-    for (const r of await db
-      .select({ fileKey: stemRevisions.fileKey })
-      .from(stemRevisions)
-      .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
-      .where(inArray(stems.trackId, trackIds))) {
-      collect(r.fileKey);
-    }
-    await db.delete(tracks).where(inArray(tracks.id, trackIds));
-  }
+  const keys = await fileKeysOfTracks(db, trackIds);
+  const collect = (...list: (string | null)[]) => list.forEach((key) => key && keys.add(key));
+  if (trackIds.length) await db.delete(tracks).where(inArray(tracks.id, trackIds));
 
   const dueVersions = await db.select().from(versions).where(due(versions));
   for (const v of dueVersions) collect(v.originalFileKey, v.streamFileKey, v.waveformDataKey);
@@ -107,6 +93,27 @@ export async function purgeTrash(db: Database) {
       `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${dueRevisions.length} earlier stem files, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
     );
   }
+}
+
+// Every file below these tracks: their covers, the originals, MP3s and waveforms of their versions,
+// the stems and the earlier files of stems. What deletes the tracks hands these to deleteUnusedFiles.
+export async function fileKeysOfTracks(db: Pick<Database, 'select'>, trackIds: string[]) {
+  const keys = new Set<string>();
+  if (!trackIds.length) return keys;
+  const collect = (...list: (string | null)[]) => list.forEach((key) => key && keys.add(key));
+  for (const t of await db.select({ cover: tracks.coverImageUrl }).from(tracks).where(inArray(tracks.id, trackIds))) collect(t.cover);
+  for (const v of await db.select().from(versions).where(inArray(versions.trackId, trackIds))) {
+    collect(v.originalFileKey, v.streamFileKey, v.waveformDataKey);
+  }
+  for (const s of await db.select().from(stems).where(inArray(stems.trackId, trackIds))) collect(s.fileKey);
+  for (const r of await db
+    .select({ fileKey: stemRevisions.fileKey })
+    .from(stemRevisions)
+    .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
+    .where(inArray(stems.trackId, trackIds))) {
+    collect(r.fileKey);
+  }
+  return keys;
 }
 
 // Several stems can share a file; keeps every file that a remaining row still points to

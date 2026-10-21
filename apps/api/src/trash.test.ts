@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { eq, inArray } from 'drizzle-orm';
-import { createDb, migrateDb, projectMembers, projects, stems, tracks, users } from '@music-hub/db';
+import { createDb, migrateDb, projectMembers, projects, stems, tracks, users, versions } from '@music-hub/db';
 import { trashOf } from './routes/trash.js';
+import { fileKeysOfTracks } from './lib/trash.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
 const db = createDb(process.env.DATABASE_URL!);
@@ -82,4 +83,25 @@ test('archived projects stay out of the trash', async () => {
   } finally {
     await db.update(projects).set({ isArchived: false }).where(eq(projects.id, own));
   }
+});
+
+test('the files of a track include its cover, its versions and the stems with their earlier files', async () => {
+  const [track] = await db
+    .insert(tracks)
+    .values({ projectId: own, name: 'Cover', createdById: robin, coverImageUrl: 'covers/cover.png' })
+    .returning();
+  await db.insert(versions).values({
+    trackId: track.id,
+    versionNumber: 1,
+    originalFileName: 'mix.wav',
+    mimeType: 'audio/wav',
+    fileSize: 100,
+    originalFileKey: 'test/mix.wav',
+    streamFileKey: 'test/mix.mp3',
+    createdById: robin,
+  });
+  const [stem] = await db.insert(stems).values(deletedStem(track.id, 'Keys', robin)).returning();
+
+  expect(await fileKeysOfTracks(db, [track.id])).toEqual(new Set(['covers/cover.png', 'test/mix.wav', 'test/mix.mp3', stem.fileKey]));
+  expect(await fileKeysOfTracks(db, [])).toEqual(new Set());
 });

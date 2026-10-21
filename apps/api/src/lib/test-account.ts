@@ -8,9 +8,6 @@ import {
   projects,
   projectMembers,
   tracks,
-  versions,
-  stems,
-  stemRevisions,
   pushSubscriptions,
   taskDismissals,
   profiles,
@@ -20,7 +17,7 @@ import {
   type Database,
 } from '@music-hub/db';
 import { generateToken, hashToken } from '../middleware/auth.js';
-import { deleteUnusedFiles } from './trash.js';
+import { deleteUnusedFiles, fileKeysOfTracks } from './trash.js';
 import { TEST_ACCOUNT_EMAIL } from './users.js';
 
 // Turns the test account back into someone who just signed up: its projects go for good, files included,
@@ -46,18 +43,8 @@ export async function resetTestAccount(db: Database) {
     const projectIds = own.map((p) => p.id);
     own.forEach((p) => p.cover && keys.add(p.cover));
     if (projectIds.length) {
-      const trackIds = tx.select({ id: tracks.id }).from(tracks).where(inArray(tracks.projectId, projectIds));
-      for (const v of await tx.select().from(versions).where(inArray(versions.trackId, trackIds))) {
-        [v.originalFileKey, v.streamFileKey, v.waveformDataKey].forEach((key) => key && keys.add(key));
-      }
-      for (const s of await tx.select().from(stems).where(inArray(stems.trackId, trackIds))) keys.add(s.fileKey);
-      for (const r of await tx
-        .select({ fileKey: stemRevisions.fileKey })
-        .from(stemRevisions)
-        .innerJoin(stems, eq(stems.id, stemRevisions.stemId))
-        .where(inArray(stems.trackId, trackIds))) {
-        keys.add(r.fileKey);
-      }
+      const trackIds = (await tx.select({ id: tracks.id }).from(tracks).where(inArray(tracks.projectId, projectIds))).map((t) => t.id);
+      for (const key of await fileKeysOfTracks(tx, trackIds)) keys.add(key);
       await tx.delete(projects).where(inArray(projects.id, projectIds));
     }
 
