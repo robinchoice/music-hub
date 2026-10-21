@@ -12,6 +12,7 @@
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
   import {
     feedbackRows,
+    isDecided,
     openPass,
     predecessorOf,
     versionTitle,
@@ -61,7 +62,7 @@
       ? feedbackRows(
           comments[decision.id] ?? [],
           reviews[decision.id]?.reviews ?? [],
-          decision.status === 'approved' || decision.status === 'rejected' ? [] : (reviews[decision.id]?.waiting ?? []),
+          isDecided(decision) ? [] : (reviews[decision.id]?.waiting ?? []),
           decision.createdById ?? null,
         )
       : [],

@@ -1,5 +1,5 @@
 // Pure helpers for the track page. No $lib imports, so they can be checked with `bun -e`.
-import { REVIEW_PASS_HOURS, type ReviewVerdict } from '@music-hub/shared';
+import { hasPermission, REVIEW_PASS_HOURS, type ProjectRole, type ReviewVerdict } from '@music-hub/shared';
 
 export type { ReviewVerdict } from '@music-hub/shared';
 
@@ -58,6 +58,19 @@ export function predecessorOf<T extends VersionRef>(version: T, versions: T[]): 
     if (!best || v.versionNumber > best.versionNumber) best = v;
   }
   return best;
+}
+
+// The worker still has the file: nothing to hear yet
+export const isProcessing = (v: { status: string }) => v.status === 'uploaded' || v.status === 'processing';
+
+// Approved or rejected: nobody's verdict is missing anymore
+export const isDecided = (v: { status: string }) => v.status === 'approved' || v.status === 'rejected';
+
+// What someone may do in a project, from all their roles; the API derives the same from its membership columns
+export function capabilities(roles: string[]) {
+  const may = (permission: 'track.upload' | 'version.comment' | 'version.approve') =>
+    roles.some((r) => hasPermission(r as ProjectRole, permission));
+  return { canUpload: may('track.upload'), canComment: may('version.comment'), canApprove: may('version.approve') };
 }
 
 // The worker writes a waveform once it has read the file; one it gave up on stays without duration

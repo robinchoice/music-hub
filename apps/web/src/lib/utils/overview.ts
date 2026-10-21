@@ -3,6 +3,7 @@
 import { formatDate, formatTime, initials, isoWeek } from './format.js';
 
 import { hasPermission, PROJECT_ROLES, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
+import { isDecided, isProcessing } from './track.js';
 
 export type { TrackStatus };
 
@@ -197,7 +198,7 @@ export function eventsOf(ix: OverviewIndex, tracks: OverviewTrack[] = ix.data.tr
     for (const version of ix.versionsOf.get(track.id) ?? []) {
       out.push({ ...none, kind: 'version', at: version.createdAt, actorId: version.createdById, track, version });
       // Decisions from before decidedAt existed have no time and stay out
-      if (version.decidedAt && (version.status === 'approved' || version.status === 'rejected')) {
+      if (version.decidedAt && isDecided(version)) {
         const kind = version.status === 'approved' ? 'approved' : 'rejected';
         out.push({ ...none, kind, at: version.decidedAt, actorId: version.decidedById, track, version });
       }
@@ -289,7 +290,7 @@ export function trackInfo(ix: OverviewIndex, track: OverviewTrack): TrackInfo {
   if (!latest) {
     stage = { key: 'none', text: 'Noch keine Version' };
     turn = project.members.filter((m) => m.role === 'owner').map((m) => m.userId);
-  } else if (latest.status === 'uploaded' || latest.status === 'processing') {
+  } else if (isProcessing(latest)) {
     stage = { key: 'processing', text: 'Wird verarbeitet' };
   } else if (latest.status === 'approved') {
     stage = { key: 'approved', text: 'Freigegeben' };

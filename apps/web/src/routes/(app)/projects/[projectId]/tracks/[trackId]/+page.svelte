@@ -6,7 +6,7 @@
   import { user } from '$lib/stores/auth.js';
   import { toast, toasts, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
-  import { UPLOAD_ROLES, trackInfo } from '$lib/utils/overview.js';
+  import { trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import UploadDropzone from '$lib/components/audio/UploadDropzone.svelte';
   import StemUploadDropzone from '$lib/components/audio/StemUploadDropzone.svelte';
@@ -33,13 +33,16 @@
     isOffline,
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
-  import { REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, hasPermission, type ProjectRole, type TrackStatus } from '@music-hub/shared';
+  import { REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import {
     feedbackRows,
     hasWaveform,
     openPass,
     predecessorOf,
     versionTitle,
+    capabilities,
+    isDecided,
+    isProcessing,
     type Person,
     type Review,
     type ReviewVerdict,
@@ -156,9 +159,10 @@
     comparePair = false;
   }
 
-  const canUpload = $derived(roles.some((r) => UPLOAD_ROLES.includes(r)));
-  const canApprove = $derived(roles.some((r) => hasPermission(r as ProjectRole, 'version.approve')));
-  const canComment = $derived(roles.some((r) => r !== 'viewer'));
+  const can = $derived(capabilities(roles));
+  const canUpload = $derived(can.canUpload);
+  const canApprove = $derived(can.canApprove);
+  const canComment = $derived(can.canComment);
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
   const showNewVersion = $derived(selectedVersion?.id === versions[0]?.id && !!predecessor && !processing && hasWaveform(selectedVersion!) && hasWaveform(predecessor) && !dismissedVersions.includes(selectedVersion!.id));
   // Your comments since your last "Fertig", and everyone's feedback on the selected version
@@ -166,7 +170,7 @@
   const freshIds = $derived(new Set(myPass.map((c) => c.id)));
   const canFinish = $derived((canComment || canApprove) && !!selectedVersion && hasWaveform(selectedVersion) && !!$user && selectedVersion.createdById !== $user.id);
   // Once the version is decided, nobody is "still missing" anymore
-  const decided = $derived(selectedVersion?.status === 'approved' || selectedVersion?.status === 'rejected');
+  const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
   const feedbackRowsShown = $derived(feedbackRows(comments, reviews, decided ? [] : waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
@@ -262,7 +266,7 @@
       if (type === 'version:new') {
         await loadVersions();
       } else if (type === 'version:status') {
-        const wasProcessing = versions.some((v) => v.id === data.versionId && (v.status === 'uploaded' || v.status === 'processing'));
+        const wasProcessing = versions.some((v) => v.id === data.versionId && isProcessing(v));
         await refreshVersions();
         const finished = versions.find((v) => v.id === data.versionId);
         if (wasProcessing && finished && hasWaveform(finished) && data.status === 'ready' && !data.undone) toastSuccess(`V${finished.versionNumber} ist fertig`);
@@ -328,7 +332,7 @@
     if (seq !== selectSeq) return;
     peaks = peaksRes;
     streamUrl = streamRes.url;
-    processing = version.status === 'uploaded' || version.status === 'processing';
+    processing = isProcessing(version);
     grow = grown;
     applyComments(commentRes);
     predecessorComments = predRes.comments;

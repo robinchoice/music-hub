@@ -4,7 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
-  import { hasWaveform, versionTitle, type Version } from '$lib/utils/track.js';
+  import { hasWaveform, isDecided, versionTitle, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
 
   let {
@@ -90,7 +90,7 @@
   // The worker still marks a version ready when it can't read the file, it then has no duration
   const unreadable = $derived(version.status === 'ready' && version.duration == null);
   // Nobody can judge a mix that isn't playable yet, or never will be
-  const showDecision = $derived(canApprove && !processing && hasWaveform(version) && version.status !== 'approved' && version.status !== 'rejected');
+  const showDecision = $derived(canApprove && !processing && hasWaveform(version) && !isDecided(version));
 
   function toggle(name: 'picker' | 'more') {
     menu = menu === name ? null : name;
