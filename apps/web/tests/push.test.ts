@@ -18,7 +18,7 @@ test('push fetches details with cookies and uses the same tag for duplicate sign
     const path = '/__push-worker-test.js';
     const { showPush } = await import(path);
     const notices: { title: string; options: NotificationOptions }[] = [];
-    const requests: { url: string; credentials?: RequestCredentials; cache?: RequestCache }[] = [];
+    const requests: { url: string; credentials?: RequestCredentials | undefined; cache?: RequestCache | undefined }[] = [];
     const browser = window as unknown as { fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> };
     const originalFetch = browser.fetch;
     browser.fetch = async (url, options) => {
@@ -144,7 +144,7 @@ test('installed service worker fetches details with its cookie and falls back af
     const worker = context.serviceWorkers()[0];
     // Capture only the native display boundary; push dispatch, fetch and cookies are real.
     await worker.evaluate(() => {
-      const scope = self as unknown as { registration: ServiceWorkerRegistration; notices: { title: string; body?: string; tag?: string }[] };
+      const scope = self as unknown as { registration: ServiceWorkerRegistration; notices: { title: string; body?: string | undefined; tag?: string | undefined }[] };
       scope.notices = [];
       scope.registration.showNotification = async (title, options) => {
         scope.notices.push({ title, body: options?.body, tag: options?.tag });
@@ -160,7 +160,7 @@ test('installed service worker fetches details with its cookie and falls back af
     const push = () => cdp.send('ServiceWorker.deliverPushMessage', {
       origin: baseURL!, registrationId: registrationId!, data: JSON.stringify({ type: 'notification', id }),
     });
-    const notifications = () => worker.evaluate(() => (self as unknown as { notices: { title: string; body?: string; tag?: string }[] }).notices);
+    const notifications = () => worker.evaluate(() => (self as unknown as { notices: { title: string; body?: string | undefined; tag?: string | undefined }[] }).notices);
     await push();
     await expect.poll(notifications).toContainEqual({ title: 'Browser push test', body: 'Isolated test details', tag: `notification-${id}` });
     await context.clearCookies();

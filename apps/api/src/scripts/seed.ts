@@ -103,7 +103,7 @@ async function uploadVersion(opts: {
     .returning();
 
   console.log(`  V${opts.versionNumber} (${opts.branchLabel ?? 'main'}) → processing`);
-  await processVersion(db, version.id);
+  await processVersion(db, version.id, new AbortController().signal);
   return version;
 }
 

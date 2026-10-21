@@ -16,10 +16,10 @@
     size?: 'sm' | 'md' | 'lg';
     loading?: boolean;
     disabled?: boolean;
-    href?: string;
+    href?: string | undefined;
     title?: string;
     type?: 'button' | 'submit';
-    onclick?: (e: MouseEvent) => void;
+    onclick?: ((e: MouseEvent) => void) | undefined;
     children: Snippet;
   } = $props();
 </script>

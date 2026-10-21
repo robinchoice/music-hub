@@ -13,7 +13,7 @@ export function checkFileSize(files: File[]): string | null {
 export function checkAudioFiles(files: File[]): string | null {
   const sizeError = checkFileSize(files);
   if (sizeError) return sizeError;
-  const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.includes(extension(f.name) as any));
+  const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.some((ext) => ext === extension(f.name)));
   if (unsupported.length > 0) {
     return `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
   }

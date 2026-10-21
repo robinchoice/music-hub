@@ -58,8 +58,40 @@ export const verifyCodeSchema = z.object({
   code: z.string().regex(/^\d{6}$/),
 });
 
-export const passkeyResponseSchema = z.object({
-  response: z.object({ id: z.string().min(1).max(1400) }).passthrough(),
+// WebAuthn JSON from the browser; @simplewebauthn/server checks the signatures.
+// The server reads no client extensions, so they are dropped.
+const passkeyCredential = {
+  id: z.string().min(1).max(1400),
+  rawId: z.string(),
+  type: z.literal('public-key'),
+  authenticatorAttachment: z.enum(['cross-platform', 'platform']).exactOptional(),
+  clientExtensionResults: z.object({}),
+};
+
+export const passkeyRegisterSchema = z.object({
+  response: z.object({
+    ...passkeyCredential,
+    response: z.object({
+      clientDataJSON: z.string(),
+      attestationObject: z.string(),
+      authenticatorData: z.string().exactOptional(),
+      transports: z.array(z.string()).exactOptional(),
+      publicKeyAlgorithm: z.number().exactOptional(),
+      publicKey: z.string().exactOptional(),
+    }),
+  }),
+});
+
+export const passkeyLoginSchema = z.object({
+  response: z.object({
+    ...passkeyCredential,
+    response: z.object({
+      clientDataJSON: z.string(),
+      authenticatorData: z.string(),
+      signature: z.string(),
+      userHandle: z.string().exactOptional(),
+    }),
+  }),
 });
 
 export type Passkey = {

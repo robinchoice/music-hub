@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
@@ -147,9 +148,9 @@ export const openRoutes = new Hono<AppEnv>()
     if (!(await reportsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     await db.insert(openReports).values({ trackId: found.track.id, reason, email: email ?? null });
-    sendOpenReportEmail([...ADMIN_EMAILS], found.track.name, openUrl(found.track.id), reason, email ?? null).catch((err) =>
+    runInBackground(sendOpenReportEmail([...ADMIN_EMAILS], found.track.name, openUrl(found.track.id), reason, email ?? null).catch((err) =>
       console.error('[Open] Report email failed:', err.message),
-    );
+    ));
     return c.json({ message: 'Reported' }, 201);
   })
 

@@ -30,6 +30,11 @@ function post(path: string, response: unknown, cookie = '') {
   return app.request(`/passkeys${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': crypto.randomUUID(), cookie }, body: JSON.stringify({ response }) });
 }
 
+const credential = (id: string) => ({
+  id, rawId: id, type: 'public-key', clientExtensionResults: {},
+  response: { clientDataJSON: 'e30', authenticatorData: 'AA', signature: 'AA' },
+});
+
 test('passkey management needs a session', async () => {
   expect((await app.request('/passkeys')).status).toBe(401);
   expect((await post('/register/options', {})).status).toBe(401);
@@ -57,7 +62,7 @@ test('login challenges persist across requests and malformed credentials return 
   challenges.push(options.challenge);
   const [row] = await db.select().from(passkeyChallenges).where(eq(passkeyChallenges.challenge, options.challenge));
   expect(row.userId).toBeNull();
-  const bad = await post('/login', { id: 'unknown' });
+  const bad = await post('/login', credential('unknown'));
   expect(bad.status).toBe(400);
   expect((await bad.json()).code).toBe('passkeyUnknown');
 });
@@ -72,9 +77,9 @@ test('a user can only list and delete their own keys, and blocked users cannot u
   const foreign = await app.request(`/passkeys/${id}`, { method: 'DELETE', headers: { cookie: other.cookie } });
   expect(foreign.status).toBe(404);
   await db.update(users).set({ blockedAt: new Date() }).where(eq(users.id, owner.user.id));
-  expect((await post('/login', { id })).status).toBe(403);
+  expect((await post('/login', credential(id))).status).toBe(403);
   await db.update(users).set({ blockedAt: null }).where(eq(users.id, owner.user.id));
   const removed = await app.request(`/passkeys/${id}`, { method: 'DELETE', headers: { cookie: owner.cookie } });
   expect(removed.status).toBe(200);
-  expect((await post('/login', { id })).status).toBe(400);
+  expect((await post('/login', credential(id))).status).toBe(400);
 });

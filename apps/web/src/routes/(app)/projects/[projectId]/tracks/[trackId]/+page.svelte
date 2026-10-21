@@ -259,7 +259,7 @@
     if (canUpload && upload === 'version') showVersionZone();
     else if (canUpload && upload === 'spuren') showStemZone();
 
-    disconnectSse = connectTrackSse(trackId, async ({ type, data }: { type: string; data: any }) => {
+    disconnectSse = connectTrackSse(trackId, async ({ type, data }) => {
       if (type === 'version:new') {
         await loadVersions();
       } else if (type === 'version:status') {

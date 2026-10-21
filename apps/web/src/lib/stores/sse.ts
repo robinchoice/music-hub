@@ -1,6 +1,10 @@
+import { z } from 'zod';
+
 import { demoMode } from '$lib/demo/mode.js';
 
-type SseHandler = (event: { type: string; data: unknown }) => void;
+const eventData = z.object({ versionId: z.string().optional(), status: z.string().optional(), undone: z.boolean().optional() });
+
+type SseHandler = (event: { type: string; data: z.infer<typeof eventData> }) => void;
 
 let es: EventSource | null = null;
 let currentTrackId: string | null = null;
@@ -23,7 +27,7 @@ export function connectTrackSse(trackId: string, onEvent: SseHandler): () => voi
   for (const type of types) {
     es.addEventListener(type, (e: MessageEvent) => {
       try {
-        handler?.({ type, data: JSON.parse(e.data) });
+        handler?.({ type, data: eventData.parse(JSON.parse(e.data)) });
       } catch { /* ignore malformed */ }
     });
   }

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
@@ -7,7 +8,7 @@ import type { Database } from '@music-hub/db';
 const FFMPEG_LIMITS = { timeout: 15 * 60_000, killSignal: 'SIGKILL' } as const;
 
 // Runs in the worker, one version at a time (services/audio-jobs.ts)
-export async function processVersion(db: Database, versionId: string) {
+export async function processVersion(db: Database, versionId: string, signal: AbortSignal) {
   console.log(`[Worker] Processing version ${versionId}`);
 
   // Mark as processing
@@ -26,13 +27,13 @@ export async function processVersion(db: Database, versionId: string) {
     const originalUrl = await createDownloadUrl(version.originalFileKey, 3600);
 
     // Extract metadata with ffprobe
-    const metadata = await extractMetadata(originalUrl);
+    const metadata = await extractMetadata(originalUrl, signal);
 
     // Integrated loudness, so the DAW plugin can level-match versions
-    const integratedLufs = await measureLoudness(originalUrl);
+    const integratedLufs = await measureLoudness(originalUrl, signal);
 
     // Generate waveform peaks
-    const peaks = await generateWaveformPeaks(originalUrl, metadata.duration);
+    const peaks = await generateWaveformPeaks(originalUrl, metadata.duration, signal);
     const waveformKey = peaks
       ? version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json')
       : null;
@@ -42,7 +43,7 @@ export async function processVersion(db: Database, versionId: string) {
 
     // Transcode to MP3 for streaming
     const streamKey = version.originalFileKey.replace(/\/original\/.*$/, '/stream/audio.mp3');
-    await transcodeToMp3(originalUrl, streamKey);
+    await transcodeToMp3(originalUrl, streamKey, signal);
 
     // Update version with metadata
     await db
@@ -58,7 +59,9 @@ export async function processVersion(db: Database, versionId: string) {
       .where(eq(versions.id, versionId));
 
     console.log(`[Worker] Version ${versionId} ready`);
+    signal.throwIfAborted();
   } catch (error) {
+    signal.throwIfAborted();
     console.error(`[Worker] Failed to process version ${versionId}:`, error);
   }
 
@@ -71,11 +74,12 @@ export async function processVersion(db: Database, versionId: string) {
   publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready' } });
 }
 
-async function extractMetadata(url: string): Promise<{
+async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   duration: number;
   sampleRate: number;
   bitDepth: number;
 }> {
+  signal.throwIfAborted();
   const proc = Bun.spawn([
     'ffprobe',
     '-v', 'quiet',
@@ -83,28 +87,32 @@ async function extractMetadata(url: string): Promise<{
     '-show_format',
     '-show_streams',
     url,
-  ], FFMPEG_LIMITS);
+  ], { ...FFMPEG_LIMITS, signal });
 
   const output = await new Response(proc.stdout).text();
   if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 
-  const data = JSON.parse(output);
-  const audioStream = data.streams?.find((s: any) => s.codec_type === 'audio');
+  const data = z.object({
+    streams: z.array(z.object({ codec_type: z.string().optional(), sample_rate: z.string().optional(), bits_per_raw_sample: z.string().optional(), bits_per_sample: z.number().optional() })).optional(),
+    format: z.object({ duration: z.string().optional() }).optional(),
+  }).parse(JSON.parse(output));
+  const audioStream = data.streams?.find((s) => s.codec_type === 'audio');
 
   return {
     duration: parseFloat(data.format?.duration || '0'),
     sampleRate: parseInt(audioStream?.sample_rate || '44100'),
-    bitDepth: parseInt(audioStream?.bits_per_raw_sample || audioStream?.bits_per_sample || '16'),
+    bitDepth: parseInt(audioStream?.bits_per_raw_sample || String(audioStream?.bits_per_sample || 16)),
   };
 }
 
 // EBU R128 integrated loudness in LUFS. ffmpeg reports -70 for silence,
 // which is "nothing to match", so that becomes null.
-async function measureLoudness(url: string): Promise<number | null> {
+async function measureLoudness(url: string, signal: AbortSignal): Promise<number | null> {
+  signal.throwIfAborted();
   const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128', '-f', 'null', '-'], {
     stdout: 'ignore',
     stderr: 'pipe',
-    ...FFMPEG_LIMITS,
+    ...FFMPEG_LIMITS, signal,
   });
 
   const log = await new Response(proc.stderr).text();
@@ -117,10 +125,11 @@ async function measureLoudness(url: string): Promise<number | null> {
   return lufs <= -70 ? null : lufs;
 }
 
-async function generateWaveformPeaks(url: string, duration: number): Promise<number[] | null> {
+async function generateWaveformPeaks(url: string, duration: number, signal: AbortSignal): Promise<number[] | null> {
   // Generate raw PCM samples with ffmpeg, then compute peaks
   const samplesPerPixel = Math.max(1, Math.floor(duration * 44100 / 800)); // ~800 peaks
 
+  signal.throwIfAborted();
   const proc = Bun.spawn([
     'ffmpeg',
     '-i', url,
@@ -129,7 +138,7 @@ async function generateWaveformPeaks(url: string, duration: number): Promise<num
     '-f', 'f32le',         // raw 32-bit float
     '-v', 'quiet',
     'pipe:1',
-  ], FFMPEG_LIMITS);
+  ], { ...FFMPEG_LIMITS, signal });
 
   const buffer = await new Response(proc.stdout).arrayBuffer();
   if (await proc.exited !== 0) return null;
@@ -153,12 +162,13 @@ async function generateWaveformPeaks(url: string, duration: number): Promise<num
   return peaks;
 }
 
-async function transcodeToMp3(inputUrl: string, outputKey: string) {
+async function transcodeToMp3(inputUrl: string, outputKey: string, signal: AbortSignal) {
   // Transcode to temp file, then upload
   const tmpFile = `/tmp/musichub-${crypto.randomUUID()}.mp3`;
 
-  let mp3;
+  let mp3: Uint8Array;
   try {
+    signal.throwIfAborted();
     const proc = Bun.spawn([
       'ffmpeg',
       '-i', inputUrl,
@@ -167,7 +177,7 @@ async function transcodeToMp3(inputUrl: string, outputKey: string) {
       '-v', 'quiet',
       '-y',
       tmpFile,
-    ], FFMPEG_LIMITS);
+    ], { ...FFMPEG_LIMITS, signal });
 
     if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 

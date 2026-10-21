@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { afterAll, beforeAll, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -54,13 +55,18 @@ function request(method: string, path: string, body?: unknown, headers: Record<s
   return app.request(path, {
     method,
     headers: { 'content-type': 'application/json', 'x-forwarded-for': ip, ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? null : JSON.stringify(body),
   });
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: the tests check the shape with expect
-async function body(res: Response | Promise<Response>): Promise<any> {
+async function body(res: Response | Promise<Response>): Promise<unknown> {
   return (await res).json();
+}
+
+const userAnswer = z.object({ user: z.object({ name: z.string(), updatesSince: z.string().nullable() }) });
+const updateAnswer = z.object({ update: z.looseObject({ id: z.string(), hasImage: z.boolean(), sentAt: z.string().nullable(), pending: z.number().optional() }) });
+async function read<T extends z.ZodType>(res: Response | Promise<Response>, schema: T): Promise<z.output<T>> {
+  return schema.parse(await body(res));
 }
 
 const lastMail = () =>
@@ -71,7 +77,7 @@ const lastMail = () =>
 async function logInWithLink(email: string, updates?: boolean) {
   await request('POST', '/auth/magic-link', { email, updates });
   const token = new URL(lastMail().split(': ').at(-1)!).searchParams.get('token');
-  return body(request('POST', '/auth/verify', { token }));
+  return read(request('POST', '/auth/verify', { token }), userAnswer);
 }
 
 async function session(email: string) {
@@ -91,7 +97,7 @@ test('the ticked checkbox opts in once the link is opened, the unticked one chan
   expect((await userRow(email)).updatesConsentAt).toBeNull();
 
   const token = new URL(lastMail().split(': ').at(-1)!).searchParams.get('token');
-  const { user } = await body(request('POST', '/auth/verify', { token }));
+  const { user } = await read(request('POST', '/auth/verify', { token }), userAnswer);
   expect(user.updatesSince).toEqual(expect.any(String));
 
   // Consent keeps its first date, an unticked login leaves it on
@@ -103,10 +109,10 @@ test('the ticked checkbox opts in once the link is opened, the unticked one chan
 
 test('the account switch turns update mails on and off', async () => {
   const headers = await session(await account());
-  const on = await body(request('PATCH', '/auth/me', { updates: true }, headers));
+  const on = await read(request('PATCH', '/auth/me', { updates: true }, headers), userAnswer);
   expect(on.user.updatesSince).toEqual(expect.any(String));
   expect(on.user.name).toBe('Lena');
-  const off = await body(request('PATCH', '/auth/me', { updates: false }, headers));
+  const off = await read(request('PATCH', '/auth/me', { updates: false }, headers), userAnswer);
   expect(off.user.updatesSince).toBeNull();
 });
 
@@ -146,14 +152,14 @@ test('the admin drafts, previews, tests and sends; the API delivers to opted-in 
   await logInWithLink(leaving, true);
   await logInWithLink(bystander);
 
-  const created = await body(request('POST', '/updates', { content: { title: 'Spuren', features: [] } }, admin));
+  const created = await read(request('POST', '/updates', { content: { title: 'Spuren', features: [] } }, admin), updateAnswer);
   const id = created.update.id;
   updateIds.push(id);
   expect(created.update).toMatchObject({ slug: null, sentAt: null, hasImage: false });
 
   // Incomplete drafts save, but don't send
   expect((await request('POST', `/updates/${id}/send`, undefined, admin)).status).toBe(400);
-  const saved = await body(request('PUT', `/updates/${id}`, { content, image: PNG.toString('base64') }, admin));
+  const saved = await read(request('PUT', `/updates/${id}`, { content, image: PNG.toString('base64') }, admin), updateAnswer);
   expect(saved.update.hasImage).toBe(true);
   expect((await request('PUT', `/updates/${id}`, { content, image: Buffer.from('nope').toString('base64') }, admin)).status).toBe(400);
 
@@ -165,8 +171,8 @@ test('the admin drafts, previews, tests and sends; the API delivers to opted-in 
 
   expect((await request('POST', `/updates/${id}/test`, undefined, admin)).status).toBe(200);
 
-  const before = (await body(request('GET', '/updates', undefined, admin))).subscribers;
-  const sent = await body(request('POST', `/updates/${id}/send`, undefined, admin));
+  const before = (await read(request('GET', '/updates', undefined, admin), z.object({ subscribers: z.number() }))).subscribers;
+  const sent = await read(request('POST', `/updates/${id}/send`, undefined, admin), updateAnswer);
   expect(sent.update.sentAt).toEqual(expect.any(String));
   expect(sent.update.pending).toBe(before);
   // Twice is harmless, and a sent update stays as it went out

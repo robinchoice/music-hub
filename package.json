@@ -3,12 +3,15 @@
   "private": true,
   "packageManager": "bun@1.4.2",
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "check": "bun run --filter '@music-hub/*' check",
-    "test": "bun run --filter '@music-hub/*' test",
+    "check": "biome lint && bun run --sequential --filter '@music-hub/*' check",
+    "test": "bun run --sequential --filter '@music-hub/*' test",
     "db:generate": "turbo db:generate --filter=@music-hub/db",
     "db:migrate": "turbo db:migrate --filter=@music-hub/db",
     "db:seed": "turbo db:seed --filter=@music-hub/db"
@@ -16,7 +19,8 @@
   "devDependencies": {
     "@types/bun": "latest",
     "turbo": "latest",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@biomejs/biome": "^2.5.15"
   },
   "overrides": {
     "@sveltejs/kit": {

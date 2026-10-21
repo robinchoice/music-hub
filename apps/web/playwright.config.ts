@@ -1,14 +1,14 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
-// The API writes to DATABASE_URL like the API tests. The CI sets it directly.
+// The runner supplies an isolated DATABASE_URL; the env file fills in other settings.
 const envFile = new URL('../../.env', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 // Own ports and the built web app, so a dev server of another project is never reused.
-// Worktrees testing at the same time pick other ports via TEST_API_PORT and TEST_WEB_PORT.
-const API_PORT = Number(process.env.TEST_API_PORT ?? 53100);
-const WEB_PORT = Number(process.env.TEST_WEB_PORT ?? 54100);
+// Use TEST_API_PORT and TEST_WEB_PORT below Linux's ephemeral range (32768–60999).
+const API_PORT = Number(process.env.TEST_API_PORT ?? 31100);
+const WEB_PORT = Number(process.env.TEST_WEB_PORT ?? 31101);
 const WEB = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({

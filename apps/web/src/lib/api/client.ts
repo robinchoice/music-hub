@@ -1,5 +1,9 @@
+import { z } from 'zod';
+
 import { toastError } from '$lib/stores/toast.js';
 import { demoMode } from '$lib/demo/mode.js';
+
+const errorAnswer = z.object({ error: z.string(), code: z.string().exactOptional() });
 
 type FetchOptions = {
   method?: string;
@@ -48,11 +52,11 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
       ...headers,
     },
     credentials: 'include',
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify(body) : null,
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => null);
+    const error = errorAnswer.safeParse(await res.json().catch(() => null)).data;
     // Invalid input comes back as a validation object, a few API messages are still English
     const text = typeof error?.error === 'string' ? error.error : null;
     const message = (text && ENGLISH_ERRORS[text]) ?? text ?? (res.status === 400 ? 'Bitte prüfe deine Eingaben.' : 'Das hat nicht geklappt. Versuch es bitte noch einmal.');

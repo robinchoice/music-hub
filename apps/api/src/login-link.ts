@@ -1,3 +1,4 @@
+import './env';
 // Prints a one-time login link, valid like a mailed one for 15 minutes, so an
 // agent can log the Savor preview into the live app without the mail. Needs
 // DATABASE_URL and APP_URL, so it runs in the api container:

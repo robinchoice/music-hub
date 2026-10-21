@@ -36,9 +36,9 @@ export async function subscribePush(): Promise<void> {
       userAgent: navigator.userAgent.slice(0, 200),
     });
     _state = 'subscribed';
-  } catch (err: any) {
+  } catch (err) {
     if (Notification.permission === 'denied') _state = 'denied';
-    console.error('[Push] subscribe error:', err.message);
+    console.error('[Push] subscribe error:', err instanceof Error ? err.message : String(err));
   } finally {
     _loading = false;
   }

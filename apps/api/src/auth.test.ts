@@ -159,3 +159,24 @@ test('renewal preserves the passkey login method for the admin history', async (
   expect(renewed.client).toBe('passkey');
   expect(renewed.expiresAt.getTime()).toBeGreaterThan(Date.now() + 364 * DAY);
 });
+
+test('magic link verification limits each IP without consuming blocked links', async () => {
+  const email = freshEmail();
+  await db.insert(users).values({ email, name: 'Lena' });
+  const token = await codeLink(email);
+  const ip = crypto.randomUUID();
+  const verify = (value: string, address = ip) => app.request('/auth/verify', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': address },
+    body: JSON.stringify({ token: value }),
+  });
+  const guesses = await Promise.all(Array.from({ length: 60 }, () => verify('invalid')));
+  expect(guesses.map((res) => res.status)).toEqual(Array(60).fill(400));
+  const blocked = await verify(token);
+  expect(blocked.status).toBe(429);
+  expect(blocked.headers.get('set-cookie')).toBeNull();
+  expect((await verify(token, crypto.randomUUID())).status).toBe(200);
+  const next = await codeLink(email);
+  const { rateLimits } = await import('@music-hub/db');
+  await db.update(rateLimits).set({ resetAt: new Date(Date.now() - 1) }).where(eq(rateLimits.key, `link-checks-per-ip:${ip}`));
+  expect((await verify(next)).status).toBe(200);
+});

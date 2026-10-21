@@ -20,6 +20,7 @@ services:
 
   # === API ===
   api:
+    stop_grace_period: 60s
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -55,6 +56,7 @@ services:
 
   # === AUDIO-WORKER (Wellenform, MP3, Lautheit; ein Job gleichzeitig) ===
   worker:
+    stop_grace_period: 60s
     build:
       context: .
       dockerfile: Dockerfile.api

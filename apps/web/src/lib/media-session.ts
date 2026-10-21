@@ -9,8 +9,8 @@ export type SessionInfo = {
   artwork?: string | null;
   /** Open tracks are public anyway and always show their title */
   public?: boolean;
-  previous?: () => void;
-  next?: () => void;
+  previous?: (() => void) | undefined;
+  next?: (() => void) | undefined;
 };
 
 export type SessionControls = {

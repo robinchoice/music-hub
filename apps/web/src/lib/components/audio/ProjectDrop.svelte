@@ -21,7 +21,7 @@
     big?: boolean;
     onDone: () => void;
     /** Stems first: a track without a mix */
-    onEmptyTrack?: () => void;
+    onEmptyTrack?: (() => void) | undefined;
   } = $props();
 
   type Row = {

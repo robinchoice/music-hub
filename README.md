@@ -162,3 +162,9 @@ music-hub/
 ├── Dockerfile.web
 └── docker-compose.yml
 ```
+
+## Tests und Prozessende
+
+`bun run check && bun run test && bun --bun run build` prüft Typen, die `any`-Regeln von Biome, API und Browser. Die API- und Browser-Suite laufen nacheinander, damit Browser-Build und API-Tests auf kleinen Rechnern nicht konkurrieren. Jede Suite bekommt eine eigene leere Datenbank auf dem Server aus `DATABASE_URL`; der Nutzer braucht `CREATEDB` (lokaler Compose- und CI-Nutzer haben es). `packages/db/test.ts` entfernt nur diese temporäre Datenbank nach Erfolg, Fehler oder SIGINT/SIGTERM. Direkte Aufrufe von `bun test` oder `playwright test` umgehen die Isolation. Playwright nutzt 31100/31101 unter dem ephemeren Linux-Portbereich; parallele Worktrees wählen andere Ports unter 32768 per `TEST_API_PORT` und `TEST_WEB_PORT`.
+
+SIGTERM/SIGINT lässt die API laufende Anfragen und Mailjobs beenden, schließt SSE und danach Postgres. Datei-Uploads laufen direkt nach S3; ihre Bestätigung kann der Client nach dem Neustart senden. Der Worker stoppt ffmpeg, bevor er den Job zur Wiederaufnahme freigibt. Compose gewährt beiden 60 Sekunden. Die Prozesse prüfen formatierte Env-Werte beim Start mit zod; Fehler nennen nur die Feldnamen.

@@ -578,7 +578,7 @@ export function downsample(peaks: number[], count: number): number[] {
   return top > 0 ? out.map((x) => x / top) : out;
 }
 
-export type Marker = { id: string; seconds: number; tip: string; done: boolean; initials?: string };
+export type Marker = { id: string; seconds: number; tip: string; done: boolean; initials?: string | undefined };
 
 /** Comment markers on a waveform; replies have no position of their own */
 export function markersFor(ix: OverviewIndex, comments: OverviewComment[], withInitials = false): Marker[] {

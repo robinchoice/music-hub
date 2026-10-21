@@ -28,7 +28,7 @@ const call = (path: string, init: { method?: string; body?: unknown; headers?: R
   app.request(path, {
     method: init.method ?? 'GET',
     headers: { 'content-type': 'application/json', ...init.headers },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    body: init.body === undefined ? null : JSON.stringify(init.body),
   });
 const user = async (name: string) => {
   const [u] = await db.insert(users).values({ email: `test-${crypto.randomUUID()}@example.com`, name }).returning();

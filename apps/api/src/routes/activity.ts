@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
@@ -11,9 +12,9 @@ type ActivityEvent = {
   guestName: string | null;
   project: { id: string; name: string };
   track: { id: string; name: string };
-  version?: { id: string; versionNumber: number; label: string | null };
-  body?: string;
-  status?: string;
+  version?: { id: string; versionNumber: number; label: string | null } | undefined;
+  body?: string | undefined;
+  status?: string | undefined;
   timestampSeconds?: number | null;
 };
 
@@ -94,18 +95,27 @@ export const activityRoutes = new Hono<AppEnv>()
       LIMIT ${limit}
     `);
 
-    const events: ActivityEvent[] = (rows as unknown as any[]).map((r) => ({
-      type: r.type as ActivityEvent['type'],
+    const activityRows = z.array(z.object({
+      type: z.enum(['comment', 'version', 'approval']),
+      event_id: z.string(), created_at: z.union([z.string(), z.date()]),
+      user_id: z.string().nullable(), user_name: z.string().nullable(), user_avatar: z.string().nullable(),
+      guest_name: z.string().nullable(), project_id: z.string(), project_name: z.string(),
+      track_id: z.string(), track_name: z.string(), version_id: z.string().nullable(),
+      version_number: z.number().nullable(), version_label: z.string().nullable(),
+      body: z.string().nullable(), status: z.string().nullable(), timestamp_seconds: z.number().nullable(),
+    })).parse(rows);
+    const events: ActivityEvent[] = activityRows.map((r) => ({
+      type: r.type,
       id: r.event_id,
       createdAt: typeof r.created_at === 'string' ? r.created_at : new Date(r.created_at).toISOString(),
       user: r.user_id
-        ? { id: r.user_id, name: r.user_name, avatarUrl: r.user_avatar }
+        ? { id: r.user_id, name: r.user_name!, avatarUrl: r.user_avatar }
         : null,
       guestName: r.guest_name ?? null,
       project: { id: r.project_id, name: r.project_name },
       track: { id: r.track_id, name: r.track_name },
       version: r.version_id
-        ? { id: r.version_id, versionNumber: r.version_number, label: r.version_label }
+        ? { id: r.version_id, versionNumber: r.version_number!, label: r.version_label }
         : undefined,
       body: r.body ?? undefined,
       status: r.status ?? undefined,

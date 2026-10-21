@@ -5,14 +5,14 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts & PORT=3001 bun run --hot src/worker.ts & wait",
     "build": "bun build src/index.ts src/worker.ts --outdir dist --target bun && cp -R ../../packages/db/src/migrations dist/",
-    "test": "bun test",
+    "test": "bun --env-file=../../.env ../../packages/db/test.ts bun test",
     "seed": "bun run src/scripts/seed.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/s3-request-presigner": "^3",
-    "@hono/zod-validator": "^0.5",
+    "@hono/zod-validator": "^0.9.1",
     "@music-hub/db": "workspace:*",
     "@music-hub/shared": "workspace:*",
     "@sentry/bun": "^11.4.0",
@@ -21,7 +21,8 @@
     "fflate": "^0.8.2",
     "hono": "^4.13.12",
     "nodemailer": "^10",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/web-push": "^3.6.4"

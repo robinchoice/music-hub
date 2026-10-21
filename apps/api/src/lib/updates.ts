@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { and, asc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
@@ -149,15 +150,15 @@ export function deliverNext(db: Database, intervalMs: number): Promise<'idle' | 
 
 // Runs in the API like the version notices: the worker has no SMTP. Proton's
 // SMTP limits the rate, so one mail per UPDATE_MAIL_INTERVAL_MS across all instances.
-export async function deliverUpdates(db: Database, onError: (err: unknown) => void) {
+export async function deliverUpdates(db: Database, onError: (err: unknown) => void, signal: AbortSignal) {
   const interval = Number(process.env.UPDATE_MAIL_INTERVAL_MS || 6000);
-  while (true) {
+  while (!signal.aborted) {
     const result = await deliverNext(db, interval).catch((err) => {
       console.error('[Updates] Delivery crashed:', err);
       onError(err);
       return 'failed' as const;
     });
     // Nothing due: look again soon. The pace and retries are kept in deliverNext.
-    await Bun.sleep({ idle: 10_000, wait: interval, sent: interval, skipped: 0, failed: interval }[result]);
+    await sleep({ idle: 10_000, wait: interval, sent: interval, skipped: 0, failed: interval }[result], undefined, { signal }).catch(() => {});
   }
 }

@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, inArray, isNull, ne, or } from 'drizzle-orm';
@@ -439,7 +440,7 @@ export const shareRoutes = new Hono<AppEnv>()
 
     if (isFirstPlay && (await listenAlerts.hit(db, link.id))) {
       // Fire-and-forget: alert link creator by email
-      Promise.resolve().then(async () => {
+      runInBackground(Promise.resolve().then(async () => {
         try {
           const [fullLink] = await db
             .select({ createdById: shareLinks.createdById, versionId: shareLinks.versionId })
@@ -464,7 +465,7 @@ export const shareRoutes = new Hono<AppEnv>()
           const trackUrl = `${process.env.APP_URL}/projects/${track.projectId}/tracks/${track.id}`;
           await sendListenAlertEmail(creator.email, listenerName ?? null, track.name, project.name, trackUrl);
         } catch { /* non-critical */ }
-      });
+      }));
     }
 
     return c.json({ ok: true });

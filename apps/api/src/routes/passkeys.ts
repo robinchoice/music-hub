@@ -1,10 +1,8 @@
 import { passkeyChallenges, passkeys, users } from '@music-hub/db';
-import { type Passkey, passkeyResponseSchema, loginTexts } from '@music-hub/shared';
+import { type Passkey, passkeyRegisterSchema, passkeyLoginSchema, loginTexts } from '@music-hub/shared';
 import {
-  type AuthenticationResponseJSON,
   generateAuthenticationOptions,
   generateRegistrationOptions,
-  type RegistrationResponseJSON,
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
@@ -86,7 +84,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
       userName: user.email,
       userDisplayName: user.name,
       userID: new TextEncoder().encode(user.id),
-      excludeCredentials: existing.map(({ id, transports }) => ({ id, transports: transports ?? undefined })),
+      excludeCredentials: existing.map(({ id, transports }) => (transports ? { id, transports } : { id })),
       // Discoverable, so the login needs no address and the browser can offer it as autofill
       authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
     });
@@ -94,12 +92,12 @@ export const passkeyRoutes = new Hono<AppEnv>()
     return c.json(options);
   })
 
-  .post('/register', requireAuth, zValidator('json', passkeyResponseSchema), async (c) => {
+  .post('/register', requireAuth, zValidator('json', passkeyRegisterSchema), async (c) => {
     const userId = c.get('userId');
     const texts = loginTexts(c.req.header('accept-language'));
     const { rpID, origins } = relyingParty();
     const result = await verifyRegistrationResponse({
-      response: c.req.valid('json').response as unknown as RegistrationResponseJSON,
+      response: c.req.valid('json').response,
       expectedChallenge: useChallenge(c, userId),
       expectedOrigin: origins,
       expectedRPID: rpID,
@@ -143,7 +141,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
     return c.json(options);
   })
 
-  .post('/login', zValidator('json', passkeyResponseSchema), async (c) => {
+  .post('/login', zValidator('json', passkeyLoginSchema), async (c) => {
     if (!(await loginsPerIp.hit(c.get('db'), clientIp(c)))) return tooManyRequests(c);
     const texts = loginTexts(c.req.header('accept-language'));
     const { response } = c.req.valid('json');
@@ -165,7 +163,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
 
     const { rpID, origins } = relyingParty();
     const result = await verifyAuthenticationResponse({
-      response: response as unknown as AuthenticationResponseJSON,
+      response: response,
       expectedChallenge: useChallenge(c, null),
       expectedOrigin: origins,
       expectedRPID: rpID,
@@ -173,7 +171,7 @@ export const passkeyRoutes = new Hono<AppEnv>()
         id: passkey.id,
         publicKey: new Uint8Array(passkey.publicKey),
         counter: passkey.counter,
-        transports: passkey.transports ?? undefined,
+        ...(passkey.transports && { transports: passkey.transports }),
       },
       requireUserVerification: false,
     }).catch(() => null);

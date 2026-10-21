@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
@@ -156,7 +157,7 @@ export const trackRoutes = new Hono<AppEnv>()
 
     const open = await openStateOf(db, track.id);
     if (!result.opened) {
-      for (const p of open.contributors) if (!p.consented) void askForConsent(db, track, p.id);
+      for (const p of open.contributors) if (!p.consented) runInBackground(askForConsent(db, track, p.id));
     }
     return c.json({ open });
   })

@@ -1,4 +1,5 @@
-import { Hono } from 'hono';
+import type { Database } from '@music-hub/db';
+import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { and, eq, isNull, isNotNull, gt, lt, sql } from 'drizzle-orm';
@@ -36,6 +37,7 @@ const failedLogins = rateLimit('failed-logins', 10, 15 * MINUTE);
 // Magic link and registration emails
 const mailsPerAddress = rateLimit('mails-per-address', 5, 60 * MINUTE);
 const mailsPerIp = rateLimit('mails-per-ip', 20, 60 * MINUTE);
+const linkChecksPerIp = rateLimit('link-checks-per-ip', 60, 15 * MINUTE);
 const codeChecksPerIp = rateLimit('code-checks-per-ip', 30, 15 * MINUTE);
 
 // New accounts beyond MAX_USERS only come from project invites
@@ -66,7 +68,7 @@ export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsen
 // Switching update mails on keeps the time of the first consent as proof
 const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
-export async function createSession(c: any, db: any, userId: string, client = 'web') {
+export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'insert'>, userId: string, client = 'web') {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -74,7 +76,7 @@ export async function createSession(c: any, db: any, userId: string, client = 'w
   setSessionCookie(c, sessionToken);
 }
 
-async function completeLink(c: any, tx: any, link: typeof magicLinks.$inferSelect, password?: string) {
+async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'update' | 'insert' | 'transaction'>, link: typeof magicLinks.$inferSelect, password?: string) {
   const defaultName = link.email.split('@')[0];
   let registration: { name: string; passwordHash: string } | null = null;
   if (link.passwordHash && password !== undefined) {
@@ -197,6 +199,7 @@ export const authRoutes = new Hono<AppEnv>()
   .post('/verify', zValidator('json', verifyTokenSchema), async (c) => {
     const { token, password } = c.req.valid('json');
     const db = c.get('db');
+    if (!(await linkChecksPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const tokenHash = await hashToken(token);
 
     return db.transaction(async (tx) => {

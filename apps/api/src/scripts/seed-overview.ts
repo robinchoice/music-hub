@@ -92,7 +92,7 @@ async function version(t: { id: string; projectId: string }, n: number, label: s
       createdAt: ago(createdAgo),
     })
     .returning();
-  await processVersion(db, v.id);
+  await processVersion(db, v.id, new AbortController().signal);
   console.log(`  ${label} (V${n})`);
   return v;
 }

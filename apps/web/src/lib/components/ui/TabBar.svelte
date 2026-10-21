@@ -1,5 +1,5 @@
 <script lang="ts">
-  type Tab = { id: string; label: string; count?: number; disabled?: boolean; title?: string };
+  type Tab = { id: string; label: string; count?: number | undefined; disabled?: boolean; title?: string | undefined };
 
   let { tabs, active, onselect }: { tabs: Tab[]; active: string; onselect: (id: string) => void } = $props();
 </script>

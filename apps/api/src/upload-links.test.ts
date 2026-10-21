@@ -41,7 +41,7 @@ const call = (path: string, init: { method?: string; body?: unknown; headers?: R
   app.request(`/upload-links${path}`, {
     method: init.method ?? 'GET',
     headers: { 'content-type': 'application/json', ...init.headers },
-    body: init.body ? JSON.stringify(init.body) : undefined,
+    body: init.body ? JSON.stringify(init.body) : null,
   });
 
 beforeAll(async () => {

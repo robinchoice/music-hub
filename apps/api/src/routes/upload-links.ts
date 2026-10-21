@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
@@ -236,12 +237,12 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     if (!stem) return ownerFull(c);
 
     if (await uploadAlerts.hit(db, `${found.link.id}:${track.id}`)) {
-      notifyProjectMembers(db, track.projectId, '', {
+      runInBackground(notifyProjectMembers(db, track.projectId, '', {
         projectId: track.projectId, trackId: track.id,
         title: 'Neue Spuren',
         body: `${input.guestName} hat Spuren zu ${track.name} hochgeladen`,
         url: `/projects/${track.projectId}/tracks/${track.id}`,
-      }).catch(() => {});
+      }).catch(() => {}));
     }
 
     return c.json({ stem }, 201);

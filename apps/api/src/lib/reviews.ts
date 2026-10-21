@@ -1,3 +1,4 @@
+import { runInBackground } from './background.js';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notExists, sql, type SQL } from 'drizzle-orm';
 import {
   comments,
@@ -55,7 +56,7 @@ function passOf(db: Pick<Database, 'select'>, versionId: string, author: Author)
 
 export async function submitReview(
   db: Database,
-  input: { version: Version; track: Track; author: Author; authorName: string; verdict: ReviewVerdict; note?: string | null; canApprove: boolean },
+  input: { version: Version; track: Track; author: Author; authorName: string; verdict: ReviewVerdict; note?: string | null | undefined; canApprove: boolean },
 ) {
   const { version, track, author, verdict, canApprove } = input;
   const note = input.note?.trim() || null;
@@ -92,9 +93,9 @@ export async function submitReview(
   if (status) publish(db, track.id, { type: 'version:status', data: { versionId: version.id, status } });
   publish(db, track.id, { type: 'review:new', data: { versionId: version.id } });
   if (!('userId' in author) || author.userId !== version.createdById) {
-    void deliverFeedback(db, { version, track, authorName: 'guestName' in author ? `${input.authorName} (Gast)` : input.authorName, verdict, note, comments: pass }).catch((err) =>
+    runInBackground(deliverFeedback(db, { version, track, authorName: 'guestName' in author ? `${input.authorName} (Gast)` : input.authorName, verdict, note, comments: pass }).catch((err) =>
       console.error('[Reviews] Delivery failed:', err),
-    );
+    ));
   }
   return review;
 }
@@ -170,7 +171,7 @@ export async function takeDueFeedback(db: Database) {
     `);
     if (due.length === 0) return [];
 
-    const taken = [];
+    const taken: { versionId: string; author: Author; comments: Awaited<ReturnType<typeof passOf>> }[] = [];
     for (const row of due) {
       const author: Author = row.user_id ? { userId: row.user_id } : { guestName: row.guest_name! };
       const pass = await passOf(tx, row.version_id, author);

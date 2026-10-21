@@ -1,0 +1,22 @@
+{
+  "files": {
+    "includes": [
+      "apps/**",
+      "packages/**",
+      "!**/dist/**",
+      "!**/build/**",
+      "!**/.svelte-kit/**",
+      "!**/migrations/meta/**"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noImplicitAnyLet": "error",
+        "noEvolvingTypes": "error"
+      },
+      "preset": "none"
+    }
+  }
+}

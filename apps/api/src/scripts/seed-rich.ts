@@ -99,7 +99,7 @@ type ProjectSpec = {
   name: string;
   description: string;
   cover: string;
-  members: { email: string; role: any }[];
+  members: { email: string; role: import('@music-hub/shared').ProjectRole }[];
   tracks: TrackSpec[];
   shareVersionLabel?: { trackName: string; versionLabel: string };
 };
@@ -190,7 +190,7 @@ async function createProject(spec: ProjectSpec) {
 
       versionMap.set(v.label, version.id);
       console.log(`    V${i + 1} ${v.label}${v.branchLabel ? ` (Variante: ${v.branchLabel})` : ''}`);
-      await processVersion(db, version.id);
+      await processVersion(db, version.id, new AbortController().signal);
 
       if (v.status && v.status !== 'ready') {
         await db

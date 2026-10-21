@@ -16,7 +16,7 @@ export const toasts = writable<Toast[]>([]);
 
 export function toast(message: string, type: ToastType = 'info', duration = 4000, action?: ToastAction) {
   const id = crypto.randomUUID();
-  toasts.update((t) => [...t, { id, message, type, duration, action }]);
+  toasts.update((t) => [...t, { id, message, type, duration, ...(action && { action }) }]);
   setTimeout(() => removeToast(id), duration);
 }
 

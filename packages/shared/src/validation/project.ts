@@ -25,7 +25,7 @@ const memberRoles = {
   role: assignableRole.optional(),
   roles: z.array(assignableRole).min(1).max(PROJECT_ROLES.length).optional(),
 };
-const hasRole = (m: { role?: string; roles?: string[] }) => !!(m.role || m.roles);
+const hasRole = (m: { role?: string | undefined; roles?: string[] | undefined }) => !!(m.role || m.roles);
 
 export const inviteMemberSchema = z
   .object({ email: z.string().email(), ...memberRoles })

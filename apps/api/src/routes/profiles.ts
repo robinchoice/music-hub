@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -109,14 +110,14 @@ export const profileRoutes = new Hono<AppEnv>()
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
       db.select({ email: users.email }).from(users).where(eq(users.id, found.profile.userId)),
     ]);
-    notifyUser(db, found.profile.userId, {
+    runInBackground(notifyUser(db, found.profile.userId, {
       requestId: request.id,
       title: `Anfrage von ${sender.name}`,
       body: message.length > 120 ? `${message.slice(0, 119)}…` : message,
       url: '/for-you',
-    }).catch((err) => console.error('[Push] Contact request failed:', err.message));
-    sendContactRequestEmail(recipient.email, sender.name, message).catch((err) =>
+    }).catch((err) => console.error('[Push] Contact request failed:', err.message)));
+    runInBackground(sendContactRequestEmail(recipient.email, sender.name, message).catch((err) =>
       console.error('[Email] Contact request failed:', err.message),
-    );
+    ));
     return c.json({ request: { id: request.id } }, 201);
   });

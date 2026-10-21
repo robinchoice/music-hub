@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, sql } from 'drizzle-orm';
@@ -251,9 +252,9 @@ export const projectRoutes = new Hono<AppEnv>()
       db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId)).limit(1),
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1),
     ]);
-    sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name, loginToken).catch(
+    runInBackground(sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name, loginToken).catch(
       (err) => console.error('[Email] Invite failed:', err),
-    );
+    ));
 
     return c.json({ member }, 201);
   })
@@ -305,7 +306,7 @@ export const projectRoutes = new Hono<AppEnv>()
   });
 
 // The rights of several roles add up
-export function roleColumns(input: { role?: ProjectRole; roles?: ProjectRole[] }) {
+export function roleColumns(input: { role?: ProjectRole | undefined; roles?: ProjectRole[] | undefined }) {
   const [role, ...extraRoles] = [...new Set(input.roles ?? [input.role!])];
   const all = [role, ...extraRoles];
   return {

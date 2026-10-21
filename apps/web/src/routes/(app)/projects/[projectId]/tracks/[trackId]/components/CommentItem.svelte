@@ -34,7 +34,7 @@
     onReply?: (body: string) => Promise<void>;
     onResolve?: () => Promise<void>;
     onReopen?: () => Promise<void>;
-    onReact?: (emoji: string) => Promise<void>;
+    onReact?: ((emoji: string) => Promise<void>) | undefined;
     onEdit?: (body: string) => Promise<void>;
     onDelete?: () => Promise<void>;
     onRestore?: () => Promise<void>;

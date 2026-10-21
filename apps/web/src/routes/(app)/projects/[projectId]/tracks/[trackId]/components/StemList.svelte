@@ -144,7 +144,7 @@
   async function restoreRevision(stem: Stem, revision: Revision) {
     try {
       const { stem: updated } = await api.post<{ stem: Stem }>(`/stems/revisions/${revision.id}/restore`);
-      stems = stems.map((s) => (s.id === stem.id ? { ...updated, revisionCount: s.revisionCount } : s));
+      stems = stems.map((s) => (s.id === stem.id ? { ...updated, ...(s.revisionCount !== undefined && { revisionCount: s.revisionCount }) } : s));
       await loadRevisions(stem.id);
       toastSuccess(`„${revision.originalFileName}“ ist wieder die aktuelle Fassung`);
     } catch {

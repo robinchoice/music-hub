@@ -1,3 +1,4 @@
+import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -57,15 +58,15 @@ export const requestRoutes = new Hono<AppEnv>()
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
       db.select({ email: users.email }).from(users).where(eq(users.id, result.fromUserId)),
     ]);
-    notifyUser(db, result.fromUserId, {
+    runInBackground(notifyUser(db, result.fromUserId, {
       projectId: result.projectId,
       title: `${me.name} hat angenommen`,
       body: `Ihr arbeitet jetzt zusammen in „${project.name}“.`,
       url: `/projects/${result.projectId}`,
-    }).catch((err) => console.error('[Push] Accepted request failed:', err.message));
-    sendInviteEmail(sender.email, result.projectId, project.name, me.name, null).catch((err) =>
+    }).catch((err) => console.error('[Push] Accepted request failed:', err.message)));
+    runInBackground(sendInviteEmail(sender.email, result.projectId, project.name, me.name, null).catch((err) =>
       console.error('[Email] Accepted request failed:', err.message),
-    );
+    ));
     return c.json({ projectId: result.projectId });
   })
 
@@ -87,9 +88,9 @@ export const requestRoutes = new Hono<AppEnv>()
         db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, request.fromUserId)),
         db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
       ]);
-      sendRequestReportEmail([...ADMIN_EMAILS], sender.name, sender.email, me.name, request.message).catch((err) =>
+      runInBackground(sendRequestReportEmail([...ADMIN_EMAILS], sender.name, sender.email, me.name, request.message).catch((err) =>
         console.error('[Email] Request report failed:', err.message),
-      );
+      ));
     }
     return c.json({ ok: true });
   });

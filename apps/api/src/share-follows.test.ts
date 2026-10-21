@@ -22,7 +22,7 @@ const call = (path: string, init: { method?: string; body?: unknown; headers?: R
   app.request(path, {
     method: init.method ?? 'GET',
     headers: { 'content-type': 'application/json', ...init.headers },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    body: init.body === undefined ? null : JSON.stringify(init.body),
   });
 const newTrack = async () => {
   const [t] = await db.insert(tracks).values({ projectId, name: 'Nachtbus', createdById: owner }).returning();

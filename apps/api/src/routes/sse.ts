@@ -25,7 +25,7 @@ export const sseRoutes = new Hono<AppEnv>()
     const encoder = new TextEncoder();
 
     const send = (data: string) => writer.write(encoder.encode(data)).catch(() => {});
-    const unsubscribe = subscribe(trackId, send);
+    const unsubscribe = subscribe(trackId, send, () => { void writer.close().catch(() => {}); });
 
     // Initial ping
     send(': connected\n\n');

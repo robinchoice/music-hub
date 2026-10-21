@@ -17,7 +17,7 @@ test('a guest without an account sends stems for a new song through the upload l
   const url = await page.getByLabel('Upload-Link').inputValue();
   expect(url).toMatch(new RegExp(`^${baseURL}/upload/\\w+$`));
 
-  const guest = await browser.newContext({ baseURL });
+  const guest = await browser.newContext(baseURL ? { baseURL } : {});
   const guestPage = await guest.newPage();
   await guestPage.route('**/upload-url', (route) => route.fulfill({ json: { uploadUrl: `${baseURL}/fake-s3/drums.wav`, fileKey: 'test/drums.wav' } }));
   await guestPage.route('**/fake-s3/**', (route) => route.fulfill({ status: 200 }));

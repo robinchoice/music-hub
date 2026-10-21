@@ -26,12 +26,12 @@ async function send(
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       JSON.stringify(payload),
-      { TTL: 7 * 86400 },
+      { TTL: 7 * 86400, timeout: 10_000 },
     );
     return true;
-  } catch (err: any) {
-    if (err.statusCode === 410 || err.statusCode === 404) return false; // subscription gone
-    console.error('[Push] send error:', err.message);
+  } catch (err) {
+    if (err && typeof err === 'object' && 'statusCode' in err && (err.statusCode === 410 || err.statusCode === 404)) return false; // subscription gone
+    console.error('[Push] send error:', err instanceof Error ? err.message : String(err));
     return true;
   }
 }

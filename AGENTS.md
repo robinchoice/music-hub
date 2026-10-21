@@ -8,7 +8,7 @@
 
 ## Checks
 
-`bun run check && bun run test && bun --bun run build`, keine neuen Fehler. Die Tests (`apps/api/src/*.test.ts`) laufen gegen `DATABASE_URL`, legen nur eigene Zeilen an und räumen sie wieder ab. `bun run test` startet auch die Playwright-Tests in `apps/web/tests` (Desktop und Pixel 7): Sie bauen das Web und starten API und Web selbst auf den Ports 53100 und 54100 (testen mehrere Worktrees gleichzeitig, per `TEST_API_PORT` und `TEST_WEB_PORT` andere wählen), Chromium einmalig mit `bunx playwright install chromium` in `apps/web`.
+`bun run check && bun run test && bun --bun run build`, keine neuen Fehler. API- und Browser-Suite bekommen über `packages/db/test.ts` je eine leere Datenbank auf dem Server aus `DATABASE_URL` (Nutzer braucht `CREATEDB`); sie wird auch bei Fehlern und SIGINT/SIGTERM entfernt. Direkte Aufrufe von `bun test` oder `playwright test` umgehen die Isolation. `bun run test` startet auch die Playwright-Tests in `apps/web/tests` (Desktop und Pixel 7): Sie bauen das Web und starten API und Web selbst auf den Ports 31100 und 31101, unter dem Linux-Ephemeral-Bereich (32768–60999) (testen mehrere Worktrees gleichzeitig, per `TEST_API_PORT` und `TEST_WEB_PORT` andere unter 32768 wählen), Chromium einmalig mit `bunx playwright install chromium` in `apps/web`.
 
 ## Deploy
 
@@ -18,6 +18,10 @@
 - Destruktive Aktionen (Daten oder Volumes löschen, manuelle Änderungen an der Prod-DB) nur nach ausdrücklicher Freigabe.
 
 ## Fallen
+
+- Beim Beenden nimmt die API keine neuen Anfragen an, schließt SSE und wartet auf laufende Anfragen, Upload-Abschlüsse und Mailjobs, bevor sie Postgres schließt. Datei-Uploads gehen direkt nach S3 und überleben einen API-Neustart; der Client bestätigt sie anschließend bei der API. Der Worker bricht ffmpeg ab, wartet auf dessen Ende und gibt erst dann den Audiojob frei. Aufgaben nach der HTTP-Antwort laufen mit `runInBackground` aus `lib/background.ts` und eigener Fehlerbehandlung, damit der Shutdown sie abwartet. Compose lässt beiden 60 Sekunden.
+- Secret-Scan: Gitleaks 8.30.1 liest zusätzlich zu `--gitleaks-ignore-path` auch `.gitleaksignore` aus dem Checkout. Der Workflow ersetzt diese Datei deshalb ebenfalls durch die Fassung aus `CONFIG_REF`, bei Fork-PRs aus dem Base-Commit; Merge-Auflösungen und Tags werden mitgescannt.
+- Korrelierte Subselects in `sql`-Templates: Bei einem `select` aus nur einer Tabelle rendert Drizzle Spalten ohne Tabellennamen, auch im Template. `exists (select 1 from ${subs} where ${subs.userId} = ${users.id})` wird zu `where "user_id" = "id"`, `"id"` meint dann die Spalte des Subselects, das Ergebnis ist ohne Fehler falsch. Solche Subselects nur in Abfragen mit Join oder mit `alias()`, sonst zwei einfache Abfragen.
 
 - Die Landingpage zeigt die echte Track-Seite im Demo-Modus und ihre Komponenten mit Beispieldaten (`apps/web/src/lib/demo`). Nutzt eine Seite einen neuen API-Endpunkt, braucht `backend.ts` dafür eine Antwort, sonst meldet die Demo „In der Demo nicht verfügbar“.
 - Die API ist zustandslos und darf mit mehreren Instanzen laufen. Nichts, was zwischen Anfragen gelten muss, gehört in den Speicher des Prozesses: Rate-Limits stehen in `rate_limits` (`lib/rate-limit.ts`), SSE-Events gehen per Postgres `NOTIFY` an alle Instanzen (`services/sse.ts`, Payload nur IDs, Grenze 8000 Bytes), Migrationen laufen unter einem Advisory-Lock (`migrateDb`).
@@ -39,12 +43,16 @@
 
 ## Konventionen
 
+- TypeScript prüft `strict` und `exactOptionalPropertyTypes`; Biome verbietet explizites und sich implizit entwickelndes `any`. Unbekannte Eingaben sind `unknown` und werden mit zod geprüft, Bibliotheksantworten und gespeicherte Werte per `safeParse`. Die Prozesseinstiege importieren `apps/api/src/env.ts` zuerst; neue Env-Variablen mit Pflichtwert oder Format dort ergänzen. Optionale Felder für Bibliothekstypen mit `.exactOptional()`, Typfehler an der Ursache beheben.
+
 - Zugriff in der API: Wer ein Projekt, einen Track oder eine Version anfassen darf, holt `lib/access.ts` (`membershipOf`, `trackAccess`, `versionAccess`) zusammen mit dem Objekt, inklusive Papierkorb-Regel; in einem archivierten Projekt ruhen dort die Rechte zum Hochladen, Kommentieren und Freigeben, die Rolle bleibt. Keine eigene `projectMembers`-Abfrage in Routen. Die Antwort auf eine fehlende Mitgliedschaft bleibt bei der Route: Lesen 404, Schreiben 403.
 - Speicher: Jede Zählung baut auf der Liste `uploadedFiles` in `lib/storage.ts` (`storageOf`, `guestStorageOf`, `storageSummary` für die Übersicht, `storageByUser` für den Admin). `stems.test.ts` prüft, dass sie übereinstimmen. Beim Löschen eines Tracks liefert `fileKeysOfTracks` in `lib/trash.ts` alle Dateien darunter, Cover eingeschlossen.
 - Web: Rechte und Status-Gruppen kommen aus `lib/utils/track.ts` (`capabilities`, `isProcessing`, `isDecided`), keine Rollen- oder Statusvergleiche von Hand. Die Seitenleiste zeigt Projekte und Tracks des Overview-Stores (`/overview`), ohne eigene Kopie; nach Änderungen an Projekten oder Tracks `reloadSidebar` aus dem Context des App-Layouts aufrufen, es lädt den Store neu.
 - Ein Push ist nur ein Signal: Ereignistyp und Objekt-ID oder Cursor, keine Inhalte und keine personenbezogenen Daten, wegen des Datenschutzes (Grundsätze 1 und 2). Die App holt die Daten über einen Endpunkt hinter `requireAuth` ab ihrem letzten Cursor (`since`) und fragt ihn auch beim Öffnen und regelmäßig ab, so schaden verlorene oder doppelte Pushes nicht. SSE und Web-Push folgen dem. Web-Push enthält nur `type: notification` und eine ID; Details stehen sieben Tage in `push_notifications`, das API-Intervall löscht ältere Einträge. Der Service Worker ruft sie mit Session-Cookie über `/api/v1/push/notifications/:id` ab, mit erneuter Empfänger- und Berechtigungsprüfung. Fehler bleiben neutral. Beim Öffnen und jede Minute im Vordergrund holt er verpasste Einträge über `since` nach; der Cursor ist kontogebunden, Benachrichtigungs-Tags sind stabile IDs, bereits angezeigte IDs merkt er sich sieben Tage ohne Inhalte. Ein geschlossener Browser kann ohne zugestelltes Push-Signal erst beim nächsten Öffnen nachholen.
 
 ## Abweichungen vom Standard
+
+- ALTCHA aus starter `36e9d73` ist bis zu Robins Entscheidung zurückgestellt (Backlog „Braucht Robin: ALTCHA“, Ausrollen 22.10.): Ein neues Pflichtfeld beim Login/Registrieren bricht ältere Web-Versionen und ausgelieferte Clients. Das Widget und die Einführung samt neuem HMAC-Key in `server_secrets` brauchen eine abgestimmte Freigabe.
 
 - PostHog bleibt nach Robins Entscheidung vom 17.10.2026 deaktiviert.
 - Music Hub spricht nur Deutsch, es gibt keinen Sprach-Umschalter. Neue Texte kommen auf Deutsch, Update-Mails haben eine Sprache. Nur die Seiten für Agenten (`/llms.txt`) gibt es auch auf Englisch. Robin hat dies am 17.10.2026 bestätigt; erst bei konkretem Bedarf oder einem englischsprachigen Tester erneut entscheiden.

@@ -12,7 +12,7 @@ export async function queueVersionNotice(db: Database, projectId: string, actorI
   await db.insert(versionNotices).values({ projectId, actorId, versionId });
 }
 
-export type NoticeBatch = Awaited<ReturnType<typeof takeDueNotices>>[number];
+export type NoticeBatch = { projectId: string; projectName: string; actorName: string; items: { versionId: string; versionNumber: number; trackId: string; trackName: string }[]; pushTo: string[]; mailTo: Awaited<ReturnType<typeof reachOf>>['mail'] };
 
 // Takes the notices that are due off the queue, one batch per project and uploader.
 // Deleting them first means two workers never announce the same version twice.
@@ -28,7 +28,7 @@ export async function takeDueNotices(db: Database) {
       ),
     );
 
-  const batches = [];
+  const batches: NoticeBatch[] = [];
   for (const { projectId, actorId } of due) {
     const taken = await db
       .delete(versionNotices)

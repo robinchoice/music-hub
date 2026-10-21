@@ -16,9 +16,10 @@ const transport = process.env.SMTP_HOST
       secure: smtpPort === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       // Update mails go out inside a database transaction, a hanging server must not hold it for minutes
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 30_000,
+      dnsTimeout: 5000,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10_000,
     })
   : null;
 
@@ -154,7 +155,7 @@ export async function sendOpenReportEmail(to: string[], trackName: string, url: 
   await sendMail(
     {
       to,
-      replyTo: contact ? { name: '', address: contact } : undefined,
+      ...(contact && { replyTo: { name: '', address: contact } }),
       subject: `Meldung zu "${trackName}"`,
       html: layout(
         `${paragraph(`Jemand hat den offenen Track ${strong(`"${trackName}"`)} gemeldet${contact ? ` (${escapeHtml(contact)})` : ''}:`, '0 0 0.5rem')}${quote(reason)}${button('Seite ansehen', url, '0')}${small('Schließen lässt sich die Seite im Lagebild unter „Meldungen“.', '1.5rem 0 0')}`,

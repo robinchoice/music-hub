@@ -3,7 +3,7 @@ import { stemRevisions, stems, type Database } from '@music-hub/db';
 import { fits, lockStorage, storageOf } from './storage.js';
 
 type Stem = typeof stems.$inferSelect;
-type File = { originalFileName: string; mimeType: string; fileKey: string; fileSize: number; sha256?: string };
+type File = { originalFileName: string; mimeType: string; fileKey: string; fileSize: number; sha256?: string | undefined };
 
 // The stem's current file as an entry of its history
 const revisionOf = (stem: Stem, replacedAt: Date) => ({

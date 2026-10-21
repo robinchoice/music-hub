@@ -27,7 +27,7 @@ export async function notificationsFor(db: Database, userId: string, since: bigi
     id === undefined ? gt(n.id, since) : eq(n.id, id),
     sql`${n.createdAt} >= now() - interval '7 days'`,
   )).orderBy(asc(n.id)).limit(50);
-  const visible = [];
+  const visible: { id: string; title: string; body: string; url: string }[] = [];
   for (const row of rows) {
     const [allowed] = await db.select({ id: n.id }).from(n).where(and(
       eq(n.id, row.id),
