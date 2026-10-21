@@ -97,6 +97,8 @@ export const stemRoutes = new Hono<AppEnv>()
 
     const stem = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
+      // Checked again under the lock, so the same file sent twice at once becomes one stem
+      if (!(await freshStemKey(tx, track, input.fileKey))) return 'taken';
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       const [stem] = await tx
@@ -114,6 +116,7 @@ export const stemRoutes = new Hono<AppEnv>()
         .returning();
       return stem;
     });
+    if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);
     if (!stem) return storageFull(c, await storageOf(db, userId));
 
     return c.json({ stem }, 201);
@@ -157,6 +160,7 @@ export const stemRoutes = new Hono<AppEnv>()
     if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
 
     const stem = await replaceStem(db, access.stem.id, userId, { ...input, fileSize });
+    if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);
     if (!stem) return storageFull(c, await storageOf(db, userId));
 
     return c.json({ stem });

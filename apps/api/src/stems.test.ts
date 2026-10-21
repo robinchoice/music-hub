@@ -42,7 +42,7 @@ afterAll(async () => {
 
 test('a new file keeps the earlier one in the history, and both count towards storage', async () => {
   const before = await db.select().from(stems).where(eq(stems.id, stemId));
-  const stem = (await replaceStem(db, stemId, owner, file('drums-cut', 400)))!;
+  const stem = (await replaceStem(db, stemId, owner, file('drums-cut', 400))) as Exclude<Awaited<ReturnType<typeof replaceStem>>, null | 'taken'>;
 
   expect(stem).toMatchObject({ id: stemId, name: 'Drums', originalFileName: 'drums-cut.wav', fileSize: 400, createdById: owner });
   expect(stem.revisedAt).not.toBeNull();

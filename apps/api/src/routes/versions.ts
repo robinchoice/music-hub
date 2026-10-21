@@ -187,6 +187,9 @@ export const versionRoutes = new Hono<AppEnv>()
 
     const version = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
+      // Checked again under the lock, so the same file sent twice at once becomes one version
+      const [taken] = await tx.select({ id: versions.id }).from(versions).where(eq(versions.originalFileKey, input.fileKey)).limit(1);
+      if (taken) return 'taken';
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       // Next version number; versions in the trash keep theirs
@@ -216,6 +219,7 @@ export const versionRoutes = new Hono<AppEnv>()
       await enqueueAudioJob(tx, version.id);
       return version;
     });
+    if (version === 'taken') return c.json({ error: 'Forbidden' }, 403);
     if (!version) return storageFull(c, await storageOf(db, userId));
     const { versionNumber } = version;
 

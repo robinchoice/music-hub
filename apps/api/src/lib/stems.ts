@@ -25,24 +25,30 @@ export async function freshStemKey(db: Pick<Database, 'select'>, track: { id: st
   const expectedPrefix = `projects/${track.projectId}/tracks/${track.id}/stems/`;
   const keySuffix = fileKey.slice(expectedPrefix.length);
   if (!fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/[^/]+$/.test(keySuffix)) return false;
+  return !(await keyInUse(db, fileKey));
+}
 
+// Whether a stem or an earlier file of one points to the key
+async function keyInUse(db: Pick<Database, 'select'>, fileKey: string) {
   const [stemRef] = await db.select({ id: stems.id }).from(stems).where(eq(stems.fileKey, fileKey)).limit(1);
   const [revisionRef] = await db
     .select({ id: stemRevisions.id })
     .from(stemRevisions)
     .where(eq(stemRevisions.fileKey, fileKey))
     .limit(1);
-  return !stemRef && !revisionRef;
+  return !!stemRef || !!revisionRef;
 }
 
 // Gives the stem a new file from the user; the current one moves into its history.
-// Returns null if the file doesn't fit into the user's storage.
+// Returns null if the file doesn't fit into the user's storage, 'taken' if a stem already uses the file.
 export async function replaceStem(db: Database, stemId: string, userId: string, file: File) {
   return db.transaction(async (tx) => {
     await lockStorage(tx, userId);
+    const [current] = await tx.select().from(stems).where(eq(stems.id, stemId)).for('update');
+    // Checked under the lock, so the same file sent twice at once lands in the history only once
+    if (await keyInUse(tx, file.fileKey)) return 'taken' as const;
     if (!fits(await storageOf(tx, userId), file.fileSize)) return null;
 
-    const [current] = await tx.select().from(stems).where(eq(stems.id, stemId)).for('update');
     const now = new Date();
     await tx.insert(stemRevisions).values(revisionOf(current, now));
     const [stem] = await tx
