@@ -229,6 +229,7 @@
       <WaveformPlayer
         bind:this={player}
         url={audioOf(feedback)}
+        audioDuration={feedback.duration}
         markers={markersOf(feedback)}
         onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
         onSeek={(time) => (currentTime = time)}

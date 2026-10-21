@@ -63,11 +63,13 @@
 
   // Markers closer than one marker width merge into a bundle with a count
   const MARKER_SIZE = 22;
+  // Before the audio is ready the stored duration places the markers
+  const total = $derived(duration || audioDuration || 0);
   const groups = $derived.by(() => {
-    if (!duration || !width) return [];
+    if (!total || !width) return [];
     const result: { x: number; items: CommentMarker[] }[] = [];
     for (const m of [...markers].sort((a, b) => a.timestampSeconds - b.timestampSeconds)) {
-      const x = (m.timestampSeconds / duration) * width;
+      const x = (m.timestampSeconds / total) * width;
       const last = result.at(-1);
       if (last && x - last.x < MARKER_SIZE) last.items.push(m);
       else result.push({ x, items: [m] });
