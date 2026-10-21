@@ -8,6 +8,7 @@ import {
   rejectVersionSchema,
   createReviewSchema,
   SUPPORTED_AUDIO_FORMATS,
+  REJECTION_PREFIX,
 } from '@music-hub/shared';
 import { versions, projectMembers, projects, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
@@ -20,9 +21,6 @@ import { changeNotes, nameOf, submitReview, withdrawApproval } from '../lib/revi
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import type { AppEnv } from '../types.js';
-
-// Rejection comments stay readable by older clients; the current decision also has a review note.
-const REJECTION_PREFIX = '❌ Abgelehnt: ';
 
 export const versionRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)

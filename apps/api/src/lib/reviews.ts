@@ -9,7 +9,7 @@ import {
   versions,
   type Database,
 } from '@music-hub/db';
-import { REVIEW_PASS_HOURS, REVIEW_QUIET_MINUTES, type ReviewVerdict } from '@music-hub/shared';
+import { REJECTION_PREFIX, REVIEW_PASS_HOURS, REVIEW_QUIET_MINUTES, type ReviewVerdict } from '@music-hub/shared';
 import { notifyUser } from '../services/push.js';
 import { sendFeedbackEmail } from '../services/email.js';
 import { publish } from '../services/sse.js';
@@ -70,7 +70,7 @@ export async function submitReview(
         .set({ status, decidedById: author.userId, decidedAt: createdAt })
         .where(eq(versions.id, version.id));
       if (status === 'rejected' && note) {
-        await tx.insert(comments).values({ versionId: version.id, userId: author.userId, body: `❌ Abgelehnt: ${note}`, createdAt });
+        await tx.insert(comments).values({ versionId: version.id, userId: author.userId, body: `${REJECTION_PREFIX}${note}`, createdAt });
       }
     }
     const [review] = await tx

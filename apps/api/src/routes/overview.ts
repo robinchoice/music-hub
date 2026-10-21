@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { memberRoles, taskKeySchema } from '@music-hub/shared';
+import { memberRoles, taskKeySchema, REJECTION_PREFIX } from '@music-hub/shared';
 import {
   projects,
   projectMembers,
@@ -18,8 +18,6 @@ import { createDownloadUrl } from '../storage/s3.js';
 import { storageSummary } from '../lib/storage.js';
 import type { AppEnv } from '../types.js';
 
-// Same prefix the reject route writes; those comments are delivered as rejectionReason instead.
-const REJECTION_PREFIX = '❌ Abgelehnt: ';
 // Open comments are always included, others only from the longest timeline range (13 weeks).
 const COMMENT_WINDOW_DAYS = 91;
 const LISTEN_WINDOW_DAYS = 90;

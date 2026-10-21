@@ -1,13 +1,12 @@
 // Sample data and request handlers for the demo. They answer the requests of the real pages the way the API
 // does, so the landing page can show the current frontend without a server. Changes stay in this browser window.
 // When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … fehlt".
-import { COMMENT_REACTIONS, type TrackStatus } from '@music-hub/shared';
+import { COMMENT_REACTIONS, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
 import type { Review, ReviewVerdict, TrackComment, Version } from '$lib/utils/track.js';
 import { OPEN_EXAMPLE_ID } from './mode.js';
 
 // UUIDs that gen_random_uuid() never produces, so a stray request to the API only gets a 404.
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const REJECTION_PREFIX = '❌ Abgelehnt: ';
 const COVER = '/demo/nachtbus-cover.svg';
 
 export const DEMO = {

@@ -21,7 +21,7 @@ import {
   shareLinks,
   listenEvents,
 } from '@music-hub/db';
-import type { ProjectRole } from '@music-hub/shared';
+import { REJECTION_PREFIX, type ProjectRole } from '@music-hub/shared';
 import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 
@@ -103,7 +103,7 @@ async function decide(v: Ref, status: 'approved' | 'rejected', by: Ref | null, d
     .set({ status, decidedById: by?.id ?? null, decidedAt: by ? ago(decidedAgo) : null })
     .where(eq(versions.id, v.id));
   if (reason && by) {
-    await db.insert(comments).values({ versionId: v.id, userId: by.id, body: `❌ Abgelehnt: ${reason}`, createdAt: ago(decidedAgo) });
+    await db.insert(comments).values({ versionId: v.id, userId: by.id, body: `${REJECTION_PREFIX}${reason}`, createdAt: ago(decidedAgo) });
   }
 }
 

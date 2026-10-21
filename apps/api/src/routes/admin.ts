@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, eq, gt, gte, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { MAX_STORAGE_PER_USER, REJECTION_PREFIX } from '@music-hub/shared';
 import {
   users,
   sessions,
@@ -34,7 +34,7 @@ const ONLINE_MS = 5 * 60_000;
 // Days and weeks of the charts follow the clock of the people using Music Hub
 const TZ = 'Europe/Berlin';
 // Same prefix the reject route writes; such a comment is the reason of a rejection, not a comment of its own
-const REJECTION_LIKE = '❌ Abgelehnt: %';
+const REJECTION_LIKE = `${REJECTION_PREFIX}%`;
 
 // Timestamp columns hold UTC. Raw rows get them as ISO strings, so nothing depends on the process time zone.
 const iso = (expr: SQL) => sql`to_char(${expr}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;

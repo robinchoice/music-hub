@@ -2,7 +2,7 @@
 // No $lib imports, so they can be checked with Bun like track.ts.
 import { formatDate, formatTime, initials, isoWeek } from './format.js';
 
-import { hasPermission, PROJECT_ROLES, type TrackStatus } from '@music-hub/shared';
+import { hasPermission, PROJECT_ROLES, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
 
 export type { TrackStatus };
 
@@ -96,7 +96,6 @@ export const FEEDBACK_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermissio
 /** Roles that may upload versions */
 export const UPLOAD_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermission(r, 'track.upload'));
 
-const REJECTION_PREFIX = '❌ Abgelehnt: ';
 const DAY = 86_400_000;
 const ms = (iso: string) => new Date(iso).getTime();
 
