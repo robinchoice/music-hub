@@ -166,6 +166,8 @@
   const canFinish = $derived((canComment || canApprove) && !!selectedVersion && hasWaveform(selectedVersion) && !!$user && selectedVersion.createdById !== $user.id);
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
+  // The uploader or the owner may remind approvers whose verdict is missing
+  const canRemind = $derived(!!selectedVersion && !decided && canUpload && (selectedVersion.createdById === $user?.id || role === 'owner'));
   const feedbackRowsShown = $derived(feedbackRows(trackComments.comments, trackComments.reviews, decided ? [] : trackComments.waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
@@ -925,7 +927,13 @@
               <PushPrompt --margin="var(--space-3) 0 0" text="Soll Music Hub dir Bescheid geben, sobald jemand mit V{selectedVersion!.versionNumber} fertig ist? Auch wenn die Seite zu ist." />
             {/if}
             {#if feedbackRowsShown.length > 0}
-              <FeedbackList rows={feedbackRowsShown} versionNumber={selectedVersion!.versionNumber} currentUserId={$user?.id ?? null} />
+              <FeedbackList
+                rows={feedbackRowsShown}
+                versionNumber={selectedVersion!.versionNumber}
+                currentUserId={$user?.id ?? null}
+                remindable={canRemind ? trackComments.waiting.map((p) => p.id) : []}
+                onRemind={(userId) => api.post(`/versions/${selectedVersion!.id}/reviews/remind/${userId}`).then(() => toastSuccess('Erinnerung geschickt'))}
+              />
             {/if}
           {/snippet}
         </VersionCard>

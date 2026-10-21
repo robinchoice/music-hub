@@ -16,11 +16,18 @@ import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, get
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { undoApproval } from '../lib/approval.js';
-import { changeNotes, nameOf, submitReview, withdrawApproval } from '../lib/reviews.js';
+import { changeNotes, nameOf, reviewsOf, submitReview, withdrawApproval } from '../lib/reviews.js';
+import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
+import { reachOf } from '../lib/users.js';
+import { notifyUser } from '../services/push.js';
+import { sendReviewReminderEmail } from '../services/email.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import { membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+
+// Reminders to give feedback on a version, per version and person
+const reviewReminders = rateLimit('review-reminders', 1, 60 * 60 * 1000);
 
 export const versionRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -496,4 +503,43 @@ export const versionRoutes = new Hono<AppEnv>()
       canApprove: membership.canApprove,
     });
     return c.json({ review }, 201);
+  })
+
+  // The uploader or the owner asks an approver whose verdict is missing: a push, without one a mail
+  .post('/:id/reviews/remind/:userId', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const found = await versionAccess(db, c.req.param('id'), userId);
+    if (!found || !found.membership) return c.json({ error: 'Not found' }, 404);
+    const { version, track, membership } = found;
+    // canUpload also rests while the project is archived
+    if ((version.createdById !== userId && membership.role !== 'owner') || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
+
+    // Once approved or rejected nobody's verdict is missing anymore
+    const decided = version.status === 'approved' || version.status === 'rejected';
+    const person = decided ? undefined : (await reviewsOf(db, version, track.projectId)).waiting.find((p) => p.id === c.req.param('userId'));
+    if (!person) return c.json({ error: 'Not found' }, 404);
+    if (!(await reviewReminders.hit(db, `${version.id}:${person.id}`))) return tooManyRequests(c);
+
+    const fromName = await nameOf(db, userId);
+    const { push, mail } = await reachOf(db, [person.id]);
+    if (push.length) {
+      await notifyUser(db, person.id, {
+        projectId: track.projectId,
+        trackId: track.id,
+        title: `${fromName} wartet auf deine Rückmeldung`,
+        body: `${track.name} V${version.versionNumber}`,
+        url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}`,
+      }).catch(() => {});
+    } else if (mail.length) {
+      await sendReviewReminderEmail(mail[0].email, mail[0].mailToken, {
+        fromName,
+        projectId: track.projectId,
+        trackId: track.id,
+        versionId: version.id,
+        trackName: track.name,
+        versionNumber: version.versionNumber,
+      }).catch((err) => console.error('[Reviews] Reminder mail failed:', err));
+    }
+    return c.json({ message: 'Reminded' });
   });

@@ -96,3 +96,19 @@ test('a deleted comment waits in the trash and comes back from the toast', async
   await page.getByRole('alert').filter({ hasText: 'Kommentar liegt im Papierkorb' }).getByRole('button', { name: 'Rückgängig' }).click();
   await expect(page.locator('.comment', { hasText: 'Intro zu lang' })).toBeVisible();
 });
+
+test('the uploader reminds an approver whose verdict is missing, once', async ({ page, baseURL }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
+  lena = addMember(project.id, 'Lena', true);
+  addVersion(track.id, userId, 'ready');
+  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/fake-s3/mix.wav` } }));
+  await page.route('**/fake-s3/**', (route) => route.fulfill({ body: Buffer.alloc(0), contentType: 'audio/wav' }));
+  await page.goto(`/projects/${project.id}/tracks/${track.id}`);
+
+  const row = page.locator('.feedback .row', { hasText: 'Lena' });
+  await expect(row).toContainText('steht noch aus');
+  await row.getByRole('button', { name: 'Erinnern' }).click();
+  await expect(page.locator('.toast-container')).toContainText('Erinnerung geschickt');
+  await expect(row.getByRole('button', { name: 'Erinnert' })).toBeDisabled();
+});

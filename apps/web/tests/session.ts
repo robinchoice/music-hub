@@ -72,11 +72,11 @@ export function removeEmail(email: string) {
 }
 
 // Someone else in the project; removeUser takes them out again
-export function addMember(projectId: string, name = 'Lena') {
+export function addMember(projectId: string, name = 'Lena', canApprove = false) {
   return bun(`
     import { projectMembers } from '@music-hub/db';
     const [u] = await db.insert(users).values({ email: 'test-' + crypto.randomUUID() + '@example.com', name: ${JSON.stringify(name)} }).returning();
-    await db.insert(projectMembers).values({ projectId: ${JSON.stringify(projectId)}, userId: u.id, role: 'artist' });
+    await db.insert(projectMembers).values({ projectId: ${JSON.stringify(projectId)}, userId: u.id, role: 'artist', canApprove: ${canApprove} });
     console.log(u.id);
   `);
 }

@@ -423,6 +423,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['POST', /^\/versions\/([\w-]+)\/reviews$/, ([id], body) => ({
     review: addReview(id, body?.verdict as ReviewVerdict, (body?.note as string | undefined) ?? null),
   })],
+  // Nobody gets a push in the demo
+  ['POST', /^\/versions\/([\w-]+)\/reviews\/remind\/([\w-]+)$/, () => ({ message: 'Reminded' })],
   ['POST', /^\/versions\/([\w-]+)\/promote$/, ([id]) => {
     const v = find(db.versions, id);
     v.branchLabel = null;

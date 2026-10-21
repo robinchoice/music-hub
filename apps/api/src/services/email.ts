@@ -266,6 +266,30 @@ export async function sendFeedbackEmail(
   );
 }
 
+// Someone who uploaded a version asks for your feedback. Shares the opt-out with the version mails.
+export async function sendReviewReminderEmail(
+  to: string,
+  mailToken: string,
+  reminder: { fromName: string; projectId: string; trackId: string; versionId: string; trackName: string; versionNumber: number },
+) {
+  const appUrl = process.env.APP_URL;
+  const { fromName, projectId, trackId, versionId, trackName, versionNumber } = reminder;
+  const subject = `${fromName} wartet auf deine Rückmeldung zu ${trackName} V${versionNumber}`;
+  const unsubscribeUrl = `${appUrl}/abbestellen?t=${mailToken}`;
+
+  await sendMail(
+    {
+      to,
+      subject,
+      headers: unsubscribeHeaders(`${appUrl}/api/v1/notices/unsubscribe?t=${mailToken}`),
+      html: layout(
+        `${paragraph(`${strong(fromName)} bittet dich, in ${strong(`${trackName} V${versionNumber}`)} reinzuhören und mit „Fertig“ Bescheid zu geben.`)}${button('Jetzt anhören', `${appUrl}/projects/${projectId}/tracks/${trackId}?v=${versionId}`)}${small(`Du bekommst diese Mail, weil du im Projekt freigibst und keine Push-Benachrichtigungen aktiviert hast. <a href="${unsubscribeUrl}" style="color: ${MUTED};">Mails zu Versionen und Rückmeldungen abbestellen</a>`)}`,
+      ),
+    },
+    `Review reminder to ${to}: ${subject}`,
+  );
+}
+
 type UpdateMail = {
   id: string;
   content: UpdateContent;
