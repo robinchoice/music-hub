@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { eq, and } from 'drizzle-orm';
-import { tracks, projectMembers } from '@music-hub/db';
+import { eq } from 'drizzle-orm';
+import { tracks } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { subscribe } from '../services/sse.js';
+import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 export const sseRoutes = new Hono<AppEnv>()
@@ -16,11 +17,7 @@ export const sseRoutes = new Hono<AppEnv>()
     const [track] = await db.select().from(tracks).where(eq(tracks.id, trackId)).limit(1);
     if (!track) return c.json({ error: 'Not found' }, 404);
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, track.projectId, userId);
     if (!membership) return c.json({ error: 'Forbidden' }, 403);
 
     const { readable, writable } = new TransformStream();

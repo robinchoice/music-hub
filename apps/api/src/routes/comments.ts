@@ -2,12 +2,12 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, isNull } from 'drizzle-orm';
 import { createCommentSchema, updateCommentSchema, reactionSchema, TRASH_DAYS } from '@music-hub/shared';
-import { comments, projectMembers, users } from '@music-hub/db';
+import { comments, users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { publish } from '../services/sse.js';
-import { liveVersion } from '../lib/trash.js';
 import { reviewsOf } from '../lib/reviews.js';
 import { reactionsOf, toggleReaction } from '../lib/reactions.js';
+import { versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 export const commentRoutes = new Hono<AppEnv>()
@@ -19,17 +19,9 @@ export const commentRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('versionId');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
@@ -90,17 +82,9 @@ export const commentRoutes = new Hono<AppEnv>()
       const versionId = c.req.param('versionId');
       const input = c.req.valid('json');
 
-      const found = await liveVersion(db, versionId);
+      const found = await versionAccess(db, versionId, userId);
       if (!found) return c.json({ error: 'Not found' }, 404);
-      const { track } = found;
-
-      const [membership] = await db
-        .select()
-        .from(projectMembers)
-        .where(
-          and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-        )
-        .limit(1);
+      const { track, membership } = found;
 
       if (!membership || !membership.canComment) {
         return c.json({ error: 'Forbidden' }, 403);
@@ -179,14 +163,9 @@ export const commentRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!comment) return c.json({ error: 'Not found' }, 404);
 
-    const found = await liveVersion(db, comment.versionId);
+    const found = await versionAccess(db, comment.versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { track, membership } = found;
 
     if (!membership || (!membership.canComment && !membership.canApprove)) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -215,14 +194,9 @@ export const commentRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!comment) return c.json({ error: 'Not found' }, 404);
 
-    const found = await liveVersion(db, comment.versionId);
+    const found = await versionAccess(db, comment.versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
     if (!membership.canComment && !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
 
@@ -245,14 +219,9 @@ export const commentRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!comment) return c.json({ error: 'Not found' }, 404);
 
-    const found = await liveVersion(db, comment.versionId);
+    const found = await versionAccess(db, comment.versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { track, membership } = found;
 
     if (!membership || (!membership.canComment && !membership.canApprove)) {
       return c.json({ error: 'Forbidden' }, 403);

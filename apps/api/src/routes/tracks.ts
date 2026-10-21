@@ -2,26 +2,18 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
 import { createTrackSchema, updateTrackSchema, openTrackSchema } from '@music-hub/shared';
-import { tracks, projectMembers, openTracks, type Database } from '@music-hub/db';
+import { tracks, openTracks, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { liveTrack } from '../lib/trash.js';
 import { openStateOf, requestOpen, consentToOpen } from '../lib/open.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { notifyUser } from '../services/push.js';
+import { membershipOf, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 // Reminders to agree to opening a track, per track and person
 const openReminders = rateLimit('open-reminders', 1, 60 * 60 * 1000);
-
-async function membershipOf(db: Database, projectId: string, userId: string) {
-  const [membership] = await db
-    .select()
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-    .limit(1);
-  return membership;
-}
 
 function askForConsent(db: Database, track: { id: string; name: string; projectId: string }, userId: string) {
   return notifyUser(db, userId, {
@@ -41,11 +33,7 @@ export const trackRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('projectId');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
@@ -88,11 +76,7 @@ export const trackRoutes = new Hono<AppEnv>()
     const projectId = c.req.param('projectId');
     const input = c.req.valid('json');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
     if (!membership || !membership.canUpload) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -112,14 +96,9 @@ export const trackRoutes = new Hono<AppEnv>()
     const trackId = c.req.param('id');
     const input = c.req.valid('json');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
 
     if (!membership || !membership.canUpload) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -139,22 +118,11 @@ export const trackRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('id');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { membership } = found;
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, track.projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
-
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 

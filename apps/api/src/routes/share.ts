@@ -18,6 +18,7 @@ import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
+import { versionAccess } from '../lib/access.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
@@ -77,17 +78,9 @@ export const shareRoutes = new Hono<AppEnv>()
       const versionId = c.req.param('versionId');
       const input = c.req.valid('json');
 
-      const found = await liveVersion(db, versionId);
+      const found = await versionAccess(db, versionId, userId);
       if (!found) return c.json({ error: 'Not found' }, 404);
-      const { track } = found;
-
-      const [membership] = await db
-        .select()
-        .from(projectMembers)
-        .where(
-          and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-        )
-        .limit(1);
+      const { track, membership } = found;
       if (!membership) return c.json({ error: 'Forbidden' }, 403);
 
       const token = generateToken();
@@ -117,17 +110,9 @@ export const shareRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('versionId');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Forbidden' }, 403);
 
     const links = await db
@@ -436,14 +421,9 @@ export const shareRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('versionId');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Forbidden' }, 403);
 
     const links = await db

@@ -10,16 +10,16 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   REJECTION_PREFIX,
 } from '@music-hub/shared';
-import { versions, projectMembers, projects, comments } from '@music-hub/db';
+import { versions, projects, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
-import { liveTrack, liveVersion } from '../lib/trash.js';
 import { undoApproval } from '../lib/approval.js';
 import { changeNotes, nameOf, submitReview, withdrawApproval } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
+import { membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 export const versionRoutes = new Hono<AppEnv>()
@@ -31,14 +31,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('trackId');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
 
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
@@ -91,8 +86,7 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('projectId');
     const { fileName, mimeType, fileSize } = c.req.valid('json');
-    const [membership] = await db.select().from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId))).limit(1);
+    const membership = await membershipOf(db, projectId, userId);
     if (!membership?.canUpload) return c.json({ error: 'Forbidden' }, 403);
     const [project] = await db.select().from(projects)
       .where(and(eq(projects.id, projectId), eq(projects.isArchived, false))).limit(1);
@@ -114,16 +108,9 @@ export const versionRoutes = new Hono<AppEnv>()
       const trackId = c.req.param('trackId');
       const { fileName, mimeType, fileSize } = c.req.valid('json');
 
-      const track = await liveTrack(db, trackId);
-      if (!track) return c.json({ error: 'Not found' }, 404);
-
-      const [membership] = await db
-        .select()
-        .from(projectMembers)
-        .where(
-          and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)),
-        )
-        .limit(1);
+      const found = await trackAccess(db, trackId, userId);
+      if (!found) return c.json({ error: 'Not found' }, 404);
+      const { track, membership } = found;
 
       if (!membership || !membership.canUpload) {
         return c.json({ error: 'Forbidden' }, 403);
@@ -149,16 +136,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const trackId = c.req.param('trackId');
     const input = c.req.valid('json');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
 
     if (!membership || !membership.canUpload) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -236,17 +216,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const versionId = c.req.param('id');
     const input = c.req.valid('json');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership || !membership.canUpload) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -267,17 +239,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership || membership.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
@@ -294,14 +258,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('trackId');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
 
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
@@ -329,17 +288,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership || !membership.canApprove) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -360,14 +311,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { version, track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const key = version.streamFileKey || version.originalFileKey;
@@ -382,14 +328,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { version, track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(version.originalFileKey);
@@ -402,15 +343,10 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
+    const { version, track, membership } = found;
     if (!version.waveformDataKey) return c.json({ error: 'Not found' }, 404);
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(version.waveformDataKey);
@@ -423,17 +359,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership || !membership.canApprove) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -452,15 +380,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { version, track, membership } = found;
     if (!membership || !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
 
     const updated = await undoApproval(db, versionId, userId);
@@ -481,14 +403,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const versionId = c.req.param('id');
     const quality = c.req.query('quality') === 'original' ? 'original' : 'stream';
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { version, track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const useOriginal = quality === 'original' || !version.streamFileKey;
@@ -518,15 +435,10 @@ export const versionRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const versionId = c.req.param('id');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
+    const { version, track, membership } = found;
     if (!version.waveformDataKey) return c.json({ error: 'Not found' }, 404);
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const buffer = await getObjectBuffer(version.waveformDataKey);
@@ -547,17 +459,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const versionId = c.req.param('id');
     const { reason } = c.req.valid('json');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)),
-      )
-      .limit(1);
+    const { version, track, membership } = found;
 
     if (!membership || !membership.canApprove) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -577,15 +481,9 @@ export const versionRoutes = new Hono<AppEnv>()
     const versionId = c.req.param('id');
     const { verdict, note } = c.req.valid('json');
 
-    const found = await liveVersion(db, versionId);
+    const found = await versionAccess(db, versionId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
-    const { version, track } = found;
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track!.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const { version, track, membership } = found;
     if (!membership || (!membership.canComment && !membership.canApprove)) return c.json({ error: 'Forbidden' }, 403);
     if (verdict === 'approve' && !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
 

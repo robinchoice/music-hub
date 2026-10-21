@@ -16,6 +16,7 @@ import { findUserByEmail } from '../lib/users.js';
 import { requestsInProject } from '../lib/profiles.js';
 import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
+import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 async function withCoverUrl<T extends { coverImageUrl?: string | null }>(
@@ -82,11 +83,7 @@ export const projectRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('id');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
     if (!membership) {
       return c.json({ error: 'Not found' }, 404);
@@ -112,19 +109,9 @@ export const projectRoutes = new Hono<AppEnv>()
     const projectId = c.req.param('id');
     const input = c.req.valid('json');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -142,19 +129,9 @@ export const projectRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('id');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -171,19 +148,9 @@ export const projectRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const projectId = c.req.param('id');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -202,11 +169,7 @@ export const projectRoutes = new Hono<AppEnv>()
     const projectId = c.req.param('id');
 
     // Check access
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
     if (!membership) {
       return c.json({ error: 'Not found' }, 404);
@@ -241,11 +204,7 @@ export const projectRoutes = new Hono<AppEnv>()
     const { email, ...input } = c.req.valid('json');
 
     // Check permission (owner or management)
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
     if (!membership || !memberRoles(membership).some((r) => r === 'owner' || r === 'management')) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -306,19 +265,9 @@ export const projectRoutes = new Hono<AppEnv>()
     const memberId = c.req.param('memberId');
     const input = c.req.valid('json');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -341,19 +290,9 @@ export const projectRoutes = new Hono<AppEnv>()
     const projectId = c.req.param('id');
     const memberId = c.req.param('memberId');
 
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, userId),
-          eq(projectMembers.role, 'owner'),
-        ),
-      )
-      .limit(1);
+    const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership) {
+    if (membership?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
 

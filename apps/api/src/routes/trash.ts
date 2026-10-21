@@ -4,6 +4,7 @@ import { tracks, versions, stems, stemRevisions, comments, projects, projectMemb
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
+import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 const KINDS = ['track', 'version', 'stem', 'revision', 'comment'] as const;
@@ -11,12 +12,7 @@ type Kind = (typeof KINDS)[number];
 const isKind = (kind: string): kind is Kind => (KINDS as readonly string[]).includes(kind);
 
 async function roleIn(db: Database, projectId: string, userId: string) {
-  const [membership] = await db
-    .select({ role: projectMembers.role })
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-    .limit(1);
-  return membership?.role ?? null;
+  return (await membershipOf(db, projectId, userId))?.role ?? null;
 }
 
 // What the user may restore, across all their projects that are not archived or in one: in projects they own tracks, versions, stems and earlier files of stems,

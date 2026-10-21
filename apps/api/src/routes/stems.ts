@@ -2,13 +2,13 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, replaceStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
-import { stems, stemRevisions, guestNotes, openTracks, projectMembers, users, type Database } from '@music-hub/db';
+import { stems, stemRevisions, guestNotes, openTracks, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
-import { liveTrack } from '../lib/trash.js';
 import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { Zip, ZipPassThrough } from 'fflate';
+import { trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 export const stemRoutes = new Hono<AppEnv>()
@@ -19,14 +19,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('trackId');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const trackStems = await db
@@ -52,14 +47,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const trackId = c.req.param('trackId');
     const { fileName, mimeType, fileSize } = c.req.valid('json');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
     if (!membership || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
 
     const storage = await storageOf(db, userId);
@@ -79,14 +69,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const trackId = c.req.param('trackId');
     const input = c.req.valid('json');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
     if (!membership || !membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
 
     if (!(await freshStemKey(db, track, input.fileKey))) return c.json({ error: 'Forbidden' }, 403);
@@ -130,14 +115,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const [stem] = await db.select().from(stems).where(and(eq(stems.id, stemId), isNull(stems.deletedAt))).limit(1);
     if (!stem) return c.json({ error: 'Not found' }, 404);
 
-    const track = await liveTrack(db, stem.trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, stem.trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
 
     const url = await createDownloadUrl(stem.fileKey, 3600, stem.originalFileName);
@@ -238,14 +218,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const [stem] = await db.select().from(stems).where(and(eq(stems.id, stemId), isNull(stems.deletedAt))).limit(1);
     if (!stem) return c.json({ error: 'Not found' }, 404);
 
-    const track = await liveTrack(db, stem.trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, stem.trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
 
     if (!membership || (membership.role !== 'owner' && stem.createdById !== userId)) {
       return c.json({ error: 'Forbidden' }, 403);
@@ -261,14 +236,9 @@ export const stemRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const trackId = c.req.param('trackId');
 
-    const track = await liveTrack(db, trackId);
-    if (!track) return c.json({ error: 'Not found' }, 404);
-
-    const [membership] = await db
-      .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
+    const found = await trackAccess(db, trackId, userId);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    const { track, membership } = found;
     if (!membership) return c.json({ error: 'Forbidden' }, 403);
 
     const trackStems = await db
@@ -289,14 +259,8 @@ export const stemRoutes = new Hono<AppEnv>()
 async function stemAccess(db: Database, stemId: string, userId: string) {
   const [stem] = await db.select().from(stems).where(and(eq(stems.id, stemId), isNull(stems.deletedAt))).limit(1);
   if (!stem) return null;
-  const track = await liveTrack(db, stem.trackId);
-  if (!track) return null;
-  const [membership] = await db
-    .select()
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, track.projectId), eq(projectMembers.userId, userId)))
-    .limit(1);
-  return membership ? { stem, track, membership } : null;
+  const found = await trackAccess(db, stem.trackId, userId);
+  return found?.membership ? { stem, track: found.track, membership: found.membership } : null;
 }
 
 // The public stems of an open track keep their files; a new one needs everyone's consent again

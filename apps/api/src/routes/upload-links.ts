@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { guestNoteSchema, guestSettingsSchema, guestStemSchema, guestTrackSchema, requestStemUploadUrlSchema } from '@music-hub/shared';
-import { guestNotes, projectMembers, projects, stems, tracks, uploadLinks, users, type Database } from '@music-hub/db';
+import { guestNotes, projects, stems, tracks, uploadLinks, users, type Database } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
 import { createUploadUrl, getObjectSize } from '../storage/s3.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -12,6 +12,7 @@ import { liveTrack } from '../lib/trash.js';
 import { notBlocked } from '../lib/users.js';
 import { notifyProjectMembers } from '../services/push.js';
 import type { Context } from 'hono';
+import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 const UNAVAILABLE = 'Dieser Upload-Link ist ausgeschaltet oder gilt nicht mehr.';
@@ -26,15 +27,6 @@ const notesPerLink = rateLimit('guest-notes', 50, 24 * 60 * MINUTE);
 const filesPerIp = rateLimit('guest-files-per-ip', 200, 60 * MINUTE);
 // One push per track and link, however many files come in
 const uploadAlerts = rateLimit('guest-upload-alerts', 1, 15 * MINUTE);
-
-async function membershipOf(db: Database, projectId: string, userId: string) {
-  const [membership] = await db
-    .select()
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-    .limit(1);
-  return membership;
-}
 
 // The link with its project while it works: the project isn't archived and its creator
 // lets guests upload, isn't blocked and may still upload there, since the files count towards their storage
