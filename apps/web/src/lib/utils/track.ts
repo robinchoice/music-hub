@@ -111,6 +111,34 @@ export function activeCommentId(comments: Timed[], time: number): string | null 
   return active?.id ?? null;
 }
 
+export type CommentMarker = {
+  id: string;
+  timestampSeconds: number;
+  body: string;
+  userName: string;
+  resolved: boolean;
+  replies: number;
+};
+
+type MarkerSource = Pick<TrackComment, 'id' | 'body' | 'timestampSeconds' | 'parentId' | 'resolvedAt' | 'user' | 'deletedAt'> & {
+  guestName?: string | null;
+};
+
+/** The waveform shows every top-level comment at a position, done ones faded */
+export function commentMarkers(comments: MarkerSource[]): CommentMarker[] {
+  const shown = comments.filter((c) => !c.deletedAt);
+  return shown
+    .filter((c) => !c.parentId && c.timestampSeconds !== null)
+    .map((c) => ({
+      id: c.id,
+      timestampSeconds: c.timestampSeconds!,
+      body: c.body,
+      userName: c.user?.name ?? c.guestName ?? 'Gast',
+      resolved: !!c.resolvedAt,
+      replies: shown.filter((r) => r.parentId === c.id).length,
+    }));
+}
+
 export type Person = { id: string; name: string; avatarUrl: string | null };
 
 /** A finished listening pass; without a verdict it is the summary the server sent on its own. */

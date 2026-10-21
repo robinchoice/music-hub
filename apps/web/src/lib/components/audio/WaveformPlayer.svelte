@@ -4,13 +4,7 @@
   import { APP_BAND, GLOW, bandColor } from '@music-hub/shared';
   import { formatTime, initials } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
-
-  type CommentMarker = {
-    id: string;
-    timestampSeconds: number;
-    body: string;
-    userName: string;
-  };
+  import type { CommentMarker } from '$lib/utils/track.js';
 
   let {
     url,
@@ -54,6 +48,50 @@
   let duration = $state(0);
   let volume = $state(0.8);
   let showVolume = $state(false);
+  let width = $state(0);
+
+  // Open comments pop up while playback passes them; the choice stays on this device
+  let showBubbles = $state(true);
+  let bubble = $state<{ left: number; items: CommentMarker[]; pinned: boolean } | null>(null);
+  let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastTime = 0;
+
+  // Markers closer than one marker width merge into a bundle with a count
+  const MARKER_SIZE = 22;
+  const groups = $derived.by(() => {
+    if (!duration || !width) return [];
+    const result: { x: number; items: CommentMarker[] }[] = [];
+    for (const m of [...markers].sort((a, b) => a.timestampSeconds - b.timestampSeconds)) {
+      const x = (m.timestampSeconds / duration) * width;
+      const last = result.at(-1);
+      if (last && x - last.x < MARKER_SIZE) last.items.push(m);
+      else result.push({ x, items: [m] });
+    }
+    return result;
+  });
+
+  function showBubble(left: number, items: CommentMarker[], pinned: boolean) {
+    clearTimeout(bubbleTimer);
+    bubble = { left, items, pinned };
+    if (!pinned) bubbleTimer = setTimeout(() => (bubble = null), 4000);
+  }
+
+  function closeBubble() {
+    clearTimeout(bubbleTimer);
+    bubble = null;
+  }
+
+  function toggleBubbles() {
+    showBubbles = !showBubbles;
+    localStorage.setItem('waveform-bubbles', showBubbles ? '1' : '0');
+    if (!showBubbles && !bubble?.pinned) closeBubble();
+  }
+
+  function openGroup(group: { x: number; items: CommentMarker[] }) {
+    seekToTime(group.items[0].timestampSeconds);
+    if (group.items.length > 1) showBubble(group.x, group.items, true);
+    else closeBubble();
+  }
 
   $effect(() => {
     if (ws) ws.setVolume(muted ? 0 : volume);
@@ -77,6 +115,7 @@
   }
 
   onMount(() => {
+    showBubbles = localStorage.getItem('waveform-bubbles') !== '0';
     // Resolve CSS variables to real colors so wavesurfer renders correctly.
     const styles = getComputedStyle(container);
     const waveColor = styles.getPropertyValue('--color-wave-idle').trim() || '#47444b';
@@ -114,6 +153,12 @@
     });
 
     ws.on('timeupdate', (time) => {
+      // Only the normal run counts, a jump past a comment shows nothing
+      if (showBubbles && isPlaying && !bubble?.pinned && time > lastTime && time - lastTime < 1) {
+        const passed = markers.filter((m) => !m.resolved && m.timestampSeconds > lastTime && m.timestampSeconds <= time);
+        if (passed.length) showBubble((passed[0].timestampSeconds / duration) * width, passed, false);
+      }
+      lastTime = time;
       currentTime = time;
       onSeek?.(time);
     });
@@ -130,10 +175,11 @@
     });
 
     // The gradient is drawn in canvas pixels, so it has to follow the width
-    let width = container.clientWidth;
+    width = container.clientWidth;
     resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === width) return;
       width = container.clientWidth;
+      closeBubble();
       ws?.setOptions({ progressColor: progressGradient() });
     });
     resizeObserver.observe(container);
@@ -142,6 +188,7 @@
   let resizeObserver: ResizeObserver | undefined;
 
   onDestroy(() => {
+    clearTimeout(bubbleTimer);
     resizeObserver?.disconnect();
     ws?.destroy();
   });
@@ -198,18 +245,44 @@
       <div class="waveform-container">
         <div bind:this={container} class="waveform"></div>
 
-        {#if duration > 0 && markers.length > 0}
+        {#if groups.length > 0}
           <div class="markers">
-            {#each markers as marker}
+            {#each groups as group (group.items[0].id)}
+              {@const single = group.items.length === 1}
               <button
                 class="marker"
-                style="left: {(marker.timestampSeconds / duration) * 100}%"
-                title="{marker.userName}: {marker.body}"
-                onclick={() => seekToTime(marker.timestampSeconds)}
+                class:done={group.items.every((m) => m.resolved)}
+                style="left: {group.x}px"
+                title={group.items.map((m) => `${m.userName}: ${m.body}`).join('\n')}
+                aria-label={single ? `Kommentar von ${group.items[0].userName} bei ${formatTime(group.items[0].timestampSeconds)}` : `${group.items.length} Kommentare ab ${formatTime(group.items[0].timestampSeconds)}`}
+                onclick={() => openGroup(group)}
               >
-                <span class="marker-dot">{initials(marker.userName)}</span>
+                <span class="marker-dot" class:count={!single}>{single ? initials(group.items[0].userName) : group.items.length}</span>
               </button>
             {/each}
+          </div>
+        {/if}
+
+        {#if bubble}
+          <div
+            class="bubble"
+            class:start={bubble.left < width * 0.25}
+            class:end={bubble.left > width * 0.75}
+            style="left: {bubble.left}px"
+          >
+            {#each bubble.items as m (m.id)}
+              <button class="bubble-item" class:done={m.resolved} onclick={() => seekToTime(m.timestampSeconds)}>
+                <span class="bubble-dot">{initials(m.userName)}</span>
+                <span class="bubble-text">
+                  <b>{m.userName}</b> <span class="bubble-time">{formatTime(m.timestampSeconds)}</span>
+                  <span class="bubble-body">{m.body.split('\n')[0]}</span>
+                  {#if m.replies > 0}<span class="bubble-replies">{m.replies} {m.replies === 1 ? 'Antwort' : 'Antworten'}</span>{/if}
+                </span>
+              </button>
+            {/each}
+            {#if bubble.pinned}
+              <button class="bubble-close" onclick={closeBubble} aria-label="Schließen"><Icon name="x" size={12} /></button>
+            {/if}
           </div>
         {/if}
       </div>
@@ -224,6 +297,18 @@
             <button class="ctl" onclick={() => skip(10)} aria-label="10 Sekunden vor">
               <Icon name="skip-forward" size={14} />
             </button>
+            {#if markers.length > 0}
+              <button
+                class="ctl"
+                class:off={!showBubbles}
+                onclick={toggleBubbles}
+                aria-pressed={showBubbles}
+                aria-label="Kommentare beim Abspielen einblenden"
+                title={showBubbles ? 'Kommentare beim Abspielen ausblenden' : 'Kommentare beim Abspielen einblenden'}
+              >
+                <Icon name="comment" size={14} />
+              </button>
+            {/if}
             <div class="volume" onmouseenter={() => (showVolume = true)} onmouseleave={() => (showVolume = false)} role="group">
               <button class="ctl" aria-label="Lautstärke">
                 <Icon name={volume === 0 ? 'volume-off' : 'volume'} size={14} />
@@ -361,6 +446,105 @@
   .marker:hover .marker-dot {
     transform: scale(1.15);
   }
+  .marker.done {
+    opacity: 0.35;
+  }
+  .marker-dot.count {
+    background: var(--color-accent);
+    font-size: 10px;
+  }
+
+  .bubble {
+    position: absolute;
+    top: 22px;
+    transform: translateX(-50%);
+    z-index: 3;
+    width: max-content;
+    max-width: min(280px, 100%);
+    max-height: 160px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+  }
+  .bubble.start {
+    transform: translateX(-11px);
+  }
+  .bubble.end {
+    transform: translateX(calc(-100% + 11px));
+  }
+  .bubble-item {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    padding: var(--space-1) var(--space-2);
+    padding-right: var(--space-5);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-xs);
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .bubble-item:hover {
+    background: var(--color-bg-subtle);
+  }
+  .bubble-item.done {
+    opacity: 0.5;
+  }
+  .bubble-dot {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-text-primary);
+    color: var(--color-bg-base);
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .bubble-text {
+    min-width: 0;
+    line-height: 1.35;
+  }
+  .bubble-time,
+  .bubble-replies {
+    color: var(--color-text-tertiary);
+  }
+  .bubble-body {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+  }
+  .bubble-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bubble-close:hover {
+    color: var(--color-text-primary);
+  }
 
   .meta-row {
     display: flex;
@@ -405,6 +589,12 @@
   .ctl:hover {
     color: var(--color-text-primary);
     background: var(--color-bg-subtle);
+  }
+  .ctl[aria-pressed='true'] {
+    color: var(--color-text-secondary);
+  }
+  .ctl.off {
+    opacity: 0.5;
   }
 
   .volume {

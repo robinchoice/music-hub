@@ -6,7 +6,7 @@
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
   import { formatTime } from '$lib/utils/format.js';
-  import { openPass, type ReviewVerdict } from '$lib/utils/track.js';
+  import { commentMarkers, openPass, type ReviewVerdict } from '$lib/utils/track.js';
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
 
   type Comment = {
@@ -260,14 +260,7 @@
         url={data.streamUrl}
         {peaks}
         audioDuration={data.version.duration}
-        markers={data.comments
-          .filter((c) => c.timestampSeconds !== null)
-          .map((c) => ({
-            id: c.id,
-            timestampSeconds: c.timestampSeconds!,
-            body: c.body,
-            userName: c.user?.name ?? c.guestName ?? 'Gast',
-          }))}
+        markers={commentMarkers(data.comments)}
         onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
         onPlay={onPlay}
         onPause={onPause}

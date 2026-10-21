@@ -13,6 +13,7 @@
   import {
     feedbackRows,
     isDecided,
+    commentMarkers,
     openPass,
     predecessorOf,
     versionTitle,
@@ -141,14 +142,7 @@
   }
 
   function markersOf(v: Version) {
-    return (comments[v.id] ?? [])
-      .filter((c) => c.timestampSeconds !== null)
-      .map((c) => ({
-        id: c.id,
-        timestampSeconds: c.timestampSeconds!,
-        body: c.body,
-        userName: c.user?.name ?? c.guestName ?? 'Gast',
-      }));
+    return commentMarkers(comments[v.id] ?? []);
   }
 
   async function submitReview(verdict: ReviewVerdict, note: string) {

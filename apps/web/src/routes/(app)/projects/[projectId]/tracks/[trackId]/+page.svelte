@@ -37,6 +37,7 @@
   import {
     feedbackRows,
     hasWaveform,
+    commentMarkers,
     openPass,
     predecessorOf,
     versionTitle,
@@ -972,14 +973,7 @@
                 audioDuration={selectedVersion?.duration}
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
-                markers={comments
-                  .filter((c) => c.timestampSeconds !== null && !c.deletedAt)
-                  .map((c) => ({
-                    id: c.id,
-                    timestampSeconds: c.timestampSeconds!,
-                    body: c.body,
-                    userName: c.user?.name ?? c.guestName ?? 'Gast',
-                  }))}
+                markers={commentMarkers(comments)}
                 onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
                 onSeek={(time) => (currentTime = time)}
               />
