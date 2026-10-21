@@ -2,13 +2,26 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, isNull } from 'drizzle-orm';
 import { createCommentSchema, updateCommentSchema, reactionSchema, TRASH_DAYS } from '@music-hub/shared';
-import { comments, users } from '@music-hub/db';
+import { comments, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { publish } from '../services/sse.js';
 import { reviewsOf } from '../lib/reviews.js';
 import { reactionsOf, toggleReaction } from '../lib/reactions.js';
 import { versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+
+// The user's own comment with their membership, as long as the comment and its version are live.
+// Who left the project (or lost the right to comment) can no longer change what they wrote.
+async function ownComment(db: Database, commentId: string, userId: string) {
+  const [comment] = await db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.id, commentId), eq(comments.userId, userId), isNull(comments.deletedAt)))
+    .limit(1);
+  if (!comment) return null;
+  const found = await versionAccess(db, comment.versionId, userId);
+  return found ? { ...comment, membership: found.membership } : null;
+}
 
 export const commentRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -114,13 +127,9 @@ export const commentRoutes = new Hono<AppEnv>()
     const commentId = c.req.param('id');
     const input = c.req.valid('json');
 
-    const [comment] = await db
-      .select()
-      .from(comments)
-      .where(and(eq(comments.id, commentId), eq(comments.userId, userId), isNull(comments.deletedAt)))
-      .limit(1);
-
+    const comment = await ownComment(db, commentId, userId);
     if (!comment) return c.json({ error: 'Not found' }, 404);
+    if (!comment.membership?.canComment) return c.json({ error: 'Forbidden' }, 403);
 
     const [updated] = await db
       .update(comments)
@@ -137,13 +146,9 @@ export const commentRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const commentId = c.req.param('id');
 
-    const [comment] = await db
-      .select()
-      .from(comments)
-      .where(and(eq(comments.id, commentId), eq(comments.userId, userId), isNull(comments.deletedAt)))
-      .limit(1);
-
+    const comment = await ownComment(db, commentId, userId);
     if (!comment) return c.json({ error: 'Not found' }, 404);
+    if (!comment.membership?.canComment) return c.json({ error: 'Forbidden' }, 403);
 
     // Into the project's trash; replies stay visible under a placeholder
     await db.update(comments).set({ deletedAt: new Date(), deletedById: userId }).where(eq(comments.id, commentId));

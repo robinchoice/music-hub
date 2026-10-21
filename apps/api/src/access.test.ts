@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { Hono } from 'hono';
-import { eq, inArray } from 'drizzle-orm';
-import { createDb, migrateDb, projectMembers, projects, sessions, tracks, users, versions } from '@music-hub/db';
+import { and, eq, inArray } from 'drizzle-orm';
+import { comments, createDb, migrateDb, projectMembers, projects, sessions, shareLinks, tracks, users, versions } from '@music-hub/db';
 import { generateToken, hashToken } from './middleware/auth.js';
 import { membershipOf } from './lib/access.js';
 import type { AppEnv } from './types.js';
@@ -38,6 +38,8 @@ const user = async (name: string) => {
   return { id: u.id, headers: { authorization: `Bearer ${token}` } };
 };
 const artistMembership = { projectId: '', userId: '', role: 'artist' as const, canUpload: true, canComment: true, canApprove: true };
+const removeArtist = () => db.delete(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, artist)));
+const readdArtist = () => db.insert(projectMembers).values({ ...artistMembership, projectId, userId: artist });
 
 beforeAll(async () => {
   await migrateDb(process.env.DATABASE_URL!);
@@ -89,6 +91,38 @@ test('an archived project keeps the membership but rests the rights to upload, c
 
   await db.update(projects).set({ isArchived: false }).where(eq(projects.id, projectId));
   expect(await membershipOf(db, projectId, artist)).toMatchObject({ canUpload: true, canComment: true, canApprove: true });
+});
+
+test('who left the project can no longer edit or delete their comments', async () => {
+  const created = await call(`/comments/version/${versionId}`, { method: 'POST', body: { body: 'Snare zu dünn' }, headers: artistHeaders });
+  expect(created.status).toBe(201);
+  const { comment } = (await created.json()) as { comment: { id: string } };
+  expect((await call(`/comments/${comment.id}`, { method: 'PATCH', body: { body: 'Snare etwas dünn' }, headers: artistHeaders })).status).toBe(200);
+
+  await removeArtist();
+  expect((await call(`/comments/${comment.id}`, { method: 'PATCH', body: { body: 'Snare passt' }, headers: artistHeaders })).status).toBe(403);
+  expect((await call(`/comments/${comment.id}`, { method: 'DELETE', headers: artistHeaders })).status).toBe(403);
+  await readdArtist();
+
+  expect((await call(`/comments/${comment.id}`, { method: 'DELETE', headers: artistHeaders })).status).toBe(200);
+  const [row] = await db.select({ deletedAt: comments.deletedAt }).from(comments).where(eq(comments.id, comment.id));
+  expect(row.deletedAt).not.toBeNull();
+});
+
+test('a share link pauses while its creator is no longer a member', async () => {
+  const created = await call(`/share/version/${versionId}`, { method: 'POST', body: { allowComments: true }, headers: artistHeaders });
+  expect(created.status).toBe(201);
+  const { link } = (await created.json()) as { link: { token: string } };
+  expect((await call(`/share/public/${link.token}`)).status).toBe(200);
+
+  await removeArtist();
+  expect((await call(`/share/public/${link.token}`)).status).toBe(410);
+  const guest = await call(`/share/public/${link.token}/comments`, { method: 'POST', body: { body: 'Gefällt mir', guestName: 'Kim' } });
+  expect(guest.status).toBe(410);
+  await readdArtist();
+
+  expect((await call(`/share/public/${link.token}`)).status).toBe(200);
+  await db.delete(shareLinks).where(eq(shareLinks.token, link.token));
 });
 
 test('nobody finishes listening to their own version', async () => {

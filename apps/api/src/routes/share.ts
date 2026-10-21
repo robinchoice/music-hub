@@ -12,19 +12,27 @@ import {
   users,
   projectMembers,
   reviews,
+  type Database,
 } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
-import { versionAccess } from '../lib/access.js';
+import { membershipOf, versionAccess } from '../lib/access.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
 
-// Links of a version in the trash pause until it is restored
+// Links pause while their version is in the trash or their creator is no longer a member of the project
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
+
+// The link's version with its track, null while the link pauses
+async function liveTarget(db: Database, link: { versionId: string; createdById: string }) {
+  const found = await liveVersion(db, link.versionId);
+  if (!found) return null;
+  return (await membershipOf(db, found.track.projectId, link.createdById)) ? found : null;
+}
 
 const MINUTE = 60 * 1000;
 // Wrong passwords per share link, counted like failed logins
@@ -191,7 +199,7 @@ export const shareRoutes = new Hono<AppEnv>()
       await failedPasswords.undo(db, link.id);
     }
 
-    const found = await liveVersion(db, link.versionId);
+    const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
     const { version, track } = found;
     const [project] = await db
@@ -271,7 +279,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const link = await commentableLink(c, token);
     if (link instanceof Response) return link;
 
-    const found = await liveVersion(db, link.versionId);
+    const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
 
     if (input.parentId) {
@@ -309,7 +317,7 @@ export const shareRoutes = new Hono<AppEnv>()
     if (link instanceof Response) return link;
     if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
 
-    const found = await liveVersion(db, link.versionId);
+    const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
 
     await submitReview(db, {
