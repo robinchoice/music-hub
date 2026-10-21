@@ -28,22 +28,15 @@ const filesPerIp = rateLimit('guest-files-per-ip', 200, 60 * MINUTE);
 // One push per track and link, however many files come in
 const uploadAlerts = rateLimit('guest-upload-alerts', 1, 15 * MINUTE);
 
-// The link with its project while it works: the project isn't archived and its creator
-// lets guests upload, isn't blocked and may still upload there, since the files count towards their storage
+// The link with its project while it works: its creator lets guests upload, isn't blocked and may
+// still upload there (not in an archived project), since the files count towards their storage
 async function liveLink(db: Database, token: string) {
   const [row] = await db
     .select({ link: uploadLinks, project: projects, inviter: users.name })
     .from(uploadLinks)
     .innerJoin(projects, eq(projects.id, uploadLinks.projectId))
     .innerJoin(users, eq(users.id, uploadLinks.createdById))
-    .where(
-      and(
-        eq(uploadLinks.token, token),
-        eq(projects.isArchived, false),
-        eq(users.guestUploads, true),
-        notBlocked(uploadLinks.createdById),
-      ),
-    )
+    .where(and(eq(uploadLinks.token, token), eq(users.guestUploads, true), notBlocked(uploadLinks.createdById)))
     .limit(1);
   if (!row) return null;
   const membership = await membershipOf(db, row.link.projectId, row.link.createdById);

@@ -55,7 +55,7 @@ test('project upload URLs require authentication, upload rights and an active pr
   expect((await call(path, file, strangerHeaders)).status).toBe(403);
   expect((await call(path, { ...file, fileName: '../mix.wav' }, ownerHeaders)).status).toBe(400);
   await db.update(projects).set({ isArchived: true }).where(eq(projects.id, projectId));
-  expect((await call(path, file, ownerHeaders)).status).toBe(404);
+  expect((await call(path, file, ownerHeaders)).status).toBe(403);
   await db.update(projects).set({ isArchived: false }).where(eq(projects.id, projectId));
 });
 

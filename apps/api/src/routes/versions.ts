@@ -10,7 +10,7 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   REJECTION_PREFIX,
 } from '@music-hub/shared';
-import { versions, projects, comments } from '@music-hub/db';
+import { versions, comments } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
@@ -88,9 +88,6 @@ export const versionRoutes = new Hono<AppEnv>()
     const { fileName, mimeType, fileSize } = c.req.valid('json');
     const membership = await membershipOf(db, projectId, userId);
     if (!membership?.canUpload) return c.json({ error: 'Forbidden' }, 403);
-    const [project] = await db.select().from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.isArchived, false))).limit(1);
-    if (!project) return c.json({ error: 'Not found' }, 404);
     const storage = await storageOf(db, userId);
     if (!fits(storage, fileSize)) return storageFull(c, storage);
     if (!(await takeUploadVolume(db, userId, fileSize))) return uploadVolumeExceeded(c);
@@ -486,6 +483,8 @@ export const versionRoutes = new Hono<AppEnv>()
     const { version, track, membership } = found;
     if (!membership || (!membership.canComment && !membership.canApprove)) return c.json({ error: 'Forbidden' }, 403);
     if (verdict === 'approve' && !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
+    // Nobody finishes listening to their own upload; the web hides the button, the API refuses too
+    if (version.createdById === userId) return c.json({ error: 'Forbidden' }, 403);
 
     const review = await submitReview(db, {
       version,

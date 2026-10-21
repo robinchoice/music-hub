@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { projectMembers, type Database } from '@music-hub/db';
+import { projectMembers, projects, type Database } from '@music-hub/db';
 import { liveTrack, liveVersion } from './trash.js';
 
 // Who may reach what: the user's membership in a project carries their rights (canUpload, canComment,
@@ -7,14 +7,18 @@ import { liveTrack, liveVersion } from './trash.js';
 // so the lookup and the trash rule live in one place. What a missing membership answers (404 or 403)
 // stays with the route: reads hide the thing, writes refuse.
 
-// The user's membership in the project, undefined if they are no member
+// The user's membership in the project, undefined if they are no member. An archived project is
+// read-only: the membership stays (reading, managing, restoring the project), the rights to upload,
+// comment and approve rest until it is restored.
 export async function membershipOf(db: Pick<Database, 'select'>, projectId: string, userId: string) {
-  const [membership] = await db
-    .select()
+  const [row] = await db
+    .select({ membership: projectMembers, archived: projects.isArchived })
     .from(projectMembers)
+    .innerJoin(projects, eq(projects.id, projectMembers.projectId))
     .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
     .limit(1);
-  return membership;
+  if (!row) return undefined;
+  return row.archived ? { ...row.membership, canUpload: false, canComment: false, canApprove: false } : row.membership;
 }
 
 // The track with the user's membership in its project. null: no such track, or it is in the trash.
