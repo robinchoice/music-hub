@@ -38,18 +38,15 @@
     feedbackRows,
     hasWaveform,
     commentMarkers,
-    openPass,
     predecessorOf,
     versionTitle,
     capabilities,
     isDecided,
     isProcessing,
-    type Person,
-    type Review,
     type ReviewVerdict,
     type Version,
-    type TrackComment,
   } from '$lib/utils/track.js';
+  import { TrackComments } from './track-comments.svelte.js';
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
   import FeedbackList from './components/FeedbackList.svelte';
   import VersionCard from './components/VersionCard.svelte';
@@ -92,13 +89,9 @@
   // Members of the project, loaded for owners only: alone in it, the first version asks who should listen
   let memberCount = $state<number | null>(null);
   let inviteDismissed = $state(false);
-  let comments = $state<TrackComment[]>([]);
-  // Finished listening passes on the selected version, the approvers still missing, and who uploaded it
-  let reviews = $state<Review[]>([]);
-  let waiting = $state<Person[]>([]);
-  let uploader = $state<{ id: string; name: string } | null>(null);
+  // Comments and feedback of the selected version; after each change the counts on the version list follow
+  const trackComments = new TrackComments(() => refreshVersions());
   let reviewOpen = $state(false);
-  let predecessorComments = $state<TrackComment[]>([]);
   let currentTime = $state(0);
   let commentSection = $state<CommentSection>();
   let showUpload = $state(false);
@@ -167,12 +160,12 @@
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
   const showNewVersion = $derived(selectedVersion?.id === versions[0]?.id && !!predecessor && !processing && hasWaveform(selectedVersion!) && hasWaveform(predecessor) && !dismissedVersions.includes(selectedVersion!.id));
   // Your comments since your last "Fertig", and everyone's feedback on the selected version
-  const myPass = $derived($user ? openPass(comments, reviews, $user.id) : []);
+  const myPass = $derived($user ? trackComments.passOf($user.id) : []);
   const freshIds = $derived(new Set(myPass.map((c) => c.id)));
   const canFinish = $derived((canComment || canApprove) && !!selectedVersion && hasWaveform(selectedVersion) && !!$user && selectedVersion.createdById !== $user.id);
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
-  const feedbackRowsShown = $derived(feedbackRows(comments, reviews, decided ? [] : waiting, selectedVersion?.createdById ?? null));
+  const feedbackRowsShown = $derived(feedbackRows(trackComments.comments, trackComments.reviews, decided ? [] : trackComments.waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
   // Loudness and stage of every version come from the overview
@@ -276,12 +269,12 @@
           await selectVersion(selectedVersion, true);
         }
       } else if (type === 'review:new') {
-        if (data.versionId === selectedVersion?.id) await reloadComments();
+        if (data.versionId === selectedVersion?.id) await trackComments.reload();
       } else if (type === 'comment:new') {
-        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
+        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await trackComments.reload();
         else await refreshVersions();
       } else if (type === 'comment:reaction') {
-        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await reloadComments();
+        if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await trackComments.reload();
       }
     });
   });
@@ -310,42 +303,23 @@
         streamUrl = blobUrl;
         processing = false;
         grow = false;
-        comments = [];
-        reviews = [];
-        waiting = [];
-        predecessorComments = [];
+        trackComments.clear();
         return;
       }
     }
 
     const pred = predecessorOf(version, versions);
-    const [streamRes, peaksRes, commentRes, predRes] = await Promise.all([
+    const [streamRes, peaksRes] = await Promise.all([
       api.get<{ url: string }>(`/versions/${version.id}/stream-url`),
       // There is no waveform while the worker runs or after it gave up on the file, so don't ask for one
       hasWaveform(version) ? api.get<number[]>(`/versions/${version.id}/waveform-data`, true).catch(() => []) : Promise.resolve([]),
-      api.get<CommentsResponse>(`/comments/version/${version.id}`),
-      pred
-        ? api
-            .get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}?commentsOnly=true`, true)
-            .catch(() => ({ comments: [] as TrackComment[] }))
-        : Promise.resolve({ comments: [] as TrackComment[] }),
+      trackComments.load(version.id, pred?.id ?? null),
     ]);
     if (seq !== selectSeq) return;
     peaks = peaksRes;
     streamUrl = streamRes.url;
     processing = isProcessing(version);
     grow = grown;
-    applyComments(commentRes);
-    predecessorComments = predRes.comments;
-  }
-
-  type CommentsResponse = { comments: TrackComment[]; reviews?: Review[]; waiting?: Person[]; uploader?: { id: string; name: string } | null };
-
-  function applyComments(res: CommentsResponse) {
-    comments = res.comments;
-    reviews = res.reviews ?? [];
-    waiting = res.waiting ?? [];
-    uploader = res.uploader ?? null;
   }
 
   // Reloads the list and selects the newest version, e.g. after an upload
@@ -361,24 +335,6 @@
     versions = res.versions;
     const id = selectedVersion?.id;
     if (id) selectedVersion = versions.find((v) => v.id === id) ?? selectedVersion;
-  }
-
-  async function reloadComments() {
-    if (!selectedVersion) return;
-    const id = selectedVersion.id;
-    const pred = predecessor;
-    const [res, predRes] = await Promise.all([
-      api.get<CommentsResponse>(`/comments/version/${id}`),
-      pred
-        ? api.get<{ comments: TrackComment[] }>(`/comments/version/${pred.id}?commentsOnly=true`)
-        : Promise.resolve({ comments: [] as TrackComment[] }),
-    ]);
-    // Skip if the user switched versions meanwhile; selectVersion loads the new comments
-    if (selectedVersion?.id === id) {
-      applyComments(res);
-      predecessorComments = predRes.comments;
-    }
-    await refreshVersions();
   }
 
   async function setTrackStatus(s: TrackStatus) {
@@ -470,7 +426,7 @@
 
   async function undoApprove(id: string) {
     await api.post(`/versions/${id}/unapprove`).catch(() => {});
-    await reloadComments();
+    await trackComments.reload();
     await reloadOpenState();
   }
 
@@ -488,63 +444,28 @@
   async function submitReview(verdict: ReviewVerdict, note: string) {
     if (!selectedVersion) return;
     const { id, versionNumber } = selectedVersion;
-    await api.post(`/versions/${id}/reviews`, { verdict, note: note || undefined });
+    await trackComments.finish(verdict, note);
     if (verdict === 'approve') {
       toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => undoApprove(id) });
       await reloadOpenState();
     } else {
-      toastSuccess(`${uploader?.name ?? 'Der Uploader'} bekommt Bescheid`);
+      toastSuccess(`${trackComments.uploader?.name ?? 'Der Uploader'} bekommt Bescheid`);
     }
-    await reloadComments();
   }
 
   async function handleComment(body: string, timestamp: number | null) {
-    if (!selectedVersion) return;
-    await api.post(`/comments/version/${selectedVersion.id}`, {
-      body,
-      timestampSeconds: timestamp ?? undefined,
-    });
-    await reloadComments();
+    await trackComments.add(body, timestamp);
     toastSuccess('Kommentar gespeichert');
   }
 
-  async function handleReply(parentId: string, body: string, onCarry: boolean) {
-    const target = onCarry ? predecessor : selectedVersion;
-    if (!target) return;
-    await api.post(`/comments/version/${target.id}`, { body, parentId });
-    await reloadComments();
-  }
-
-  async function handleResolve(id: string) {
-    await api.post(`/comments/${id}/resolve`);
-    await reloadComments();
-  }
-
-  async function handleReopen(id: string) {
-    await api.post(`/comments/${id}/reopen`);
-    await reloadComments();
-  }
-
-  async function handleReact(id: string, emoji: string) {
-    await api.post(`/comments/${id}/reactions`, { emoji });
-    await reloadComments();
-  }
-
-  async function handleEditComment(id: string, body: string) {
-    await api.patch(`/comments/${id}`, { body });
-    await reloadComments();
-  }
-
   async function handleDeleteComment(id: string) {
-    await api.delete(`/comments/${id}`);
+    await trackComments.remove(id);
     toastTrash('Kommentar liegt im Papierkorb', () => handleRestoreComment(id));
-    await reloadComments();
     void loadOverview();
   }
 
   async function handleRestoreComment(id: string) {
-    await api.post(`/trash/comment/${id}/restore`);
-    await reloadComments();
+    await trackComments.restore(id);
     void loadOverview();
   }
 
@@ -934,7 +855,7 @@
       {:else if selectedVersion && streamUrl}
         {#if comparePair && predecessor}
           {#key selectedVersion.id}
-            <VersionComparison previous={predecessor} version={selectedVersion} comments={predecessorComments} {canComment} initialTime={compareTime} onResolve={handleResolve} onClose={closeComparison} />
+            <VersionComparison previous={predecessor} version={selectedVersion} comments={trackComments.carry} {canComment} initialTime={compareTime} onResolve={trackComments.resolve} onClose={closeComparison} />
           {/key}
         {:else}
         <VersionCard
@@ -973,7 +894,7 @@
                 audioDuration={selectedVersion?.duration}
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
-                markers={commentMarkers(comments)}
+                markers={commentMarkers(trackComments.comments)}
                 onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
                 onSeek={(time) => (currentTime = time)}
               />
@@ -982,7 +903,7 @@
           {#snippet feedback()}
             {#if canFinish && myPass.length > 0}
               <p class="finish-hint">
-                {uploader?.name ?? 'Wer hochgeladen hat'} bekommt Bescheid, sobald du „Fertig“ drückst, sonst automatisch {REVIEW_QUIET_MINUTES} Minuten nach deinem letzten Kommentar.
+                {trackComments.uploader?.name ?? 'Wer hochgeladen hat'} bekommt Bescheid, sobald du „Fertig“ drückst, sonst automatisch {REVIEW_QUIET_MINUTES} Minuten nach deinem letzten Kommentar.
               </p>
             {/if}
             {#if feedbackRowsShown.length > 0}
@@ -1000,7 +921,7 @@
               {#if predecessor.integratedLufs != null && selectedVersion.integratedLufs != null}
                 <div><dt>Lautheit</dt><dd>{predecessor.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {selectedVersion.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} LUFS</dd></div>
               {/if}
-              <div><dt>Offen aus V{predecessor.versionNumber}</dt><dd>{predecessorComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length} {predecessorComments.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length === 1 ? 'offener Punkt' : 'offene Punkte'}</dd></div>
+              <div><dt>Offen aus V{predecessor.versionNumber}</dt><dd>{trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length} {trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length === 1 ? 'offener Punkt' : 'offene Punkte'}</dd></div>
             </dl>
             <div class="new-version-actions"><Button onclick={openComparison}>V{predecessor.versionNumber} ↔ V{selectedVersion.versionNumber} vergleichen</Button><Button variant="ghost" onclick={dismissComparison}>Ausblenden</Button></div>
           </section>
@@ -1024,21 +945,21 @@
           bind:this={commentSection}
           versionLabel={`V${selectedVersion.versionNumber}`}
           versionTitle={versionTitle(selectedVersion)}
-          {comments}
+          comments={trackComments.comments}
           carryLabel={predecessor ? `V${predecessor.versionNumber}` : null}
           carryTitle={predecessor ? versionTitle(predecessor) : null}
-          carryComments={predecessorComments}
+          carryComments={trackComments.carry}
           {freshIds}
           {canComment}
           currentUserId={$user?.id ?? null}
           {currentTime}
           bind:commentTimestamp
           onSubmit={handleComment}
-          onReply={handleReply}
-          onResolve={handleResolve}
-          onReopen={handleReopen}
-          onReact={handleReact}
-          onEdit={handleEditComment}
+          onReply={trackComments.reply}
+          onResolve={trackComments.resolve}
+          onReopen={trackComments.reopen}
+          onReact={trackComments.react}
+          onEdit={trackComments.edit}
           onDelete={handleDeleteComment}
           onRestore={handleRestoreComment}
           onSeek={(time) => playerRef?.seekToTime(time)}
@@ -1108,7 +1029,7 @@
   <ReviewSheet
     bind:open={reviewOpen}
     versionNumber={selectedVersion.versionNumber}
-    uploaderName={uploader?.name ?? 'Wer hochgeladen hat'}
+    uploaderName={trackComments.uploader?.name ?? 'Wer hochgeladen hat'}
     {canApprove}
     pass={myPass}
     onSubmit={submitReview}
