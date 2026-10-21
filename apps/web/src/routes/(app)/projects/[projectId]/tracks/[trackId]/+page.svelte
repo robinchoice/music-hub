@@ -55,6 +55,7 @@
   import VersionList from './components/VersionList.svelte';
   import ShareModal from './components/ShareModal.svelte';
   import InviteCard from './components/InviteCard.svelte';
+  import PushPrompt from '$lib/components/PushPrompt.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem, type GuestNote } from './components/StemList.svelte';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
@@ -919,6 +920,9 @@
               <p class="finish-hint">
                 {trackComments.uploader?.name ?? 'Wer hochgeladen hat'} bekommt Bescheid, sobald du „Fertig“ drückst, sonst automatisch {REVIEW_QUIET_MINUTES} Minuten nach deinem letzten Kommentar.
               </p>
+            {/if}
+            {#if trackComments.uploader && trackComments.uploader.id === $user?.id}
+              <PushPrompt --margin="var(--space-3) 0 0" text="Soll Music Hub dir Bescheid geben, sobald jemand mit V{selectedVersion!.versionNumber} fertig ist? Auch wenn die Seite zu ist." />
             {/if}
             {#if feedbackRowsShown.length > 0}
               <FeedbackList rows={feedbackRowsShown} versionNumber={selectedVersion!.versionNumber} currentUserId={$user?.id ?? null} />

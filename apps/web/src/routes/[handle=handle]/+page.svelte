@@ -13,6 +13,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import OpenHeader from '$lib/components/open/OpenHeader.svelte';
+  import PushPrompt from '$lib/components/PushPrompt.svelte';
 
   type Track = {
     id: string;
@@ -148,6 +149,10 @@
           {/if}
         </div>
       </section>
+
+      {#if data.contact === 'sent'}
+        <PushPrompt text="Soll Music Hub dir Bescheid geben, sobald {p.name} deine Anfrage annimmt?" />
+      {/if}
 
       {#if data.contact === 'needs-open'}
         <p class="note">

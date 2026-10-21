@@ -6,6 +6,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import PushPrompt from '$lib/components/PushPrompt.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import TaskCard from '$lib/components/overview/TaskCard.svelte';
   import RequestCard from '$lib/components/profile/RequestCard.svelte';
@@ -54,6 +55,7 @@
 <div class="page">
   <h1>Für dich {#if $tasks.length + $requests.length}<span class="count">{$tasks.length + $requests.length}</span>{/if}</h1>
   <p class="sub">Was gerade auf dich wartet, das Neueste zuerst.</p>
+  <PushPrompt --margin="0 0 var(--space-5)" text="Neue Versionen und Rückmeldungen als Benachrichtigung, auch wenn Music Hub zu ist." />
 
   {#if $requests.length}
     <div class="list requests">
