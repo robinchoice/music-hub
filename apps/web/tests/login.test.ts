@@ -107,12 +107,18 @@ test('a passkey button error remains visible when autofill resumes', async ({ pa
     const message = 'Dieser Passkey wurde entfernt. Nutze einen anderen Passkey, dein Passwort oder den Login-Link.';
     await page.route('**/api/v1/auth/passkeys/login', (route) => route.fulfill({ status: 400, json: { error: message, code: 'passkeyUnknown' } }));
     let optionRequests = 0;
-    page.on('request', (request) => { if (request.url().endsWith('/auth/passkeys/login/options')) optionRequests++; });
+    let buttonOptions: Route | undefined;
+    await page.route('**/api/v1/auth/passkeys/login/options', (route) => {
+      if (++optionRequests === 2) buttonOptions = route;
+      else return route.continue();
+    });
     await page.goto('/login');
     await expect.poll(() => optionRequests).toBe(1);
     await page.getByRole('button', { name: 'Mit Passkey einloggen' }).click();
-    await expect.poll(() => optionRequests).toBe(2);
+    await expect.poll(() => !!buttonOptions).toBe(true);
+    // A request already at the authenticator never sees presence turned on, so the button's starts only after
     await cdp.send('WebAuthn.setAutomaticPresenceSimulation', { authenticatorId, enabled: true });
+    await buttonOptions!.continue();
     await expect.poll(() => optionRequests).toBeGreaterThanOrEqual(3);
     await expect(page.locator('p[role="alert"]')).toHaveText(message);
   } finally {
