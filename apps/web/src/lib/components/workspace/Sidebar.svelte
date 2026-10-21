@@ -90,14 +90,6 @@
     else next.add(artist);
     collapsedArtists = next;
   }
-  function isArtistExpanded(artist: string) {
-    if (collapsedArtists.has(artist)) return false;
-    // Auto-expand if active project is in this group or search is active
-    if (query.trim()) return true;
-    return artistGroups.some(
-      (g) => g.artist === artist && g.memberships.some((m) => m.project.id === activeProjectId),
-    );
-  }
 
   function trackMatches(track: Track) {
     const q = query.trim().toLowerCase();
@@ -137,7 +129,7 @@
     searchInput?.select();
   }
 
-  // After a track was deleted or restored: fresh counts, and the active project's tracks load again
+  // After a change to projects or tracks: fresh counts, and the active project's tracks load again
   export async function reload() {
     tracksByProject = {};
     const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true).catch(() => null);
@@ -210,7 +202,7 @@
     </div>
     <div class="artist-groups">
       {#each artistGroups as group (group.artist)}
-        {@const expanded = group.artist === '' || isArtistExpanded(group.artist) || !collapsedArtists.has(group.artist)}
+        {@const expanded = group.artist === '' || !collapsedArtists.has(group.artist)}
         <div class="artist-group">
           {#if group.artist}
             <div class="artist-head" class:active={$page.params.artist === group.artist}>

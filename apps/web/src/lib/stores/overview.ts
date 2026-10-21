@@ -54,6 +54,12 @@ export function loadOverview(showErrors = false): Promise<void> {
   return pending;
 }
 
+/** After a change: loads once a request already running has answered, so the store never keeps the state from before it */
+export function refreshOverview(): Promise<void> {
+  const again = () => loadOverview();
+  return pending ? pending.then(again, again) : again();
+}
+
 // Another device may have changed something meanwhile
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', () => started && void loadOverview());

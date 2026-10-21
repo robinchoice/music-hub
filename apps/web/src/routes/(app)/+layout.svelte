@@ -9,6 +9,7 @@
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
   import TooltipLayer from '$lib/components/ui/TooltipLayer.svelte';
   import { stopListen } from '$lib/stores/listen.js';
+  import { refreshOverview } from '$lib/stores/overview.js';
   import { onKey } from '$lib/utils/shortcuts.js';
 
   let { children } = $props();
@@ -18,7 +19,11 @@
   let sidebarRef = $state<Sidebar | undefined>();
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
-  setContext('reloadSidebar', () => sidebarRef?.reload());
+  // The sidebar and the overview store show the same projects and tracks, so a change refreshes both
+  setContext('reloadSidebar', () => {
+    sidebarRef?.reload();
+    void refreshOverview();
+  });
 
   // The inline player belongs to the page it was started on
   beforeNavigate(() => stopListen());
