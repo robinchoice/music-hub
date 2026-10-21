@@ -2,13 +2,13 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { eq, inArray } from 'drizzle-orm';
 import { createDb, migrateDb, projects, stemRevisions, stems, tracks, users } from '@music-hub/db';
 import { replaceStem, restoreRevision } from './lib/stems.js';
-import { storageOf } from './lib/storage.js';
+import { storageByUser, storageOf, storageSummary } from './lib/storage.js';
 import { deleteUnusedFiles } from './lib/trash.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
 const db = createDb(process.env.DATABASE_URL!);
 const userIds: string[] = [];
-let owner: string, drummer: string, stemId: string;
+let owner: string, drummer: string, stemId: string, stemTrackId: string;
 
 const user = async (name: string) => {
   const [u] = await db.insert(users).values({ email: `test-${crypto.randomUUID()}@example.com`, name }).returning();
@@ -27,6 +27,7 @@ beforeAll(async () => {
   [owner, drummer] = [await user('Robin'), await user('Kai')];
   const [project] = await db.insert(projects).values({ name: 'Fernlicht', createdById: owner }).returning();
   const [track] = await db.insert(tracks).values({ projectId: project.id, name: 'Nachtbus', createdById: owner }).returning();
+  stemTrackId = track.id;
   [{ id: stemId }] = await db
     .insert(stems)
     .values({ trackId: track.id, name: 'Drums', createdById: drummer, ...file('drums-take1', 1000) })
@@ -79,6 +80,14 @@ test('an earlier file in the trash still counts, once out of the trash it no lon
   await db.update(stemRevisions).set({ deletedAt: new Date(), deletedById: owner }).where(eq(stemRevisions.id, revision.id));
   expect((await storageOf(db, owner)).used).toBe(400);
   expect(await restoreRevision(db, revision.id)).toBeNull();
+
+  // The overview and the admin count the same way, only the biggest tracks leave the trash out
+  const summary = await storageSummary(db, owner);
+  expect(summary).toMatchObject({ usedBytes: 400, versionBytes: 0, stemBytes: 400, topTracks: [] });
+  expect((await storageSummary(db, drummer)).topTracks).toEqual([{ trackId: stemTrackId, name: 'Nachtbus', bytes: 1000 }]);
+  const byUser = await storageByUser(db);
+  expect(byUser.get(owner)).toBe(400);
+  expect(byUser.get(drummer)).toBe(1000);
 
   await db.update(stemRevisions).set({ discardedAt: new Date() }).where(eq(stemRevisions.id, revision.id));
   expect((await storageOf(db, owner)).used).toBe(0);

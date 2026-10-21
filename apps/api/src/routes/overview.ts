@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { memberRoles, taskKeySchema, MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { memberRoles, taskKeySchema } from '@music-hub/shared';
 import {
   projects,
   projectMembers,
@@ -12,11 +12,10 @@ import {
   listenEvents,
   users,
   taskDismissals,
-  type Database,
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
-import { keptSql } from '../lib/trash.js';
+import { storageSummary } from '../lib/storage.js';
 import type { AppEnv } from '../types.js';
 
 // Same prefix the reject route writes; those comments are delivered as rejectionReason instead.
@@ -28,44 +27,6 @@ const BODY_LIMIT = 200;
 const DAY_MS = 86_400_000;
 
 const iso = (value: Date | string | null | undefined) => (value ? new Date(value).toISOString() : null);
-
-// Storage of the user's own uploads, counted like storageOf() in lib/storage.ts.
-// The biggest tracks leave out what is in the trash, the totals include it.
-async function storageSummary(db: Database, userId: string) {
-  const [{ versionBytes, stemBytes, limitBytes }] = await db.execute<{ versionBytes: number; stemBytes: number; limitBytes: number }>(sql`
-    SELECT
-      (SELECT coalesce(sum(v.file_size), 0)::float8 FROM versions v JOIN tracks t ON t.id = v.track_id
-        WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')}) AS "versionBytes",
-      (SELECT coalesce(sum(s.file_size), 0)::float8 FROM stems s JOIN tracks t ON t.id = s.track_id
-        WHERE s.created_by_id = ${userId} AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
-      + (SELECT coalesce(sum(r.file_size), 0)::float8 FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-        WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS "stemBytes",
-      (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER})::float8 FROM users WHERE id = ${userId}) AS "limitBytes"
-  `);
-  const topTracks = await db.execute<{ trackId: string; name: string; bytes: number }>(sql`
-    SELECT t.id AS "trackId", t.name AS "name", sum(x.size)::float8 AS "bytes"
-    FROM (
-      SELECT track_id, file_size AS size FROM versions WHERE created_by_id = ${userId} AND deleted_at IS NULL
-      UNION ALL
-      SELECT track_id, file_size AS size FROM stems WHERE created_by_id = ${userId} AND NOT forked AND deleted_at IS NULL
-      UNION ALL
-      SELECT s.track_id, r.file_size FROM stem_revisions r JOIN stems s ON s.id = r.stem_id
-        WHERE r.created_by_id = ${userId} AND NOT r.forked AND r.deleted_at IS NULL AND s.deleted_at IS NULL
-    ) x
-    JOIN tracks t ON t.id = x.track_id
-    WHERE t.deleted_at IS NULL
-    GROUP BY t.id, t.name
-    ORDER BY 3 DESC
-    LIMIT 3
-  `);
-  return {
-    usedBytes: Number(versionBytes) + Number(stemBytes),
-    versionBytes: Number(versionBytes),
-    stemBytes: Number(stemBytes),
-    limitBytes: Number(limitBytes),
-    topTracks: [...topTracks].map((t) => ({ trackId: t.trackId, name: t.name, bytes: Number(t.bytes) })),
-  };
-}
 
 export const overviewRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)

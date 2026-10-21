@@ -22,7 +22,7 @@ import {
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail, deviceLabel } from '../lib/admin.js';
-import { keptSql } from '../lib/trash.js';
+import { storageByUser } from '../lib/storage.js';
 import { resetTestAccount } from '../lib/test-account.js';
 import type { AppEnv } from '../types.js';
 
@@ -96,24 +96,6 @@ async function actionCounts(db: Database, from: Date) {
   }
   for (const p of plays) counts.set(p.uid, { ...(counts.get(p.uid) ?? NO_COUNTS), plays: p.plays });
   return counts;
-}
-
-// Counted like storageOf() in lib/storage.ts
-async function storageByUser(db: Database) {
-  const rows = await db.execute<{ uid: string; bytes: number }>(sql`
-    SELECT uid, sum(size)::float8 AS bytes FROM (
-      SELECT v.created_by_id AS uid, v.file_size AS size FROM versions v JOIN tracks t ON t.id = v.track_id
-        WHERE ${keptSql('v')} AND ${keptSql('t')}
-      UNION ALL
-      SELECT s.created_by_id, s.file_size FROM stems s JOIN tracks t ON t.id = s.track_id
-        WHERE NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')}
-      UNION ALL
-      SELECT r.created_by_id, r.file_size FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-        WHERE NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}
-    ) x
-    GROUP BY uid
-  `);
-  return new Map(rows.map((r) => [r.uid, Number(r.bytes)]));
 }
 
 // Everyone with what they did since `from`. Accounts only come from invites, so never having

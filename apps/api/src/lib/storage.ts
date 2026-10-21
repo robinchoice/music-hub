@@ -22,34 +22,80 @@ export async function takeUploadVolume(db: Database, userId: string, bytes: numb
 
 export type Storage = { used: number; limit: number };
 
-// Used: originals the user uploaded, earlier files of stems included, in all projects including archived ones, also while they are in the trash.
-// Covers, the MP3s and waveforms derived from versions and stems taken over from open tracks don't count.
+// One row per file somebody pays for, with who pays (uid): the originals of versions and stems
+// they uploaded, earlier files of stems included, in all projects including archived ones.
+// Stems taken over from open tracks (forked) belong to their first uploader, so they are left out here.
+// Covers, MP3s and waveforms derived from versions don't count.
+// kept: counts towards the storage, also while in the trash. live: not deleted at all.
+// guest: uploaded through an upload link in the payer's name.
+// Every count of storage builds on this, so the rule lives in one place.
+const uploadedFiles = sql`
+  SELECT v.created_by_id AS uid, v.track_id, 'version' AS kind, v.file_size AS size, false AS guest,
+         ${keptSql('v')} AND ${keptSql('t')} AS kept, v.deleted_at IS NULL AND t.deleted_at IS NULL AS live
+    FROM versions v JOIN tracks t ON t.id = v.track_id
+  UNION ALL
+  SELECT s.created_by_id, s.track_id, 'stem', s.file_size, s.guest_name IS NOT NULL,
+         ${keptSql('s')} AND ${keptSql('t')}, s.deleted_at IS NULL AND t.deleted_at IS NULL
+    FROM stems s JOIN tracks t ON t.id = s.track_id WHERE NOT s.forked
+  UNION ALL
+  SELECT r.created_by_id, s.track_id, 'stem', r.file_size, r.guest_name IS NOT NULL,
+         ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}, r.deleted_at IS NULL AND s.deleted_at IS NULL AND t.deleted_at IS NULL
+    FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id WHERE NOT r.forked
+`;
+
+const limitSql = (userId: string) => sql`(SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId})`;
+
 export async function storageOf(db: Executor, userId: string): Promise<Storage> {
   const [{ used, limit }] = await db.execute<{ used: string; limit: string }>(sql`
-    SELECT (SELECT coalesce(sum(v.file_size), 0) FROM versions v JOIN tracks t ON t.id = v.track_id
-             WHERE v.created_by_id = ${userId} AND ${keptSql('v')} AND ${keptSql('t')})
-         + (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
-             WHERE s.created_by_id = ${userId} AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
-         + (SELECT coalesce(sum(r.file_size), 0) FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-             WHERE r.created_by_id = ${userId} AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
-           (SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId}) AS limit
+    SELECT (SELECT coalesce(sum(size), 0) FROM (${uploadedFiles}) f WHERE uid = ${userId} AND kept) AS used,
+           ${limitSql(userId)} AS limit
   `);
   return { used: Number(used), limit: Number(limit) };
 }
 
-// The part of the user's storage that guests filled through upload links, earlier files of stems included,
-// with the limit the user set for it
+// The part of the user's storage that guests filled through upload links, with the limit the user set for it
 export async function guestStorageOf(db: Executor, userId: string): Promise<Storage & { allowed: boolean }> {
   const [{ used, limit, allowed }] = await db.execute<{ used: string; limit: string; allowed: boolean }>(sql`
-    SELECT (SELECT coalesce(sum(s.file_size), 0) FROM stems s JOIN tracks t ON t.id = s.track_id
-             WHERE s.created_by_id = ${userId} AND s.guest_name IS NOT NULL AND NOT s.forked AND ${keptSql('s')} AND ${keptSql('t')})
-         + (SELECT coalesce(sum(r.file_size), 0) FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id
-             WHERE r.created_by_id = ${userId} AND r.guest_name IS NOT NULL AND NOT r.forked AND ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}) AS used,
+    SELECT (SELECT coalesce(sum(size), 0) FROM (${uploadedFiles}) f WHERE uid = ${userId} AND kept AND guest) AS used,
            coalesce(guest_storage_limit, ${GUEST_STORAGE_DEFAULT}) AS limit,
            guest_uploads AS allowed
     FROM users WHERE id = ${userId}
   `);
   return { used: Number(used), limit: Number(limit), allowed };
+}
+
+// For the overview: the storage split into versions and stems, and the three biggest tracks.
+// The biggest tracks leave out what is in the trash, the totals include it.
+export async function storageSummary(db: Executor, userId: string) {
+  const [{ versionBytes, stemBytes, limitBytes }] = await db.execute<{ versionBytes: string; stemBytes: string; limitBytes: string }>(sql`
+    SELECT coalesce(sum(size) FILTER (WHERE kind = 'version'), 0) AS "versionBytes",
+           coalesce(sum(size) FILTER (WHERE kind = 'stem'), 0) AS "stemBytes",
+           ${limitSql(userId)} AS "limitBytes"
+    FROM (${uploadedFiles}) f WHERE uid = ${userId} AND kept
+  `);
+  const topTracks = await db.execute<{ trackId: string; name: string; bytes: string }>(sql`
+    SELECT t.id AS "trackId", t.name AS "name", sum(f.size) AS "bytes"
+    FROM (${uploadedFiles}) f JOIN tracks t ON t.id = f.track_id
+    WHERE f.uid = ${userId} AND f.live
+    GROUP BY t.id, t.name
+    ORDER BY 3 DESC
+    LIMIT 3
+  `);
+  return {
+    usedBytes: Number(versionBytes) + Number(stemBytes),
+    versionBytes: Number(versionBytes),
+    stemBytes: Number(stemBytes),
+    limitBytes: Number(limitBytes),
+    topTracks: [...topTracks].map((t) => ({ trackId: t.trackId, name: t.name, bytes: Number(t.bytes) })),
+  };
+}
+
+// For the admin: everyone's used bytes
+export async function storageByUser(db: Executor) {
+  const rows = await db.execute<{ uid: string; bytes: string }>(sql`
+    SELECT uid, sum(size) AS bytes FROM (${uploadedFiles}) f WHERE kept GROUP BY uid
+  `);
+  return new Map(rows.map((r) => [r.uid, Number(r.bytes)]));
 }
 
 export const fits = (storage: Storage, bytes: number) => storage.used + bytes <= storage.limit;
