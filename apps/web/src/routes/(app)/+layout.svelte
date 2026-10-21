@@ -19,11 +19,8 @@
   let sidebarRef = $state<Sidebar | undefined>();
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
-  // The sidebar and the overview store show the same projects and tracks, so a change refreshes both
-  setContext('reloadSidebar', () => {
-    sidebarRef?.reload();
-    void refreshOverview();
-  });
+  // The sidebar shows the projects and tracks of the overview store, so a change refreshes the store
+  setContext('reloadSidebar', () => void refreshOverview());
 
   // The inline player belongs to the page it was started on
   beforeNavigate(() => stopListen());

@@ -202,7 +202,7 @@ function overview() {
   return {
     projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], members: MEMBERS })),
     users: [MARA, KAI, LISA, JONAS],
-    tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, createdAt: t.createdAt, createdById: JONAS.id })),
+    tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, sortOrder: t.sortOrder, createdAt: t.createdAt, createdById: JONAS.id })),
     versions: db.versions.map((v) => ({
       id: v.id,
       trackId: v.trackId,

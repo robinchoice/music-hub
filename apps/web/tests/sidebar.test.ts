@@ -60,7 +60,7 @@ test('the open project lists its tracks in order, the others keep theirs folded'
   await expect(sidebar(page).locator('.track.active')).toHaveText('Intro');
 });
 
-test('the search narrows the projects by name and artist and says when nothing matches', async ({ page, isMobile }) => {
+test('the search narrows the projects by name, artist and track and says when nothing matches', async ({ page, isMobile }) => {
   await seed(page);
   await page.goto('/dashboard');
   await openSidebar(page, isMobile);
@@ -69,6 +69,10 @@ test('the search narrows the projects by name and artist and says when nothing m
   await expect(sidebar(page).locator('.project .name')).toHaveText(['Nachtbus EP']);
   await search.fill('tiefgang');
   await expect(sidebar(page).locator('.project .name')).toHaveText(['Nachtbus EP', 'Single']);
+  // A track of a project that was never opened counts too
+  await search.fill('freitag');
+  await expect(sidebar(page).locator('.project .name')).toHaveText(['Jam Session']);
+  await expect(sidebar(page).locator('.track')).toHaveText(['Freitag']);
   await search.fill('xyz');
   await expect(sidebar(page).locator('.project')).toHaveCount(0);
   await expect(sidebar(page).getByText('Nichts gefunden für „xyz“')).toBeVisible();

@@ -3,19 +3,16 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { user, logout } from '$lib/stores/auth.js';
-  import { api } from '$lib/api/client.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
-  import { loadOverview, tasks } from '$lib/stores/overview.js';
-  import { STATUS_COLORS, type TrackStatus } from '$lib/utils/overview.js';
+  import { loadOverview, overview, tasks } from '$lib/stores/overview.js';
+  import { STATUS_COLORS, type OverviewProject, type OverviewTrack } from '$lib/utils/overview.js';
   import { loadRequests, requests } from '$lib/stores/requests.js';
 
-  type Project = { id: string; name: string; artist: string | null; coverUrl: string | null };
-  type ProjectMembership = { project: Project; role: string; trackCount: number };
+  type ProjectMembership = { project: OverviewProject; trackCount: number };
   type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
-  type Track = { id: string; name: string; coverUrl: string | null; status: TrackStatus };
 
   const NAV = [
     { href: '/dashboard', icon: 'home', label: 'Übersicht' },
@@ -41,8 +38,16 @@
     onClose?: () => void;
   } = $props();
 
-  let projects = $state<ProjectMembership[]>([]);
-  let tracksByProject = $state<Record<string, Track[]>>({});
+  // Projects and tracks come from the overview store; the sidebar keeps no copy of its own
+  const tracksByProject = $derived.by(() => {
+    const map: Record<string, OverviewTrack[]> = {};
+    for (const t of $overview?.tracks ?? []) (map[t.projectId] ??= []).push(t);
+    for (const list of Object.values(map)) list.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+    return map;
+  });
+  const projects = $derived<ProjectMembership[]>(
+    ($overview?.projects ?? []).map((project) => ({ project, trackCount: tracksByProject[project.id]?.length ?? 0 })),
+  );
   let menuOpen = $state(false);
   let query = $state('');
   let searchInput = $state<HTMLInputElement | undefined>();
@@ -52,7 +57,7 @@
   const activeProjectId = $derived(($page.params as Record<string, string>).projectId ?? null);
   const activeTrackId = $derived(($page.params as Record<string, string>).trackId ?? null);
 
-  // Filtered projects: a project matches if its name matches, artist matches, OR any of its loaded tracks match
+  // Filtered projects: a project matches if its name matches, artist matches, OR any of its tracks match
   const filtered = $derived.by(() => {
     const q = query.trim().toLowerCase();
     if (!q) return projects;
@@ -91,31 +96,15 @@
     collapsedArtists = next;
   }
 
-  function trackMatches(track: Track) {
+  function trackMatches(track: OverviewTrack) {
     const q = query.trim().toLowerCase();
     return !q || track.name.toLowerCase().includes(q);
   }
 
-  onMount(async () => {
+  onMount(() => {
     touch = matchMedia('(hover: none)').matches;
     void loadOverview();
     void loadRequests();
-    try {
-      const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true);
-      projects = res.projects;
-    } catch {
-      // not logged in or error — sidebar stays empty, layout still renders
-    }
-  });
-
-  // Lazy-load tracks when a project becomes active
-  $effect(() => {
-    const id = activeProjectId;
-    if (id && !tracksByProject[id]) {
-      api.get<{ tracks: Track[] }>(`/tracks/project/${id}`, true).then((r) => {
-        tracksByProject = { ...tracksByProject, [id]: r.tracks };
-      }).catch(() => {});
-    }
   });
 
   async function handleLogout() {
@@ -127,13 +116,6 @@
   export function focusSearch() {
     searchInput?.focus();
     searchInput?.select();
-  }
-
-  // After a change to projects or tracks: fresh counts, and the active project's tracks load again
-  export async function reload() {
-    tracksByProject = {};
-    const res = await api.get<{ projects: ProjectMembership[] }>('/projects', true).catch(() => null);
-    if (res) projects = res.projects;
   }
 
   function handleNavClick() {

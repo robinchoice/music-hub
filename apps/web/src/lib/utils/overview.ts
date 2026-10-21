@@ -34,6 +34,7 @@ export type OverviewTrack = {
   name: string;
   status: TrackStatus;
   coverUrl: string | null;
+  sortOrder: number;
   createdAt: string;
   createdById: string;
 };

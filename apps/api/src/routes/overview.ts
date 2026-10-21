@@ -67,6 +67,7 @@ export const overviewRoutes = new Hono<AppEnv>()
         name: tracks.name,
         status: tracks.status,
         coverImageUrl: tracks.coverImageUrl,
+        sortOrder: tracks.sortOrder,
         createdAt: tracks.createdAt,
         createdById: tracks.createdById,
       })
@@ -217,6 +218,7 @@ export const overviewRoutes = new Hono<AppEnv>()
           name: t.name,
           status: t.status,
           coverUrl: t.coverImageUrl ? await createDownloadUrl(t.coverImageUrl) : null,
+          sortOrder: t.sortOrder,
           createdAt: iso(t.createdAt)!,
           createdById: t.createdById,
         })),
