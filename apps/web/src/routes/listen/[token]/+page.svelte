@@ -196,10 +196,13 @@
         'Content-Type': 'application/json',
         ...(password ? { 'X-Share-Password': password } : {}),
       },
-      body: JSON.stringify({ verdict, note: note || undefined, guestName: guestName.trim() }),
+      body: JSON.stringify({ verdict, note: note || undefined, guestName: guestName.trim(), versionId: data?.version.id }),
     });
     if (!res.ok) {
-      error = res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.' : 'Rückmeldung fehlgeschlagen';
+      error =
+        res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.'
+        : res.status === 409 ? (await res.json()).error
+        : 'Rückmeldung fehlgeschlagen';
       throw new Error(error);
     }
     reviewSentAs = guestName.trim();
@@ -217,9 +220,10 @@
           'Content-Type': 'application/json',
           ...(password ? { 'X-Share-Password': password } : {}),
         },
-        body: JSON.stringify({ body, guestName, timestampSeconds: commentTimestamp ?? undefined }),
+        body: JSON.stringify({ body, guestName, timestampSeconds: commentTimestamp ?? undefined, versionId: data.version.id }),
       });
-      if (!res.ok) { error = 'Kommentar fehlgeschlagen'; return; }
+      // 409: the link follows the track and shows a newer version by now
+      if (!res.ok) { error = res.status === 409 ? (await res.json()).error : 'Kommentar fehlgeschlagen'; return; }
       body = '';
       commentTimestamp = null;
       await load();

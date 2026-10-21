@@ -6,6 +6,7 @@
   import { toastSuccess } from '$lib/stores/toast.js';
   import { timeAgo } from '$lib/utils/format.js';
   import AnalyticsPanel from './AnalyticsPanel.svelte';
+  import type { ShareFollows } from '@music-hub/shared';
 
   type ShareLink = {
     id: string;
@@ -14,18 +15,32 @@
     allowComments: boolean;
     allowDownload: boolean;
     hasPassword: boolean;
+    /** Missing from an older API */
+    follows?: ShareFollows;
     createdAt: string;
   };
 
   let {
     open = $bindable(false),
     versionId,
+    versionNumber,
+    hasApproved,
   }: {
     open: boolean;
     versionId: string;
+    versionNumber: number;
+    /** Whether the track has an approved version a link could follow */
+    hasApproved: boolean;
   } = $props();
 
+  const FOLLOWS_FLAG: Record<ShareFollows, string> = {
+    version: '',
+    latest: 'folgt neuester Version',
+    approved: 'folgt Freigabe',
+  };
+
   let tab = $state<'create' | 'manage'>('create');
+  let follows = $state<ShareFollows>('version');
   let allowComments = $state(true);
   let allowDownload = $state(false);
   let password = $state('');
@@ -55,6 +70,7 @@
       const res = await api.post<{ link: { token: string } }>(
         `/share/version/${versionId}`,
         {
+          follows,
           allowComments,
           allowDownload,
           password: password || undefined,
@@ -101,6 +117,28 @@
   {#if tab === 'create'}
     {#if !createdUrl}
       <div class="form">
+        <fieldset class="follows">
+          <legend>Der Link spielt</legend>
+          <label class="row">
+            <input type="radio" bind:group={follows} value="version" />
+            <span>Diese Version (V{versionNumber})</span>
+          </label>
+          <label class="row">
+            <input type="radio" bind:group={follows} value="latest" />
+            <span>Immer die neueste Version</span>
+          </label>
+          <label class="row">
+            <input type="radio" bind:group={follows} value="approved" />
+            <span>Immer die neueste freigegebene Version</span>
+          </label>
+          {#if follows === 'latest'}
+            <p class="hint">Wer den Link hat, hört auch jede Version, die du später hochlädst.</p>
+          {:else if follows === 'approved'}
+            <p class="hint">
+              Wer den Link hat, hört auch jede Version, die später freigegeben wird.{#if !hasApproved}{' '}Bis die erste freigegeben ist, spielt der Link nichts.{/if}
+            </p>
+          {/if}
+        </fieldset>
         <label class="row">
           <input type="checkbox" bind:checked={allowComments} />
           <span>Kommentare erlauben (auch ohne Account)</span>
@@ -133,6 +171,7 @@
             <div class="link-meta">
               <span class="token">/listen/{link.token.slice(0, 12)}…</span>
               <div class="flags">
+                {#if link.follows && link.follows !== 'version'}<span class="flag">{FOLLOWS_FLAG[link.follows]}</span>{/if}
                 {#if link.hasPassword}<span class="flag"><Icon name="lock" size={11} /> Passwort</span>{/if}
                 {#if link.allowComments}<span class="flag">Kommentare</span>{/if}
                 {#if link.allowDownload}<span class="flag">Download</span>{/if}
@@ -212,6 +251,26 @@
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
     cursor: pointer;
+  }
+  .follows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0 0 var(--space-3);
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .follows legend {
+    padding: 0;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+  }
+  .hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
   .field {
     display: flex;

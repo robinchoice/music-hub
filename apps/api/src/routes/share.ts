@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc, desc, inArray, isNull } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray, isNull, ne, or } from 'drizzle-orm';
 import { createShareLinkSchema, guestCommentSchema, guestReviewSchema, updateListenEventSchema } from '@music-hub/shared';
 import {
   shareLinks,
@@ -26,10 +26,42 @@ import { publish } from '../services/sse.js';
 
 // Links pause while their version is in the trash or their creator is no longer a member of the project
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
+// A link that follows the track moved on to a newer version while the guest was listening
+const MOVED_ON = 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.';
 
-// The link's version with its track, null while the link pauses
-async function liveTarget(db: Database, link: { versionId: string; createdById: string }) {
-  const found = await liveVersion(db, link.versionId);
+// The version a link shows: its own, or the newest playable (or approved) one of its track.
+// null when there is none, e.g. no version approved yet. A link that follows the track
+// does not pause with the version it was made on, only with the track.
+async function shownVersionId(db: Database, link: { versionId: string; follows: string }) {
+  if (link.follows === 'version') return link.versionId;
+  const [origin] = await db.select({ trackId: versions.trackId }).from(versions).where(eq(versions.id, link.versionId));
+  if (!origin) return null;
+  const [newest] = await db
+    .select({ id: versions.id })
+    .from(versions)
+    .where(
+      and(
+        eq(versions.trackId, origin.trackId),
+        isNull(versions.deletedAt),
+        link.follows === 'approved' ? eq(versions.status, 'approved') : inArray(versions.status, ['ready', 'approved', 'rejected']),
+      ),
+    )
+    .orderBy(desc(versions.versionNumber))
+    .limit(1);
+  return newest?.id ?? null;
+}
+
+// Whether a guest's comment or "Fertig" is about the version shown now. A link that follows the track
+// needs the version the guest heard; older pages don't send it and could otherwise land on a newer one.
+function matchesShown(link: { follows: string }, heard: string | undefined, shown: string) {
+  return heard ? heard === shown : link.follows === 'version';
+}
+
+// The version the link shows with its track, null while the link pauses
+async function liveTarget(db: Database, link: { versionId: string; follows: string; createdById: string }) {
+  const versionId = await shownVersionId(db, link);
+  if (!versionId) return null;
+  const found = await liveVersion(db, versionId);
   if (!found) return null;
   return (await membershipOf(db, found.track.projectId, link.createdById)) ? found : null;
 }
@@ -106,6 +138,7 @@ export const shareRoutes = new Hono<AppEnv>()
           allowComments: input.allowComments ?? true,
           allowDownload: input.allowDownload ?? false,
           passwordHash,
+          follows: input.follows ?? 'version',
         })
         .returning();
 
@@ -131,10 +164,20 @@ export const shareRoutes = new Hono<AppEnv>()
         allowComments: shareLinks.allowComments,
         allowDownload: shareLinks.allowDownload,
         hasPassword: shareLinks.passwordHash,
+        follows: shareLinks.follows,
         createdAt: shareLinks.createdAt,
       })
       .from(shareLinks)
-      .where(eq(shareLinks.versionId, versionId))
+      .where(
+        or(
+          eq(shareLinks.versionId, versionId),
+          // Links that follow the track show up at every version of it
+          and(
+            ne(shareLinks.follows, 'version'),
+            inArray(shareLinks.versionId, db.select({ id: versions.id }).from(versions).where(eq(versions.trackId, track!.id))),
+          ),
+        ),
+      )
       .orderBy(asc(shareLinks.createdAt));
 
     return c.json({
@@ -279,14 +322,17 @@ export const shareRoutes = new Hono<AppEnv>()
     const link = await commentableLink(c, token);
     if (link instanceof Response) return link;
 
+    // A link that follows the track comments on the version it shows right now
     const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    const versionId = found.version.id;
+    if (!matchesShown(link, input.versionId, versionId)) return c.json({ error: MOVED_ON }, 409);
 
     if (input.parentId) {
       const [parent] = await db
         .select({ id: comments.id })
         .from(comments)
-        .where(and(eq(comments.id, input.parentId), eq(comments.versionId, link.versionId), isNull(comments.deletedAt)));
+        .where(and(eq(comments.id, input.parentId), eq(comments.versionId, versionId), isNull(comments.deletedAt)));
       if (!parent) return c.json({ error: 'Comment not found' }, 404);
     }
     if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
@@ -294,7 +340,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const [comment] = await db
       .insert(comments)
       .values({
-        versionId: link.versionId,
+        versionId,
         userId: null,
         guestName: input.guestName,
         body: input.body,
@@ -303,7 +349,7 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .returning();
 
-    publish(db, found.track.id, { type: 'comment:new', data: { versionId: link.versionId, commentId: comment.id } });
+    publish(db, found.track.id, { type: 'comment:new', data: { versionId, commentId: comment.id } });
     return c.json({ comment }, 201);
   })
 
@@ -319,6 +365,7 @@ export const shareRoutes = new Hono<AppEnv>()
 
     const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!matchesShown(link, input.versionId, found.version.id)) return c.json({ error: MOVED_ON }, 409);
 
     await submitReview(db, {
       version: found.version,

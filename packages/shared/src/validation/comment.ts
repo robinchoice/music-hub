@@ -32,6 +32,8 @@ export const guestReviewSchema = z.object({
   verdict: z.enum(['fine', 'changes', 'notes']),
   note: z.string().trim().max(2000).optional(),
   guestName: z.string().min(1).max(100),
+  // As for guest comments: refused once the link shows a newer version
+  versionId: z.string().uuid().optional(),
 });
 
 export type CreateReviewInput = z.infer<typeof createReviewSchema>;

@@ -225,6 +225,13 @@
       "when": 1792324026208,
       "tag": "0031_yielding_deathbird",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792583021637,
+      "tag": "0032_share_follows",
+      "breakpoints": true
     }
   ]
 }

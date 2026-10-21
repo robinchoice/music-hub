@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { TRASH_DAYS } from '@music-hub/shared';
-import { comments, projects, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
+import { comments, projects, shareLinks, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
 import { deleteObject } from '../storage/s3.js';
 
 // After leaving the trash, deleted things are kept this long so they can be restored on request
@@ -45,6 +45,26 @@ export async function liveVersion(db: Database, versionId: string) {
 
 // Deletes for good, files included, what left the trash more than KEEP_DAYS ago.
 // A comment that still has replies keeps an empty row, so the replies stay attached to it.
+// Share links that follow their track move to another version of it before the version they were made on
+// goes for good, which would delete them. Links for one version go with it.
+export async function keepFollowingLinks(db: Database, gone: { id: string; trackId: string }[]) {
+  const goneIds = gone.map((v) => v.id);
+  for (const v of gone) {
+    const [other] = await db
+      .select({ id: versions.id })
+      .from(versions)
+      .where(and(eq(versions.trackId, v.trackId), notInArray(versions.id, goneIds)))
+      .orderBy(desc(versions.versionNumber))
+      .limit(1);
+    if (other) {
+      await db
+        .update(shareLinks)
+        .set({ versionId: other.id })
+        .where(and(eq(shareLinks.versionId, v.id), ne(shareLinks.follows, 'version')));
+    }
+  }
+}
+
 export async function purgeTrash(db: Database) {
   const due = (t: Trashable) =>
     and(
@@ -58,6 +78,7 @@ export async function purgeTrash(db: Database) {
 
   const dueVersions = await db.select().from(versions).where(due(versions));
   for (const v of dueVersions) collect(v.originalFileKey, v.streamFileKey, v.waveformDataKey);
+  await keepFollowingLinks(db, dueVersions);
   if (dueVersions.length) await db.delete(versions).where(inArray(versions.id, dueVersions.map((v) => v.id)));
 
   const dueStems = await db.select().from(stems).where(due(stems));

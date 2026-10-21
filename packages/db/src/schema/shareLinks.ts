@@ -15,6 +15,8 @@ export const shareLinks = pgTable('share_links', {
   allowComments: boolean('allow_comments').default(true).notNull(),
   allowDownload: boolean('allow_download').default(false).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }),
+  // 'version' shows versionId, 'latest' and 'approved' the newest (approved) version of its track
+  follows: varchar('follows', { length: 16 }).default('version').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

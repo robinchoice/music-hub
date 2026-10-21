@@ -1,0 +1,1 @@
+ALTER TABLE "share_links" ADD COLUMN "follows" varchar(16) DEFAULT 'version' NOT NULL;

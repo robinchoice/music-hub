@@ -93,7 +93,11 @@ export const replaceStemSchema = z.object({
   mimeType: z.string().regex(STEM_MIME_TYPE),
 });
 
+export const SHARE_FOLLOWS = ['version', 'latest', 'approved'] as const;
+export type ShareFollows = (typeof SHARE_FOLLOWS)[number];
+
 export const createShareLinkSchema = z.object({
+  follows: z.enum(SHARE_FOLLOWS).optional(),
   expiresAt: z.string().datetime().optional(),
   allowComments: z.boolean().optional(),
   allowDownload: z.boolean().optional(),
@@ -123,6 +127,8 @@ export const guestCommentSchema = z.object({
   timestampSeconds: z.number().nonnegative().optional(),
   parentId: z.string().uuid().optional(),
   guestName: z.string().min(1).max(100),
+  // The version the guest listened to; a link that follows the track may show a newer one by now
+  versionId: z.string().uuid().optional(),
 });
 
 export type CreateTrackInput = z.infer<typeof createTrackSchema>;

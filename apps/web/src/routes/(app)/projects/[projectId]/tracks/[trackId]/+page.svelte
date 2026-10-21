@@ -1044,7 +1044,12 @@
 {/if}
 
 {#if selectedVersion}
-  <ShareModal bind:open={shareOpen} versionId={selectedVersion.id} />
+  <ShareModal
+    bind:open={shareOpen}
+    versionId={selectedVersion.id}
+    versionNumber={selectedVersion.versionNumber}
+    hasApproved={versions.some((v) => v.status === 'approved')}
+  />
 {/if}
 
 {#if openState && $user}
