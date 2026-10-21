@@ -1,7 +1,7 @@
-import { asc, desc, sql } from 'drizzle-orm';
+import { asc, desc, inArray, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
-import { users, type Database } from '@music-hub/db';
+import { pushSubscriptions, users, type Database } from '@music-hub/db';
 
 // Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
 export const MAX_USERS = 10;
@@ -37,3 +37,21 @@ export async function createAccount(db: Pick<Database, 'transaction'>, values: t
 // For rows whose owner must not be blocked, e.g. share links
 export const notBlocked = (userId: PgColumn) =>
   sql`${userId} NOT IN (SELECT id FROM users WHERE blocked_at IS NOT NULL)`;
+
+// How to tell these people about new versions and feedback: a push if they have a subscription,
+// otherwise a mail unless they turned the version mails off. Blocked accounts hear nothing.
+export async function reachOf(db: Pick<Database, 'select'>, userIds: string[]) {
+  if (!userIds.length) return { push: [] as string[], mail: [] as { email: string; mailToken: string }[] };
+  const rows = await db
+    .select({ userId: users.id, email: users.email, mailToken: users.mailToken, versionMails: users.versionMails, blockedAt: users.blockedAt })
+    .from(users)
+    .where(inArray(users.id, userIds));
+  const subscribed = new Set(
+    (await db.select({ userId: pushSubscriptions.userId }).from(pushSubscriptions).where(inArray(pushSubscriptions.userId, userIds))).map((s) => s.userId),
+  );
+  const reachable = rows.filter((u) => !u.blockedAt);
+  return {
+    push: reachable.filter((u) => subscribed.has(u.userId)).map((u) => u.userId),
+    mail: reachable.filter((u) => !subscribed.has(u.userId) && u.versionMails).map((u) => ({ email: u.email, mailToken: u.mailToken })),
+  };
+}

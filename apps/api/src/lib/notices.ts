@@ -1,7 +1,8 @@
 import { and, asc, eq, inArray, isNull, max, min, ne, or, sql } from 'drizzle-orm';
-import { projectMembers, projects, pushSubscriptions, tracks, users, versionNotices, versions, type Database } from '@music-hub/db';
+import { projectMembers, projects, tracks, users, versionNotices, versions, type Database } from '@music-hub/db';
 import { notifyUsers } from '../services/push.js';
 import { sendVersionsEmail } from '../services/email.js';
+import { reachOf } from './users.js';
 
 // A batch goes out once its uploader has been quiet this long, or at the latest after MAX_WAIT
 export const QUIET = '2 minutes';
@@ -47,28 +48,12 @@ export async function takeDueNotices(db: Database) {
     const [project] = await db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId));
     const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, actorId));
     const members = await db
-      .select({
-        userId: users.id,
-        email: users.email,
-        mailToken: users.mailToken,
-        versionMails: users.versionMails,
-        blocked: sql<boolean>`${users.blockedAt} is not null`,
-        hasPush: sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`,
-      })
+      .select({ userId: projectMembers.userId })
       .from(projectMembers)
-      .innerJoin(users, eq(users.id, projectMembers.userId))
       .where(and(eq(projectMembers.projectId, projectId), ne(projectMembers.userId, actorId)));
+    const reach = await reachOf(db, members.map((m) => m.userId));
 
-    batches.push({
-      projectId,
-      projectName: project.name,
-      actorName: actor.name,
-      items,
-      pushTo: members.filter((m) => m.hasPush && !m.blocked).map((m) => m.userId),
-      mailTo: members
-        .filter((m) => !m.hasPush && m.versionMails && !m.blocked)
-        .map((m) => ({ email: m.email, mailToken: m.mailToken })),
-    });
+    batches.push({ projectId, projectName: project.name, actorName: actor.name, items, pushTo: reach.push, mailTo: reach.mail });
   }
   return batches;
 }

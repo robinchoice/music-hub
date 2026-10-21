@@ -2,7 +2,6 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notExists, sql, typ
 import {
   comments,
   projectMembers,
-  pushSubscriptions,
   reviews,
   tracks,
   users,
@@ -12,6 +11,8 @@ import {
 import { REJECTION_PREFIX, REVIEW_PASS_HOURS, REVIEW_QUIET_MINUTES, type ReviewVerdict } from '@music-hub/shared';
 import { notifyUser } from '../services/push.js';
 import { sendFeedbackEmail } from '../services/email.js';
+import { membershipOf } from './access.js';
+import { reachOf } from './users.js';
 import { publish } from '../services/sse.js';
 
 const QUIET = `${REVIEW_QUIET_MINUTES} minutes`;
@@ -121,24 +122,15 @@ async function deliverFeedback(
   input: { version: Version; track: Track; authorName: string; verdict: ReviewVerdict | null; note: string | null; comments: { body: string; timestampSeconds: number | null }[] },
 ) {
   const { version, track } = input;
-  const [uploader] = await db
-    .select({
-      email: users.email,
-      mailToken: users.mailToken,
-      versionMails: users.versionMails,
-      blocked: sql<boolean>`${users.blockedAt} is not null`,
-      hasPush: sql<boolean>`exists (select 1 from ${pushSubscriptions} where ${pushSubscriptions.userId} = ${users.id})`,
-    })
-    .from(users)
-    .innerJoin(projectMembers, and(eq(projectMembers.userId, users.id), eq(projectMembers.projectId, track.projectId)))
-    .where(eq(users.id, version.createdById));
-  if (!uploader || uploader.blocked) return;
+  // Only while the uploader is still in the project
+  if (!(await membershipOf(db, track.projectId, version.createdById))) return;
+  const { push, mail } = await reachOf(db, [version.createdById]);
 
   const text = feedbackText(input.authorName, track.name, version.versionNumber, input.verdict, input.comments.length, input.note);
-  if (uploader.hasPush) {
+  if (push.length) {
     await notifyUser(db, version.createdById, { projectId: track.projectId, trackId: track.id, ...text, url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}` });
-  } else if (uploader.versionMails) {
-    await sendFeedbackEmail(uploader.email, uploader.mailToken, {
+  } else if (mail.length) {
+    await sendFeedbackEmail(mail[0].email, mail[0].mailToken, {
       title: text.title,
       projectId: track.projectId,
       trackId: track.id,
