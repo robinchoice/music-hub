@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { createDb, migrateDb, users, sessions, projects, projectMembers, tracks, contactRequests, pushNotifications } from '@music-hub/db';
+import { createDb, migrateDb, users, sessions, projects, projectMembers, tracks, contactRequests, pushNotifications, pushSubscriptions } from '@music-hub/db';
 import { hashToken } from './middleware/auth.js';
 import { pushRoutes } from './routes/push.js';
 import { saveNotifications } from './lib/push-notifications.js';
@@ -92,6 +92,20 @@ test('contact request details respect sender blocks, declines and recipient bloc
   await db.update(users).set({ blockedAt: new Date() }).where(eq(users.id, recipient));
   expect((await request(`/${n.id}`, recipient)).status).toBe(401);
   await db.update(users).set({ blockedAt: null }).where(eq(users.id, recipient));
+});
+
+test('unsubscribing takes a checked body: one endpoint, or all without one', async () => {
+  const endpoints = [`https://push.test/${crypto.randomUUID()}`, `https://push.test/${crypto.randomUUID()}`];
+  await db.insert(pushSubscriptions).values(endpoints.map((endpoint) => ({ userId: owner, endpoint, p256dh: 'k', auth: 'a' })));
+  const unsubscribe = (body: unknown) =>
+    app.request('/push/subscribe', { method: 'DELETE', headers: { cookie: `session=${tokens.get(owner)}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const remaining = async () => (await db.select({ endpoint: pushSubscriptions.endpoint }).from(pushSubscriptions).where(eq(pushSubscriptions.userId, owner))).map((s) => s.endpoint);
+  expect((await unsubscribe({ endpoint: 'not a url' })).status).toBe(400);
+  expect((await remaining()).length).toBe(2);
+  expect((await unsubscribe({ endpoint: endpoints[0] })).status).toBe(200);
+  expect(await remaining()).toEqual([endpoints[1]]);
+  expect((await unsubscribe({})).status).toBe(200);
+  expect(await remaining()).toEqual([]);
 });
 
 test('expired details are inaccessible', async () => {

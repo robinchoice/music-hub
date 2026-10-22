@@ -34,6 +34,12 @@ export async function createAccount(db: Pick<Database, 'transaction'>, values: t
   });
 }
 
+// The account an invitation creates. Two invitations at the same moment both end up with the one row.
+export async function inviteeAccount(db: Pick<Database, 'insert' | 'select'>, email: string) {
+  const [user] = await db.insert(users).values({ email, name: email.split('@')[0] }).onConflictDoNothing().returning();
+  return user ?? (await findUserByEmail(db, email))!;
+}
+
 // For rows whose owner must not be blocked, e.g. share links
 export const notBlocked = (userId: PgColumn) =>
   sql`${userId} NOT IN (SELECT id FROM users WHERE blocked_at IS NOT NULL)`;

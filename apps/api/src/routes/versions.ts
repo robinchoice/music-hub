@@ -23,7 +23,7 @@ import { notifyUser } from '../services/push.js';
 import { sendReviewReminderEmail } from '../services/email.js';
 import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
-import { membershipOf, trackAccess, versionAccess } from '../lib/access.js';
+import { mayDownload, membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 // Reminders to give feedback on a version, per version and person
@@ -148,6 +148,15 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
+    if (input.parentVersionId) {
+      const [parent] = await db
+        .select({ id: versions.id })
+        .from(versions)
+        .where(and(eq(versions.id, input.parentVersionId), eq(versions.trackId, trackId), isNull(versions.deletedAt)))
+        .limit(1);
+      if (!parent) return c.json({ error: 'Unknown parent version' }, 400);
+    }
+
     const expectedPrefix = [
       `projects/${track.projectId}/tracks/${trackId}/versions/`,
       `projects/${track.projectId}/uploads/`,
@@ -213,7 +222,7 @@ export const versionRoutes = new Hono<AppEnv>()
     return c.json({ version }, 201);
   })
 
-  // Update label/notes/branchLabel
+  // Update label/notes/branchLabel: the uploader of the version or the owner
   .patch('/:id', zValidator('json', updateVersionSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
@@ -224,7 +233,7 @@ export const versionRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Not found' }, 404);
     const { version, track, membership } = found;
 
-    if (!membership || !membership.canUpload) {
+    if (!membership || !membership.canUpload || (version.createdById !== userId && membership.role !== 'owner')) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -336,6 +345,7 @@ export const versionRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Not found' }, 404);
     const { version, track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
+    if (!mayDownload(membership)) return c.json({ error: 'Forbidden' }, 403);
 
     const url = await createDownloadUrl(version.originalFileKey);
     return c.json({ url });
@@ -411,6 +421,8 @@ export const versionRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Not found' }, 404);
     const { version, track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
+    // The original is a download; the stream, or the original in its place, is listening
+    if (quality === 'original' && !mayDownload(membership)) return c.json({ error: 'Forbidden' }, 403);
 
     const useOriginal = quality === 'original' || !version.streamFileKey;
     const key = useOriginal ? version.originalFileKey : version.streamFileKey!;

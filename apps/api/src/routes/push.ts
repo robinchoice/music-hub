@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
-import { subscribePushSchema } from '@music-hub/shared';
+import { subscribePushSchema, unsubscribePushSchema } from '@music-hub/shared';
 import { pushSubscriptions } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { notificationsFor } from '../lib/push-notifications.js';
@@ -49,11 +49,10 @@ export const pushRoutes = new Hono<AppEnv>()
     return c.json({ ok: true }, 201);
   })
 
-  .delete('/subscribe', async (c) => {
+  .delete('/subscribe', zValidator('json', unsubscribePushSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const body = await c.req.json().catch(() => ({}));
-    const endpoint = body?.endpoint;
+    const { endpoint } = c.req.valid('json');
 
     if (endpoint) {
       await db

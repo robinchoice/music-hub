@@ -158,6 +158,7 @@
   const canUpload = $derived(can.canUpload);
   const canApprove = $derived(can.canApprove);
   const canComment = $derived(can.canComment);
+  const canDownload = $derived(can.canDownload);
   const predecessor = $derived(selectedVersion ? predecessorOf(selectedVersion, versions) : null);
   const showNewVersion = $derived(selectedVersion?.id === versions[0]?.id && !!predecessor && !processing && hasWaveform(selectedVersion!) && hasWaveform(predecessor) && !dismissedVersions.includes(selectedVersion!.id));
   // Your comments since your last "Fertig", and everyone's feedback on the selected version
@@ -167,6 +168,8 @@
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
   // The uploader or the owner may remind approvers whose verdict is missing
+  // Label and notes of a version change its uploader or the owner, as the API allows
+  const canEdit = $derived(!!selectedVersion && canUpload && (selectedVersion.createdById === $user?.id || role === 'owner'));
   const canRemind = $derived(!!selectedVersion && !decided && canUpload && (selectedVersion.createdById === $user?.id || role === 'owner'));
   const feedbackRowsShown = $derived(feedbackRows(trackComments.comments, trackComments.reviews, decided ? [] : trackComments.waiting, selectedVersion?.createdById ?? null));
   // "Vergleichen" plays all versions side by side; it needs at least two
@@ -876,6 +879,8 @@
           {grow}
           {canApprove}
           {canUpload}
+          {canEdit}
+          {canDownload}
           isOwner={role === 'owner'}
           offlineAvailable={isOffline(selectedVersion.id)}
           {offlineDownloading}
@@ -1008,7 +1013,7 @@
             onUpload={openUpload}
           />
         {:else}
-          <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+          <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
         {/if}
       </div>
     </aside>
@@ -1038,7 +1043,7 @@
         onUpload={openUpload}
       />
     {:else}
-      <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+      <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
     {/if}
   </Sheet>
 {/if}
@@ -1049,6 +1054,8 @@
     versionId={selectedVersion.id}
     versionNumber={selectedVersion.versionNumber}
     hasApproved={versions.some((v) => v.status === 'approved')}
+    {canComment}
+    {canDownload}
   />
 {/if}
 

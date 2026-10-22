@@ -9,6 +9,11 @@ export const subscribePushSchema = z.object({
   userAgent: z.string().optional(),
 });
 
+// Without an endpoint all subscriptions of the account go
+export const unsubscribePushSchema = z.object({
+  endpoint: z.string().url().optional(),
+});
+
 export const updateListenEventSchema = z.object({
   listenerName: z.string().max(255).optional(),
   firstPlay: z.boolean().optional(),

@@ -8,7 +8,7 @@ import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } fr
 import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { Zip, ZipPassThrough } from 'fflate';
-import { trackAccess } from '../lib/access.js';
+import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
 export const stemRoutes = new Hono<AppEnv>()
@@ -119,6 +119,7 @@ export const stemRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Not found' }, 404);
     const { track, membership } = found;
     if (!membership) return c.json({ error: 'Not found' }, 404);
+    if (!mayDownload(membership)) return c.json({ error: 'Forbidden' }, 403);
 
     const url = await createDownloadUrl(stem.fileKey, 3600, stem.originalFileName);
     return c.json({ url });
@@ -172,7 +173,9 @@ export const stemRoutes = new Hono<AppEnv>()
   .get('/revisions/:id/download-url', async (c) => {
     const db = c.get('db');
     const revision = await liveRevision(db, c.req.param('id'));
-    if (!revision || !(await stemAccess(db, revision.stemId, c.get('userId')))) return c.json({ error: 'Not found' }, 404);
+    const access = revision && (await stemAccess(db, revision.stemId, c.get('userId')));
+    if (!access) return c.json({ error: 'Not found' }, 404);
+    if (!mayDownload(access.membership)) return c.json({ error: 'Forbidden' }, 403);
 
     const url = await createDownloadUrl(revision.fileKey, 3600, revision.originalFileName);
     return c.json({ url });
@@ -240,6 +243,7 @@ export const stemRoutes = new Hono<AppEnv>()
     if (!found) return c.json({ error: 'Not found' }, 404);
     const { track, membership } = found;
     if (!membership) return c.json({ error: 'Forbidden' }, 403);
+    if (!mayDownload(membership)) return c.json({ error: 'Forbidden' }, 403);
 
     const trackStems = await db
       .select()

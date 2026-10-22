@@ -20,7 +20,8 @@ import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
-import { membershipOf, versionAccess } from '../lib/access.js';
+import { mayDownload, membershipOf, versionAccess } from '../lib/access.js';
+import { replyTarget } from './comments.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
@@ -58,26 +59,32 @@ function matchesShown(link: { follows: string }, heard: string | undefined, show
   return heard ? heard === shown : link.follows === 'version';
 }
 
-// The version the link shows with its track, null while the link pauses
+// The version the link shows with its track and its creator's membership, null while the link pauses.
+// A link never does more than its creator may right now: comments and downloads follow that membership.
 async function liveTarget(db: Database, link: { versionId: string; follows: string; createdById: string }) {
   const versionId = await shownVersionId(db, link);
   if (!versionId) return null;
   const found = await liveVersion(db, versionId);
   if (!found) return null;
-  return (await membershipOf(db, found.track.projectId, link.createdById)) ? found : null;
+  const membership = await membershipOf(db, found.track.projectId, link.createdById);
+  return membership ? { ...found, membership } : null;
 }
 
 const MINUTE = 60 * 1000;
 // Wrong passwords per share link, counted like failed logins
 const failedPasswords = rateLimit('failed-share-passwords', 10, 15 * MINUTE);
 const listensPerIp = rateLimit('listens-per-ip', 30, 60 * MINUTE);
+// Progress updates while listening, every 30 seconds per guest; a studio shares one address
+const listenUpdatesPerIp = rateLimit('listen-updates-per-ip', 3000, 60 * MINUTE);
 // Listen alert emails per share link
 const listenAlerts = rateLimit('listen-alerts', 1, 60 * MINUTE);
 // Each guest review pushes to the uploader, so a link can't send many of them
 const guestReviews = rateLimit('guest-reviews', 10, 60 * MINUTE);
 
+// Salted with a server secret, so the hashes of IPv4 addresses can't be listed
+const IP_SALT = process.env.MAGIC_LINK_SECRET || 'musichub-salt';
 async function hashIp(ip: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + 'musichub-salt'));
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + IP_SALT));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 import type { AppEnv } from '../types.js';
@@ -129,6 +136,8 @@ export const shareRoutes = new Hono<AppEnv>()
         ? await Bun.password.hash(input.password)
         : null;
 
+      // The link grants at most what its creator may: no guest comments without the right to
+      // comment, no download without the right to download
       const [link] = await db
         .insert(shareLinks)
         .values({
@@ -136,8 +145,8 @@ export const shareRoutes = new Hono<AppEnv>()
           token,
           createdById: userId,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-          allowComments: input.allowComments ?? true,
-          allowDownload: input.allowDownload ?? false,
+          allowComments: (input.allowComments ?? true) && membership.canComment,
+          allowDownload: (input.allowDownload ?? false) && mayDownload(membership),
           passwordHash,
           follows: input.follows ?? 'version',
         })
@@ -245,7 +254,7 @@ export const shareRoutes = new Hono<AppEnv>()
 
     const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
-    const { version, track } = found;
+    const { version, track, membership } = found;
     const [project] = await db
       .select()
       .from(projects)
@@ -261,11 +270,13 @@ export const shareRoutes = new Hono<AppEnv>()
     const waveformUrl = version.waveformDataKey
       ? await createDownloadUrl(version.waveformDataKey)
       : null;
-    const downloadUrl = link.allowDownload
+    const downloadUrl = link.allowDownload && mayDownload(membership)
       ? await createDownloadUrl(version.originalFileKey)
       : null;
+    // A link for listening only shows no comments either, they belong to the people in the project
+    const allowComments = link.allowComments && membership.canComment;
 
-    const versionComments = await db
+    const versionComments = allowComments ? await db
       .select({
         id: comments.id,
         body: comments.body,
@@ -283,14 +294,14 @@ export const shareRoutes = new Hono<AppEnv>()
       .from(comments)
       .leftJoin(users, eq(users.id, comments.userId))
       .where(and(eq(comments.versionId, version.id), isNull(comments.deletedAt)))
-      .orderBy(asc(comments.createdAt));
+      .orderBy(asc(comments.createdAt)) : [];
 
     // Guests finish their pass by name; the page counts their comments since their last review
-    const guestReviewRows = await db
+    const guestReviewRows = allowComments ? await db
       .select({ guestName: reviews.guestName, createdAt: reviews.createdAt })
       .from(reviews)
       .where(and(eq(reviews.versionId, version.id), isNull(reviews.userId)))
-      .orderBy(asc(reviews.createdAt));
+      .orderBy(asc(reviews.createdAt)) : [];
     const [uploader] = await db.select({ name: users.name }).from(users).where(eq(users.id, version.createdById));
 
     return c.json({
@@ -308,7 +319,7 @@ export const shareRoutes = new Hono<AppEnv>()
       streamUrl,
       waveformUrl,
       downloadUrl,
-      allowComments: link.allowComments,
+      allowComments,
       comments: versionComments,
       reviews: guestReviewRows,
       uploaderName: uploader?.name ?? null,
@@ -326,15 +337,13 @@ export const shareRoutes = new Hono<AppEnv>()
     // A link that follows the track comments on the version it shows right now
     const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!found.membership.canComment) return c.json({ error: 'Comments disabled' }, 403);
     const versionId = found.version.id;
     if (!matchesShown(link, input.versionId, versionId)) return c.json({ error: MOVED_ON }, 409);
 
     if (input.parentId) {
-      const [parent] = await db
-        .select({ id: comments.id })
-        .from(comments)
-        .where(and(eq(comments.id, input.parentId), eq(comments.versionId, versionId), isNull(comments.deletedAt)));
-      if (!parent) return c.json({ error: 'Comment not found' }, 404);
+      const parent = await replyTarget(db, input.parentId, versionId);
+      if (parent instanceof Response) return parent;
     }
     if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
 
@@ -366,6 +375,7 @@ export const shareRoutes = new Hono<AppEnv>()
 
     const found = await liveTarget(db, link);
     if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!found.membership.canComment) return c.json({ error: 'Comments disabled' }, 403);
     if (!matchesShown(link, input.versionId, found.version.id)) return c.json({ error: MOVED_ON }, 409);
 
     await submitReview(db, {
@@ -413,11 +423,13 @@ export const shareRoutes = new Hono<AppEnv>()
     const input = c.req.valid('json');
 
     const [link] = await db
-      .select({ id: shareLinks.id })
+      .select({ id: shareLinks.id, expiresAt: shareLinks.expiresAt })
       .from(shareLinks)
       .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
     if (!link) return c.json({ error: 'Not found' }, 404);
+    if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
+    if (!(await listenUpdatesPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const [event] = await db
       .select()

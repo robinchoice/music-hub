@@ -23,6 +23,18 @@ async function ownComment(db: Database, commentId: string, userId: string) {
   return found ? { ...comment, membership: found.membership } : null;
 }
 
+// A reply answers a live top-level comment of the same version; threads stay one level deep
+export async function replyTarget(db: Database, parentId: string, versionId: string) {
+  const [parent] = await db
+    .select({ parentId: comments.parentId })
+    .from(comments)
+    .where(and(eq(comments.id, parentId), eq(comments.versionId, versionId), isNull(comments.deletedAt)))
+    .limit(1);
+  if (!parent) return Response.json({ error: 'Comment not found' }, { status: 404 });
+  if (parent.parentId) return Response.json({ error: 'Replies answer a comment, not a reply' }, { status: 400 });
+  return parent;
+}
+
 export const commentRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
 
@@ -101,6 +113,10 @@ export const commentRoutes = new Hono<AppEnv>()
 
       if (!membership || !membership.canComment) {
         return c.json({ error: 'Forbidden' }, 403);
+      }
+      if (input.parentId) {
+        const parent = await replyTarget(db, input.parentId, versionId);
+        if (parent instanceof Response) return parent;
       }
 
       const [comment] = await db

@@ -25,12 +25,17 @@
     versionId,
     versionNumber,
     hasApproved,
+    canComment = true,
+    canDownload = true,
   }: {
     open: boolean;
     versionId: string;
     versionNumber: number;
     /** Whether the track has an approved version a link could follow */
     hasApproved: boolean;
+    /** A link grants at most what its creator may; the API clamps it the same way */
+    canComment?: boolean;
+    canDownload?: boolean;
   } = $props();
 
   const FOLLOWS_FLAG: Record<ShareFollows, string> = {
@@ -71,8 +76,8 @@
         `/share/version/${versionId}`,
         {
           follows,
-          allowComments,
-          allowDownload,
+          allowComments: allowComments && canComment,
+          allowDownload: allowDownload && canDownload,
           password: password || undefined,
         },
       );
@@ -139,14 +144,18 @@
             </p>
           {/if}
         </fieldset>
-        <label class="row">
-          <input type="checkbox" bind:checked={allowComments} />
-          <span>Kommentare erlauben (auch ohne Account)</span>
-        </label>
-        <label class="row">
-          <input type="checkbox" bind:checked={allowDownload} />
-          <span>Download des Originals erlauben</span>
-        </label>
+        {#if canComment}
+          <label class="row">
+            <input type="checkbox" bind:checked={allowComments} />
+            <span>Kommentare erlauben (auch ohne Account)</span>
+          </label>
+        {/if}
+        {#if canDownload}
+          <label class="row">
+            <input type="checkbox" bind:checked={allowDownload} />
+            <span>Download des Originals erlauben</span>
+          </label>
+        {/if}
         <label class="field">
           <span>Passwort (optional)</span>
           <input type="text" bind:value={password} placeholder="leer = kein Passwort" />

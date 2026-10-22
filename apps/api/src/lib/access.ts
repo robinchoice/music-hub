@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { hasPermission, memberRoles, type ProjectRole } from '@music-hub/shared';
 import { projectMembers, projects, type Database } from '@music-hub/db';
 import { liveTrack, liveVersion } from './trash.js';
 
@@ -20,6 +21,11 @@ export async function membershipOf(db: Pick<Database, 'select'>, projectId: stri
   if (!row) return undefined;
   return row.archived ? { ...row.membership, canUpload: false, canComment: false, canApprove: false } : row.membership;
 }
+
+// Whether the roles of a membership include downloading originals (versions, stems, ZIP). Listening
+// stays open to every member, and an archived project doesn't take the download away.
+export const mayDownload = (m: { role: ProjectRole; extraRoles?: ProjectRole[] | null }) =>
+  memberRoles(m).some((r) => hasPermission(r, 'track.download'));
 
 // The track with the user's membership in its project. null: no such track, or it is in the trash.
 export async function trackAccess(db: Database, trackId: string, userId: string) {

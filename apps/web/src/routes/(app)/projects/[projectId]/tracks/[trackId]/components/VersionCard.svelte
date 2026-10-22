@@ -15,6 +15,8 @@
     grow = false,
     canApprove = false,
     canUpload = false,
+    canEdit = false,
+    canDownload = false,
     isOwner = false,
     offlineAvailable = false,
     offlineDownloading = false,
@@ -43,6 +45,10 @@
     grow?: boolean;
     canApprove?: boolean;
     canUpload?: boolean;
+    /** Label and notes: the uploader of this version or the owner */
+    canEdit?: boolean;
+    /** Originals are for roles with the download right; the MP3 for offline listening is for everyone */
+    canDownload?: boolean;
     isOwner?: boolean;
     offlineAvailable?: boolean;
     offlineDownloading?: boolean;
@@ -180,17 +186,21 @@
         </button>
         {#if menu === 'more'}
           <div class="menu" role="menu">
-            {#if canUpload}
+            {#if canEdit}
               <button role="menuitem" onclick={() => pick(onEdit)}><Icon name="edit" size={14} /> Bezeichnung und Notizen</button>
             {/if}
-            <button role="menuitem" onclick={() => pick(onDownload)}><Icon name="download" size={14} /> Original herunterladen</button>
+            {#if canDownload}
+              <button role="menuitem" onclick={() => pick(onDownload)}><Icon name="download" size={14} /> Original herunterladen</button>
+            {/if}
             {#if offlineAvailable}
               <button role="menuitem" onclick={() => pick(onOfflineRemove)}><Icon name="cloud-check" size={14} /> Offline-Kopie entfernen</button>
             {:else if offlineDownloading}
               <span class="menu-cap">Offline-Download {offlineProgress}%</span>
             {:else}
               <button role="menuitem" onclick={() => pick(() => onOfflineDownload('stream'))}><Icon name="cloud-download" size={14} /> Offline speichern (MP3)</button>
-              <button role="menuitem" onclick={() => pick(() => onOfflineDownload('original'))}><Icon name="cloud-download" size={14} /> Offline speichern (Original)</button>
+              {#if canDownload}
+                <button role="menuitem" onclick={() => pick(() => onOfflineDownload('original'))}><Icon name="cloud-download" size={14} /> Offline speichern (Original)</button>
+              {/if}
             {/if}
             {#if canUpload}
               <button role="menuitem" onclick={() => pick(onBranch)}><Icon name="git-branch" size={14} /> Variante davon hochladen</button>

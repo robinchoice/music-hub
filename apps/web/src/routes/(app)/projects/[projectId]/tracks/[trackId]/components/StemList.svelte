@@ -40,6 +40,7 @@
     stems = $bindable<Stem[]>([]),
     notes = $bindable<GuestNote[]>([]),
     canUpload,
+    canDownload,
     currentUserId,
     role,
     onUpload,
@@ -49,6 +50,8 @@
     stems: Stem[];
     notes?: GuestNote[];
     canUpload: boolean;
+    /** Downloading stems is for roles with the download right */
+    canDownload: boolean;
     currentUserId: string | null;
     role: string;
     onUpload: () => void;
@@ -219,7 +222,9 @@
 
   {#if stems.length > 0}
     <div class="tools">
-      <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
+      {#if canDownload}
+        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
+      {/if}
       {#if canUpload}
         <Button variant="secondary" size="sm" onclick={onUpload}><Icon name="upload" size={14} /> Hochladen</Button>
       {/if}
@@ -256,9 +261,11 @@
           <span class="size">
             {replacing?.id === stem.id ? `${replacing.progress} %` : formatFileSize(stem.fileSize)}
           </span>
-          <button class="row-btn" onclick={() => downloadStem(stem)} title="Herunterladen" aria-label={`${label} herunterladen`}>
-            <Icon name="download" size={13} />
-          </button>
+          {#if canDownload}
+            <button class="row-btn" onclick={() => downloadStem(stem)} title="Herunterladen" aria-label={`${label} herunterladen`}>
+              <Icon name="download" size={13} />
+            </button>
+          {/if}
           {#if mayChange(stem)}
             <button
               class="row-btn hover-only"
@@ -289,14 +296,16 @@
                 Fassung {revisions.length - i} · {revision.createdByName} · bis {formatWhen(revision.replacedAt)}
               </span>
               <span class="size">{formatFileSize(revision.fileSize)}</span>
-              <button
-                class="row-btn"
-                onclick={() => downloadRevision(revision)}
-                title="Herunterladen"
-                aria-label={`Fassung ${revisions.length - i} herunterladen`}
-              >
-                <Icon name="download" size={13} />
-              </button>
+              {#if canDownload}
+                <button
+                  class="row-btn"
+                  onclick={() => downloadRevision(revision)}
+                  title="Herunterladen"
+                  aria-label={`Fassung ${revisions.length - i} herunterladen`}
+                >
+                  <Icon name="download" size={13} />
+                </button>
+              {/if}
               {#if mayChange(stem)}
                 <button
                   class="row-btn"

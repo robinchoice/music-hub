@@ -120,6 +120,7 @@
   const card = {
     narrow: false,
     canUpload: false,
+    canDownload: true,
     isOwner: false,
     offlineAvailable: false,
     offlineDownloading: false,

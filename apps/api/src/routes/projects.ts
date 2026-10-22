@@ -13,7 +13,8 @@ import {
 } from '@music-hub/shared';
 import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
-import { findUserByEmail } from '../lib/users.js';
+import { findUserByEmail, inviteeAccount } from '../lib/users.js';
+import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { requestsInProject } from '../lib/profiles.js';
 import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
@@ -26,6 +27,9 @@ async function withCoverUrl<T extends { coverImageUrl?: string | null }>(
   const coverUrl = obj.coverImageUrl ? await createDownloadUrl(obj.coverImageUrl) : null;
   return { ...obj, coverUrl };
 }
+
+// Invitation mails per person who invites
+const invitesPerUser = rateLimit('invites-per-user', 20, 60 * 60 * 1000);
 
 export const projectRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -211,15 +215,10 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    // Find or create user
-    let invitedUser = await findUserByEmail(db, email);
-
-    if (!invitedUser) {
-      [invitedUser] = await db
-        .insert(users)
-        .values({ email, name: email.split('@')[0] })
-        .returning();
-    }
+    // Each invitation is a mail and may create an account, so the limit comes first; a blocked account stays out
+    if (!(await invitesPerUser.hit(db, userId))) return tooManyRequests(c);
+    const invitedUser = (await findUserByEmail(db, email)) ?? (await inviteeAccount(db, email));
+    if (invitedUser.blockedAt) return c.json({ error: 'Diese Person kann nicht eingeladen werden.' }, 403);
 
     const [member] = await db
       .insert(projectMembers)
@@ -281,6 +280,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .set(roleColumns(input))
       .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
       .returning();
+    if (!updated) return c.json({ error: 'Not found' }, 404);
 
     return c.json({ member: updated });
   })
