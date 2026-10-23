@@ -1,5 +1,6 @@
 // Pure helpers for the track page. No $lib imports, so they can be checked with `bun -e`.
 import { hasPermission, REVIEW_PASS_HOURS, type ProjectRole, type ReviewVerdict } from '@music-hub/shared';
+import { formatLufs, formatTruePeak } from './format.js';
 
 export type { ReviewVerdict } from '@music-hub/shared';
 
@@ -24,6 +25,23 @@ export type Version = {
   rejectionReason: string | null;
   createdById?: string;
 };
+
+const LOSSLESS = new Set(['WAV', 'WAVE', 'AIF', 'AIFF', 'FLAC']);
+
+export function fileDetails(v: Version) {
+  const ext = v.originalFileName.match(/\.(\w+)$/)?.[1]?.toUpperCase();
+  return [
+    ext && { text: ext },
+    v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString('de-DE')} kHz`, title: 'Abtastrate' },
+    v.bitDepth && ext && LOSSLESS.has(ext) && {
+      text: `${v.bitDepth} Bit${/^(flt|dbl)/.test(v.sampleFormat ?? '') ? ' Float' : ''}`,
+      title: 'Bittiefe',
+    },
+    v.integratedLufs != null && { text: `${formatLufs(v.integratedLufs)} LUFS`, title: 'Integrierte Lautheit (EBU R128)' },
+    v.truePeak != null && { text: formatTruePeak(v.truePeak), title: 'True Peak' },
+    v.loudnessRange != null && { text: `LRA ${formatLufs(v.loudnessRange)} LU`, title: 'Lautheitsumfang (Loudness Range)' },
+  ].filter((d): d is { text: string; title?: string } => !!d);
+}
 
 export type TrackComment = {
   id: string;

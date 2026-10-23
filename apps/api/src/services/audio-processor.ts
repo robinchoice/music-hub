@@ -109,6 +109,8 @@ async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   };
 }
 
+const NO_LOUDNESS = { integratedLufs: null, loudnessRange: null, truePeak: null };
+
 async function measureLoudness(url: string, signal: AbortSignal) {
   signal.throwIfAborted();
   // The summary on stderr rounds the true peak to 0.1 dB, so it comes from the frame metadata on stdout
@@ -119,7 +121,7 @@ async function measureLoudness(url: string, signal: AbortSignal) {
   });
 
   const [log, frames] = await Promise.all([new Response(proc.stderr).text(), new Response(proc.stdout).text()]);
-  return await proc.exited === 0 ? parseLoudness(log, frames) : parseLoudness('', '');
+  return await proc.exited === 0 ? parseLoudness(log, frames) : NO_LOUDNESS;
 }
 
 // EBU R128 integrated loudness in LUFS and loudness range in LU from the ebur128 summary, true peak
@@ -129,7 +131,7 @@ export function parseLoudness(log: string, frames: string): { integratedLufs: nu
   // Per-frame lines carry the running values; the summary at the end is the last match
   const last = (re: RegExp) => [...log.matchAll(re)].at(-1)?.[1];
   const integrated = last(/\bI:\s+(-?[\d.]+) LUFS/g);
-  if (integrated === undefined || parseFloat(integrated) <= -70) return { integratedLufs: null, loudnessRange: null, truePeak: null };
+  if (integrated === undefined || parseFloat(integrated) <= -70) return NO_LOUDNESS;
   const range = last(/\bLRA:\s+([\d.]+) LU\b/g);
   // Linear true peak per channel; the highest of all frames and channels is the true peak of the file
   const peak = Math.max(0, ...[...frames.matchAll(/^lavfi\.r128\.true_peaks_ch\d+=([\d.]+)$/gm)].map((m) => parseFloat(m[1])));

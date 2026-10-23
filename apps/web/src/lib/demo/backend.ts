@@ -89,7 +89,7 @@ function seed() {
     track(24, uuid(12), 'Jingle', 'final', 0),
   ];
 
-  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, [lufs, truePeak, loudnessRange]: [number, number, number], branch?: { of: number; label: string }): DemoVersion => ({
+  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, loudness: Pick<DemoVersion, 'integratedLufs' | 'truePeak' | 'loudnessRange'>, branch?: { of: number; label: string }): DemoVersion => ({
     id: uuid(n),
     trackId: uuid(20),
     versionNumber,
@@ -108,15 +108,13 @@ function seed() {
     branchLabel: branch?.label ?? null,
     audio: `/demo/nachtbus-v${versionNumber}.mp3`,
     // Measured from the files in static/demo with ffmpeg's ebur128 filter
-    integratedLufs: lufs,
-    truePeak,
-    loudnessRange,
+    ...loudness,
   });
   const versions: DemoVersion[] = [
-    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', [-15.3, -0.49, 8.7]),
-    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', [-15.9, -0.35, 10.3], { of: 102, label: 'Ohne Shaker' }),
-    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', [-15.9, 0.33, 10.1]),
-    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', [-15.5, -1.22, 7.5]),
+    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', { integratedLufs: -15.3, truePeak: -0.49, loudnessRange: 8.7 }),
+    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', { integratedLufs: -15.9, truePeak: -0.35, loudnessRange: 10.3 }, { of: 102, label: 'Ohne Shaker' }),
+    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', { integratedLufs: -15.9, truePeak: 0.33, loudnessRange: 10.1 }),
+    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', { integratedLufs: -15.5, truePeak: -1.22, loudnessRange: 7.5 }),
   ];
 
   const comment = (n: number, versionN: number, by: Person | string, body: string, t: number | null, minutesAgo: number, extra: { resolved?: number; parent?: number } = {}): DemoComment => ({
@@ -397,13 +395,14 @@ const ROUTES: [string, RegExp, Handler][] = [
   })],
   ['POST', /^\/versions\/(?:project|track)\/([\w-]+)\/upload-url$/, ([id], body) => ({ uploadUrl: '', fileKey: `demo/${id}/${String(body?.fileName)}` })],
   ['POST', /^\/versions\/track\/([\w-]+)$/, ([trackId], body) => {
+    const { audio, integratedLufs, truePeak, loudnessRange } = find(db.versions, uuid(101));
     const version: DemoVersion = {
       id: uuid(2000 + db.versions.length), trackId,
       versionNumber: Math.max(0, ...db.versions.filter((v) => v.trackId === trackId).map((v) => v.versionNumber)) + 1,
       label: (body?.label as string) || null, notes: null, status: 'ready', originalFileName: String(body?.originalFileName),
       mimeType: String(body?.mimeType), fileSize: Number(body?.fileSize), duration: DEMO.duration,
       createdAt: new Date().toISOString(), createdById: MARA.id, parentVersionId: (body?.parentVersionId as string) ?? null,
-      branchLabel: (body?.branchLabel as string) ?? null, audio: '/demo/nachtbus-v1.mp3', integratedLufs: -15.5, truePeak: -1.22, loudnessRange: 7.5,
+      branchLabel: (body?.branchLabel as string) ?? null, audio, integratedLufs, truePeak, loudnessRange,
     };
     db.versions.push(version);
     return { version: withCounts(version) };
