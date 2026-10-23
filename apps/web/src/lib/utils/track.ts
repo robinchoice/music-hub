@@ -12,6 +12,11 @@ export type Version = {
   originalFileName: string;
   duration: number | null;
   integratedLufs?: number | null;
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  sampleFormat?: string | null;
+  truePeak?: number | null;
+  loudnessRange?: number | null;
   createdAt: string;
   parentVersionId: string | null;
   branchLabel: string | null;

@@ -232,6 +232,13 @@
       "when": 1792583021637,
       "tag": "0032_share_follows",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792757003983,
+      "tag": "0033_loudness_details",
+      "breakpoints": true
     }
   ]
 }

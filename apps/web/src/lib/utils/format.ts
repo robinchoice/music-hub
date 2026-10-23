@@ -89,6 +89,13 @@ const decimal = (x: number, digits = 1) =>
 /** "−14,2" with a real minus sign */
 export const formatLufs = (lufs: number) => decimal(lufs).replace('-', '−');
 
+/** "−0,6 dBTP", "+0,1 dBTP": rounded up like a peak meter, so −0,96 never reads as −1,0 */
+export function formatTruePeak(db: number): string {
+  // Hundredths first, so float noise like 0.30000001 doesn't round up to 0,4; + 0 turns −0 into 0
+  const up = Math.ceil(Math.round(db * 100) / 10) / 10 + 0;
+  return `${up > 0 ? '+' : ''}${formatLufs(up)} dBTP`;
+}
+
 /** "0,0 dB", "−3,2 dB", "+1,0 dB" */
 export function formatDb(db: number): string {
   if (Math.abs(db) < 0.05) return '0,0 dB';

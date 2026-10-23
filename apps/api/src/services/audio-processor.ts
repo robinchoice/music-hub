@@ -29,8 +29,8 @@ export async function processVersion(db: Database, versionId: string, signal: Ab
     // Extract metadata with ffprobe
     const metadata = await extractMetadata(originalUrl, signal);
 
-    // Integrated loudness, so the DAW plugin can level-match versions
-    const integratedLufs = await measureLoudness(originalUrl, signal);
+    // Integrated loudness, so the DAW plugin can level-match versions, plus true peak and range for the file details
+    const loudness = await measureLoudness(originalUrl, signal);
 
     // Generate waveform peaks
     const peaks = await generateWaveformPeaks(originalUrl, metadata.duration, signal);
@@ -52,7 +52,8 @@ export async function processVersion(db: Database, versionId: string, signal: Ab
         duration: metadata.duration,
         sampleRate: metadata.sampleRate,
         bitDepth: metadata.bitDepth,
-        integratedLufs,
+        sampleFormat: metadata.sampleFormat,
+        ...loudness,
         streamFileKey: streamKey,
         waveformDataKey: waveformKey,
       })
@@ -78,6 +79,7 @@ async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   duration: number;
   sampleRate: number;
   bitDepth: number;
+  sampleFormat: string | null;
 }> {
   signal.throwIfAborted();
   const proc = Bun.spawn([
@@ -93,7 +95,7 @@ async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   if (await proc.exited !== 0) throw new Error('Audio processing failed or timed out');
 
   const data = z.object({
-    streams: z.array(z.object({ codec_type: z.string().optional(), sample_rate: z.string().optional(), bits_per_raw_sample: z.string().optional(), bits_per_sample: z.number().optional() })).optional(),
+    streams: z.array(z.object({ codec_type: z.string().optional(), sample_rate: z.string().optional(), bits_per_raw_sample: z.string().optional(), bits_per_sample: z.number().optional(), sample_fmt: z.string().optional() })).optional(),
     format: z.object({ duration: z.string().optional() }).optional(),
   }).parse(JSON.parse(output));
   const audioStream = data.streams?.find((s) => s.codec_type === 'audio');
@@ -102,27 +104,40 @@ async function extractMetadata(url: string, signal: AbortSignal): Promise<{
     duration: parseFloat(data.format?.duration || '0'),
     sampleRate: parseInt(audioStream?.sample_rate || '44100'),
     bitDepth: parseInt(audioStream?.bits_per_raw_sample || String(audioStream?.bits_per_sample || 16)),
+    // "flt" or "dbl" (planar "fltp") tells 32-bit float from 32-bit integer
+    sampleFormat: audioStream?.sample_fmt ?? null,
   };
 }
 
-// EBU R128 integrated loudness in LUFS. ffmpeg reports -70 for silence,
-// which is "nothing to match", so that becomes null.
-async function measureLoudness(url: string, signal: AbortSignal): Promise<number | null> {
+async function measureLoudness(url: string, signal: AbortSignal) {
   signal.throwIfAborted();
-  const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128', '-f', 'null', '-'], {
-    stdout: 'ignore',
+  // The summary on stderr rounds the true peak to 0.1 dB, so it comes from the frame metadata on stdout
+  const proc = Bun.spawn(['ffmpeg', '-nostats', '-i', url, '-af', 'ebur128=peak=true:metadata=1,ametadata=mode=print:file=-', '-f', 'null', '-'], {
+    stdout: 'pipe',
     stderr: 'pipe',
     ...FFMPEG_LIMITS, signal,
   });
 
-  const log = await new Response(proc.stderr).text();
-  if (await proc.exited !== 0) return null;
+  const [log, frames] = await Promise.all([new Response(proc.stderr).text(), new Response(proc.stdout).text()]);
+  return await proc.exited === 0 ? parseLoudness(log, frames) : parseLoudness('', '');
+}
 
-  // Per-second lines carry the running value; the summary at the end is the last match
-  const last = [...log.matchAll(/\bI:\s+(-?[\d.]+) LUFS/g)].at(-1);
-  if (!last) return null;
-  const lufs = parseFloat(last[1]);
-  return lufs <= -70 ? null : lufs;
+// EBU R128 integrated loudness in LUFS and loudness range in LU from the ebur128 summary, true peak
+// in dBTP from the frame metadata. ffmpeg reports -70 LUFS for silence, which is "nothing to match",
+// so that becomes null.
+export function parseLoudness(log: string, frames: string): { integratedLufs: number | null; loudnessRange: number | null; truePeak: number | null } {
+  // Per-frame lines carry the running values; the summary at the end is the last match
+  const last = (re: RegExp) => [...log.matchAll(re)].at(-1)?.[1];
+  const integrated = last(/\bI:\s+(-?[\d.]+) LUFS/g);
+  if (integrated === undefined || parseFloat(integrated) <= -70) return { integratedLufs: null, loudnessRange: null, truePeak: null };
+  const range = last(/\bLRA:\s+([\d.]+) LU\b/g);
+  // Linear true peak per channel; the highest of all frames and channels is the true peak of the file
+  const peak = Math.max(0, ...[...frames.matchAll(/^lavfi\.r128\.true_peaks_ch\d+=([\d.]+)$/gm)].map((m) => parseFloat(m[1])));
+  return {
+    integratedLufs: parseFloat(integrated),
+    loudnessRange: range === undefined ? null : parseFloat(range),
+    truePeak: peak > 0 ? Math.round(2000 * Math.log10(peak)) / 100 : null,
+  };
 }
 
 async function generateWaveformPeaks(url: string, duration: number, signal: AbortSignal): Promise<number[] | null> {

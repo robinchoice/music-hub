@@ -130,3 +130,10 @@ test('a reaction shows who reacted and a second tap takes it back', async ({ pag
   await item.locator('.picker').getByRole('button', { name: '🔥' }).click();
   await expect(item.locator('.reaction', { hasText: '🔥' })).toHaveCount(0);
 });
+
+test('the demo version shows its file details', async ({ page }) => {
+  await page.goto('/');
+  const file = page.locator('.version-card .file').first();
+  await file.scrollIntoViewIfNeeded();
+  await expect(file).toHaveText(/WAV.*48 kHz.*24 Bit.*−15,3 LUFS.*−0,4 dBTP.*LRA 8,7 LU/);
+});

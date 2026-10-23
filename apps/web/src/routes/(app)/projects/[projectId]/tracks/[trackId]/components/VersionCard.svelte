@@ -4,6 +4,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
+  import { formatLufs, formatTruePeak } from '$lib/utils/format.js';
   import { hasWaveform, isDecided, versionTitle, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
 
@@ -95,6 +96,19 @@
 
   // The worker still marks a version ready when it can't read the file, it then has no duration
   const unreadable = $derived(version.status === 'ready' && version.duration == null);
+  // File details as the worker measured them; bit depth only means something for lossless files
+  const fileDetails = $derived.by(() => {
+    const ext = version.originalFileName.match(/\.(\w+)$/)?.[1]?.toUpperCase();
+    const v = version;
+    return [
+      ext && { text: ext },
+      v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString('de-DE')} kHz`, title: 'Abtastrate' },
+      v.bitDepth && ext && ['WAV', 'WAVE', 'AIF', 'AIFF', 'FLAC'].includes(ext) && { text: `${v.bitDepth} Bit${/^(flt|dbl)/.test(v.sampleFormat ?? '') ? ' Float' : ''}`, title: 'Bittiefe' },
+      v.integratedLufs != null && { text: `${formatLufs(v.integratedLufs)} LUFS`, title: 'Integrierte Lautheit (EBU R128)' },
+      v.truePeak != null && { text: formatTruePeak(v.truePeak), title: 'True Peak' },
+      v.loudnessRange != null && { text: `LRA ${formatLufs(v.loudnessRange)} LU`, title: 'Lautheitsumfang (Loudness Range)' },
+    ].filter((d): d is { text: string; title?: string } => !!d);
+  });
   // Nobody can judge a mix that isn't playable yet, or never will be
   const showDecision = $derived(canApprove && !processing && hasWaveform(version) && !isDecided(version));
 
@@ -255,6 +269,9 @@
     </div>
   {:else if !unreadable}
     <div class="player" class:grow>{@render player()}</div>
+    {#if fileDetails.length}
+      <p class="file">{#each fileDetails as d, i}{#if i}<span aria-hidden="true">·</span>{/if}<span title={d.title}>{d.text}</span>{/each}</p>
+    {/if}
   {/if}
   {@render feedback?.()}
 </section>
@@ -438,6 +455,16 @@
     gap: var(--space-2);
     font-size: var(--text-sm);
     color: var(--color-text-secondary);
+  }
+
+  .file {
+    margin: var(--space-2) 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-tertiary);
   }
 
   .notes span {

@@ -52,6 +52,8 @@ type DemoVersion = Omit<Version, 'openCommentCount' | 'rejectionReason'> & {
   createdById: string;
   audio: string;
   integratedLufs: number;
+  truePeak: number;
+  loudnessRange: number;
 };
 type DemoComment = TrackComment & { versionId: string };
 type DemoReview = Review & { versionId: string };
@@ -87,7 +89,7 @@ function seed() {
     track(24, uuid(12), 'Jingle', 'final', 0),
   ];
 
-  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, lufs: number, branch?: { of: number; label: string }): DemoVersion => ({
+  const version = (n: number, versionNumber: number, label: string | null, status: string, minutesAgo: number, notes: string, file: string, [lufs, truePeak, loudnessRange]: [number, number, number], branch?: { of: number; label: string }): DemoVersion => ({
     id: uuid(n),
     trackId: uuid(20),
     versionNumber,
@@ -98,6 +100,8 @@ function seed() {
     mimeType: 'audio/wav',
     fileSize: 54_700_000,
     duration: DEMO.duration,
+    sampleRate: 48_000,
+    bitDepth: 24,
     createdAt: ago(minutesAgo),
     createdById: KAI.id,
     parentVersionId: branch ? uuid(branch.of) : null,
@@ -105,12 +109,14 @@ function seed() {
     audio: `/demo/nachtbus-v${versionNumber}.mp3`,
     // Measured from the files in static/demo with ffmpeg's ebur128 filter
     integratedLufs: lufs,
+    truePeak,
+    loudnessRange,
   });
   const versions: DemoVersion[] = [
-    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', -15.3),
-    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', -15.9, { of: 102, label: 'Ohne Shaker' }),
-    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', -15.9),
-    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', -15.5),
+    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', [-15.3, -0.49, 8.7]),
+    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', [-15.9, -0.35, 10.3], { of: 102, label: 'Ohne Shaker' }),
+    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', [-15.9, 0.33, 10.1]),
+    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', [-15.5, -1.22, 7.5]),
   ];
 
   const comment = (n: number, versionN: number, by: Person | string, body: string, t: number | null, minutesAgo: number, extra: { resolved?: number; parent?: number } = {}): DemoComment => ({
@@ -397,7 +403,7 @@ const ROUTES: [string, RegExp, Handler][] = [
       label: (body?.label as string) || null, notes: null, status: 'ready', originalFileName: String(body?.originalFileName),
       mimeType: String(body?.mimeType), fileSize: Number(body?.fileSize), duration: DEMO.duration,
       createdAt: new Date().toISOString(), createdById: MARA.id, parentVersionId: (body?.parentVersionId as string) ?? null,
-      branchLabel: (body?.branchLabel as string) ?? null, audio: '/demo/nachtbus-v1.mp3', integratedLufs: -15.5,
+      branchLabel: (body?.branchLabel as string) ?? null, audio: '/demo/nachtbus-v1.mp3', integratedLufs: -15.5, truePeak: -1.22, loudnessRange: 7.5,
     };
     db.versions.push(version);
     return { version: withCounts(version) };

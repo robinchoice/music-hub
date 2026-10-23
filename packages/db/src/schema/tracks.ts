@@ -84,7 +84,12 @@ export const versions = pgTable('versions', {
   duration: real('duration'),
   sampleRate: integer('sample_rate'),
   bitDepth: integer('bit_depth'),
+  // ffprobe sample_fmt, e.g. "s24", "flt"; null for versions measured before it was stored
+  sampleFormat: varchar('sample_format', { length: 16 }),
   integratedLufs: real('integrated_lufs'),
+  // EBU R128 loudness range in LU and true peak in dBTP; null for versions measured before they were stored
+  loudnessRange: real('loudness_range'),
+  truePeak: real('true_peak'),
 
   originalFileKey: text('original_file_key').notNull(),
   streamFileKey: text('stream_file_key'),
