@@ -84,7 +84,11 @@
       });
       if (res.status === 401) {
         const j = await res.json();
-        if (j.passwordRequired) { passwordRequired = true; loading = false; return; }
+        if (j.passwordRequired) {
+          passwordRequired = true;
+          error = password ? 'Das Passwort ist nicht richtig. Bitte versuche es erneut.' : '';
+          return;
+        }
       }
       if (!res.ok) {
         error = res.status === 404 ? 'Dieser Link wurde nicht gefunden.'
@@ -101,6 +105,7 @@
         : [];
       data = share;
       passwordRequired = false;
+      if (!eventId) await createListenEvent();
     } catch {
       error = 'Keine Verbindung. Bitte prüfe dein Internet und versuche es erneut.';
     } finally {
@@ -180,7 +185,7 @@
   }
 
   onMount(() => {
-    load().then(() => { if (data) createListenEvent(); });
+    load();
 
     const saved = localStorage.getItem('listenName');
     if (saved) guestName = saved;
@@ -261,16 +266,16 @@
 <div class="shell">
   <div class="listen-page">
     <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
-    {#if loading}
+    {#if loading && !passwordRequired}
       <p class="muted">Lädt…</p>
     {:else if passwordRequired}
-      <div class="password-gate">
+      <form class="password-gate" onsubmit={(e) => { e.preventDefault(); load(); }}>
         <h1>🔒 Geschützter Link</h1>
         <p>Bitte Passwort eingeben:</p>
-        <input type="password" bind:value={password} placeholder="Passwort" />
-        <Button onclick={load}>Öffnen</Button>
-        {#if error}<p class="error">{error}</p>{/if}
-      </div>
+        <input type="password" bind:value={password} placeholder="Passwort" aria-label="Passwort" autocomplete="current-password" required />
+        <Button type="submit" {loading}>Öffnen</Button>
+        {#if error}<p class="error" role="alert">{error}</p>{/if}
+      </form>
     {:else if error && !data}
       <p class="error" role="alert">{error}</p>
       <Button onclick={load}>Erneut versuchen</Button>

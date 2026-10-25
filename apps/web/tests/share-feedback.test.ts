@@ -75,3 +75,29 @@ test('a failed guest review keeps the dialog, note and player', async ({ page })
   await expect(dialog.getByLabel('Gesamteindruck')).toHaveValue('Bitte erhalten');
   await expect(page.locator('.player')).toBeVisible();
 });
+
+test('a protected link accepts Enter and explains a wrong password', async ({ page, context, baseURL }) => {
+  // Create another link with the owner, then open it without a session.
+  const owner = await page.context().browser()!.newContext();
+  const ownerId = await logIn(owner, baseURL!);
+  try {
+    const { project } = await (await owner.request.post(`${baseURL}/api/v1/projects`, { data: { name: 'Geschützt' } })).json();
+    const { track } = await (await owner.request.post(`${baseURL}/api/v1/tracks/${project.id}`, { data: { name: 'Passwortmix' } })).json();
+    const id = addVersion(track.id, ownerId, 'ready');
+    const { link } = await (await owner.request.post(`${baseURL}/api/v1/share/version/${id}`, { data: { password: 'nachtbus', allowComments: true } })).json();
+    await context.clearCookies();
+    await page.goto(`/listen/${link.token}`);
+    const field = page.getByLabel('Passwort', { exact: true });
+    await field.fill('falsch');
+    await field.press('Enter');
+    await expect(page.getByRole('alert')).toContainText('Das Passwort ist nicht richtig');
+    await expect(field).toHaveValue('falsch');
+    await field.fill('nachtbus');
+    await field.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Passwortmix', exact: true })).toBeVisible();
+    await expect(field).toHaveCount(0);
+  } finally {
+    await owner.close();
+    removeUser(ownerId);
+  }
+});
