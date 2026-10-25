@@ -8,6 +8,7 @@
   import { formatTime } from '$lib/utils/format.js';
   import { commentMarkers, openPass, type ReviewVerdict } from '$lib/utils/track.js';
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
+  import { toastError } from '$lib/stores/toast.js';
 
   type Comment = {
     id: string;
@@ -47,6 +48,7 @@
   let peaks = $state<number[]>([]);
   let loading = $state(true);
   let error = $state('');
+  let commentError = $state('');
   let passwordRequired = $state(false);
   let password = $state('');
 
@@ -74,7 +76,7 @@
   let nameDismissed = $state(false);
 
   async function load() {
-    loading = true;
+    loading = !data;
     error = '';
     try {
       const res = await fetch(`/api/v1/share/public/${token}`, {
@@ -85,7 +87,10 @@
         if (j.passwordRequired) { passwordRequired = true; loading = false; return; }
       }
       if (!res.ok) {
-        error = (await res.json().catch(() => ({}))).error || 'Link nicht verfügbar';
+        error = res.status === 404 ? 'Dieser Link wurde nicht gefunden.'
+          : res.status === 410 ? 'Dieser Link ist gerade nicht verfügbar.'
+          : res.status === 429 ? 'Zu viele Versuche. Bitte warte etwas und versuche es erneut.'
+          : 'Der Link konnte nicht geladen werden. Bitte versuche es erneut.';
         loading = false;
         return;
       }
@@ -96,6 +101,8 @@
         : [];
       data = share;
       passwordRequired = false;
+    } catch {
+      error = 'Keine Verbindung. Bitte prüfe dein Internet und versuche es erneut.';
     } finally {
       loading = false;
     }
@@ -173,7 +180,7 @@
   }
 
   onMount(() => {
-    load().then(() => createListenEvent());
+    load().then(() => { if (data) createListenEvent(); });
 
     const saved = localStorage.getItem('listenName');
     if (saved) guestName = saved;
@@ -190,20 +197,26 @@
   });
 
   async function submitReview(verdict: ReviewVerdict, note: string) {
-    const res = await fetch(`/api/v1/share/public/${token}/review`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(password ? { 'X-Share-Password': password } : {}),
-      },
-      body: JSON.stringify({ verdict, note: note || undefined, guestName: guestName.trim(), versionId: data?.version.id }),
-    });
-    if (!res.ok) {
-      error =
-        res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.'
-        : res.status === 409 ? (await res.json()).error
-        : 'Rückmeldung fehlgeschlagen';
-      throw new Error(error);
+    try {
+      const res = await fetch(`/api/v1/share/public/${token}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(password ? { 'X-Share-Password': password } : {}),
+        },
+        body: JSON.stringify({ verdict, note: note || undefined, guestName: guestName.trim(), versionId: data?.version.id }),
+      });
+      if (!res.ok) {
+        const message =
+          res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.'
+          : res.status === 409 ? 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.'
+          : 'Rückmeldung fehlgeschlagen';
+        toastError(message);
+        throw new Error(message);
+      }
+    } catch (err) {
+      if (err instanceof TypeError) toastError('Keine Verbindung. Bitte versuche es erneut.');
+      throw err;
     }
     reviewSentAs = guestName.trim();
     await load();
@@ -213,6 +226,7 @@
     e.preventDefault();
     if (!body.trim() || !guestName.trim() || !data) return;
     submitting = true;
+    commentError = '';
     try {
       const res = await fetch(`/api/v1/share/public/${token}/comments`, {
         method: 'POST',
@@ -223,10 +237,17 @@
         body: JSON.stringify({ body, guestName, timestampSeconds: commentTimestamp ?? undefined, versionId: data.version.id }),
       });
       // 409: the link follows the track and shows a newer version by now
-      if (!res.ok) { error = res.status === 409 ? (await res.json()).error : 'Kommentar fehlgeschlagen'; return; }
+      if (!res.ok) {
+        commentError = res.status === 409 ? 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.'
+          : res.status === 429 ? 'Zu viele Kommentare. Bitte warte etwas und versuche es erneut.'
+          : 'Kommentar nicht gesendet. Bitte versuche es erneut.';
+        return;
+      }
       body = '';
       commentTimestamp = null;
       await load();
+    } catch {
+      commentError = 'Keine Verbindung. Dein Kommentar bleibt hier, bitte versuche es erneut.';
     } finally {
       submitting = false;
     }
@@ -250,9 +271,11 @@
         <Button onclick={load}>Öffnen</Button>
         {#if error}<p class="error">{error}</p>{/if}
       </div>
-    {:else if error}
-      <p class="error">{error}</p>
+    {:else if error && !data}
+      <p class="error" role="alert">{error}</p>
+      <Button onclick={load}>Erneut versuchen</Button>
     {:else if data}
+      {#if error}<p class="error" role="alert">{error}</p>{/if}
       <header>
         <p class="project">{data.project.name}</p>
         <h1>{data.track.name}</h1>
@@ -313,6 +336,7 @@
             rows="3"
             required
           ></textarea>
+          {#if commentError}<p class="error" role="alert">{commentError}</p>{/if}
           <Button type="submit" loading={submitting} disabled={!body.trim() || !guestName.trim()}>
             Senden
           </Button>
