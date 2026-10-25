@@ -77,7 +77,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
       trackId: tracks.id,
       trackName: tracks.name,
       name: stems.name,
-      bytes: sql<number>`case when ${stems.forked} then 0 else ${stems.fileSize} end`,
+      bytes: sql<number>`case when ${stems.forked} then 0 else ${stems.fileSize} end`.mapWith(Number),
     })
     .from(stems)
     .innerJoin(tracks, eq(tracks.id, stems.trackId))
@@ -99,7 +99,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
       trackName: tracks.name,
       name: stems.name,
       originalFileName: stemRevisions.originalFileName,
-      bytes: sql<number>`case when ${stemRevisions.forked} then 0 else ${stemRevisions.fileSize} end`,
+      bytes: sql<number>`case when ${stemRevisions.forked} then 0 else ${stemRevisions.fileSize} end`.mapWith(Number),
     })
     .from(stemRevisions)
     .innerJoin(stems, eq(stems.id, stemRevisions.stemId))

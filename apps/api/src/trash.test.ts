@@ -68,6 +68,8 @@ test("the trash covers all projects, with each project's rights", async () => {
     'Fernlicht: Bass',
     'Kais Band: Gitarre',
   ]);
+  // Sizes are numbers, so the page can add them up
+  expect(entries.map((e) => ('bytes' in e ? e.bytes : null))).toEqual([100, 100]);
 });
 
 test('the trash of one project shows only that project', async () => {
