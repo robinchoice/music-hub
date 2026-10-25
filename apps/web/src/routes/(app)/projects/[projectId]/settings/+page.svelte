@@ -13,7 +13,8 @@
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import { overviewIndex } from '$lib/stores/overview.js';
-  import { artistNames } from '$lib/utils/overview.js';
+  import { artistNames, artistToSave } from '$lib/utils/overview.js';
+  import ArtistInput from '$lib/components/workspace/ArtistInput.svelte';
 
   type Member = {
     id: string;
@@ -78,7 +79,7 @@
     try {
       await api.patch(`/projects/${projectId}`, {
         name: editName,
-        artist: editArtist.trim() || null,
+        artist: artistToSave($overviewIndex ? artistNames($overviewIndex) : [], editArtist),
         description: editDesc,
       });
       toastSuccess('Projekt gespeichert');
@@ -173,10 +174,7 @@
       <div class="cover-row">
         <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
-          <Input label="Artist (optional)" bind:value={editArtist} list="artists" placeholder="z. B. Anna Berger" />
-          <datalist id="artists">
-            {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
-          </datalist>
+          <ArtistInput bind:value={editArtist} />
           <Input label="Name" bind:value={editName} />
           <label class="textarea-group">
             <span class="input-label">Beschreibung (optional)</span>

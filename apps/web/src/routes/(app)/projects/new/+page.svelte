@@ -9,7 +9,8 @@
   import Input from '$lib/components/ui/Input.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import { overviewIndex } from '$lib/stores/overview.js';
-  import { artistNames } from '$lib/utils/overview.js';
+  import { artistNames, artistToSave } from '$lib/utils/overview.js';
+  import ArtistInput from '$lib/components/workspace/ArtistInput.svelte';
 
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
@@ -28,7 +29,7 @@
     try {
       const res = await api.post<{ project: { id: string } }>('/projects', {
         name,
-        artist: artist.trim() || null,
+        artist: artistToSave($overviewIndex ? artistNames($overviewIndex) : [], artist),
         description: description || undefined,
         coverImageUrl: coverKey,
       });
@@ -61,10 +62,7 @@
     <h1>Neues Projekt</h1>
 
     <form onsubmit={handleSubmit}>
-      <Input label="Artist (optional)" bind:value={artist} list="artists" placeholder="z. B. Anna Berger" />
-      <datalist id="artists">
-        {#each $overviewIndex ? artistNames($overviewIndex) : [] as a (a)}<option value={a}></option>{/each}
-      </datalist>
+      <ArtistInput bind:value={artist} />
       <Input label="Name" bind:value={name} placeholder="z. B. Debütalbum, Sommer-EP oder Single" />
 
       <label class="textarea-group">

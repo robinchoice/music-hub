@@ -79,3 +79,25 @@ test('the search narrows the projects by name, artist and track and says when no
   await search.fill('');
   await expect(sidebar(page).locator('.project')).toHaveCount(3);
 });
+
+test('a new project picks an existing artist as a chip and keeps its spelling', async ({ page, isMobile }) => {
+  await seed(page);
+  await page.goto('/projects/new');
+  const chips = page.getByRole('group', { name: 'Bestehende Artists' }).getByRole('button');
+  await expect(chips).toHaveText(['Tiefgang']);
+  await chips.first().click();
+  await expect(page.getByLabel('Artist (optional)')).toHaveValue('Tiefgang');
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+
+  // Typed in other case it is still the same artist, not a second group
+  await page.getByLabel('Artist (optional)').fill('tiefgang ');
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Neuer Artist')).toHaveCount(0);
+  await page.getByLabel('Name').fill('Zweite EP');
+  await page.getByRole('button', { name: 'Anlegen' }).click();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
+  await openSidebar(page, isMobile);
+  const group = sidebar(page).locator('.artist-group').filter({ hasText: 'Tiefgang' });
+  await expect(group.locator('.project .name')).toHaveText(['Nachtbus EP', 'Single', 'Zweite EP']);
+  await expect(sidebar(page).locator('.artist-head')).toHaveCount(2);
+});

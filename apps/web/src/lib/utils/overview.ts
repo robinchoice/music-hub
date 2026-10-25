@@ -344,9 +344,21 @@ export type ProjectGroup = {
 
 /** Projects with their tracks, the most recently active first */
 /** Artists of all projects, for suggestions and the artist pages */
+// One spelling per artist: "Massimo" and "massimo " count as the same
 export function artistNames(ix: OverviewIndex): string[] {
-  const names = ix.data.projects.map((p) => p.artist?.trim()).filter((a): a is string => !!a);
-  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  const byKey = new Map<string, string>();
+  for (const p of ix.data.projects) {
+    const name = p.artist?.trim();
+    if (name && !byKey.has(name.toLowerCase())) byKey.set(name.toLowerCase(), name);
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// The artist to save: an existing spelling if the input matches one, else the trimmed input
+export function artistToSave(names: string[], input: string): string | null {
+  const name = input.trim();
+  if (!name) return null;
+  return names.find((n) => n.toLowerCase() === name.toLowerCase()) ?? name;
 }
 
 export function projectGroups(ix: OverviewIndex): ProjectGroup[] {
