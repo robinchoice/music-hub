@@ -372,20 +372,29 @@
         {/if}
       {/if}
 
+      {#snippet commentContent(c: Comment)}
+        <div class="comment-head">
+          <strong>{c.user?.name ?? c.guestName ?? 'Gast'}</strong>
+          {#if !c.user}<span class="guest">Gast</span>{/if}
+          {#if c.timestampSeconds !== null}
+            <button class="ts" onclick={() => playerRef?.seekToTime(c.timestampSeconds!)}>
+              {formatTime(c.timestampSeconds)}
+            </button>
+          {/if}
+        </div>
+        <p>{c.body}</p>
+      {/snippet}
+
       <section class="comments">
         <h2>Kommentare ({data.comments.length})</h2>
-        {#each data.comments.filter((c) => !c.parentId) as c}
+        {#each data.comments.filter((c) => !c.parentId || !data.comments.some((parent) => parent.id === c.parentId)) as c}
           <div class="comment">
-            <div class="comment-head">
-              <strong>{c.user?.name ?? c.guestName ?? 'Gast'}</strong>
-              {#if !c.user}<span class="guest">Gast</span>{/if}
-              {#if c.timestampSeconds !== null}
-                <button class="ts" onclick={() => playerRef?.seekToTime(c.timestampSeconds!)}>
-                  {formatTime(c.timestampSeconds)}
-                </button>
-              {/if}
-            </div>
-            <p>{c.body}</p>
+            {@render commentContent(c)}
+            {#each data.comments.filter((reply) => reply.parentId === c.id) as reply}
+              <div class="reply">
+                {@render commentContent(reply)}
+              </div>
+            {/each}
           </div>
         {/each}
         {#if data.comments.length === 0}
@@ -558,6 +567,11 @@
     font-family: inherit;
   }
   .comment p { margin: 0; font-size: var(--text-sm); }
+  .reply {
+    margin-top: var(--space-3);
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-border-hover);
+  }
   footer {
     text-align: center;
     padding-top: var(--space-4);

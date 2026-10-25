@@ -101,3 +101,21 @@ test('a protected link accepts Enter and explains a wrong password', async ({ pa
     removeUser(ownerId);
   }
 });
+
+test('guests see replies next to the comment they answer', async ({ page }) => {
+  await page.route('**/api/v1/share/public/*', async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    const comment = { timestampSeconds: null, resolvedAt: null, createdAt: new Date().toISOString(), guestName: 'Mira', user: null };
+    await route.fulfill({ response, json: { ...data, streamUrl: '/test-audio.wav', waveformUrl: null, comments: [
+      { ...comment, id: 'parent', parentId: null, body: 'Mehr Raum für die Snare' },
+      { ...comment, id: 'reply', parentId: 'parent', body: 'Ist im nächsten Mix drin' },
+      { ...comment, id: 'orphan', parentId: 'deleted', body: 'Antwort auf gelöschten Kommentar' },
+    ] } });
+  });
+  await page.goto(shareUrl);
+  await expect(page.getByRole('heading', { name: 'Kommentare (3)' })).toBeVisible();
+  const parent = page.locator('.comment', { hasText: 'Mehr Raum für die Snare' });
+  await expect(parent.locator('.reply')).toHaveText(/Ist im nächsten Mix drin/);
+  await expect(page.locator('.comments')).toContainText('Antwort auf gelöschten Kommentar');
+});
