@@ -26,6 +26,8 @@ export function safeNextPath(value: string | null | undefined): string | null {
 export const verifyTokenSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(1).max(200).optional(),
+  // The web logs in with a cookie, the CLI sends false and takes the token from the answer
+  cookie: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({

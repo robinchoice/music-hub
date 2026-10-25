@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, lt, gt, isNull } from 'drizzle-orm';
-import { deviceStartSchema, deviceApproveSchema, deviceTokenSchema } from '@music-hub/shared';
+import { CLI_CLIENT, deviceStartSchema, deviceApproveSchema, deviceTokenSchema } from '@music-hub/shared';
 import { deviceCodes, sessions, users } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken, SESSION_DAYS } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -127,7 +127,7 @@ export const deviceRoutes = new Hono<AppEnv>()
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY);
-    await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt, client: 'plugin' });
+    await db.insert(sessions).values({ userId: code.userId, tokenHash: await hashToken(token), expiresAt, client: code.client === CLI_CLIENT ? 'cli' : 'plugin' });
 
     return c.json({ token, expiresAt, user });
   });

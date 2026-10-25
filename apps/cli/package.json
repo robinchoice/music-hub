@@ -1,0 +1,19 @@
+{
+  "name": "@music-hub/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "test": "bun --env-file=../../.env ../../packages/db/test.ts bun test",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@music-hub/shared": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@music-hub/db": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.12"
+  }
+}

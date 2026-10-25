@@ -33,6 +33,18 @@
         "@types/web-push": "^3.6.4",
       },
     },
+    "apps/cli": {
+      "name": "@music-hub/cli",
+      "dependencies": {
+        "@music-hub/shared": "workspace:*",
+        "zod": "^4.6.5",
+      },
+      "devDependencies": {
+        "@music-hub/db": "workspace:*",
+        "drizzle-orm": "^0.45.3",
+        "hono": "^4.13.12",
+      },
+    },
     "apps/web": {
       "name": "@music-hub/web",
       "version": "0.0.1",
@@ -224,6 +236,8 @@
     "@levischuck/tiny-cbor": ["@levischuck/tiny-cbor@0.2.11", "", {}, "sha512-llBRm4dT4Z89aRsm6u2oEZ8tfwL/2l6BwpZ7JcyieouniDECM5AqNgr/y08zalEIvW3RSK4upYyybDcmjXqAow=="],
 
     "@music-hub/api": ["@music-hub/api@workspace:apps/api"],
+
+    "@music-hub/cli": ["@music-hub/cli@workspace:apps/cli"],
 
     "@music-hub/db": ["@music-hub/db@workspace:packages/db"],
 

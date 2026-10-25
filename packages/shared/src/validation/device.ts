@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// What the CLI names itself when it asks for a code; its sessions don't count as plugin
+export const CLI_CLIENT = 'Music Hub CLI';
+
 export const deviceStartSchema = z.object({
   client: z.string().trim().min(1).max(100).optional(),
 });

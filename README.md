@@ -25,7 +25,7 @@ Music Hub ist eine kollaborative Plattform für Produzenten, Engineers und Label
 | Email | SMTP (z. B. Proton Mail) |
 | Deploy | Coolify, Docker |
 
-Monorepo mit Turborepo: `apps/web`, `apps/api`, `packages/db`, `packages/shared`.
+Monorepo mit Turborepo: `apps/web`, `apps/api`, `apps/cli`, `packages/db`, `packages/shared`.
 
 ## Setup (lokal)
 
@@ -146,7 +146,19 @@ Das Repo ist öffentlich, Code, Historie und CI-Logs. Der Workflow `.github/work
 
 ## Login in der Savor-Vorschau
 
-Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 365 Tage, also bleibt die Vorschau angemeldet. Auch Sessions des Plugins gelten 365 Tage und verlängern sich gleitend.
+Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testkonto admin@pleasance.org. Dafür gibt `bun apps/api/src/login-link.ts <email>` im API-Container einen einmaligen Login-Link aus, 15 Minuten gültig wie ein gemailter, den der Agent per `browser_navigate` öffnet. Browser-Sessions in Benutzung verlängern sich höchstens einmal am Tag auf 365 Tage, also bleibt die Vorschau angemeldet. Auch Sessions des Plugins gelten 365 Tage und verlängern sich gleitend. Für die CLI nimmt der Agent denselben Link per Pipe, siehe „CLI“.
+
+## CLI
+
+Music Hub hat eine eigene Befehlszeile in `apps/cli`, damit Agenten, Skripte und Tests die App über Befehle bedienen statt über die UI. Sie spricht nur mit der HTTP-API wie Web und Plugin, nie mit der Datenbank. So gelten dieselben Rechte, Rate-Limits und `MAX_USERS`. Die Argumente liest `parseArgs` aus `node:util`, ohne weitere Abhängigkeit.
+
+- Bauen: `bun run build` in `apps/cli` (auch Teil von `bun --bun run build`) kompiliert `apps/cli/build/musichub`, eine einzelne Datei mit Bun darin (gut 100 MB). Die Adresse ist eingebacken, `https://hub.pleasance.org`, oder `CLI_URL` aus der Umgebung beim Bauen. `--url` wählt eine andere, etwa `http://localhost:5173` gegen `bun run dev`, danach gilt die Adresse des letzten Logins. Ohne Bauen: `bun apps/cli/src/main.ts <befehl>`.
+- Anmelden: `musichub login` nutzt den Geräte-Login des Plugins (`routes/device.ts`): Die CLI zeigt einen Link auf `/device` mit Code, wer im Browser angemeldet ist, bestätigt ihn. Konten entstehen dabei nicht. `musichub login --link <link>` löst einen Login-Link ein, `--link -` liest ihn von stdin (`/auth/verify` mit `cookie: false` gibt den Token zurück). Danach liegt der Token dieses Geräts mit `0600` in `$XDG_CONFIG_HOME/musichub/session.json` (sonst `~/.config`, unter macOS `~/Library/Application Support`, unter Windows `%APPDATA%`), zusammen mit der Adresse, an andere Adressen geht er nie. Er ist eine gewöhnliche Session als Bearer mit `client = 'cli'`: gehasht in `sessions`, 365 Tage, verlängert sich bei Nutzung, jedes Gerät hat seine eigene. `whoami` zeigt das Konto, `logout` widerruft den Token auf dem Server und löscht die Datei, ein neuer Login widerruft den alten.
+- Befehle: `projects [--archived]` listet die eigenen Projekte mit Rollen und Anzahl der Tracks.
+- Ausgabe: Text für Menschen, mit `--json` genau ein JSON-Wert auf stdout, auch Fehler als `{ "error": "…" }` und die Hilfe als Liste der Befehle. Exit-Codes: 0 erledigt, 1 Fehler (auch Absagen der API wie ein volles Music Hub), 2 falscher Aufruf, 3 nicht angemeldet. Hilfe und Meldungen stehen nur auf Deutsch in `apps/cli/src/texts.ts`.
+- Eigene Befehle: Datei in `apps/cli/src/commands` nach dem Beispiel `projects.ts` und in `commands` in `src/cli.ts` eintragen. Ein Befehl nennt Hilfezeilen, Optionen und `run`. Das ruft über `ctx.api` die API auf, liest die Antwort mit zod und gibt `{ data, text }` zurück, `data` für `--json`. `currentUser(ctx)` verlangt den Login, Fehler enden als `Failure` mit einem Code aus `EXIT`. Die Tests in `src/cli.test.ts` rufen die CLI im Prozess gegen die echten API-Routen mit der Testdatenbank auf.
+- Agenten: nur mit dem Testkonto admin@pleasance.org, nie mit Kundenkonten. Den Token holen sie über den Login-Link aus dem Kontor, per Pipe, so steht der Link nicht in ihrem Kontext: `login-link musichub | apps/cli/build/musichub login --link -`. Danach bleibt die CLI auf diesem Rechner angemeldet.
+- Verteilen: Für andere Plattformen `bun run build --target=bun-darwin-arm64` in `apps/cli` (ebenso `bun-linux-x64`, `bun-linux-arm64`, `bun-windows-x64`), das überschreibt `build/musichub`. Die CI baut die Datei bei jedem Lauf zur Probe, veröffentlicht sie aber nicht.
 
 ## Projektstruktur
 
@@ -154,6 +166,7 @@ Agenten zeigen Änderungen hinter dem Login in der Savor-Vorschau mit dem Testko
 music-hub/
 ├── apps/
 │   ├── api/          # Hono API (Bun)
+│   ├── cli/          # Befehlszeile gegen die API, siehe „CLI“
 │   └── web/          # SvelteKit Frontend
 ├── packages/
 │   ├── db/           # Drizzle Schema + Migrationen
@@ -165,6 +178,6 @@ music-hub/
 
 ## Tests und Prozessende
 
-`bun run check && bun run test && bun --bun run build` prüft Typen, die `any`-Regeln von Biome, API und Browser. Die API- und Browser-Suite laufen nacheinander, damit Browser-Build und API-Tests auf kleinen Rechnern nicht konkurrieren. Jede Suite bekommt eine eigene leere Datenbank auf dem Server aus `DATABASE_URL`; der Nutzer braucht `CREATEDB` (lokaler Compose- und CI-Nutzer haben es). `packages/db/test.ts` entfernt nur diese temporäre Datenbank nach Erfolg, Fehler oder SIGINT/SIGTERM. Direkte Aufrufe von `bun test` oder `playwright test` umgehen die Isolation. Playwright nutzt 31100/31101 unter dem ephemeren Linux-Portbereich; parallele Worktrees wählen andere Ports unter 32768 per `TEST_API_PORT` und `TEST_WEB_PORT`.
+`bun run check && bun run test && bun --bun run build` prüft Typen, die `any`-Regeln von Biome, API, CLI und Browser und baut Web und CLI. Die API- und Browser-Suite laufen nacheinander, damit Browser-Build und API-Tests auf kleinen Rechnern nicht konkurrieren. Jede Suite bekommt eine eigene leere Datenbank auf dem Server aus `DATABASE_URL`; der Nutzer braucht `CREATEDB` (lokaler Compose- und CI-Nutzer haben es). `packages/db/test.ts` entfernt nur diese temporäre Datenbank nach Erfolg, Fehler oder SIGINT/SIGTERM. Direkte Aufrufe von `bun test` oder `playwright test` umgehen die Isolation. Playwright nutzt 31100/31101 unter dem ephemeren Linux-Portbereich; parallele Worktrees wählen andere Ports unter 32768 per `TEST_API_PORT` und `TEST_WEB_PORT`.
 
 SIGTERM/SIGINT lässt die API laufende Anfragen und Mailjobs beenden, schließt SSE und danach Postgres. Datei-Uploads laufen direkt nach S3; ihre Bestätigung kann der Client nach dem Neustart senden. Der Worker stoppt ffmpeg, bevor er den Job zur Wiederaufnahme freigibt. Compose gewährt beiden 60 Sekunden. Die Prozesse prüfen formatierte Env-Werte beim Start mit zod; Fehler nennen nur die Feldnamen.

@@ -35,6 +35,7 @@ jobs:
         working-directory: apps/web
       - run: bun run check
       - run: bun run test
+      # Builds web, API and the CLI file with the live URL baked in; the CLI only as a check, never released (README, „CLI“)
       - run: bun --bun run build
 
   build-and-push:

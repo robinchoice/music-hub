@@ -68,15 +68,17 @@ export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsen
 // Switching update mails on keeps the time of the first consent as proof
 const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
-export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'insert'>, userId: string, client = 'web') {
+// Sets the cookie for the web; the CLI passes cookie = false and takes the returned token
+export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'insert'>, userId: string, client = 'web', cookie = true) {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.insert(sessions).values({ userId, tokenHash, expiresAt, client });
-  setSessionCookie(c, sessionToken);
+  if (cookie) setSessionCookie(c, sessionToken);
+  return sessionToken;
 }
 
-async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'update' | 'insert' | 'transaction'>, link: typeof magicLinks.$inferSelect, password?: string) {
+async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'update' | 'insert' | 'transaction'>, link: typeof magicLinks.$inferSelect, password?: string, cookie = true) {
   const defaultName = link.email.split('@')[0];
   let registration: { name: string; passwordHash: string } | null = null;
   if (link.passwordHash && password !== undefined) {
@@ -111,6 +113,7 @@ async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'u
       .returning();
   }
 
+  if (!cookie) return c.json({ user: toUser(user), token: await createSession(c, tx, user.id, 'cli', false) });
   await createSession(c, tx, user.id);
   return c.json({ user: toUser(user) });
 }
@@ -197,7 +200,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/verify', zValidator('json', verifyTokenSchema), async (c) => {
-    const { token, password } = c.req.valid('json');
+    const { token, password, cookie } = c.req.valid('json');
     const db = c.get('db');
     if (!(await linkChecksPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const tokenHash = await hashToken(token);
@@ -214,7 +217,7 @@ export const authRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
       }
 
-      return completeLink(c, tx, link, password);
+      return completeLink(c, tx, link, password, cookie);
     });
   })
 
