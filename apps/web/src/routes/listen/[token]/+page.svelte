@@ -387,7 +387,7 @@
 
       <section class="comments">
         <h2>Kommentare ({data.comments.length})</h2>
-        {#each data.comments.filter((c) => !c.parentId || !data.comments.some((parent) => parent.id === c.parentId)) as c}
+        {#each data.comments.filter((c) => !c.parentId || !data?.comments.some((parent) => parent.id === c.parentId)) as c}
           <div class="comment">
             {@render commentContent(c)}
             {#each data.comments.filter((reply) => reply.parentId === c.id) as reply}
@@ -468,11 +468,13 @@
   .name-prompt p { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
   .name-prompt-row {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
   }
   .name-prompt-row input {
-    flex: 1;
+    flex: 1 1 10rem;
+    min-width: 0;
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border-hover);

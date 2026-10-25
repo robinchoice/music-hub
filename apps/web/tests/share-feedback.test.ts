@@ -119,3 +119,36 @@ test('guests see replies next to the comment they answer', async ({ page }) => {
   await expect(parent.locator('.reply')).toHaveText(/Ist im nächsten Mix drin/);
   await expect(page.locator('.comments')).toContainText('Antwort auf gelöschten Kommentar');
 });
+
+test('the listener name controls stay inside their panel at phone width', async ({ page }) => {
+  // A real, short PCM WAV lets the player enter its first-play state.
+  const audio = Buffer.alloc(44 + 16000);
+  audio.write('RIFF', 0);
+  audio.writeUInt32LE(audio.length - 8, 4);
+  audio.write('WAVEfmt ', 8);
+  audio.writeUInt32LE(16, 16);
+  audio.writeUInt16LE(1, 20);
+  audio.writeUInt16LE(1, 22);
+  audio.writeUInt32LE(8000, 24);
+  audio.writeUInt32LE(16000, 28);
+  audio.writeUInt16LE(2, 32);
+  audio.writeUInt16LE(16, 34);
+  audio.write('data', 36);
+  audio.writeUInt32LE(16000, 40);
+  await page.route('**/test-audio.wav', (route) => route.fulfill({ body: audio, contentType: 'audio/wav' }));
+  await page.goto(shareUrl);
+  await page.getByRole('button', { name: 'Abspielen', exact: true }).click();
+  const prompt = page.locator('.name-prompt');
+  await expect(prompt).toBeVisible();
+  for (const width of [393, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const panel = (await prompt.boundingBox())!;
+    for (const control of await prompt.locator('input, button').all()) {
+      const box = (await control.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(panel.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(panel.x + panel.width);
+    }
+  }
+  await prompt.getByRole('button', { name: 'Überspringen' }).click();
+  await expect(prompt).toHaveCount(0);
+});
