@@ -42,7 +42,9 @@ export const overviewRoutes = new Hono<AppEnv>()
         .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
         .from(projectMembers)
         .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-        .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false))),
+        .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)))
+        // The sidebar lists them in this order, oldest first
+        .orderBy(projects.createdAt, projects.id),
     ]);
     const personal = {
       storage,
