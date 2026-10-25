@@ -7,14 +7,15 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 test.afterEach(() => removeUser(userId));
 
+const project = async (page: Page, name: string, artist: string | null) =>
+  ((await (await page.request.post('/api/v1/projects', { data: { name, artist } })).json()).project as { id: string });
+
 // Two projects of one artist, one without: "Nachtbus EP" carries two tracks
 async function seed(page: Page) {
-  const project = async (name: string, artist: string | null) =>
-    ((await (await page.request.post('/api/v1/projects', { data: { name, artist } })).json()).project as { id: string });
   const track = (projectId: string, name: string) => page.request.post(`/api/v1/tracks/${projectId}`, { data: { name } });
-  const nachtbus = await project('Nachtbus EP', 'Tiefgang');
-  const single = await project('Single', 'Tiefgang');
-  const loose = await project('Jam Session', null);
+  const nachtbus = await project(page, 'Nachtbus EP', 'Tiefgang');
+  const single = await project(page, 'Single', 'Tiefgang');
+  const loose = await project(page, 'Jam Session', null);
   await track(nachtbus.id, 'Letzte Bahn');
   await track(nachtbus.id, 'Intro');
   await track(loose.id, 'Freitag');
@@ -80,24 +81,46 @@ test('the search narrows the projects by name, artist and track and says when no
   await expect(sidebar(page).locator('.project')).toHaveCount(3);
 });
 
-test('a new project picks an existing artist as a chip and keeps its spelling', async ({ page, isMobile }) => {
+test('a new project picks an existing artist from the list and keeps its spelling', async ({ page, isMobile }) => {
   await seed(page);
+  await project(page, 'Demo', 'Anna Berger');
   await page.goto('/projects/new');
-  const chips = page.getByRole('group', { name: 'Bestehende Artists' }).getByRole('button');
-  await expect(chips).toHaveText(['Tiefgang']);
-  await chips.first().click();
-  await expect(page.getByLabel('Artist (optional)')).toHaveValue('Tiefgang');
-  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+  const field = page.getByLabel('Artist (optional)');
+  const options = page.getByRole('listbox', { name: 'Bestehende Artists' }).getByRole('option');
+  await expect(options).toHaveCount(0);
+  await field.click();
+  await expect(options).toHaveText(['Anna Berger', 'Tiefgang']);
+  await field.fill('tief');
+  await expect(options).toHaveText(['Tiefgang']);
+  await options.first().click();
+  await expect(field).toHaveValue('Tiefgang');
+  await expect(options).toHaveCount(0);
 
   // Typed in other case it is still the same artist, not a second group
-  await page.getByLabel('Artist (optional)').fill('tiefgang ');
-  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+  await field.fill('tiefgang ');
   await expect(page.getByText('Neuer Artist')).toHaveCount(0);
+  await expect(page.getByRole('option', { name: 'Tiefgang' })).toHaveAttribute('aria-selected', 'true');
   await page.getByLabel('Name').fill('Zweite EP');
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
   await openSidebar(page, isMobile);
   const group = sidebar(page).locator('.artist-group').filter({ hasText: 'Tiefgang' });
   await expect(group.locator('.project .name')).toHaveText(['Nachtbus EP', 'Single', 'Zweite EP']);
-  await expect(sidebar(page).locator('.artist-head')).toHaveCount(2);
+  await expect(sidebar(page).locator('.artist-head')).toHaveCount(3);
+});
+
+test('the artist list follows the keyboard, a new name says so', async ({ page }) => {
+  await seed(page);
+  await project(page, 'Demo', 'Anna Berger');
+  await page.goto('/projects/new');
+  const field = page.getByLabel('Artist (optional)');
+  await field.focus();
+  await field.press('ArrowDown');
+  await field.press('ArrowDown');
+  await field.press('Enter');
+  await expect(field).toHaveValue('Tiefgang');
+  await expect(page).toHaveURL(/\/projects\/new$/);
+  await field.fill('Neue Band');
+  await expect(page.getByText('Neuer Artist')).toBeVisible();
+  await expect(page.getByRole('option')).toHaveCount(0);
 });
