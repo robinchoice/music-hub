@@ -29,12 +29,12 @@ test('a failed guest comment keeps the player and draft, and can be retried', as
   await page.locator('.comment-form input').fill('Mira');
   await input.fill('Mehr Raum für die Snare');
   await page.route('**/comments', (route) => route.fulfill({ status: 429, json: { error: 'Too many requests' } }));
-  await page.getByRole('button', { name: 'Senden', exact: true }).click();
+  await page.getByRole('button', { name: 'Kommentar speichern', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Zu viele Kommentare');
   await expect(input).toHaveValue('Mehr Raum für die Snare');
   await expect(page.locator('.player')).toBeVisible();
   await page.unroute('**/comments');
-  await page.getByRole('button', { name: 'Senden', exact: true }).click();
+  await page.getByRole('button', { name: 'Kommentar speichern', exact: true }).click();
   await expect(page.locator('.comments')).toContainText('Mehr Raum für die Snare');
   await expect(input).toHaveValue('');
 });
@@ -49,7 +49,7 @@ test('network failures keep the comment and show a retryable page error on first
   await page.locator('.comment-form input').fill('Mira');
   await page.locator('.comment-form textarea').fill('Mein Entwurf');
   await page.route('**/comments', (route) => route.abort());
-  await page.getByRole('button', { name: 'Senden', exact: true }).click();
+  await page.getByRole('button', { name: 'Kommentar speichern', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Dein Kommentar bleibt hier');
   await expect(page.locator('.comment-form textarea')).toHaveValue('Mein Entwurf');
 });
@@ -62,10 +62,32 @@ test('an invalid link gives a German error without creating a listen event', asy
   expect(listens).toEqual([]);
 });
 
+test('a guest learns the comment is visible now and the uploader hears once they finish', async ({ page }) => {
+  await page.goto(shareUrl);
+  const form = page.locator('.comment-form');
+  await expect(form).toContainText('Kommentare sind sofort für alle mit dem Link sichtbar.');
+  await form.locator('input').fill('Mira');
+  await form.locator('textarea').fill('Mehr Raum für die Snare');
+  await page.getByRole('button', { name: 'Kommentar speichern', exact: true }).click();
+  const finish = page.locator('.finish');
+  await expect(finish).toContainText('Dein Kommentar ist gespeichert.');
+  await expect(finish).toContainText('Dann geht alles gesammelt an Lena.');
+  await finish.getByRole('button', { name: 'Rückmeldung abschließen', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Eine Anmerkung geht gesammelt an Lena. Andere mit dem Link können sie schon lesen.');
+  // The dialog opens with its title and close button in view, also on a phone
+  await expect(dialog.getByRole('heading', { name: 'Rückmeldung abschließen' })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: 'Schließen' })).toBeInViewport();
+  await dialog.getByText('Passt für mich', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Abschicken' }).click();
+  await expect(finish).toContainText('Danke, Mira, deine Rückmeldung ist angekommen.');
+  await expect(finish.getByRole('button')).toHaveCount(0);
+});
+
 test('a failed guest review keeps the dialog, note and player', async ({ page }) => {
   await page.goto(shareUrl);
   await page.locator('.comment-form input').fill('Mira');
-  await page.getByRole('button', { name: 'Fertig mit dem Song', exact: true }).click();
+  await page.getByRole('button', { name: 'Rückmeldung abschließen', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByText('Nur Anmerkungen', { exact: true }).click();
   await dialog.getByLabel('Gesamteindruck').fill('Bitte erhalten');

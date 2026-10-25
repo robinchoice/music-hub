@@ -62,6 +62,7 @@
   let reviewSentAs = $state<string | null>(null);
   // Your comments since your last "Fertig", recognised by the name you comment with
   const guestPass = $derived(data && guestName.trim() ? openPass(data.comments, data.reviews ?? [], `guest:${guestName.trim()}`) : []);
+  const reviewDone = $derived(reviewSentAs === guestName.trim() && guestPass.length === 0);
 
   // Analytics tracking
   let eventId = $state<string | null>(null);
@@ -328,6 +329,7 @@
       {#if data.allowComments}
         <form class="comment-form" onsubmit={submitComment}>
           <h2>Feedback hinterlassen</h2>
+          <p class="hint">Kommentare sind sofort für alle mit dem Link sichtbar.</p>
           <input type="text" bind:value={guestName} placeholder="Dein Name" required />
           {#if commentTimestamp !== null}
             <span class="ts-badge">
@@ -343,26 +345,29 @@
           ></textarea>
           {#if commentError}<p class="error" role="alert">{commentError}</p>{/if}
           <Button type="submit" loading={submitting} disabled={!body.trim() || !guestName.trim()}>
-            Senden
+            Kommentar speichern
           </Button>
         </form>
 
         {#if guestName.trim()}
           <div class="finish">
-            <p>
-              {#if reviewSentAs === guestName.trim() && guestPass.length === 0}
-                Danke, deine Rückmeldung ist angekommen.
+            <p role="status">
+              {#if reviewDone}
+                Danke, {guestName.trim()}, deine Rückmeldung ist angekommen. Du kannst weiterhören.
               {:else if guestPass.length > 0}
-                {guestPass.length === 1 ? 'Deine Anmerkung geht' : `Deine ${guestPass.length} Anmerkungen gehen`} gesammelt raus, sobald du fertig bist.
+                {guestPass.length === 1 ? 'Dein Kommentar ist gespeichert.' : `Deine ${guestPass.length} Kommentare sind gespeichert.`}
+                Schließ deine Rückmeldung ab, wenn du durch bist. Dann geht alles gesammelt an {data.uploaderName ?? 'die Person, die den Song hochgeladen hat'}.
               {:else}
                 Durchgehört? Sag kurz, wie du es findest.
               {/if}
             </p>
-            <Button variant={guestPass.length > 0 ? 'primary' : 'secondary'} onclick={() => (reviewOpen = true)}>Fertig mit dem Song</Button>
+            {#if !reviewDone}
+              <Button variant={guestPass.length > 0 ? 'primary' : 'secondary'} onclick={() => (reviewOpen = true)}>Rückmeldung abschließen</Button>
+            {/if}
           </div>
           <ReviewSheet
             bind:open={reviewOpen}
-            title="Fertig mit dem Song"
+            title="Rückmeldung abschließen"
             versionNumber={data.version.versionNumber}
             uploaderName={data.uploaderName ?? 'Wer hochgeladen hat'}
             guest
@@ -604,6 +609,12 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-bg-raised);
+  }
+
+  .hint {
+    margin: calc(-1 * var(--space-1)) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
   }
 
   .finish p {

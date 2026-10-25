@@ -61,7 +61,7 @@
   const summary = $derived(
     pass.length === 0
       ? 'Keine neuen Anmerkungen, dein Urteil reicht.'
-      : `${pass.length === 1 ? 'Eine Anmerkung geht' : `${pass.length} Anmerkungen gehen`} gesammelt an ${uploaderName}.`,
+      : `${pass.length === 1 ? 'Eine Anmerkung geht' : `${pass.length} Anmerkungen gehen`} gesammelt an ${uploaderName}.${guest ? ' Andere mit dem Link können sie schon lesen.' : ''}`,
   );
 
   async function send() {
