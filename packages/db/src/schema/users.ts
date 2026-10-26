@@ -23,6 +23,9 @@ export const users = pgTable('users', {
   // Whether guests may add files through this account's upload links, and how many bytes; null means GUEST_STORAGE_DEFAULT
   guestUploads: boolean('guest_uploads').default(true).notNull(),
   guestStorageLimit: bigint('guest_storage_limit', { mode: 'number' }),
+  // null is the free plan, 'solo' the paid one; set by an admin. A paid plan runs until planUntil, null means open-ended
+  plan: varchar('plan', { length: 16 }),
+  planUntil: timestamp('plan_until'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

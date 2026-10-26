@@ -20,6 +20,7 @@
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
+  import DeliveryPanel from '$lib/components/delivery/DeliveryPanel.svelte';
   import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
@@ -84,10 +85,12 @@
   const ix = $derived($overviewIndex);
   const group = $derived(ix ? projectGroups(ix).find((g) => g.project.id === projectId) : undefined);
   const sections = $derived(group ? groupBySection(group.active) : []);
-  const view = $derived($page.url.searchParams.get('view') === 'timeline' ? 'timeline' : 'tracks');
+  const wanted = $derived($page.url.searchParams.get('view'));
+  // The delivery (Auftrag) is the owner's business
+  const view = $derived(wanted === 'timeline' ? 'timeline' : wanted === 'auftrag' && roles.includes('owner') ? 'auftrag' : 'tracks');
 
   function setView(id: string) {
-    void goto(id === 'timeline' ? '?view=timeline' : $page.url.pathname, { replaceState: true, noScroll: true, keepFocus: true });
+    void goto(id === 'tracks' ? $page.url.pathname : `?view=${id}`, { replaceState: true, noScroll: true, keepFocus: true });
   }
 
   // New markers count from the last visit; leaving the project ends this one
@@ -279,13 +282,16 @@
       tabs={[
         { id: 'tracks', label: 'Tracks', count: loading ? undefined : tracks.length },
         { id: 'timeline', label: 'Timeline' },
+        ...(roles.includes('owner') ? [{ id: 'auftrag', label: 'Auftrag' }] : []),
       ]}
       active={view}
       onselect={setView}
     />
   </div>
 
-  {#if loading || (!ix && !$overviewFailed)}
+  {#if view === 'auftrag' && projectId && !loading}
+    <DeliveryPanel {projectId} {tracks} />
+  {:else if loading || (!ix && !$overviewFailed)}
     <div class="loading">
       <Skeleton height="4rem" variant="rect" />
       <Skeleton height="4rem" variant="rect" />

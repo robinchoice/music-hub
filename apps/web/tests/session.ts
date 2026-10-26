@@ -131,3 +131,11 @@ export function sessionClientOf(userId: string) {
     console.log(session.client);
   `);
 }
+
+// The paid plan that allows deliveries (Aufträge)
+export function setPlan(userId: string, plan: 'solo' | null) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    await db.update(users).set({ plan: ${JSON.stringify(plan)} }).where(eq(users.id, ${JSON.stringify(userId)}));
+  `);
+}

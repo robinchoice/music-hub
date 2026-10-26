@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import { formatTime } from '$lib/utils/format.js';
@@ -30,7 +30,9 @@
       status: string;
       originalFileName: string;
     };
-    streamUrl: string;
+    /** null only behind a delivery while the MP3 preview is not there yet (processing) */
+    streamUrl: string | null;
+    processing?: boolean;
     waveformUrl: string | null;
     downloadUrl: string | null;
     allowComments: boolean;
@@ -50,6 +52,9 @@
     previous,
     next,
     onLoad,
+    paywall = false,
+    commenting = true,
+    actions,
   }: {
     token: string;
     /** The password the project link was opened with; its track links share it */
@@ -59,6 +64,12 @@
     previous?: (() => void) | undefined;
     next?: (() => void) | undefined;
     onLoad?: (data: { project: { name: string }; track: { name: string } }) => void;
+    /** Part of a delivery: the client decides per song through `actions`, not with "Rückmeldung abschließen" */
+    paywall?: boolean;
+    /** Whether the comment form shows; the comments themselves always do */
+    commenting?: boolean;
+    /** Under the player, with the version heard and the name the guest comments with */
+    actions?: Snippet<[{ versionId: string; guestName: string }]> | undefined;
   } = $props();
 
   let data = $state<ShareData | null>(null);
@@ -195,6 +206,10 @@
     playerRef?.play();
   }
 
+  export function reload() {
+    return load();
+  }
+
   function submitName() {
     const name = nameInput.trim();
     if (name) {
@@ -322,19 +337,23 @@
 
       <!-- In a project the player stays in view while the guest reads and writes comments -->
       <div class:sticky={inAlbum}>
-        <WaveformPlayer
-          bind:this={playerRef}
-          url={data.streamUrl}
-          {peaks}
-          {autoPlay}
-          audioDuration={data.version.duration}
-          markers={commentMarkers(data.comments)}
-          session={{ title: data.track.name, artist: data.project.name, previous, next }}
-          onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
-          onPlay={onPlay}
-          onPause={onPause}
-          onFinish={onFinish}
-        />
+        {#if data.streamUrl}
+          <WaveformPlayer
+            bind:this={playerRef}
+            url={data.streamUrl}
+            {peaks}
+            {autoPlay}
+            audioDuration={data.version.duration}
+            markers={commentMarkers(data.comments)}
+            session={{ title: data.track.name, artist: data.project.name, previous, next }}
+            onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
+            onPlay={onPlay}
+            onPause={onPause}
+            onFinish={onFinish}
+          />
+        {:else}
+          <p class="preparing" role="status">Die Vorschau wird vorbereitet. Schau gleich noch einmal vorbei.</p>
+        {/if}
       </div>
 
       {#if showNamePrompt}
@@ -354,6 +373,10 @@
         </div>
       {/if}
 
+      {#if actions}
+        {@render actions({ versionId: data.version.id, guestName: guestName.trim() })}
+      {/if}
+
       {#if data.downloadUrl}
         <div class="actions">
           <a href={data.downloadUrl} target="_blank" rel="noopener">
@@ -362,7 +385,7 @@
         </div>
       {/if}
 
-      {#if data.allowComments}
+      {#if data.allowComments && commenting}
         <form class="comment-form" onsubmit={submitComment}>
           <h2>Feedback hinterlassen</h2>
           <p class="hint">Kommentare sind sofort für alle mit dem Link sichtbar.</p>
@@ -385,7 +408,7 @@
           </Button>
         </form>
 
-        {#if guestName.trim()}
+        {#if guestName.trim() && !paywall}
           <div class="finish">
             <p role="status">
               {#if reviewDone}
@@ -486,6 +509,16 @@
   }
   .version-label { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
   .muted { color: var(--color-text-tertiary); font-size: var(--text-sm); }
+  .preparing {
+    margin: 0;
+    padding: var(--space-6) var(--space-4);
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    background: var(--color-bg-raised);
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-md);
+  }
   .error { color: var(--color-error, var(--color-error)); }
 
   .name-prompt {

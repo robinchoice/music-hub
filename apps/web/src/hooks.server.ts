@@ -51,6 +51,8 @@ async function proxy(request: Request, target: string) {
     headers,
     body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
     duplex: 'half',
+    // A redirect (e.g. a paid download to its short-lived bucket URL) goes to the browser, not through here
+    redirect: 'manual',
   };
   const res = await fetch(target, init);
 

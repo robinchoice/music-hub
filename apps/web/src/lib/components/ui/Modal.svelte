@@ -115,6 +115,7 @@
 
   .modal-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-6);

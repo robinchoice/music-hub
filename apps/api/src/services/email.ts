@@ -165,6 +165,21 @@ export async function sendOpenReportEmail(to: string[], trackName: string, url: 
   );
 }
 
+// To the client of a delivery once their payment is confirmed: the album link now downloads
+export async function sendDeliveryPaidEmail(to: string, input: { studioName: string; projectName: string; albumToken: string; amount: string }) {
+  const url = `${process.env.APP_URL}/album/${input.albumToken}`;
+  await sendMail(
+    {
+      to,
+      subject: `Zahlung erhalten: ${input.projectName}`,
+      html: layout(
+        `${paragraph(`${strong(input.studioName)} hat deine Zahlung über ${strong(input.amount)} für ${strong(`"${input.projectName}"`)} erhalten. Die Dateien stehen zum Download bereit.`)}${button('Zu den Downloads', url, '0')}`,
+      ),
+    },
+    `Delivery paid mail to ${to}: ${input.projectName}, ${input.amount}`,
+  );
+}
+
 const unsubscribeHeaders = (url: string) => ({
   // One click in the mail client turns these mails off (RFC 8058)
   'List-Unsubscribe': `<${url}>`,

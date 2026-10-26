@@ -30,10 +30,13 @@ import { uploadLinkRoutes } from './routes/upload-links.js';
 import { pruneNotifications } from './lib/push-notifications.js';
 import { sendDueNotices } from './lib/notices.js';
 import { sendDueFeedback } from './lib/reviews.js';
+import { checkLightningPayments } from './lib/deliveries.js';
 import { profileRoutes } from './routes/profiles.js';
 import { requestRoutes } from './routes/requests.js';
 import { agentRoutes } from './routes/agents.js';
 import { updateRoutes } from './routes/updates.js';
+import { deliveryRoutes } from './routes/deliveries.js';
+import { paymentAccountRoutes } from './routes/payment-account.js';
 import { deliverUpdates, importDrafts } from './lib/updates.js';
 import { closeEventStreams, listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
@@ -126,7 +129,9 @@ const startup = (async () => {
     .route('/upload-links', uploadLinkRoutes)
     .route('/profiles', profileRoutes)
     .route('/requests', requestRoutes)
-    .route('/updates', updateRoutes);
+    .route('/updates', updateRoutes)
+    .route('/deliveries', deliveryRoutes)
+    .route('/payment-account', paymentAccountRoutes);
 
   // Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
   // Each instance runs it; taking a batch deletes it first, so none goes out twice.
@@ -141,6 +146,11 @@ const startup = (async () => {
     }));
     runInBackground(sendDueFeedback(db).catch((err) => {
       console.error('[Reviews] Sending failed:', err);
+      captureException(err);
+    }));
+    // Lightning invoices paid while no payment page polled, or after a newer one replaced them
+    runInBackground(checkLightningPayments(db).catch((err) => {
+      console.error('[Deliveries] Invoice check failed:', err);
       captureException(err);
     }));
   }, 30_000);

@@ -10,6 +10,7 @@
   import PasskeySettings from '$lib/components/PasskeySettings.svelte';
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
+  import PaymentAccountSettings from '$lib/components/delivery/PaymentAccountSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
   import { titleHidden, setTitleHidden } from '$lib/media-session.js';
 
@@ -129,6 +130,7 @@
     <PasskeySettings />
     <ProfileSettings />
     <GuestUploadSettings />
+    <PaymentAccountSettings />
   {/if}
 
   <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>

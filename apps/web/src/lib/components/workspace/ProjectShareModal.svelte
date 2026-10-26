@@ -97,7 +97,12 @@
   async function switchOff() {
     if (!link) return;
     if (!confirm('Link ausschalten? Wer ihn hat, kann das Projekt dann nicht mehr hören. Ein neuer Link hat eine andere Adresse.')) return;
-    await api.delete(`/share/project-link/${link.id}`);
+    try {
+      await api.delete(`/share/project-link/${link.id}`);
+    } catch {
+      // The API client already showed the error, e.g. a delivery hangs on the link
+      return;
+    }
     link = null;
     toastSuccess('Link ausgeschaltet');
   }

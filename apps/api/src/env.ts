@@ -13,6 +13,12 @@ const envSchema = z.object({
   SMTP_PORT: port.or(unset).exactOptional(),
   UPDATE_MAIL_INTERVAL_MS: duration.or(unset).exactOptional(),
   SENTRY_DSN: z.url().or(unset).exactOptional(),
+  // 32 random bytes as base64; encrypts the studios' wallet connections. Unset: no Lightning payments.
+  PAYMENT_SECRETS_KEY: z
+    .base64()
+    .refine((value) => Buffer.from(value, 'base64').length === 32)
+    .or(unset)
+    .exactOptional(),
 });
 
 declare module 'bun' {

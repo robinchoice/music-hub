@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/s3-request-presigner": "^3",
+    "@getalby/sdk": "^8.1.1",
     "@hono/zod-validator": "^0.9.1",
     "@music-hub/db": "workspace:*",
     "@music-hub/shared": "workspace:*",

@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'svelte';
-import { loginMessages, type ProjectRole } from '@music-hub/shared';
+import { loginMessages, type Plan, type ProjectRole } from '@music-hub/shared';
 import { isoWeek } from './format.js';
 import type Icon from '$lib/components/ui/Icon.svelte';
 
@@ -33,6 +33,9 @@ export type Person = {
   storageBytes: number;
   storageLimitBytes: number;
   counts: Counts;
+  // Tarif: null is Gratis; planUntil null means open-ended
+  plan: Plan | null;
+  planUntil: string | null;
 };
 
 export type Totals = {

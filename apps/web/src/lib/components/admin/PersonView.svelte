@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { ROLE_LABELS } from '@music-hub/shared';
+  import { PLAN_LABELS, ROLE_LABELS, type AdminPlanResponse, type Plan } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
-  import { toastError } from '$lib/stores/toast.js';
+  import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -99,6 +99,27 @@
     }
   }
 
+  let planBusy = $state(false);
+
+  // The plan that allows deliveries; the date is the last day it holds
+  async function setPlan(plan: Plan | null, until: string) {
+    if (!p) return;
+    planBusy = true;
+    try {
+      const res = await api.patch<AdminPlanResponse>(`/admin/users/${p.id}/plan`, {
+        plan,
+        planUntil: plan && until ? new Date(`${until}T23:59:59`).toISOString() : null,
+      });
+      if (detail) detail = { ...detail, person: { ...detail.person, plan: res.plan, planUntil: res.planUntil } };
+      toastSuccess('Tarif gespeichert');
+    } catch {
+      // The API client already showed the error
+    } finally {
+      planBusy = false;
+    }
+  }
+  const untilDay = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('sv-SE') : '');
+
   const deviceIcon = (d: PersonDetail['devices'][number]) =>
     d.kind === 'plugin' ? 'plug' : /iPhone|iPad|Android/.test(d.label) ? 'smartphone' : 'monitor';
 </script>
@@ -175,6 +196,30 @@
             <dd>{p.lastSeenAt ? formatWhen(p.lastSeenAt) : 'noch nicht erfasst'}</dd>
             <dt>Speicher</dt>
             <dd>{formatGb(p.storageBytes)}<small>von {formatGb(p.storageLimitBytes)}</small></dd>
+            <dt>Tarif</dt>
+            <dd class="plan">
+              <select
+                aria-label="Tarif"
+                disabled={planBusy}
+                value={p.plan ?? ''}
+                onchange={(e) => setPlan(e.currentTarget.value === 'solo' ? 'solo' : null, untilDay(p!.planUntil))}
+              >
+                <option value="">{PLAN_LABELS.free}</option>
+                <option value="solo">{PLAN_LABELS.solo}</option>
+              </select>
+              {#if p.plan}
+                <label>
+                  bis
+                  <input
+                    type="date"
+                    disabled={planBusy}
+                    value={untilDay(p.planUntil)}
+                    onchange={(e) => setPlan(p!.plan, e.currentTarget.value)}
+                  />
+                </label>
+                {#if p.planUntil && new Date(p.planUntil) < new Date()}<small>abgelaufen</small>{:else if !p.planUntil}<small>ohne Enddatum</small>{/if}
+              {/if}
+            </dd>
           </dl>
         </section>
 
@@ -405,6 +450,29 @@
     font-size: var(--text-xs);
     margin-left: 6px;
   }
+  .plan {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .plan label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-tertiary);
+  }
+  .plan select,
+  .plan input {
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+  .plan small { margin-left: 0; }
   .seg {
     display: inline-flex;
     padding: 2px;

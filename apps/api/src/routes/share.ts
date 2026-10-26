@@ -1,14 +1,22 @@
 import { runInBackground } from '../lib/background.js';
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { eq, and, asc, count, desc, inArray, isNull, ne, notInArray, or } from 'drizzle-orm';
 import {
+  createPaymentSchema,
   createProjectShareLinkSchema,
   createShareLinkSchema,
+  deliveryApproveSchema,
+  deliveryRoundSchema,
+  DELIVERY_ERRORS,
   guestCommentSchema,
   guestReviewSchema,
+  LIGHTNING_INVOICE_SECONDS,
+  MAX_ZIP_SIZE,
   updateListenEventSchema,
   updateProjectShareLinkSchema,
+  type DeliveryErrorCode,
 } from '@music-hub/shared';
 import {
   shareLinks,
@@ -21,6 +29,8 @@ import {
   users,
   projectMembers,
   reviews,
+  deliveries,
+  payments,
   type Database,
 } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
@@ -28,45 +38,44 @@ import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { sendListenAlertEmail } from '../services/email.js';
 import { liveVersion } from '../lib/trash.js';
+import { newestVersionId, shownVersionId } from '../lib/shown-version.js';
 import { mayDownload, membershipOf, versionAccess } from '../lib/access.js';
 import { replyTarget } from './comments.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
+import { zipResponse } from './stems.js';
+import {
+  activeDeliveryOfProjectLink,
+  announcePayment,
+  approveTrack,
+  checkLightningPayments,
+  deliveryOfProjectLink,
+  deliveryOfShareLink,
+  deliveryState,
+  failureBody,
+  insertPayment,
+  invoiceDescription,
+  methodsOf,
+  paidDownload,
+  paymentAccountOf,
+  publicDeliveryOf,
+  publicPaymentOf,
+  requestRound,
+  reusablePayment,
+  type Delivery,
+  type DeliveryFailure,
+  type Payment,
+} from '../lib/deliveries.js';
+import { connectNwc } from '../lib/payments/nwc.js';
+import { eurToSats } from '../lib/payments/rate.js';
+import { decryptSecret } from '../lib/payments/secrets.js';
+import { PaymentServiceError } from '../lib/payments/errors.js';
 
 // Links pause while their version is in the trash or their creator is no longer a member of the project
 const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
 // A link that follows the track moved on to a newer version while the guest was listening
 const MOVED_ON = 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.';
-
-const PLAYABLE = ['ready', 'approved', 'rejected'] as const;
-
-// The newest playable (or approved) version of a track, null when there is none
-async function newestVersionId(db: Database, trackId: string, follows: string) {
-  const [newest] = await db
-    .select({ id: versions.id })
-    .from(versions)
-    .where(
-      and(
-        eq(versions.trackId, trackId),
-        isNull(versions.deletedAt),
-        follows === 'approved' ? eq(versions.status, 'approved') : inArray(versions.status, PLAYABLE),
-      ),
-    )
-    .orderBy(desc(versions.versionNumber))
-    .limit(1);
-  return newest?.id ?? null;
-}
-
-// The version a link shows: its own, or the newest playable (or approved) one of its track.
-// null when there is none, e.g. no version approved yet. A link that follows the track
-// does not pause with the version it was made on, only with the track.
-async function shownVersionId(db: Database, link: { versionId: string; follows: string }) {
-  if (link.follows === 'version') return link.versionId;
-  const [origin] = await db.select({ trackId: versions.trackId }).from(versions).where(eq(versions.id, link.versionId));
-  if (!origin) return null;
-  return newestVersionId(db, origin.trackId, link.follows);
-}
 
 // Whether a guest's comment or "Fertig" is about the version shown now. A link that follows the track
 // needs the version the guest heard; older pages don't send it and could otherwise land on a newer one.
@@ -100,7 +109,7 @@ const projectLinkView = (l: ProjectShareLink) => ({
 });
 
 // What the share link of each track takes over from its project link
-const trackLinkSettings = (l: ProjectShareLink) => ({
+export const trackLinkSettings = (l: ProjectShareLink) => ({
   expiresAt: l.expiresAt,
   allowComments: l.allowComments,
   allowDownload: l.allowDownload,
@@ -108,7 +117,7 @@ const trackLinkSettings = (l: ProjectShareLink) => ({
   follows: l.follows,
 });
 
-async function ownProjectLink(db: Database, projectId: string, userId: string) {
+export async function ownProjectLink(db: Database, projectId: string, userId: string) {
   const [link] = await db
     .select()
     .from(projectShareLinks)
@@ -132,6 +141,11 @@ const listenUpdatesPerIp = rateLimit('listen-updates-per-ip', 3000, 60 * MINUTE)
 const listenAlerts = rateLimit('listen-alerts', 1, 60 * MINUTE);
 // Each guest review pushes to the uploader, so a link can't send many of them
 const guestReviews = rateLimit('guest-reviews', 10, 60 * MINUTE);
+// Each payment of a delivery asks the studio's wallet for an invoice
+const deliveryPayments = rateLimit('delivery-payments', 10, 60 * MINUTE);
+// The payment page polls its Lightning invoice every few seconds
+const deliveryPaymentPolls = rateLimit('delivery-payment-polls', 600, 60 * MINUTE);
+const deliveryDownloads = rateLimit('delivery-downloads', 100, 60 * MINUTE);
 
 // Salted with a server secret, so the hashes of IPv4 addresses can't be listed
 const IP_SALT = process.env.MAGIC_LINK_SECRET || 'musichub-salt';
@@ -164,6 +178,82 @@ async function commentableLink(c: Context<AppEnv>, token: string) {
     await failedPasswords.undo(db, link.id);
   }
   return link;
+}
+
+// A project link a guest may open: not blocked, not expired, the right password, and its creator still
+// in the project. Like a track link, it pauses while its creator is not.
+async function openProjectLink(c: Context<AppEnv>, token: string) {
+  const db = c.get('db');
+  const password = c.req.header('x-share-password');
+
+  const [link] = await db
+    .select()
+    .from(projectShareLinks)
+    .where(and(eq(projectShareLinks.token, token), notBlocked(projectShareLinks.createdById)))
+    .limit(1);
+  if (!link) return c.json({ error: 'Not found' }, 404);
+  if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
+  if (link.passwordHash) {
+    if (!password) return c.json({ error: 'Password required', passwordRequired: true }, 401);
+    if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
+    if (!(await Bun.password.verify(password, link.passwordHash))) {
+      return c.json({ error: 'Password required', passwordRequired: true }, 401);
+    }
+    await failedPasswords.undo(db, link.id);
+  }
+  const membership = await membershipOf(db, link.projectId, link.createdById);
+  if (!membership) return c.json({ error: UNAVAILABLE }, 410);
+  return { link, membership };
+}
+
+// An open project link with its delivery (open or paid); 404 without one or when it was cancelled
+async function deliveryLink(c: Context<AppEnv>, token: string) {
+  const opened = await openProjectLink(c, token);
+  if (opened instanceof Response) return opened;
+  const delivery = await activeDeliveryOfProjectLink(c.get('db'), opened.link.id);
+  if (!delivery) return c.json({ error: 'Not found' }, 404);
+  return { ...opened, delivery };
+}
+
+const refuse = (c: Context<AppEnv>, f: DeliveryFailure) => c.json(failureBody(f), f.status);
+const deliveryError = <S extends 400 | 404 | 409 | 413 | 502>(c: Context<AppEnv>, code: DeliveryErrorCode, status: S) =>
+  c.json({ error: DELIVERY_ERRORS[code], code }, status);
+
+// A payment of the delivery and the delivery as they are now, for the guest page
+async function guestPayment(db: Database, payment: Payment, deliveryId: string, link: ProjectShareLink) {
+  const [delivery] = await db.select().from(deliveries).where(eq(deliveries.id, deliveryId)).limit(1);
+  const [current] = await db.select().from(payments).where(eq(payments.id, payment.id)).limit(1);
+  const account = await paymentAccountOf(db, delivery!.createdById);
+  return {
+    payment: publicPaymentOf(current ?? payment, account, delivery!),
+    delivery: await publicDeliveryOf(db, delivery!, link),
+  };
+}
+
+// The payment `paymentId` if it belongs to the delivery
+async function paymentOf(db: Database, delivery: Delivery, paymentId: string) {
+  if (!z.string().uuid().safeParse(paymentId).success) return undefined;
+  const [payment] = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.id, paymentId), eq(payments.deliveryId, delivery.id)))
+    .limit(1);
+  return payment;
+}
+
+// What a paid delivery hands out for the song :trackId, while the link and its creator still may
+async function deliveryDownload(c: Context<AppEnv>) {
+  const db = c.get('db');
+  const found = await deliveryLink(c, c.req.param('token') ?? '');
+  if (found instanceof Response) return found;
+  if (!(await deliveryDownloads.hit(db, found.link.id))) return tooManyRequests(c);
+  const trackId = c.req.param('trackId') ?? '';
+  if (!z.string().uuid().safeParse(trackId).success) return deliveryError(c, 'track_invalid', 404);
+  // A link never hands out more than its creator may download
+  if (!mayDownload(found.membership)) return c.json(failureBody({ ok: false, status: 410, code: 'unavailable' }), 410);
+  const result = await paidDownload(db, found.delivery, trackId);
+  if (!result.ok) return refuse(c, result);
+  return { ...result, includeStems: found.delivery.includeStems };
 }
 
 export const shareRoutes = new Hono<AppEnv>()
@@ -363,6 +453,9 @@ export const shareRoutes = new Hono<AppEnv>()
     if (link.createdById !== userId && (await membershipOf(db, link.projectId, userId))?.role !== 'owner') {
       return c.json({ error: 'Forbidden' }, 403);
     }
+    // An open or paid delivery hangs on it, with the client's approvals and payments: those stay
+    const delivery = await deliveryOfProjectLink(db, link.id);
+    if (delivery && delivery.status !== 'cancelled') return deliveryError(c, 'link_has_delivery', 409);
     // The share links of its tracks go with it
     await db.delete(projectShareLinks).where(eq(projectShareLinks.id, link.id));
     return c.json({ message: 'Revoked' });
@@ -372,26 +465,9 @@ export const shareRoutes = new Hono<AppEnv>()
   // comments through those, so a track behaves exactly like a track link with the same settings.
   .get('/project/public/:token', async (c) => {
     const db = c.get('db');
-    const password = c.req.header('x-share-password');
-
-    const [link] = await db
-      .select()
-      .from(projectShareLinks)
-      .where(and(eq(projectShareLinks.token, c.req.param('token')), notBlocked(projectShareLinks.createdById)))
-      .limit(1);
-    if (!link) return c.json({ error: 'Not found' }, 404);
-    if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
-    if (link.passwordHash) {
-      if (!password) return c.json({ error: 'Password required', passwordRequired: true }, 401);
-      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
-      if (!(await Bun.password.verify(password, link.passwordHash))) {
-        return c.json({ error: 'Password required', passwordRequired: true }, 401);
-      }
-      await failedPasswords.undo(db, link.id);
-    }
-    // Like a track link, it pauses while its creator is not in the project
-    const membership = await membershipOf(db, link.projectId, link.createdById);
-    if (!membership) return c.json({ error: UNAVAILABLE }, 410);
+    const opened = await openProjectLink(c, c.req.param('token'));
+    if (opened instanceof Response) return opened;
+    const { link, membership } = opened;
     const [project] = await db.select().from(projects).where(eq(projects.id, link.projectId)).limit(1);
 
     if (c.req.query('meta') === '1') {
@@ -416,8 +492,11 @@ export const shareRoutes = new Hono<AppEnv>()
       const versionId = await newestVersionId(db, track.id, link.follows);
       if (versionId) shown.push({ track, versionId });
     }
+    // Behind a delivery the originals come only after paying, through the delivery's own downloads
+    const delivery = await activeDeliveryOfProjectLink(db, link.id);
+    const deliveryField = delivery ? { delivery: await publicDeliveryOf(db, delivery, link) } : {};
     if (shown.length === 0) {
-      return c.json({ project: await publicProject(project!), allowComments: false, allowDownload: false, tracks: [] });
+      return c.json({ project: await publicProject(project!), allowComments: false, allowDownload: false, tracks: [], ...deliveryField });
     }
 
     // A track gets its share link the first time the project link shows it
@@ -456,7 +535,7 @@ export const shareRoutes = new Hono<AppEnv>()
     return c.json({
       project: await publicProject(project!),
       allowComments,
-      allowDownload: link.allowDownload && mayDownload(membership),
+      allowDownload: !delivery && link.allowDownload && mayDownload(membership),
       tracks: await Promise.all(
         shown.map(async ({ track, versionId }) => {
           const version = versionOf.get(versionId)!;
@@ -470,7 +549,146 @@ export const shareRoutes = new Hono<AppEnv>()
           };
         }),
       ),
+      ...deliveryField,
     });
+  })
+
+  // --- Delivery on a project link: the client approves or asks for a round, pays, downloads ---
+  // Each answer may push to the uploader, so they count like guest reviews, per song as on its track link
+  .post('/project/public/:token/delivery/rounds', zValidator('json', deliveryRoundSchema), async (c) => {
+    const db = c.get('db');
+    const input = c.req.valid('json');
+    const found = await deliveryLink(c, c.req.param('token'));
+    if (found instanceof Response) return found;
+    const limitKey = `${found.link.id}:${input.trackId}`;
+    if (!(await guestReviews.hit(db, limitKey))) return tooManyRequests(c);
+
+    const result = await requestRound(db, { delivery: found.delivery, link: found.link, ...input });
+    if (!result.ok) {
+      // Nothing went out, e.g. the extra round still needs confirming
+      await guestReviews.undo(db, limitKey);
+      return refuse(c, result);
+    }
+    return c.json({ delivery: await publicDeliveryOf(db, found.delivery, found.link) }, 201);
+  })
+
+  .post('/project/public/:token/delivery/approve', zValidator('json', deliveryApproveSchema), async (c) => {
+    const db = c.get('db');
+    const input = c.req.valid('json');
+    const found = await deliveryLink(c, c.req.param('token'));
+    if (found instanceof Response) return found;
+    const limitKey = `${found.link.id}:${input.trackId}`;
+    if (!(await guestReviews.hit(db, limitKey))) return tooManyRequests(c);
+
+    const result = await approveTrack(db, { delivery: found.delivery, link: found.link, ...input });
+    if (!result.ok) {
+      await guestReviews.undo(db, limitKey);
+      return refuse(c, result);
+    }
+    return c.json({ delivery: await publicDeliveryOf(db, found.delivery, found.link) });
+  })
+
+  // Starts paying what is due once every song is approved: a Lightning invoice from the studio's own
+  // wallet or the studio's bank details. The open payment comes back while it fits (same method and
+  // amount, an invoice still valid), anything else replaces it.
+  .post('/project/public/:token/delivery/payments', zValidator('json', createPaymentSchema), async (c) => {
+    const db = c.get('db');
+    const { method } = c.req.valid('json');
+    const found = await deliveryLink(c, c.req.param('token'));
+    if (found instanceof Response) return found;
+    const { link } = found;
+    if (!(await deliveryPayments.hit(db, link.id))) return tooManyRequests(c);
+
+    // An invoice about to be replaced may have been paid in the meantime
+    await checkLightningPayments(db, found.delivery.id);
+    const delivery = (await db.select().from(deliveries).where(eq(deliveries.id, found.delivery.id)).limit(1))[0]!;
+    if (delivery.status === 'paid') return deliveryError(c, 'already_paid', 409);
+    const { totals, payable } = await deliveryState(db, delivery, link.follows);
+    if (!payable) return deliveryError(c, 'not_payable', 409);
+    const account = await paymentAccountOf(db, delivery.createdById);
+    if (!account || !methodsOf(account)[method]) return deliveryError(c, 'method_unavailable', 400);
+    const reused = await reusablePayment(db, delivery.id, method, totals.dueCents);
+    if (reused) return c.json(await guestPayment(db, reused, delivery.id, link), 200);
+
+    let lightning: { sats: number; invoice: string; paymentHash: string; expiresAt: Date } | undefined;
+    if (method === 'lightning') {
+      const [project] = await db.select({ name: projects.name }).from(projects).where(eq(projects.id, delivery.projectId)).limit(1);
+      try {
+        const sats = await eurToSats(totals.dueCents);
+        const client = await connectNwc(decryptSecret(account.nwcSecretEnc!));
+        try {
+          const made = await client.makeInvoice({
+            amountMsats: sats * 1000,
+            description: invoiceDescription(delivery, project!.name),
+            expirySeconds: LIGHTNING_INVOICE_SECONDS,
+          });
+          lightning = {
+            sats,
+            invoice: made.invoice,
+            paymentHash: made.paymentHash,
+            expiresAt: made.expiresAt ?? new Date(Date.now() + LIGHTNING_INVOICE_SECONDS * 1000),
+          };
+        } finally {
+          client.close();
+        }
+      } catch (err) {
+        // Only our own messages: other errors may carry the connection string
+        if (err instanceof PaymentServiceError) return c.json({ error: err.message, code: err.code }, 502);
+        console.error('[Deliveries] Invoice failed');
+        return deliveryError(c, 'wallet_unreachable', 502);
+      }
+    }
+
+    const payment = await insertPayment(db, { delivery, link, method, amountCents: totals.dueCents, ...lightning });
+    if (!payment) return deliveryError(c, 'not_payable', 409);
+    return c.json(await guestPayment(db, payment, delivery.id, link), 201);
+  })
+
+  // The payment page polls here; the delivery's Lightning invoices, replaced ones included, are
+  // checked with the wallet on every call
+  .get('/project/public/:token/delivery/payments/:paymentId', async (c) => {
+    const db = c.get('db');
+    const found = await deliveryLink(c, c.req.param('token'));
+    if (found instanceof Response) return found;
+    if (!(await deliveryPaymentPolls.hit(db, clientIp(c)))) return tooManyRequests(c);
+    const payment = await paymentOf(db, found.delivery, c.req.param('paymentId'));
+    if (!payment) return c.json({ error: 'Not found' }, 404);
+
+    await checkLightningPayments(db, found.delivery.id);
+    return c.json(await guestPayment(db, payment, found.delivery.id, found.link));
+  })
+
+  // "Ich habe überwiesen": the studio sees the transfer is on its way and confirms it once it arrived
+  .post('/project/public/:token/delivery/payments/:paymentId/announce', async (c) => {
+    const db = c.get('db');
+    const found = await deliveryLink(c, c.req.param('token'));
+    if (found instanceof Response) return found;
+    if (!(await guestReviews.hit(db, found.link.id))) return tooManyRequests(c);
+    const payment = await paymentOf(db, found.delivery, c.req.param('paymentId'));
+    if (!payment) return c.json({ error: 'Not found' }, 404);
+
+    if (!(await announcePayment(db, payment.id))) return deliveryError(c, 'payment_closed', 409);
+    return c.json(await guestPayment(db, payment, found.delivery.id, found.link));
+  })
+
+  // After paying: the original of the approved version, through a short-lived URL
+  .get('/project/public/:token/delivery/download/:trackId', async (c) => {
+    const download = await deliveryDownload(c);
+    if (download instanceof Response) return download;
+    const { version } = download;
+    const url = await createDownloadUrl(version.originalFileKey, 300, version.originalFileName);
+    // A page that has to send the password header can't follow a plain link: it asks for the URL
+    if (c.req.query('redirect') === '0') return c.json({ url });
+    return c.redirect(url, 302);
+  })
+
+  .get('/project/public/:token/delivery/download/:trackId/stems', async (c) => {
+    const download = await deliveryDownload(c);
+    if (download instanceof Response) return download;
+    if (!download.includeStems || download.stems.length === 0) return deliveryError(c, 'track_invalid', 404);
+    // The ZIP has no ZIP64, a bigger one would break
+    if (download.stems.reduce((total, stem) => total + stem.fileSize, 0) > MAX_ZIP_SIZE) return deliveryError(c, 'zip_too_large', 413);
+    return zipResponse(download.track.name, download.stems);
   })
 
   // --- Public: resolve token, fetch, comment ---
@@ -510,12 +728,15 @@ export const shareRoutes = new Hono<AppEnv>()
       return c.json({ project: { name: project!.name }, track: { name: track!.name } });
     }
 
-    const streamKey = version.streamFileKey || version.originalFileKey;
-    const streamUrl = await createDownloadUrl(streamKey);
+    // Behind a delivery the original never leaves: only the MP3 plays, and without one the track is
+    // still being prepared
+    const paywall = link.projectLinkId ? !!(await deliveryOfShareLink(db, link.id)) : false;
+    const streamKey = paywall ? version.streamFileKey : version.streamFileKey || version.originalFileKey;
+    const streamUrl = streamKey ? await createDownloadUrl(streamKey) : null;
     const waveformUrl = version.waveformDataKey
       ? await createDownloadUrl(version.waveformDataKey)
       : null;
-    const downloadUrl = link.allowDownload && mayDownload(membership)
+    const downloadUrl = !paywall && link.allowDownload && mayDownload(membership)
       ? await createDownloadUrl(version.originalFileKey)
       : null;
     // A link for listening only shows no comments either, they belong to the people in the project
@@ -568,6 +789,7 @@ export const shareRoutes = new Hono<AppEnv>()
       comments: versionComments,
       reviews: guestReviewRows,
       uploaderName: uploader?.name ?? null,
+      ...(paywall ? { processing: !streamKey } : {}),
     });
   })
 

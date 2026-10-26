@@ -2,13 +2,14 @@ import { parseArgs } from 'node:util';
 import { createClient } from './client';
 import { type Command, EXIT, Failure, type Io, type Result } from './command';
 import { auth } from './commands/auth';
+import { deliveries } from './commands/deliveries';
 import { projects } from './commands/projects';
 import { share } from './commands/share';
 import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects, share };
+export const commands: Record<string, Command> = { ...auth, projects, share, deliveries };
 
 const globalOptions = {
   json: { type: 'boolean' },
@@ -54,7 +55,11 @@ export async function run(args: string[], io: Io): Promise<number> {
     const [name = '', ...rest] = args;
     const command = Object.hasOwn(commands, name) ? commands[name] : undefined;
     if (name && !command && !name.startsWith('-')) throw new Failure(texts.unknownCommand(name, SLUG), EXIT.usage);
-    const { values } = parseArgs({ args: command ? rest : args, options: { ...globalOptions, ...command?.options } });
+    const { values, positionals } = parseArgs({
+      args: command ? rest : args,
+      options: { ...globalOptions, ...command?.options },
+      allowPositionals: command?.positionals === true,
+    });
     json = values.json === true;
     if (!command && !values.help && args.length > 0) throw new Failure(texts.usage(SLUG), EXIT.usage);
 
@@ -63,7 +68,7 @@ export async function run(args: string[], io: Io): Promise<number> {
     const url = (typeof values.url === 'string' ? values.url : (stored?.url ?? DEFAULT_URL)).replace(/\/+$/, '');
     const session = stored?.url === url ? stored : null;
     const api = createClient(url, session?.token);
-    const result = command && !values.help ? await command.run({ api, url, session, values, io }) : help();
+    const result = command && !values.help ? await command.run({ api, url, session, values, positionals, io }) : help();
     io.out(json ? JSON.stringify(result.data, null, 2) : result.text);
     return EXIT.ok;
   } catch (error) {

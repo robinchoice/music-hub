@@ -535,6 +535,11 @@ const ROUTES: [string, RegExp, Handler][] = [
   }],
   ['GET', /^\/overview$/, () => overview()],
   ['GET', /^\/requests$/, () => ({ requests: [] })],
+  // The project page's "Auftrag" tab; the demo has no plan, so it explains deliveries
+  ['GET', /^\/deliveries\/project\/([\w-]+)$/, () => ({ deliveries: [], canCreate: false })],
+  ['GET', /^\/payment-account$/, () => ({
+    account: { lightningAvailable: false, lightning: { connected: false, alias: null }, transfer: null, updatedAt: null },
+  })],
   ['POST', /^\/overview\/dismissals$/, (_, body) => {
     overviewState.dismissed.add(String(body?.taskKey));
     return { ok: true };

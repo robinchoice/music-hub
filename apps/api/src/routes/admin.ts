@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { and, eq, gt, gte, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { MAX_STORAGE_PER_USER, REJECTION_PREFIX } from '@music-hub/shared';
+import { zValidator } from '@hono/zod-validator';
+import { adminPlanSchema, MAX_STORAGE_PER_USER, REJECTION_PREFIX, type AdminPlanResponse, type Plan } from '@music-hub/shared';
 import {
   users,
   sessions,
@@ -113,6 +114,8 @@ async function loadPeople(db: Database, from: Date) {
         hasPassword: sql<boolean>`${users.passwordHash} IS NOT NULL`,
         blockedAt: users.blockedAt,
         storageLimit: users.storageLimit,
+        plan: users.plan,
+        planUntil: users.planUntil,
       })
       .from(users),
     lastActions(db),
@@ -172,6 +175,8 @@ async function loadPeople(db: Database, from: Date) {
       storageBytes: storage.get(u.id) ?? 0,
       storageLimitBytes: u.storageLimit ?? MAX_STORAGE_PER_USER,
       counts: counts.get(u.id) ?? NO_COUNTS,
+      plan: u.plan,
+      planUntil: u.planUntil?.toISOString() ?? null,
     };
   });
   return { people, memberships };
@@ -621,6 +626,21 @@ export const adminRoutes = new Hono<AppEnv>()
       .returning({ id: users.id });
     if (!user) return c.json({ error: 'Not found' }, 404);
     return c.json({ blocked: false });
+  })
+
+  // The plan that allows deliveries; null is the free plan, planUntil null means open-ended
+  .patch('/users/:id/plan', zValidator('json', adminPlanSchema), async (c) => {
+    const input = c.req.valid('json');
+    const planUntil = input.plan && input.planUntil ? new Date(input.planUntil) : null;
+    const [user] = await c
+      .get('db')
+      .update(users)
+      .set({ plan: input.plan, planUntil })
+      .where(eq(users.id, c.req.param('id')))
+      .returning({ plan: users.plan, planUntil: users.planUntil });
+    if (!user) return c.json({ error: 'Not found' }, 404);
+    const body: AdminPlanResponse = { plan: user.plan as Plan | null, planUntil: user.planUntil?.toISOString() ?? null };
+    return c.json(body);
   })
 
   // Fresh test account to walk through onboarding; the login link belongs in a private window, it ends the admin session

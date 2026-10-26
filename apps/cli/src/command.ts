@@ -20,6 +20,8 @@ export type Context = {
   // The stored session, only if it belongs to url
   session: Session | null;
   values: Record<string, unknown>;
+  // Words after the command name, only for commands that take them
+  positionals: string[];
   io: Io;
 };
 
@@ -29,7 +31,9 @@ export type Result = { data: unknown; text: string };
 export type Command = {
   // Lines in the help: usage and what it does
   help: [usage: string, text: string][];
-  options?: Record<string, { type: 'string' | 'boolean'; short?: string }>;
+  options?: Record<string, { type: 'string' | 'boolean'; short?: string; multiple?: boolean }>;
+  // Takes words after its name, such as a subcommand and an ID
+  positionals?: boolean;
   run: (ctx: Context) => Promise<Result>;
 };
 
