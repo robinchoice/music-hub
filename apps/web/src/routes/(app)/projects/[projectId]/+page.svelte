@@ -19,6 +19,7 @@
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
+  import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
   import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
@@ -73,6 +74,7 @@
   let coverEditOpen = $state(false);
   let restoring = $state(false);
   let uploadLinkOpen = $state(false);
+  let shareOpen = $state(false);
   let drop = $state<ProjectDrop>();
 
   const projectId = $page.params.projectId;
@@ -193,8 +195,11 @@
         <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{newTrackLabel}</span>
       </Button>
       {#if !empty}
-        <Button size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>
+        <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>
       {/if}
+    {/if}
+    {#if !loading && !empty}
+      <Button size="sm" title="Teilen" onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> <span class="btn-label">Teilen</span></Button>
     {/if}
   {/snippet}
 </TopBar>
@@ -342,6 +347,17 @@
 
 {#if canUpload && projectId}
   <UploadLinkModal bind:open={uploadLinkOpen} {projectId} />
+{/if}
+
+{#if project && projectId}
+  <ProjectShareModal
+    bind:open={shareOpen}
+    {projectId}
+    projectName={project.name}
+    {roles}
+    archived={project.isArchived}
+    {tracks}
+  />
 {/if}
 
 {#if project}

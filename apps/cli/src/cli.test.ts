@@ -11,6 +11,7 @@ import { generateToken, hashToken } from '../../api/src/middleware/auth';
 import { authRoutes } from '../../api/src/routes/auth';
 import { deviceRoutes } from '../../api/src/routes/device';
 import { projectRoutes } from '../../api/src/routes/projects';
+import { shareRoutes } from '../../api/src/routes/share';
 import type { AppEnv } from '../../api/src/types';
 import { run } from './cli';
 import { SLUG, sessionFile } from './config';
@@ -26,7 +27,8 @@ const app = new Hono<AppEnv>()
   .basePath('/api/v1')
   .route('/auth', authRoutes)
   .route('/auth/device', deviceRoutes)
-  .route('/projects', projectRoutes);
+  .route('/projects', projectRoutes)
+  .route('/share', shareRoutes);
 let server: ReturnType<typeof Bun.serve>;
 let url = '';
 
@@ -124,6 +126,23 @@ test('projects lists the own projects with roles and tracks', async () => {
     projects: [{ id: fernlicht!.id, name: 'Fernlicht', artist: 'Ada', roles: ['owner', 'producer'], trackCount: 0 }],
   });
   expect((await cli(['projects', '--archived'])).out).toBe('Altbau · Nur Zuhören · 0 Tracks');
+});
+
+test('share prints the own link of a project, found by name or ID', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  await cli(['login'], { approveAs: ada.browser });
+  const [nachtbus] = await db.insert(projects).values({ name: 'Nachtbus EP', createdById: ada.id }).returning();
+  await db.insert(projectMembers).values({ projectId: nachtbus!.id, userId: ada.id, role: 'owner' });
+
+  const byName = await cli(['share', '--project', 'nachtbus ep']);
+  expect(byName.code).toBe(0);
+  expect(byName.out).toMatch(new RegExp(`^${url}/album/[\\w-]+$`));
+  const byId = (await cli(['share', '--project', nachtbus!.id, '--json'])).json();
+  expect(byId).toMatchObject({ project: { id: nachtbus!.id }, url: byName.out, link: { follows: 'latest', allowComments: true } });
+
+  expect(await cli(['share', '--project', 'Altbau'])).toMatchObject({ code: 1, err: texts.noSuchProject('Altbau', SLUG) });
+  expect((await cli(['share'])).code).toBe(2);
 });
 
 test('every device has its own token, logout revokes only that one', async () => {

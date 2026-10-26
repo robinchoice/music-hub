@@ -1,10 +1,18 @@
 import { runInBackground } from '../lib/background.js';
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, asc, desc, inArray, isNull, ne, or } from 'drizzle-orm';
-import { createShareLinkSchema, guestCommentSchema, guestReviewSchema, updateListenEventSchema } from '@music-hub/shared';
+import { eq, and, asc, count, desc, inArray, isNull, ne, notInArray, or } from 'drizzle-orm';
+import {
+  createProjectShareLinkSchema,
+  createShareLinkSchema,
+  guestCommentSchema,
+  guestReviewSchema,
+  updateListenEventSchema,
+  updateProjectShareLinkSchema,
+} from '@music-hub/shared';
 import {
   shareLinks,
+  projectShareLinks,
   listenEvents,
   versions,
   tracks,
@@ -31,6 +39,25 @@ const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
 // A link that follows the track moved on to a newer version while the guest was listening
 const MOVED_ON = 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.';
 
+const PLAYABLE = ['ready', 'approved', 'rejected'] as const;
+
+// The newest playable (or approved) version of a track, null when there is none
+async function newestVersionId(db: Database, trackId: string, follows: string) {
+  const [newest] = await db
+    .select({ id: versions.id })
+    .from(versions)
+    .where(
+      and(
+        eq(versions.trackId, trackId),
+        isNull(versions.deletedAt),
+        follows === 'approved' ? eq(versions.status, 'approved') : inArray(versions.status, PLAYABLE),
+      ),
+    )
+    .orderBy(desc(versions.versionNumber))
+    .limit(1);
+  return newest?.id ?? null;
+}
+
 // The version a link shows: its own, or the newest playable (or approved) one of its track.
 // null when there is none, e.g. no version approved yet. A link that follows the track
 // does not pause with the version it was made on, only with the track.
@@ -38,19 +65,7 @@ async function shownVersionId(db: Database, link: { versionId: string; follows: 
   if (link.follows === 'version') return link.versionId;
   const [origin] = await db.select({ trackId: versions.trackId }).from(versions).where(eq(versions.id, link.versionId));
   if (!origin) return null;
-  const [newest] = await db
-    .select({ id: versions.id })
-    .from(versions)
-    .where(
-      and(
-        eq(versions.trackId, origin.trackId),
-        isNull(versions.deletedAt),
-        link.follows === 'approved' ? eq(versions.status, 'approved') : inArray(versions.status, ['ready', 'approved', 'rejected']),
-      ),
-    )
-    .orderBy(desc(versions.versionNumber))
-    .limit(1);
-  return newest?.id ?? null;
+  return newestVersionId(db, origin.trackId, link.follows);
 }
 
 // Whether a guest's comment or "Fertig" is about the version shown now. A link that follows the track
@@ -68,6 +83,43 @@ async function liveTarget(db: Database, link: { versionId: string; follows: stri
   if (!found) return null;
   const membership = await membershipOf(db, found.track.projectId, link.createdById);
   return membership ? { ...found, membership } : null;
+}
+
+type ProjectShareLink = typeof projectShareLinks.$inferSelect;
+
+const projectLinkView = (l: ProjectShareLink) => ({
+  id: l.id,
+  token: l.token,
+  expiresAt: l.expiresAt,
+  allowComments: l.allowComments,
+  allowDownload: l.allowDownload,
+  hasPassword: l.passwordHash !== null,
+  follows: l.follows,
+  trackIds: l.trackIds,
+  createdAt: l.createdAt,
+});
+
+// What the share link of each track takes over from its project link
+const trackLinkSettings = (l: ProjectShareLink) => ({
+  expiresAt: l.expiresAt,
+  allowComments: l.allowComments,
+  allowDownload: l.allowDownload,
+  passwordHash: l.passwordHash,
+  follows: l.follows,
+});
+
+async function ownProjectLink(db: Database, projectId: string, userId: string) {
+  const [link] = await db
+    .select()
+    .from(projectShareLinks)
+    .where(and(eq(projectShareLinks.projectId, projectId), eq(projectShareLinks.createdById, userId)))
+    .orderBy(asc(projectShareLinks.createdAt))
+    .limit(1);
+  return link;
+}
+
+async function publicProject(p: { name: string; artist: string | null; coverImageUrl: string | null }) {
+  return { name: p.name, artist: p.artist, coverUrl: p.coverImageUrl ? await createDownloadUrl(p.coverImageUrl) : null };
 }
 
 const MINUTE = 60 * 1000;
@@ -179,12 +231,16 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .from(shareLinks)
       .where(
-        or(
-          eq(shareLinks.versionId, versionId),
-          // Links that follow the track show up at every version of it
-          and(
-            ne(shareLinks.follows, 'version'),
-            inArray(shareLinks.versionId, db.select({ id: versions.id }).from(versions).where(eq(versions.trackId, track!.id))),
+        and(
+          // The links of a project link are managed there
+          isNull(shareLinks.projectLinkId),
+          or(
+            eq(shareLinks.versionId, versionId),
+            // Links that follow the track show up at every version of it
+            and(
+              ne(shareLinks.follows, 'version'),
+              inArray(shareLinks.versionId, db.select({ id: versions.id }).from(versions).where(eq(versions.trackId, track!.id))),
+            ),
           ),
         ),
       )
@@ -226,6 +282,195 @@ export const shareRoutes = new Hono<AppEnv>()
 
     await db.delete(shareLinks).where(eq(shareLinks.id, linkId));
     return c.json({ message: 'Revoked' });
+  })
+
+  // --- Project links: one link for all tracks of a project, each played through a share link of its own ---
+  .get('/project/:projectId', requireAuth, async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const projectId = c.req.param('projectId');
+
+    if (!(await membershipOf(db, projectId, userId))) return c.json({ error: 'Not found' }, 404);
+    const link = await ownProjectLink(db, projectId, userId);
+    return c.json({ link: link ? projectLinkView(link) : null });
+  })
+
+  // Everyone in the project has one link of their own; asking again returns it
+  .post('/project/:projectId', requireAuth, zValidator('json', createProjectShareLinkSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const projectId = c.req.param('projectId');
+    const input = c.req.valid('json');
+
+    const membership = await membershipOf(db, projectId, userId);
+    if (!membership) return c.json({ error: 'Forbidden' }, 403);
+    const existing = await ownProjectLink(db, projectId, userId);
+    if (existing) return c.json({ link: projectLinkView(existing) });
+
+    const [link] = await db
+      .insert(projectShareLinks)
+      .values({
+        projectId,
+        token: generateToken(),
+        createdById: userId,
+        allowComments: (input.allowComments ?? true) && membership.canComment,
+        allowDownload: (input.allowDownload ?? false) && mayDownload(membership),
+        follows: input.follows ?? 'latest',
+      })
+      .returning();
+    return c.json({ link: projectLinkView(link) }, 201);
+  })
+
+  .patch('/project-link/:linkId', requireAuth, zValidator('json', updateProjectShareLinkSchema), async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const input = c.req.valid('json');
+
+    const [link] = await db.select().from(projectShareLinks).where(eq(projectShareLinks.id, c.req.param('linkId'))).limit(1);
+    const membership = link?.createdById === userId ? await membershipOf(db, link.projectId, userId) : undefined;
+    if (!link || !membership) return c.json({ error: 'Not found' }, 404);
+
+    const set: Partial<typeof projectShareLinks.$inferInsert> = {};
+    if (input.follows) set.follows = input.follows;
+    if (input.allowComments !== undefined) set.allowComments = input.allowComments && membership.canComment;
+    if (input.allowDownload !== undefined) set.allowDownload = input.allowDownload && mayDownload(membership);
+    if (input.password !== undefined) set.passwordHash = input.password ? await Bun.password.hash(input.password) : null;
+    if (input.expiresAt !== undefined) set.expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+    if (input.trackIds !== undefined) set.trackIds = input.trackIds;
+
+    // The share links of its tracks take the new settings; tracks no longer in it lose theirs
+    const updated = await db.transaction(async (tx) => {
+      const [row] = Object.keys(set).length
+        ? await tx.update(projectShareLinks).set(set).where(eq(projectShareLinks.id, link.id)).returning()
+        : [link];
+      await tx.update(shareLinks).set(trackLinkSettings(row)).where(eq(shareLinks.projectLinkId, row.id));
+      if (row.trackIds) {
+        await tx
+          .delete(shareLinks)
+          .where(and(eq(shareLinks.projectLinkId, row.id), notInArray(shareLinks.trackId, row.trackIds)));
+      }
+      return row;
+    });
+    return c.json({ link: projectLinkView(updated) });
+  })
+
+  .delete('/project-link/:linkId', requireAuth, async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+
+    const [link] = await db.select().from(projectShareLinks).where(eq(projectShareLinks.id, c.req.param('linkId'))).limit(1);
+    if (!link) return c.json({ error: 'Not found' }, 404);
+    if (link.createdById !== userId && (await membershipOf(db, link.projectId, userId))?.role !== 'owner') {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+    // The share links of its tracks go with it
+    await db.delete(projectShareLinks).where(eq(projectShareLinks.id, link.id));
+    return c.json({ message: 'Revoked' });
+  })
+
+  // The tracks of a project link, each with the token of its own share link. The guest page plays and
+  // comments through those, so a track behaves exactly like a track link with the same settings.
+  .get('/project/public/:token', async (c) => {
+    const db = c.get('db');
+    const password = c.req.header('x-share-password');
+
+    const [link] = await db
+      .select()
+      .from(projectShareLinks)
+      .where(and(eq(projectShareLinks.token, c.req.param('token')), notBlocked(projectShareLinks.createdById)))
+      .limit(1);
+    if (!link) return c.json({ error: 'Not found' }, 404);
+    if (link.expiresAt && link.expiresAt < new Date()) return c.json({ error: 'Expired' }, 410);
+    if (link.passwordHash) {
+      if (!password) return c.json({ error: 'Password required', passwordRequired: true }, 401);
+      if (!(await failedPasswords.hit(db, link.id))) return tooManyRequests(c);
+      if (!(await Bun.password.verify(password, link.passwordHash))) {
+        return c.json({ error: 'Password required', passwordRequired: true }, 401);
+      }
+      await failedPasswords.undo(db, link.id);
+    }
+    // Like a track link, it pauses while its creator is not in the project
+    const membership = await membershipOf(db, link.projectId, link.createdById);
+    if (!membership) return c.json({ error: UNAVAILABLE }, 410);
+    const [project] = await db.select().from(projects).where(eq(projects.id, link.projectId)).limit(1);
+
+    if (c.req.query('meta') === '1') {
+      return c.json({ project: { name: project!.name, artist: project!.artist } });
+    }
+
+    const list = await db
+      .select()
+      .from(tracks)
+      .where(
+        and(
+          eq(tracks.projectId, link.projectId),
+          isNull(tracks.deletedAt),
+          link.trackIds ? inArray(tracks.id, link.trackIds) : undefined,
+        ),
+      )
+      .orderBy(asc(tracks.sortOrder), asc(tracks.createdAt));
+
+    // Tracks without anything to play yet stay out
+    const shown: { track: (typeof list)[number]; versionId: string }[] = [];
+    for (const track of list) {
+      const versionId = await newestVersionId(db, track.id, link.follows);
+      if (versionId) shown.push({ track, versionId });
+    }
+    if (shown.length === 0) {
+      return c.json({ project: await publicProject(project!), allowComments: false, allowDownload: false, tracks: [] });
+    }
+
+    // A track gets its share link the first time the project link shows it
+    await db
+      .insert(shareLinks)
+      .values(
+        shown.map((s) => ({
+          versionId: s.versionId,
+          token: generateToken(),
+          createdById: link.createdById,
+          projectLinkId: link.id,
+          trackId: s.track.id,
+          ...trackLinkSettings(link),
+        })),
+      )
+      .onConflictDoNothing({ target: [shareLinks.projectLinkId, shareLinks.trackId] });
+    const trackLinks = await db
+      .select({ trackId: shareLinks.trackId, token: shareLinks.token })
+      .from(shareLinks)
+      .where(eq(shareLinks.projectLinkId, link.id));
+    const tokenOf = new Map(trackLinks.map((l) => [l.trackId, l.token]));
+
+    const versionIds = shown.map((s) => s.versionId);
+    const shownVersions = await db.select().from(versions).where(inArray(versions.id, versionIds));
+    const versionOf = new Map(shownVersions.map((v) => [v.id, v]));
+    const allowComments = link.allowComments && membership.canComment;
+    const counts = allowComments
+      ? await db
+        .select({ versionId: comments.versionId, count: count() })
+        .from(comments)
+        .where(and(inArray(comments.versionId, versionIds), isNull(comments.deletedAt)))
+        .groupBy(comments.versionId)
+      : [];
+    const countOf = new Map(counts.map((r) => [r.versionId, r.count]));
+
+    return c.json({
+      project: await publicProject(project!),
+      allowComments,
+      allowDownload: link.allowDownload && mayDownload(membership),
+      tracks: await Promise.all(
+        shown.map(async ({ track, versionId }) => {
+          const version = versionOf.get(versionId)!;
+          return {
+            id: track.id,
+            name: track.name,
+            token: tokenOf.get(track.id)!,
+            coverUrl: track.coverImageUrl ? await createDownloadUrl(track.coverImageUrl) : null,
+            version: { id: version.id, versionNumber: version.versionNumber, label: version.label, duration: version.duration },
+            comments: countOf.get(versionId) ?? 0,
+          };
+        }),
+      ),
+    });
   })
 
   // --- Public: resolve token, fetch, comment ---
@@ -423,7 +668,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const input = c.req.valid('json');
 
     const [link] = await db
-      .select({ id: shareLinks.id, expiresAt: shareLinks.expiresAt })
+      .select({ id: shareLinks.id, expiresAt: shareLinks.expiresAt, projectLinkId: shareLinks.projectLinkId })
       .from(shareLinks)
       .where(and(eq(shareLinks.token, token), notBlocked(shareLinks.createdById)))
       .limit(1);
@@ -450,7 +695,8 @@ export const shareRoutes = new Hono<AppEnv>()
       })
       .where(eq(listenEvents.id, eventId));
 
-    if (isFirstPlay && (await listenAlerts.hit(db, link.id))) {
+    // Someone going through a project link means one alert, not one per track
+    if (isFirstPlay && (await listenAlerts.hit(db, link.projectLinkId ?? link.id))) {
       // Fire-and-forget: alert link creator by email
       runInBackground(Promise.resolve().then(async () => {
         try {

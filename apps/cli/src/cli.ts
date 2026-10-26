@@ -3,11 +3,12 @@ import { createClient } from './client';
 import { type Command, EXIT, Failure, type Io, type Result } from './command';
 import { auth } from './commands/auth';
 import { projects } from './commands/projects';
+import { share } from './commands/share';
 import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects };
+export const commands: Record<string, Command> = { ...auth, projects, share };
 
 const globalOptions = {
   json: { type: 'boolean' },

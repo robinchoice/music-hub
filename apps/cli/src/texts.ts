@@ -13,6 +13,8 @@ export const texts = {
   whoamiHelp: 'Zeigt das angemeldete Konto',
   logoutHelp: 'Meldet dieses Gerät ab und widerruft seinen Token',
   projectsHelp: 'Listet deine Projekte, mit --archived die archivierten',
+  shareHelp: 'Gibt deinen Link zum Reinhören für ein ganzes Projekt aus, ohne Konto',
+  noSuchProject: (name: string, cmd: string) => `Kein Projekt „${name}“. Deine Projekte: ${cmd} projects`,
   confirmCode: (url: string, code: string) => `Öffne ${url} und bestätige dort den Code ${code}.`,
   codeExpired: 'Der Code ist abgelaufen. Bitte erneut anmelden.',
   linkIncomplete: 'Das ist kein vollständiger Login-Link.',

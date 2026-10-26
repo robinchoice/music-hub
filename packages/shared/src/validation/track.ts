@@ -104,6 +104,25 @@ export const createShareLinkSchema = z.object({
   password: z.string().min(1).max(255).optional(),
 });
 
+// A project link follows every track; 'version' would freeze it on versions picked once
+export const PROJECT_SHARE_FOLLOWS = ['latest', 'approved'] as const;
+
+export const createProjectShareLinkSchema = z.object({
+  follows: z.enum(PROJECT_SHARE_FOLLOWS).optional(),
+  allowComments: z.boolean().optional(),
+  allowDownload: z.boolean().optional(),
+});
+
+// null clears the password, the expiry or the track selection
+export const updateProjectShareLinkSchema = z.object({
+  follows: z.enum(PROJECT_SHARE_FOLLOWS).optional(),
+  allowComments: z.boolean().optional(),
+  allowDownload: z.boolean().optional(),
+  password: z.string().min(1).max(255).nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  trackIds: z.array(z.string().uuid()).max(500).nullable().optional(),
+});
+
 export const guestTrackSchema = z.object({
   name: z.string().trim().min(1).max(255),
 });
@@ -137,6 +156,7 @@ export type RequestUploadUrlInput = z.infer<typeof requestUploadUrlSchema>;
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;
 export type UpdateVersionInput = z.infer<typeof updateVersionSchema>;
 export type CreateShareLinkInput = z.infer<typeof createShareLinkSchema>;
+export type UpdateProjectShareLinkInput = z.infer<typeof updateProjectShareLinkSchema>;
 export type CoverUploadInput = z.infer<typeof coverUploadSchema>;
 export type GuestCommentInput = z.infer<typeof guestCommentSchema>;
 export type RequestStemUploadUrlInput = z.infer<typeof requestStemUploadUrlSchema>;
