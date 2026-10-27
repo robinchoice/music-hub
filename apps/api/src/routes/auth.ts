@@ -73,8 +73,8 @@ export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'inse
   const tokenHash = await hashToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.insert(sessions).values({ userId, tokenHash, expiresAt, client });
-  // Mails and pushes follow the language of the last login
-  const locale = statedLocale(c);
+  // Mails and pushes follow the language of the last login in the browser; the CLI always speaks English
+  const locale = cookie ? statedLocale(c) : null;
   if (locale) await db.update(users).set({ locale }).where(eq(users.id, userId));
   if (cookie) setSessionCookie(c, sessionToken);
   return sessionToken;
@@ -282,8 +282,9 @@ export const authRoutes = new Hono<AppEnv>()
 
     await renewSession(c, db, session, sessionToken);
     await markSeen(db, user.id);
-    // The web asks on every start and after the language switch, so sessions from before keep up too
-    const locale = statedLocale(c);
+    // The web asks on every start and after the language switch, so sessions from before keep up too.
+    // Only browser sessions count, CLI and plugin use a bearer token.
+    const locale = getCookie(c, 'session') ? statedLocale(c) : null;
     if (locale && locale !== user.locale) await db.update(users).set({ locale }).where(eq(users.id, user.id));
     return c.json({ user: toUser(user) });
   })

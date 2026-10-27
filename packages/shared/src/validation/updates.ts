@@ -1,16 +1,27 @@
 import { z } from 'zod';
+import type { Locale } from '../i18n.js';
 
-// Update mails (README, „Update-Mails“): a title and the new features. Music Hub
-// speaks German only, so there is one language. Drafts may be incomplete,
-// sending needs a title and a feature, see updateComplete.
-export const updateContentSchema = z.object({
+// Update mails (README, „Update-Mails“): a title and the new features. German
+// stays at the top level as before, English sits next to it in en; updates from
+// before have none. Drafts may be incomplete, sending needs a title and a
+// feature in both languages, see updateComplete.
+const languageContent = z.object({
   title: z.string().trim().max(200),
   features: z.array(z.string().trim().max(500)).max(20),
 });
 
-export type UpdateContent = z.infer<typeof updateContentSchema>;
+export const updateContentSchema = languageContent.extend({ en: languageContent.optional() });
 
-export const updateComplete = (content: UpdateContent) => !!content.title && content.features.some(Boolean);
+export type UpdateContent = z.infer<typeof updateContentSchema>;
+type LanguageContent = z.infer<typeof languageContent>;
+
+const filled = (content: LanguageContent) => !!content.title && content.features.some(Boolean);
+
+export const updateComplete = (content: UpdateContent) => filled(content) && !!content.en && filled(content.en);
+
+// The text a recipient reads: their language, German for updates without English
+export const updateIn = (content: UpdateContent, locale: Locale): LanguageContent =>
+  locale === 'en' && content.en && filled(content.en) ? content.en : { title: content.title, features: content.features };
 
 export const saveUpdateSchema = z.object({
   content: updateContentSchema,

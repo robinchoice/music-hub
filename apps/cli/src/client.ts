@@ -13,6 +13,8 @@ export function createClient(url: string, token: string | undefined) {
       res = await fetch(`${url}/api/v1${path}`, {
         method,
         headers: {
+          // API errors in English like the CLI's own texts
+          'accept-language': 'en',
           ...(token && { authorization: `Bearer ${token}` }),
           ...(body && { 'content-type': 'application/json' }),
         },

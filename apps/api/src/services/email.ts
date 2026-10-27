@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { APP_BAND, bandColor, GLOW, type Locale, type UpdateContent, loginMessages } from '@music-hub/shared';
+import { APP_BAND, bandColor, dateLocales, GLOW, type Locale, type UpdateContent, loginMessages, updateIn } from '@music-hub/shared';
 import { messages } from '../lib/messages.js';
 
 const smtpPort = Number(process.env.SMTP_PORT || 587);
@@ -337,12 +337,15 @@ type UpdateMail = {
   date: Date;
 };
 
-// An update about new features with the recipient's unsubscribe link. One-click
-// unsubscribe (RFC 8058) lets Gmail and Apple Mail offer it next to the sender.
-export function updateMail({ id, content, hasImage, date }: UpdateMail, mailToken: string) {
+// An update about new features with the recipient's unsubscribe link, in their
+// language. One-click unsubscribe (RFC 8058) lets Gmail and Apple Mail offer it
+// next to the sender.
+export function updateMail({ id, content, hasImage, date }: UpdateMail, mailToken: string, locale: Locale) {
   const appUrl = process.env.APP_URL;
-  const features = content.features.filter(Boolean);
-  const day = new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(date);
+  const m = messages[locale].mail;
+  const { title, features: all } = updateIn(content, locale);
+  const features = all.filter(Boolean);
+  const day = new Intl.DateTimeFormat(dateLocales[locale], { dateStyle: 'long' }).format(date);
   const unsubscribeUrl = `${appUrl}/abbestellen?liste=updates&t=${mailToken}`;
   const settings = `${appUrl}/account`;
 
@@ -357,23 +360,24 @@ export function updateMail({ id, content, hasImage, date }: UpdateMail, mailToke
     : '';
 
   return {
-    subject: `Neu in Music Hub: ${content.title}`,
+    subject: m.updateSubject(title),
     headers: unsubscribeHeaders(`${appUrl}/api/v1/updates/unsubscribe?t=${mailToken}`),
     html: layout(
-      `${small(`Neu in Music Hub · ${escapeHtml(day)}`, '0 0 0.5rem')}<p style="color: ${TEXT}; font-size: 1.25rem; font-weight: 600; line-height: 1.3; margin: 0 0 1rem;">${escapeHtml(content.title)}</p>${image}${list}${button('Music Hub öffnen', `${appUrl}/dashboard`, '1rem 0 1.5rem')}${small(`Du bekommst diese Mail, weil du in Music Hub Updates per Mail eingeschaltet hast. <a href="${unsubscribeUrl}" style="color: ${MUTED};">Updates abbestellen</a> · <a href="${settings}" style="color: ${MUTED};">Konto</a>`)}`,
+      `${small(escapeHtml(m.updateKicker(day)), '0 0 0.5rem')}<p style="color: ${TEXT}; font-size: 1.25rem; font-weight: 600; line-height: 1.3; margin: 0 0 1rem;">${escapeHtml(title)}</p>${image}${list}${button(m.openApp, `${appUrl}/dashboard`, '1rem 0 1.5rem')}${small(`${m.updateWhy} <a href="${unsubscribeUrl}" style="color: ${MUTED};">${m.unsubscribeUpdates}</a> · <a href="${settings}" style="color: ${MUTED};">${m.account}</a>`)}`,
+      locale,
     ),
     text: [
-      `Neu in Music Hub · ${day}`,
+      m.updateKicker(day),
       '',
-      content.title,
+      title,
       '',
       ...features.map((feature) => `- ${feature}`),
       '',
-      `Music Hub öffnen: ${appUrl}/dashboard`,
+      `${m.openApp}: ${appUrl}/dashboard`,
       '',
       '--',
-      'Du bekommst diese Mail, weil du in Music Hub Updates per Mail eingeschaltet hast.',
-      `Updates abbestellen: ${unsubscribeUrl}`,
+      m.updateWhy,
+      `${m.unsubscribeUpdates}: ${unsubscribeUrl}`,
     ].join('\n'),
   };
 }

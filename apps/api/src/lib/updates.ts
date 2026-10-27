@@ -3,15 +3,18 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { and, asc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
 import { updateDeliveries, updates, users, type Database } from '@music-hub/db';
-import { type UpdateContent, updateComplete } from '@music-hub/shared';
+import { type Locale, pickLocale, type UpdateContent, updateComplete } from '@music-hub/shared';
 import { sendUpdateMail, updateMail } from '../services/email.js';
 
 // Agents write drafts as updates/<slug>.md in the repo, admins send them in
 // /admin/updates (README, „Update-Mails“). Format:
 //
-//   # Spuren lassen sich jetzt als ZIP laden
+//   # de: Spuren lassen sich jetzt als ZIP laden
 //   - Ein Klick lädt alle Spuren eines Tracks.
 //   ![](zip.png)
+//
+//   # en: Stems now download as a ZIP
+//   - One click downloads all stems of a track.
 export const DRAFTS_DIR = path.join(import.meta.dir, '../../../../updates');
 
 export type Draft = { slug: string; content: UpdateContent; image: Buffer | null };
@@ -26,26 +29,30 @@ export function imageType(bytes: Buffer) {
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function parseDraft(slug: string, text: string, dir = DRAFTS_DIR): Draft {
-  const content: UpdateContent = { title: '', features: [] };
+  const languages: Partial<Record<Locale, { title: string; features: string[] }>> = {};
+  let current: Locale | null = null;
   let image: Buffer | null = null;
   for (const [index, raw] of text.split('\n').entries()) {
     const line = raw.trim();
-    const heading = line.match(/^#\s+(.+)$/);
+    const heading = line.match(/^#\s*(de|en)\s*:\s*(.+)$/);
     const item = line.match(/^[-*]\s+(.+)$/);
     const picture = line.match(/^!\[[^\]]*\]\(([^)]+)\)$/);
     if (!line) continue;
-    if (heading && !content.title) {
-      content.title = heading[1]!.trim();
-    } else if (item && content.title) {
-      content.features.push(item[1]!.trim());
+    if (heading) {
+      current = heading[1] as Locale;
+      languages[current] = { title: heading[2]!.trim(), features: [] };
+    } else if (item && current) {
+      languages[current]!.features.push(item[1]!.trim());
     } else if (picture) {
       image = readFileSync(path.join(dir, picture[1]!));
       if (!imageType(image)) throw new Error(`updates/${slug}.md: ${picture[1]} is no PNG or JPEG`);
     } else {
-      throw new Error(`updates/${slug}.md, line ${index + 1}: expected "# Title", "- Feature" or "![](image.png)"`);
+      throw new Error(`updates/${slug}.md, line ${index + 1}: expected "# de: Title", "- Feature" or "![](image.png)"`);
     }
   }
-  if (!updateComplete(content)) throw new Error(`updates/${slug}.md needs a title and at least one feature`);
+  const { de, en } = languages;
+  const content: UpdateContent | null = de && en ? { ...de, en } : null;
+  if (!content || !updateComplete(content)) throw new Error(`updates/${slug}.md needs a title and at least one feature for de and en`);
   return { slug, content, image };
 }
 
@@ -108,6 +115,7 @@ export function deliverNext(db: Database, intervalMs: number): Promise<'idle' | 
         consent: users.updatesConsentAt,
         blocked: users.blockedAt,
         token: users.mailToken,
+        locale: users.locale,
       })
       .from(updateDeliveries)
       .innerJoin(updates, eq(updates.id, updateDeliveries.updateId))
@@ -135,7 +143,7 @@ export function deliverNext(db: Database, intervalMs: number): Promise<'idle' | 
       return 'skipped';
     }
 
-    const mail = updateMail({ id: row.updateId, content: row.content, hasImage: row.hasImage, date: row.sentAt! }, row.token);
+    const mail = updateMail({ id: row.updateId, content: row.content, hasImage: row.hasImage, date: row.sentAt! }, row.token, pickLocale(row.locale));
     try {
       await sendUpdateMail(row.email, mail);
     } catch (err) {

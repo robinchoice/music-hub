@@ -42,7 +42,11 @@ afterAll(async () => {
 
 const ip = crypto.randomUUID();
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const content = { title: 'Spuren als <ZIP>', features: ['Ein Klick lädt alle Spuren', 'Auch am Handy'] };
+const content = {
+  title: 'Spuren als <ZIP>',
+  features: ['Ein Klick lädt alle Spuren', 'Auch am Handy'],
+  en: { title: 'Stems as a <ZIP>', features: ['One click downloads all stems'] },
+};
 
 // Existing accounts, so a full Music Hub (MAX_USERS) doesn't get in the way
 async function account(email = `test-${crypto.randomUUID()}@example.com`) {
@@ -157,7 +161,9 @@ test('the admin drafts, previews, tests and sends; the API delivers to opted-in 
   updateIds.push(id);
   expect(created.update).toMatchObject({ slug: null, sentAt: null, hasImage: false });
 
-  // Incomplete drafts save, but don't send
+  // Incomplete drafts save, but don't send, also without English
+  expect((await request('POST', `/updates/${id}/send`, undefined, admin)).status).toBe(400);
+  await read(request('PUT', `/updates/${id}`, { content: { title: content.title, features: content.features } }, admin), updateAnswer);
   expect((await request('POST', `/updates/${id}/send`, undefined, admin)).status).toBe(400);
   const saved = await read(request('PUT', `/updates/${id}`, { content, image: PNG.toString('base64') }, admin), updateAnswer);
   expect(saved.update.hasImage).toBe(true);
@@ -166,6 +172,7 @@ test('the admin drafts, previews, tests and sends; the API delivers to opted-in 
   // The preview escapes the content, the image is public by its id
   const preview = await (await request('GET', `/updates/${id}/preview`, undefined, admin)).text();
   expect(preview).toContain('Spuren als &lt;ZIP&gt;');
+  expect(await (await request('GET', `/updates/${id}/preview?locale=en`, undefined, admin)).text()).toContain('Stems as a &lt;ZIP&gt;');
   const image = await request('GET', `/updates/${id}/image`);
   expect(image.headers.get('content-type')).toBe('image/png');
 
@@ -205,8 +212,15 @@ test('the admin drafts, previews, tests and sends; the API delivers to opted-in 
 
 test('the update mail carries one-click unsubscribe and escapes its content', () => {
   const token = crypto.randomUUID();
-  const mail = updateMail({ id: crypto.randomUUID(), content, hasImage: false, date: new Date(2026, 9, 16) }, token);
+  const update = { id: crypto.randomUUID(), content, hasImage: false, date: new Date(2026, 9, 16) };
+  const mail = updateMail(update, token, 'de');
   expect(mail.subject).toBe('Neu in Music Hub: Spuren als <ZIP>');
+  const english = updateMail(update, token, 'en');
+  expect(english.subject).toBe('New in Music Hub: Stems as a <ZIP>');
+  expect(english.text).toContain('16 October 2026');
+  // Updates from before English read German for everyone
+  const old = updateMail({ ...update, content: { title: content.title, features: content.features } }, token, 'en');
+  expect(old.subject).toBe('New in Music Hub: Spuren als <ZIP>');
   expect(mail.headers['List-Unsubscribe']).toBe(`<https://app.test/api/v1/updates/unsubscribe?t=${token}>`);
   expect(mail.html).toContain(`https://app.test/abbestellen?liste=updates&t=${token}`);
   expect(mail.html).not.toContain('<ZIP>');
@@ -216,11 +230,16 @@ test('the update mail carries one-click unsubscribe and escapes its content', ()
 test('drafts parse from updates/*.md, broken ones say where', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'updates-'));
   writeFileSync(path.join(dir, 'zip.png'), PNG);
-  const draft = parseDraft('zip', '# Spuren als ZIP\n- Ein Klick lädt alle Spuren\n\n![](zip.png)\n', dir);
-  expect(draft.content).toEqual({ title: 'Spuren als ZIP', features: ['Ein Klick lädt alle Spuren'] });
+  const draft = parseDraft('zip', '# de: Spuren als ZIP\n- Ein Klick lädt alle Spuren\n\n![](zip.png)\n\n# en: Stems as a ZIP\n- One click downloads all stems\n', dir);
+  expect(draft.content).toEqual({
+    title: 'Spuren als ZIP',
+    features: ['Ein Klick lädt alle Spuren'],
+    en: { title: 'Stems as a ZIP', features: ['One click downloads all stems'] },
+  });
   expect(draft.image).toEqual(PNG);
-  expect(() => parseDraft('x', '# Nur ein Titel', dir)).toThrow('needs a title and at least one feature');
-  expect(() => parseDraft('x', '# Titel\nFließtext', dir)).toThrow('line 2');
+  expect(() => parseDraft('x', '# de: Nur ein Titel\n# en: Only a title', dir)).toThrow('needs a title and at least one feature');
+  expect(() => parseDraft('x', '# de: Titel\n- Feature', dir)).toThrow('for de and en');
+  expect(() => parseDraft('x', '# de: Titel\nFließtext', dir)).toThrow('line 2');
   // Every draft in the repo parses, so a deploy never imports a broken one
   expect(() => readDrafts()).not.toThrow();
 });

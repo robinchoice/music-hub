@@ -104,6 +104,12 @@ const de = {
     reminderIntro: (name: string, version: string) => `${name} bittet dich, in ${version} reinzuhören und mit „Fertig“ Bescheid zu geben.`,
     listenNow: 'Jetzt anhören',
     reminderWhy: 'Du bekommst diese Mail, weil du im Projekt freigibst und keine Push-Benachrichtigungen aktiviert hast.',
+    updateSubject: (title: string) => `Neu in Music Hub: ${title}`,
+    updateKicker: (day: string) => `Neu in Music Hub · ${day}`,
+    openApp: 'Music Hub öffnen',
+    updateWhy: 'Du bekommst diese Mail, weil du in Music Hub Updates per Mail eingeschaltet hast.',
+    unsubscribeUpdates: 'Updates abbestellen',
+    account: 'Konto',
   },
 };
 
@@ -205,6 +211,12 @@ const en: typeof de = {
     reminderIntro: (name, version) => `${name} asks you to listen to ${version} and let them know with “Done”.`,
     listenNow: 'Listen now',
     reminderWhy: 'You get this mail because you approve in this project and have not turned on push notifications.',
+    updateSubject: (title) => `New in Music Hub: ${title}`,
+    updateKicker: (day) => `New in Music Hub · ${day}`,
+    openApp: 'Open Music Hub',
+    updateWhy: 'You get this mail because you turned on updates by mail in Music Hub.',
+    unsubscribeUpdates: 'Unsubscribe from updates',
+    account: 'Account',
   },
 };
 

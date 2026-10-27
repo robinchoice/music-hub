@@ -78,7 +78,7 @@ async function device() {
       err: (text) => err.push(text),
       stdin: async () => stdin,
       sleep: async () => {
-        const userCode = err.at(-1)?.match(/Code (\S+)\.$/)?.[1];
+        const userCode = err.at(-1)?.match(/code (\S+)\.$/)?.[1];
         if (!approveAs || !userCode) return;
         await fetch(`${url}/api/v1/auth/device/approve`, {
           method: 'POST',
@@ -103,7 +103,7 @@ test('login confirmed in the browser stores a token only the user can read', asy
   const login = await cli(['login', '--json'], { approveAs: ada.browser });
   expect(login.code).toBe(0);
   expect(login.json()).toMatchObject({ user: { email: ada.email } });
-  expect(login.err).toMatch(/Öffne .*\/device\?code=\S+ und bestätige dort den Code \S+\./);
+  expect(login.err).toMatch(/Open .*\/device\?code=\S+ and confirm the code \S+\./);
   expect((await stat(sessionFile(env))).mode & 0o777).toBe(0o600);
   // A session of its own, which the admin pages don't count as plugin
   expect(await sessionOf(await token())).toEqual({ client: 'cli' });
@@ -126,11 +126,11 @@ test('projects lists the own projects with roles and tracks', async () => {
     { projectId: old!.id, userId: ada.id, role: 'viewer' },
   ]);
 
-  expect((await cli(['projects'])).out).toBe('Fernlicht – Ada · Besitzer, Produktion · 0 Tracks');
+  expect((await cli(['projects'])).out).toBe('Fernlicht – Ada · Owner, Production · 0 tracks');
   expect((await cli(['projects', '--json'])).json()).toEqual({
     projects: [{ id: fernlicht!.id, name: 'Fernlicht', artist: 'Ada', roles: ['owner', 'producer'], trackCount: 0 }],
   });
-  expect((await cli(['projects', '--archived'])).out).toBe('Altbau · Nur Zuhören · 0 Tracks');
+  expect((await cli(['projects', '--archived'])).out).toBe('Altbau · Listen only · 0 tracks');
 });
 
 test('share prints the own link of a project, found by name or ID', async () => {
@@ -192,7 +192,7 @@ test('agents log in with a login link from stdin', async () => {
   expect(await sessionOf(await token())).toEqual({ client: 'cli' });
 
   const again = await device();
-  expect(await again.cli(['login', '--link', link])).toMatchObject({ code: 1, err: 'Der Link ist abgelaufen oder wurde schon benutzt.' });
+  expect(await again.cli(['login', '--link', link])).toMatchObject({ code: 1, err: 'The link has expired or has already been used.' });
   expect(await again.cli(['login', '--link', 'https://example.com/'])).toMatchObject({ code: 2, err: texts.linkIncomplete });
 });
 
@@ -290,7 +290,7 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
   const { tracks: songs } = await projectWithTracks(ada, 'Klanglabor Album', ['Morgenrot', 'Abendrot']);
   const create = ['deliveries', 'create', '--project', 'klanglabor album', '--client', 'Kim', '--price', '120'];
 
-  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.plan_required });
+  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.en.plan_required });
   await db.update(users).set({ plan: 'solo' }).where(eq(users.id, ada.id));
 
   expect((await cli([...create.slice(0, -1), '12.345'])).code).toBe(2);
@@ -316,20 +316,20 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
     tracks: [{ trackId: songs[0]!.id, name: 'Morgenrot', priceCents: 12000, roundsUsed: 0, roundsIncluded: 3 }],
     totals: { totalCents: 12000, trackCount: 1, approvedCount: 0 },
   });
-  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.delivery_exists });
+  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.en.delivery_exists });
 
-  const line = [delivery.id, 'Klanglabor Album', 'Kim', 'offen', '0/1 freigegeben', formatEuro(12000)].join(' · ');
+  const line = [delivery.id, 'Klanglabor Album', 'Kim', 'open', '0/1 approved', formatEuro(12000, 'en')].join(' · ');
   expect(await cli(['deliveries', 'list'])).toMatchObject({ code: 0, out: line });
   expect((await cli(['deliveries', 'list', '--project', 'Klanglabor Album', '--json'])).json()).toMatchObject({
     deliveries: [{ id: delivery.id }],
   });
   const shown = await cli(['deliveries', 'show', delivery.id]);
   expect(shown.code).toBe(0);
-  expect(shown.out).toContain('Auftrag für Kim · offen');
+  expect(shown.out).toContain('Order for Kim · open');
   expect(shown.out).toContain(`Link: ${albumUrl}`);
-  expect(shown.out).toContain('Referenz: KL-7');
-  expect(shown.out).toContain(`  Morgenrot · ${formatEuro(12000)} · `);
-  expect(shown.out).toContain(`Summe: ${formatEuro(12000)}`);
+  expect(shown.out).toContain('Reference: KL-7');
+  expect(shown.out).toContain(`  Morgenrot · ${formatEuro(12000, 'en')} · `);
+  expect(shown.out).toContain(`Total: ${formatEuro(12000, 'en')}`);
 
   // The client approved V1 and said "Ich habe überwiesen", the studio confirms the money arrived
   expect(await cli(['deliveries', 'confirm-payment', delivery.id])).toMatchObject({ code: 1, err: texts.noOpenTransfer });
@@ -341,13 +341,13 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
   await db.insert(payments).values({ deliveryId: delivery.id, method: 'transfer', amountCents: 12000, status: 'announced' });
   expect(await cli(['deliveries', 'confirm-payment', delivery.id])).toMatchObject({
     code: 0,
-    out: texts.paymentConfirmed(formatEuro(12000)),
+    out: texts.paymentConfirmed(formatEuro(12000, 'en')),
   });
   expect((await cli(['deliveries', 'show', delivery.id, '--json'])).json()).toMatchObject({
     delivery: { status: 'paid', payments: [{ method: 'transfer', status: 'paid', confirmedByName: 'Ada' }] },
   });
   expect(await cli(['deliveries', 'confirm-payment', delivery.id])).toMatchObject({ code: 1, err: texts.noOpenTransfer });
-  expect(await cli(['deliveries', 'cancel', delivery.id])).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.not_open });
+  expect(await cli(['deliveries', 'cancel', delivery.id])).toMatchObject({ code: 1, err: DELIVERY_ERRORS.en.not_open });
 });
 
 test('deliveries: cancelling frees the link for a new one, others in the project only see their refusal', async () => {
@@ -374,7 +374,7 @@ test('deliveries: cancelling frees the link for a new one, others in the project
 
   const cancelled = await studio.cli(['deliveries', 'cancel', first.id]);
   expect(cancelled.code).toBe(0);
-  expect(cancelled.out).toContain('Auftrag für Lea · storniert');
+  expect(cancelled.out).toContain('Order for Lea · canceled');
 
   const second = deliveryJson.parse((await studio.cli(create)).json()).delivery;
   expect(second.linkToken).toBe(first.linkToken);
@@ -395,6 +395,6 @@ test('the CLI creates no account once Music Hub is full', async () => {
 
   const login = await cli(['login', '--link', await loginLink(email), '--json']);
   expect(login.code).toBe(1);
-  expect(login.json()).toEqual({ error: expect.stringContaining('Music Hub ist gerade voll') });
+  expect(login.json()).toEqual({ error: expect.stringContaining('Music Hub is full right now') });
   expect(await db.select({ id: users.id }).from(users).where(eq(users.email, email))).toHaveLength(0);
 });

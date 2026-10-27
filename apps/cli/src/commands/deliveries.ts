@@ -95,23 +95,23 @@ function rounds(value: unknown) {
 const linkOf = (url: string, d: Delivery) => `${url}/album/${d.linkToken}`;
 
 function line(d: Delivery, projectName: string) {
-  return [d.id, projectName, d.clientName, texts.deliveryStatus[d.status], texts.approved(d.totals.approvedCount, d.totals.trackCount), formatEuro(d.totals.totalCents)].join(' · ');
+  return [d.id, projectName, d.clientName, texts.deliveryStatus[d.status], texts.approved(d.totals.approvedCount, d.totals.trackCount), formatEuro(d.totals.totalCents, 'en')].join(' · ');
 }
 
 function details(d: Delivery, url: string) {
-  const extra = d.totals.extraRounds ? texts.extraRoundsAt(d.totals.extraRounds, formatEuro(d.totals.extraCents)) : '';
+  const extra = d.totals.extraRounds ? texts.extraRoundsAt(d.totals.extraRounds, formatEuro(d.totals.extraCents, 'en')) : '';
   return [
     `${texts.deliveryFor(d.clientName)} · ${texts.deliveryStatus[d.status]}`,
     `${texts.link}: ${linkOf(url, d)}`,
     ...(d.reference ? [`${texts.reference}: ${d.reference}`] : []),
     ...(d.clientEmail ? [`${texts.email}: ${d.clientEmail}`] : []),
-    texts.roundsLine(d.includedRounds, formatEuro(d.extraRoundCents)),
+    texts.roundsLine(d.includedRounds, formatEuro(d.extraRoundCents, 'en')),
     texts.stemsLine(d.includeStems),
     `${texts.songs}:`,
     ...d.tracks.map((t) =>
       [
         `  ${t.name}${t.shownVersionNumber === null ? '' : ` (V${t.shownVersionNumber})`}`,
-        formatEuro(t.priceCents),
+        formatEuro(t.priceCents, 'en'),
         texts.trackState[t.state],
         texts.roundsOf(t.roundsUsed, t.roundsIncluded),
       ].join(' · '),
@@ -120,11 +120,11 @@ function details(d: Delivery, url: string) {
       ? [
           `${texts.payments}:`,
           ...d.payments.map((p) =>
-            [`  ${texts.paymentMethod[p.method]}`, texts.paymentStatus[p.status], formatEuro(p.amountCents), new Date(p.createdAt).toLocaleDateString('de-DE')].join(' · '),
+            [`  ${texts.paymentMethod[p.method]}`, texts.paymentStatus[p.status], formatEuro(p.amountCents, 'en'), new Date(p.createdAt).toLocaleDateString('en-GB')].join(' · '),
           ),
         ]
       : []),
-    texts.total(formatEuro(d.totals.totalCents), extra),
+    texts.total(formatEuro(d.totals.totalCents, 'en'), extra),
   ].join('\n');
 }
 
@@ -192,7 +192,7 @@ export const deliveries: Command = {
       const open = delivery.payments.find((p) => p.method === 'transfer' && (p.status === 'pending' || p.status === 'announced'));
       if (!open) throw new Failure(texts.noOpenTransfer, EXIT.error);
       const confirmed = (await api.post(`${path}/payments/${open.id}/confirm`, oneSchema)).delivery;
-      return { ...one(confirmed, url), text: texts.paymentConfirmed(formatEuro(open.amountCents)) };
+      return { ...one(confirmed, url), text: texts.paymentConfirmed(formatEuro(open.amountCents, 'en')) };
     }
 
     if (sub === 'create' && !id) {

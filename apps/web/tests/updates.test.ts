@@ -56,6 +56,13 @@ test('admins write an update and see the mail as recipients will', async ({ page
   await page.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.getByRole('button', { name: title })).toBeVisible();
   await expect(page.frameLocator('iframe[title="Vorschau"]').getByText('Ein Klick lädt alle Spuren')).toBeVisible();
+  // The English text sits next to it, its preview follows the tab
+  await page.getByRole('tab', { name: 'English' }).click();
+  await page.getByLabel('Titel').fill(`Stems as a ZIP (${testInfo.project.name})`);
+  await page.getByLabel('Features, eins pro Zeile').fill('One click downloads all stems');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.frameLocator('iframe[title="Vorschau"]').getByText('One click downloads all stems')).toBeVisible();
+  await expect(page.getByText('Zum Senden braucht das Update')).toHaveCount(0);
   await page.getByRole('button', { name: 'Entwurf löschen' }).click();
   await expect(page.getByRole('button', { name: title })).toHaveCount(0);
 });

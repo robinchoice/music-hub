@@ -434,7 +434,7 @@
         </div>
         <div class="phone">
           <img
-            src="/demo/nachtbus-handy.png"
+            src="/demo/nachtbus-handy-{locale()}.png"
             alt={t().landing.audience.phoneAlt}
             width="390"
             height="844"

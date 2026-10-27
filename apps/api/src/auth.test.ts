@@ -198,8 +198,8 @@ test('errors follow the locale cookie, else Accept-Language, and the web stores 
   const token = generateToken();
   await db.insert(sessions).values({ userId: user.id, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + 60_000) });
   const locale = async () => (await db.select({ locale: users.locale }).from(users).where(eq(users.id, user.id)))[0].locale;
-  // The plugin says nothing and leaves the language alone
-  await app.request('/auth/me', { headers: { authorization: `Bearer ${token}` } });
+  // Plugin and CLI leave the language alone, even when they ask for English
+  await app.request('/auth/me', { headers: { authorization: `Bearer ${token}`, 'accept-language': 'en' } });
   expect(await locale()).toBe('de');
   await app.request('/auth/me', { headers: { cookie: `session=${token}; locale=en` } });
   expect(await locale()).toBe('en');

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { type UpdateContent, type UpdateSummary, updateComplete } from '@music-hub/shared';
+  import { type Locale, type UpdateContent, type UpdateSummary, updateComplete } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -13,9 +13,10 @@
   let list = $state<UpdateSummary[]>([]);
   let subscribers = $state(0);
   let selectedId = $state<string | null>(null);
-  // The draft being edited, features as one line each
-  let title = $state('');
-  let features = $state('');
+  // The draft being edited in both languages, features as one line each
+  let lang = $state<Locale>('de');
+  let title = $state({ de: '', en: '' });
+  let features = $state({ de: '', en: '' });
   let image = $state<string | null | undefined>(undefined);
   let busy = $state('');
   let confirming = $state(false);
@@ -25,12 +26,15 @@
   const selected = $derived(list.find((update) => update.id === selectedId));
   const drafts = $derived(list.filter((update) => !update.sentAt));
   const sent = $derived(list.filter((update) => update.sentAt));
-  const content = $derived<UpdateContent>({
-    title,
-    features: features
+  const lines = (text: string) =>
+    text
       .split('\n')
       .map((line) => line.trim())
-      .filter(Boolean),
+      .filter(Boolean);
+  const content = $derived<UpdateContent>({
+    title: title.de,
+    features: lines(features.de),
+    en: { title: title.en, features: lines(features.en) },
   });
   const date = (iso: string) => new Date(iso).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
   const total = (update: UpdateSummary) => update.sent + update.failed + update.pending;
@@ -54,8 +58,8 @@
 
   function select(update: UpdateSummary) {
     selectedId = update.id;
-    title = update.content.title;
-    features = update.content.features.join('\n');
+    title = { de: update.content.title, en: update.content.en?.title ?? '' };
+    features = { de: update.content.features.join('\n'), en: update.content.en?.features.join('\n') ?? '' };
     image = undefined;
     confirming = false;
   }
@@ -95,8 +99,8 @@
     run('test', async () => {
       const id = selectedId!;
       if (!selected?.sentAt) await save(id);
-      await api.post(`/updates/${id}/test`);
-      toastSuccess(`Testmail an ${$user?.email} gesendet`);
+      await api.post(`/updates/${id}/test?locale=${lang}`);
+      toastSuccess(`Testmail (${lang}) an ${$user?.email} gesendet`);
     });
   const send = () =>
     run('send', async () => {
@@ -164,10 +168,15 @@
           <p class="muted">Versendete Updates lassen sich nicht mehr ändern.</p>
         {:else}
           <div class="form">
-            <Input label="Titel" bind:value={title} />
+            <div class="tabs" role="tablist">
+              {#each [['de', 'Deutsch'], ['en', 'English']] as const as [code, name]}
+                <button type="button" role="tab" aria-selected={lang === code} class:on={lang === code} onclick={() => (lang = code)}>{name}</button>
+              {/each}
+            </div>
+            <Input label="Titel" bind:value={title[lang]} />
             <label>
               <span>Features, eins pro Zeile</span>
-              <textarea rows="5" bind:value={features}></textarea>
+              <textarea rows="5" bind:value={features[lang]}></textarea>
             </label>
             <div class="image">
               <span>Bild (optional)</span>
@@ -195,7 +204,7 @@
           {/if}
         </div>
         {#if !selected.sentAt && !updateComplete(content)}
-          <p class="muted">Zum Senden braucht das Update einen Titel und ein Feature.</p>
+          <p class="muted">Zum Senden braucht das Update auf Deutsch und Englisch je einen Titel und ein Feature. Jede Person bekommt es in der Sprache ihres Kontos.</p>
         {/if}
         {#if confirming}
           <div class="confirm">
@@ -208,9 +217,9 @@
           </div>
         {/if}
 
-        <h3>Vorschau</h3>
-        {#key `${selected.id}-${previewKey}`}
-          <iframe title="Vorschau" src="/api/v1/updates/{selected.id}/preview"></iframe>
+        <h3>Vorschau ({lang === 'de' ? 'Deutsch' : 'English'})</h3>
+        {#key `${selected.id}-${lang}-${previewKey}`}
+          <iframe title="Vorschau" src="/api/v1/updates/{selected.id}/preview?locale={lang}"></iframe>
         {/key}
       </section>
     {/if}
@@ -348,5 +357,23 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: #0a0910;
+  }
+  .tabs {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .tabs button {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .tabs button.on {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
   }
 </style>

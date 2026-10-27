@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, count, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { updateDeliveries, updates, users } from '@music-hub/db';
-import { saveUpdateSchema, type UpdateSummary, updateComplete } from '@music-hub/shared';
+import { pickLocale, saveUpdateSchema, type UpdateSummary, updateComplete } from '@music-hub/shared';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../lib/admin.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -18,7 +18,7 @@ const sendsPerUser = rateLimit('update-sends-per-user', 5, HOUR);
 
 const NOT_FOUND = 'Update nicht gefunden';
 const ALREADY_SENT = 'Dieses Update ist schon versendet.';
-const INCOMPLETE = 'Zum Senden braucht das Update einen Titel und ein Feature.';
+const INCOMPLETE = 'Zum Senden braucht das Update auf Deutsch und Englisch je einen Titel und ein Feature.';
 const INVALID_IMAGE = 'Das Bild muss ein PNG oder JPEG sein.';
 
 const counts = (status: string) => sql<number>`count(*) filter (where ${updateDeliveries.status} = ${status})::int`;
@@ -171,7 +171,7 @@ export const updateRoutes = new Hono<AppEnv>()
     const found = await forAdmin(c);
     if (!found) return c.json({ error: NOT_FOUND }, 404);
     c.header('content-security-policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
-    return c.html(updateMail(found.update, found.user.token).html);
+    return c.html(updateMail(found.update, found.user.token, pickLocale(c.req.query('locale'))).html);
   })
 
   // To the admin, before and after sending
@@ -180,7 +180,7 @@ export const updateRoutes = new Hono<AppEnv>()
     const found = await forAdmin(c);
     if (!found) return c.json({ error: NOT_FOUND }, 404);
     try {
-      await sendUpdateMail(found.user.email, updateMail(found.update, found.user.token));
+      await sendUpdateMail(found.user.email, updateMail(found.update, found.user.token, pickLocale(c.req.query('locale'))));
     } catch (err) {
       // Not to the global handler, SMTP errors may quote the address
       console.error(`[Updates] Test mail of update ${found.update.id} failed: ${redact(err)}`);
