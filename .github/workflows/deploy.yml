@@ -157,7 +157,8 @@ jobs:
     needs: deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # apt for the browser's system libraries sometimes takes ten minutes by itself
+    timeout-minutes: 20
     env:
       APP_URL: https://hub.pleasance.org
     permissions:
