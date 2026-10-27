@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { PaymentAccount, PaymentAccountInput, PaymentAccountResponse } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
+  import { t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
 
@@ -13,6 +14,7 @@
   let holder = $state('');
   let editTransfer = $state(false);
   let saving = $state<'lightning' | 'transfer' | null>(null);
+  const tx = $derived(t().delivery.account);
 
   onMount(async () => {
     account = (await api.get<PaymentAccountResponse>('/payment-account', true).catch(() => null))?.account ?? null;
@@ -34,12 +36,12 @@
 
   async function connect(e: Event) {
     e.preventDefault();
-    if (await put({ nwcUrl: nwcUrl.trim() }, 'lightning', 'Wallet verbunden')) nwcUrl = '';
+    if (await put({ nwcUrl: nwcUrl.trim() }, 'lightning', tx.walletConnected)) nwcUrl = '';
   }
 
   async function saveTransfer(e: Event) {
     e.preventDefault();
-    const ok = await put({ iban: iban.trim(), bic: bic.trim() || null, accountHolder: holder.trim() }, 'transfer', 'Konto gespeichert');
+    const ok = await put({ iban: iban.trim(), bic: bic.trim() || null, accountHolder: holder.trim() }, 'transfer', tx.accountSaved);
     if (ok) {
       editTransfer = false;
       iban = '';
@@ -56,53 +58,48 @@
 
 {#if account}
   <section class="card" id="zahlungswege">
-    <h2>Zahlungswege</h2>
-    <p class="sub">
-      Für Aufträge mit Bezahlwand: Deine Kunden bezahlen direkt an dich. Music Hub nimmt keine Provision und hält kein Geld.
-    </p>
+    <h2>{tx.title}</h2>
+    <p class="sub">{tx.intro}</p>
 
-    <h3>Lightning</h3>
+    <h3>{tx.lightning}</h3>
     {#if !account.lightningAvailable}
-      <p class="hint">Lightning ist auf diesem Server noch nicht eingerichtet.</p>
+      <p class="hint">{tx.notSetUp}</p>
     {:else if account.lightning.connected}
       <div class="line">
-        <span class="ok">Wallet verbunden{account.lightning.alias ? ` · ${account.lightning.alias}` : ''} (nur Empfangen)</span>
-        <Button variant="ghost" size="sm" loading={saving === 'lightning'} onclick={() => put({ nwcUrl: null }, 'lightning', 'Wallet getrennt')}>Trennen</Button>
+        <span class="ok">{tx.walletConnected}{account.lightning.alias ? ` · ${account.lightning.alias}` : ''}{tx.receiveOnly}</span>
+        <Button variant="ghost" size="sm" loading={saving === 'lightning'} onclick={() => put({ nwcUrl: null }, 'lightning', tx.walletDisconnected)}>{tx.disconnect}</Button>
       </div>
     {:else}
       <form class="form" onsubmit={connect}>
         <label>
-          <span>Verbindungs-Code deiner Wallet (Nostr Wallet Connect)</span>
+          <span>{tx.codeLabel}</span>
           <input type="password" bind:value={nwcUrl} placeholder="nostr+walletconnect://…" autocomplete="off" />
         </label>
-        <p class="hint">
-          Lege in deiner Wallet (z. B. Alby Hub) eine neue Verbindung an, die nur Rechnungen erstellen und nachschlagen darf.
-          Verbindungen, die auch bezahlen dürfen, nimmt Music Hub nicht an. Der Code wird verschlüsselt gespeichert.
-        </p>
-        <Button type="submit" size="sm" loading={saving === 'lightning'} disabled={!nwcUrl.trim().startsWith('nostr+walletconnect://')}>Wallet verbinden</Button>
+        <p class="hint">{tx.codeHint}</p>
+        <Button type="submit" size="sm" loading={saving === 'lightning'} disabled={!nwcUrl.trim().startsWith('nostr+walletconnect://')}>{tx.connectWallet}</Button>
       </form>
     {/if}
 
-    <h3>Überweisung</h3>
+    <h3>{tx.transfer}</h3>
     {#if account.transfer && !editTransfer}
       <div class="line">
         <span>
           <b>{account.transfer.accountHolder}</b> · {account.transfer.ibanMasked}{account.transfer.bic ? ` · ${account.transfer.bic}` : ''}
         </span>
         <span class="btns">
-          <Button variant="ghost" size="sm" onclick={startTransfer}>Ändern</Button>
-          <Button variant="ghost" size="sm" loading={saving === 'transfer'} onclick={() => put({ iban: null, bic: null, accountHolder: null }, 'transfer', 'Konto entfernt')}>Entfernen</Button>
+          <Button variant="ghost" size="sm" onclick={startTransfer}>{tx.change}</Button>
+          <Button variant="ghost" size="sm" loading={saving === 'transfer'} onclick={() => put({ iban: null, bic: null, accountHolder: null }, 'transfer', tx.accountRemoved)}>{t().common.remove}</Button>
         </span>
       </div>
     {:else}
       <form class="form" onsubmit={saveTransfer}>
-        <label><span>Kontoinhaber</span><input bind:value={holder} maxlength={70} autocomplete="name" /></label>
+        <label><span>{tx.holder}</span><input bind:value={holder} maxlength={70} autocomplete="name" /></label>
         <label><span>IBAN</span><input bind:value={iban} maxlength={42} placeholder="DE12 3456 …" autocomplete="off" /></label>
-        <label><span>BIC (optional)</span><input bind:value={bic} maxlength={11} autocomplete="off" /></label>
-        <p class="hint">Kunden sehen Inhaber und IBAN erst, wenn sie per Überweisung bezahlen, dazu einen GiroCode für die Banking-App.</p>
+        <label><span>{tx.bicOptional}</span><input bind:value={bic} maxlength={11} autocomplete="off" /></label>
+        <p class="hint">{tx.transferHint}</p>
         <span class="btns">
-          {#if account.transfer}<Button variant="ghost" size="sm" onclick={() => (editTransfer = false)}>Abbrechen</Button>{/if}
-          <Button type="submit" size="sm" loading={saving === 'transfer'} disabled={!iban.trim() || !holder.trim()}>Konto speichern</Button>
+          {#if account.transfer}<Button variant="ghost" size="sm" onclick={() => (editTransfer = false)}>{t().common.cancel}</Button>{/if}
+          <Button type="submit" size="sm" loading={saving === 'transfer'} disabled={!iban.trim() || !holder.trim()}>{tx.saveAccount}</Button>
         </span>
       </form>
     {/if}

@@ -1,12 +1,13 @@
 import { SUPPORTED_EXTENSIONS, AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE, STEM_MIME_TYPE } from '@music-hub/shared';
 import { api } from '$lib/api/client.js';
+import { t } from '$lib/i18n/index.js';
 import { demoMode } from '$lib/demo/mode.js';
 
 export const MAX_FILE_SIZE_LABEL = `${MAX_FILE_SIZE / 1024 ** 2} MB`;
 
 export function checkFileSize(files: File[]): string | null {
   const tooBig = files.filter((f) => f.size > MAX_FILE_SIZE);
-  return tooBig.length > 0 ? `${tooBig.map((f) => f.name).join(', ')} zu groß (max. ${MAX_FILE_SIZE_LABEL})` : null;
+  return tooBig.length > 0 ? t().track.upload.tooBig(tooBig.map((f) => f.name).join(', '), MAX_FILE_SIZE_LABEL) : null;
 }
 
 // Why these files can't go up, or null when they can
@@ -15,7 +16,7 @@ export function checkAudioFiles(files: File[]): string | null {
   if (sizeError) return sizeError;
   const unsupported = files.filter((f) => !SUPPORTED_EXTENSIONS.some((ext) => ext === extension(f.name)));
   if (unsupported.length > 0) {
-    return `${unsupported.map((f) => f.name).join(', ')}: Format nicht unterstützt. Erlaubt: ${SUPPORTED_EXTENSIONS.join(', ')}`;
+    return t().track.upload.unsupported(unsupported.map((f) => f.name).join(', '), SUPPORTED_EXTENSIONS.join(', '));
   }
   return null;
 }
@@ -79,9 +80,9 @@ export async function uploadAudioFile(uploadPath: string, file: File, opts: Vers
       opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
       opts.onBytes?.(e.loaded);
     };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload fehlgeschlagen (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
-    xhr.onabort = () => reject(new Error('Upload abgebrochen'));
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
+    xhr.onerror = () => reject(new Error(t().track.upload.connection));
+    xhr.onabort = () => reject(new Error(t().track.upload.aborted));
     opts.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
     xhr.send(file);
   });
@@ -111,7 +112,7 @@ export async function uploadVersion(trackId: string, file: File, opts: VersionUp
 
 // Upload URL, file straight to S3, then the stem gets it as its new file. Returns the updated stem.
 export async function replaceStemFile<T>(trackId: string, stemId: string, file: File, onProgress?: (percent: number) => void) {
-  const error = checkFileSize([file]) ?? (STEM_MIME_TYPE.test(file.type || 'audio/wav') ? null : `Kein Audio: ${file.name}`);
+  const error = checkFileSize([file]) ?? (STEM_MIME_TYPE.test(file.type || 'audio/wav') ? null : t().track.upload.notAudio(file.name));
   if (error) throw new Error(error);
   const mimeType = file.type || 'audio/wav';
   const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(`/stems/track/${trackId}/upload-url`, {
@@ -125,8 +126,8 @@ export async function replaceStemFile<T>(trackId: string, stemId: string, file: 
     xhr.open('PUT', uploadUrl);
     xhr.setRequestHeader('Content-Type', mimeType);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload fehlgeschlagen (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error('Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es noch einmal.'));
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
+    xhr.onerror = () => reject(new Error(t().track.upload.connection));
     xhr.send(file);
   });
 

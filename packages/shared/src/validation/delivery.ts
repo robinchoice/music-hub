@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateLocales, type Locale } from '../i18n.js';
 
 // Deliveries (Aufträge): a studio attaches an order to its own project link. The client approves each
 // song or asks for a correction round, pays the total to the studio once every song is approved, and
@@ -78,34 +79,59 @@ export const DELIVERY_ERROR_CODES = [
 ] as const;
 export type DeliveryErrorCode = (typeof DELIVERY_ERROR_CODES)[number];
 
-// The texts the API sends with each code; the web shows `error` as it is
-export const DELIVERY_ERRORS: Record<DeliveryErrorCode, string> = {
-  plan_required: 'Aufträge gibt es mit dem Solo-Tarif.',
-  delivery_exists: 'Für diesen Link gibt es schon einen Auftrag.',
-  track_invalid: 'Dieser Song gehört nicht zum Projekt-Link.',
-  not_open: 'Dieser Auftrag ist abgeschlossen.',
-  unavailable: 'Dieser Link ist gerade nicht verfügbar.',
-  moved_on: 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.',
-  round_exists: 'Für diese Version sind schon Änderungen angefordert. Das Studio meldet sich mit einer neuen Version.',
-  extra_round: 'Das wäre eine kostenpflichtige Zusatzrunde. Bitte bestätige sie.',
-  not_payable: 'Bezahlen geht, sobald alle Songs freigegeben sind.',
-  method_unavailable: 'Diese Zahlungsart bietet das Studio nicht an.',
-  payment_closed: 'Diese Zahlung ist nicht mehr offen.',
-  not_paid: 'Den Download gibt es nach der Zahlung.',
-  lightning_unconfigured: 'Lightning ist auf diesem Server noch nicht eingerichtet',
-  wallet_spends: 'Diese Wallet-Verbindung darf auch bezahlen. Bitte erstelle eine, die nur Rechnungen ausstellen und prüfen darf.',
-  wallet_unreachable: 'Die Wallet antwortet gerade nicht. Bitte versuche es später erneut.',
-  invalid_iban: 'Diese IBAN ist nicht gültig.',
-  relay_refused: 'Dieses Relay ist nicht erlaubt. Die Wallet-Verbindung braucht ein öffentliches Relay mit wss://.',
-  track_open: 'Offene Tracks lassen sich nicht abliefern, ihr Original und ihre Spuren sind öffentlich.',
-  link_has_delivery: 'An diesem Link hängt ein offener oder bezahlter Auftrag. Einen offenen kannst du erst stornieren.',
-  already_paid: 'Die Zahlung ist schon angekommen. Lade die Seite neu, um herunterzuladen.',
-  zip_too_large: 'Die Spuren sind zu groß für ein ZIP. Bitte frag das Studio nach einem anderen Weg.',
+// The texts the API sends with each code, in the client's language; the web shows `error` as it is
+export const DELIVERY_ERRORS: Record<Locale, Record<DeliveryErrorCode, string>> = {
+  de: {
+    plan_required: 'Aufträge gibt es mit dem Solo-Tarif.',
+    delivery_exists: 'Für diesen Link gibt es schon einen Auftrag.',
+    track_invalid: 'Dieser Song gehört nicht zum Projekt-Link.',
+    not_open: 'Dieser Auftrag ist abgeschlossen.',
+    unavailable: 'Dieser Link ist gerade nicht verfügbar.',
+    moved_on: 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.',
+    round_exists: 'Für diese Version sind schon Änderungen angefordert. Das Studio meldet sich mit einer neuen Version.',
+    extra_round: 'Das wäre eine kostenpflichtige Zusatzrunde. Bitte bestätige sie.',
+    not_payable: 'Bezahlen geht, sobald alle Songs freigegeben sind.',
+    method_unavailable: 'Diese Zahlungsart bietet das Studio nicht an.',
+    payment_closed: 'Diese Zahlung ist nicht mehr offen.',
+    not_paid: 'Den Download gibt es nach der Zahlung.',
+    lightning_unconfigured: 'Lightning ist auf diesem Server noch nicht eingerichtet',
+    wallet_spends: 'Diese Wallet-Verbindung darf auch bezahlen. Bitte erstelle eine, die nur Rechnungen ausstellen und prüfen darf.',
+    wallet_unreachable: 'Die Wallet antwortet gerade nicht. Bitte versuche es später erneut.',
+    invalid_iban: 'Diese IBAN ist nicht gültig.',
+    relay_refused: 'Dieses Relay ist nicht erlaubt. Die Wallet-Verbindung braucht ein öffentliches Relay mit wss://.',
+    track_open: 'Offene Tracks lassen sich nicht abliefern, ihr Original und ihre Spuren sind öffentlich.',
+    link_has_delivery: 'An diesem Link hängt ein offener oder bezahlter Auftrag. Einen offenen kannst du erst stornieren.',
+    already_paid: 'Die Zahlung ist schon angekommen. Lade die Seite neu, um herunterzuladen.',
+    zip_too_large: 'Die Spuren sind zu groß für ein ZIP. Bitte frag das Studio nach einem anderen Weg.',
+  },
+  en: {
+    plan_required: 'Orders come with the Solo plan.',
+    delivery_exists: 'This link already has an order.',
+    track_invalid: 'This song is not part of the project link.',
+    not_open: 'This order is closed.',
+    unavailable: 'This link is not available right now.',
+    moved_on: 'There is a newer version by now. Reload the page to hear it.',
+    round_exists: 'Changes have already been requested for this version. The studio will get back to you with a new version.',
+    extra_round: 'This would be a paid extra round. Please confirm it.',
+    not_payable: 'You can pay once all songs are approved.',
+    method_unavailable: 'The studio does not offer this payment method.',
+    payment_closed: 'This payment is no longer open.',
+    not_paid: 'The download is available after payment.',
+    lightning_unconfigured: 'Lightning is not set up on this server yet',
+    wallet_spends: 'This wallet connection can also make payments. Please create one that can only issue and check invoices.',
+    wallet_unreachable: 'The wallet is not responding right now. Please try again later.',
+    invalid_iban: 'This IBAN is not valid.',
+    relay_refused: 'This relay is not allowed. The wallet connection needs a public relay with wss://.',
+    track_open: 'Open tracks cannot be delivered, their original and stems are public.',
+    link_has_delivery: 'An open or paid order is attached to this link. Cancel an open one first.',
+    already_paid: 'The payment has already arrived. Reload the page to download.',
+    zip_too_large: 'The stems are too large for a ZIP. Please ask the studio for another way.',
+  },
 };
 
-// "1.234,50 €"
-export const formatEuro = (cents: number) =>
-  (cents / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: cents % 100 === 0 ? 0 : 2 });
+// "1.234,50 €", in English "€1,234.50"
+export const formatEuro = (cents: number, locale: Locale = 'de') =>
+  (cents / 100).toLocaleString(dateLocales[locale], { style: 'currency', currency: 'EUR', minimumFractionDigits: cents % 100 === 0 ? 0 : 2 });
 
 export type DeliveryErrorResponse = {
   error: string;

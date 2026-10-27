@@ -10,6 +10,7 @@ import {
   deliveryApproveSchema,
   deliveryRoundSchema,
   DELIVERY_ERRORS,
+  pickLocale,
   guestCommentSchema,
   guestReviewSchema,
   LIGHTNING_INVOICE_SECONDS,
@@ -72,10 +73,6 @@ import { eurToSats } from '../lib/payments/rate.js';
 import { decryptSecret } from '../lib/payments/secrets.js';
 import { PaymentServiceError } from '../lib/payments/errors.js';
 
-// Links pause while their version is in the trash or their creator is no longer a member of the project
-const UNAVAILABLE = 'Dieser Link ist gerade nicht verfügbar.';
-// A link that follows the track moved on to a newer version while the guest was listening
-const MOVED_ON = 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.';
 
 // Whether a guest's comment or "Fertig" is about the version shown now. A link that follows the track
 // needs the version the guest heard; older pages don't send it and could otherwise land on a newer one.
@@ -154,6 +151,7 @@ async function hashIp(ip: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 import type { AppEnv } from '../types.js';
+import { locale } from '../lib/i18n.js';
 
 async function commentableLink(c: Context<AppEnv>, token: string) {
   const db = c.get('db');
@@ -202,7 +200,7 @@ async function openProjectLink(c: Context<AppEnv>, token: string) {
     await failedPasswords.undo(db, link.id);
   }
   const membership = await membershipOf(db, link.projectId, link.createdById);
-  if (!membership) return c.json({ error: UNAVAILABLE }, 410);
+  if (!membership) return c.json({ error: DELIVERY_ERRORS[locale(c)].unavailable }, 410);
   return { link, membership };
 }
 
@@ -215,9 +213,9 @@ async function deliveryLink(c: Context<AppEnv>, token: string) {
   return { ...opened, delivery };
 }
 
-const refuse = (c: Context<AppEnv>, f: DeliveryFailure) => c.json(failureBody(f), f.status);
+const refuse = (c: Context<AppEnv>, f: DeliveryFailure) => c.json(failureBody(f, locale(c)), f.status);
 const deliveryError = <S extends 400 | 404 | 409 | 413 | 502>(c: Context<AppEnv>, code: DeliveryErrorCode, status: S) =>
-  c.json({ error: DELIVERY_ERRORS[code], code }, status);
+  c.json({ error: DELIVERY_ERRORS[locale(c)][code], code }, status);
 
 // A payment of the delivery and the delivery as they are now, for the guest page
 async function guestPayment(db: Database, payment: Payment, deliveryId: string, link: ProjectShareLink) {
@@ -250,7 +248,7 @@ async function deliveryDownload(c: Context<AppEnv>) {
   const trackId = c.req.param('trackId') ?? '';
   if (!z.string().uuid().safeParse(trackId).success) return deliveryError(c, 'track_invalid', 404);
   // A link never hands out more than its creator may download
-  if (!mayDownload(found.membership)) return c.json(failureBody({ ok: false, status: 410, code: 'unavailable' }), 410);
+  if (!mayDownload(found.membership)) return c.json(failureBody({ ok: false, status: 410, code: 'unavailable' }, locale(c)), 410);
   const result = await paidDownload(db, found.delivery, trackId);
   if (!result.ok) return refuse(c, result);
   return { ...result, includeStems: found.delivery.includeStems };
@@ -633,7 +631,7 @@ export const shareRoutes = new Hono<AppEnv>()
         }
       } catch (err) {
         // Only our own messages: other errors may carry the connection string
-        if (err instanceof PaymentServiceError) return c.json({ error: err.message, code: err.code }, 502);
+        if (err instanceof PaymentServiceError) return c.json({ error: err.text(locale(c)), code: err.code }, 502);
         console.error('[Deliveries] Invoice failed');
         return deliveryError(c, 'wallet_unreachable', 502);
       }
@@ -716,7 +714,7 @@ export const shareRoutes = new Hono<AppEnv>()
     }
 
     const found = await liveTarget(db, link);
-    if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!found) return c.json({ error: DELIVERY_ERRORS[locale(c)].unavailable }, 410);
     const { version, track, membership } = found;
     const [project] = await db
       .select()
@@ -803,10 +801,10 @@ export const shareRoutes = new Hono<AppEnv>()
 
     // A link that follows the track comments on the version it shows right now
     const found = await liveTarget(db, link);
-    if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!found) return c.json({ error: DELIVERY_ERRORS[locale(c)].unavailable }, 410);
     if (!found.membership.canComment) return c.json({ error: 'Comments disabled' }, 403);
     const versionId = found.version.id;
-    if (!matchesShown(link, input.versionId, versionId)) return c.json({ error: MOVED_ON }, 409);
+    if (!matchesShown(link, input.versionId, versionId)) return c.json({ error: DELIVERY_ERRORS[locale(c)].moved_on }, 409);
 
     if (input.parentId) {
       const parent = await replyTarget(db, input.parentId, versionId);
@@ -841,9 +839,9 @@ export const shareRoutes = new Hono<AppEnv>()
     if (!(await guestReviews.hit(db, link.id))) return tooManyRequests(c);
 
     const found = await liveTarget(db, link);
-    if (!found) return c.json({ error: UNAVAILABLE }, 410);
+    if (!found) return c.json({ error: DELIVERY_ERRORS[locale(c)].unavailable }, 410);
     if (!found.membership.canComment) return c.json({ error: 'Comments disabled' }, 403);
-    if (!matchesShown(link, input.versionId, found.version.id)) return c.json({ error: MOVED_ON }, 409);
+    if (!matchesShown(link, input.versionId, found.version.id)) return c.json({ error: DELIVERY_ERRORS[locale(c)].moved_on }, 409);
 
     await submitReview(db, {
       version: found.version,
@@ -930,7 +928,7 @@ export const shareRoutes = new Hono<AppEnv>()
           if (!fullLink) return;
 
           const [creator] = await db
-            .select({ email: users.email, name: users.name })
+            .select({ email: users.email, name: users.name, locale: users.locale })
             .from(users)
             .where(eq(users.id, fullLink.createdById))
             .limit(1);
@@ -943,7 +941,7 @@ export const shareRoutes = new Hono<AppEnv>()
 
           const listenerName = input.listenerName ?? event.listenerName;
           const trackUrl = `${process.env.APP_URL}/projects/${track.projectId}/tracks/${track.id}`;
-          await sendListenAlertEmail(creator.email, listenerName ?? null, track.name, project.name, trackUrl);
+          await sendListenAlertEmail(creator.email, listenerName ?? null, track.name, project.name, trackUrl, pickLocale(creator.locale));
         } catch { /* non-critical */ }
       }));
     }

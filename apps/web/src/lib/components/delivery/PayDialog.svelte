@@ -2,6 +2,7 @@
   import { formatEuro, type GuestPaymentResponse, type PaymentMethod, type PublicDelivery, type PublicPayment } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import { dateLocale, locale, t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import { formatIban, guestRequest } from '$lib/utils/delivery.js';
   import QrCode from './QrCode.svelte';
@@ -28,9 +29,11 @@
   let error = $state('');
   let now = $state(Date.now());
 
+  const tx = $derived(t().delivery.payDialog);
+  const euro = (cents: number) => formatEuro(cents, locale());
   // Earlier payments count, only the rest is due
-  const total = $derived(formatEuro(delivery.totals.dueCents));
-  const files = $derived(delivery.includeStems ? 'alle WAVs und Spuren' : 'alle WAVs');
+  const total = $derived(euro(delivery.totals.dueCents));
+  const files = $derived(delivery.includeStems ? tx.allWavsAndStems : tx.allWavs);
   const stepOf = (p: PublicPayment): Step => (p.method === 'lightning' ? 'lightning' : p.status === 'announced' ? 'announced' : 'transfer');
   const expiresIn = $derived(payment?.expiresAt ? new Date(payment.expiresAt).getTime() - now : null);
   const expired = $derived(payment?.status === 'expired' || (payment?.method === 'lightning' && expiresIn !== null && expiresIn <= 0));
@@ -53,7 +56,7 @@
     // Another payment may be the one that arrived, e.g. an invoice from another tab
     if (res.payment.status === 'paid' || res.delivery.status === 'paid') {
       open = false;
-      toastSuccess('Danke! Die Zahlung ist angekommen. Die Dateien stehen bereit.');
+      toastSuccess(tx.thanks);
     }
   }
 
@@ -69,7 +72,7 @@
       apply(await guestRequest<GuestPaymentResponse>(token, '/payments', password, { method }));
       if (payment) step = stepOf(payment);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Das hat nicht geklappt.';
+      error = err instanceof Error ? err.message : tx.failed;
     } finally {
       busy = null;
     }
@@ -83,7 +86,7 @@
       apply(await guestRequest<GuestPaymentResponse>(token, `/payments/${payment.id}/announce`, password, {}));
       step = 'announced';
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Das hat nicht geklappt.';
+      error = err instanceof Error ? err.message : tx.failed;
     } finally {
       busy = null;
     }
@@ -116,96 +119,98 @@
   async function copy(text: string, what: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toastSuccess(`${what} kopiert`);
+      toastSuccess(tx.copiedWhat(what));
     } catch {
       // Without clipboard access the text stays selectable
     }
   }
 
-  const clock = (iso: string) => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  // The amount for a bank form: German banking apps want the comma
+  const amountText = (cents: number) => (locale() === 'de' ? (cents / 100).toFixed(2).replace('.', ',') : (cents / 100).toFixed(2));
+  const clock = (iso: string) => new Date(iso).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
   const title = $derived(
-    step === 'lightning' ? 'Mit Lightning bezahlen' : step === 'transfer' ? 'Per Überweisung bezahlen' : step === 'announced' ? 'Überweisung angekündigt' : `${total} an ${delivery.studioName}`,
+    step === 'lightning' ? tx.titleLightning : step === 'transfer' ? tx.titleTransfer : step === 'announced' ? tx.titleAnnounced : tx.titleChoose(total, delivery.studioName),
   );
 </script>
 
 <Modal bind:open {title}>
   <div class="pay">
     {#if step === 'choose'}
-      <p class="sub">Du bezahlst direkt an {delivery.studioName}. Danach lädst du {files} herunter.</p>
+      <p class="sub">{tx.chooseInfo(delivery.studioName, files)}</p>
       {#if delivery.methods.lightning || delivery.methods.transfer}
         <div class="methods">
           {#if delivery.methods.lightning}
             <button type="button" class="method" disabled={busy !== null} onclick={() => pick('lightning')}>
               <span class="ic" aria-hidden="true">⚡</span>
-              <span><b>Lightning</b><small>Sofort, mit jeder Lightning-Wallet.</small></span>
+              <span><b>{tx.lightning}</b><small>{tx.lightningInfo}</small></span>
             </button>
           {/if}
           {#if delivery.methods.transfer}
             <button type="button" class="method" disabled={busy !== null} onclick={() => pick('transfer')}>
               <span class="ic" aria-hidden="true">€</span>
-              <span><b>Überweisung</b><small>Mit GiroCode aus der Banking-App. Der Download kommt, sobald das Studio den Eingang bestätigt.</small></span>
+              <span><b>{tx.transfer}</b><small>{tx.transferInfo}</small></span>
             </button>
           {/if}
         </div>
       {:else}
-        <p class="sub">{delivery.studioName} hat noch keinen Zahlungsweg eingerichtet. Bitte melde dich direkt beim Studio.</p>
+        <p class="sub">{tx.noMethods(delivery.studioName)}</p>
       {/if}
     {:else if step === 'lightning' && payment}
       {#if expired}
-        <p class="sub">Diese Rechnung ist abgelaufen. Die neue gilt wieder 15 Minuten, zum aktuellen Kurs.</p>
-        <Button loading={busy === 'lightning'} onclick={() => pick('lightning')}>Neue Rechnung</Button>
+        <p class="sub">{tx.invoiceExpired}</p>
+        <Button loading={busy === 'lightning'} onclick={() => pick('lightning')}>{tx.newInvoice}</Button>
       {:else if payment.invoice}
         <p class="sub">
-          {formatEuro(payment.amountCents)}{#if payment.sats}{' = '}<b>{payment.sats.toLocaleString('de-DE')} sats</b>{/if}{#if payment.expiresAt}{' · gültig bis '}<b>{clock(payment.expiresAt)}</b>{/if}
+          {euro(payment.amountCents)}{#if payment.sats}{' = '}<b>{payment.sats.toLocaleString(dateLocale())} sats</b>{/if}{#if payment.expiresAt}{tx.validUntil}<b>{clock(payment.expiresAt)}</b>{/if}
         </p>
-        <a class="qr-link" href="lightning:{payment.invoice}" aria-label="In der Wallet öffnen">
-          <QrCode value={`lightning:${payment.invoice}`.toUpperCase()} label="QR-Code der Lightning-Rechnung" />
+        <a class="qr-link" href="lightning:{payment.invoice}" aria-label={tx.openInWallet}>
+          <QrCode value={`lightning:${payment.invoice}`.toUpperCase()} label={tx.qrLightning} />
         </a>
         <div class="copy-row">
           <code class="mono">{payment.invoice}</code>
-          <Button variant="secondary" size="sm" onclick={() => copy(payment!.invoice!, 'Rechnung')}>Kopieren</Button>
+          <Button variant="secondary" size="sm" onclick={() => copy(payment!.invoice!, tx.copyInvoice)}>{t().common.copy}</Button>
         </div>
-        <p class="fine" role="status">Die Rechnung kommt direkt aus der Wallet des Studios. Sobald sie bezahlt ist, geht es hier von selbst weiter.</p>
+        <p class="fine" role="status">{tx.invoiceInfo}</p>
       {/if}
     {:else if (step === 'transfer' || step === 'announced') && payment?.transfer}
-      {@const t = payment.transfer}
+      {@const bank = payment.transfer}
       {#if step === 'transfer'}
-        <p class="sub">Scanne den GiroCode mit deiner Banking-App oder übernimm die Daten.</p>
-        <QrCode value={t.epcPayload} label="GiroCode für die Überweisung" />
+        <p class="sub">{tx.scanInfo}</p>
+        <QrCode value={bank.epcPayload} label={tx.qrTransfer} />
       {:else}
-        <p class="sub">Das Studio sieht deine Ankündigung und gibt den Download frei, sobald das Geld da ist. Meist am nächsten Werktag.</p>
+        <p class="sub">{tx.announcedInfo}</p>
       {/if}
       <dl class="kv">
-        <dt>Empfänger</dt>
-        <dd>{t.accountHolder}</dd>
+        <dt>{tx.recipient}</dt>
+        <dd>{bank.accountHolder}</dd>
         <dt>IBAN</dt>
-        <dd><span>{formatIban(t.iban)}</span><button type="button" class="copy" onclick={() => copy(t.iban, 'IBAN')}>Kopieren</button></dd>
-        {#if t.bic}
+        <dd><span>{formatIban(bank.iban)}</span><button type="button" class="copy" onclick={() => copy(bank.iban, tx.copyIban)}>{t().common.copy}</button></dd>
+        {#if bank.bic}
           <dt>BIC</dt>
-          <dd>{t.bic}</dd>
+          <dd>{bank.bic}</dd>
         {/if}
-        <dt>Betrag</dt>
-        <dd><span>{formatEuro(payment.amountCents)}</span><button type="button" class="copy" onclick={() => copy((payment!.amountCents / 100).toFixed(2).replace('.', ','), 'Betrag')}>Kopieren</button></dd>
-        <dt>Zweck</dt>
-        <dd><span>{t.remittance}</span><button type="button" class="copy" onclick={() => copy(t.remittance, 'Verwendungszweck')}>Kopieren</button></dd>
+        <dt>{tx.amount}</dt>
+        <dd><span>{euro(payment.amountCents)}</span><button type="button" class="copy" onclick={() => copy(amountText(payment!.amountCents), tx.copyAmount)}>{t().common.copy}</button></dd>
+        <dt>{tx.reference}</dt>
+        <dd><span>{bank.remittance}</span><button type="button" class="copy" onclick={() => copy(bank.remittance, tx.copyReference)}>{t().common.copy}</button></dd>
       </dl>
       {#if step === 'transfer'}
-        <p class="fine">Sobald das Studio den Eingang bestätigt, kannst du hier herunterladen.</p>
+        <p class="fine">{tx.transferFine}</p>
       {/if}
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>
   {#snippet actions()}
     {#if step === 'choose'}
-      <Button variant="ghost" onclick={() => (open = false)}>Abbrechen</Button>
+      <Button variant="ghost" onclick={() => (open = false)}>{t().common.cancel}</Button>
     {:else if step === 'transfer'}
-      <Button variant="ghost" onclick={() => (step = 'choose')}>Zurück</Button>
-      <Button loading={busy === 'announce'} onclick={announce}>Ich habe überwiesen</Button>
+      <Button variant="ghost" onclick={() => (step = 'choose')}>{t().common.back}</Button>
+      <Button loading={busy === 'announce'} onclick={announce}>{tx.iHaveSent}</Button>
     {:else if step === 'announced'}
-      <Button variant="ghost" onclick={() => (step = 'choose')}>Doch anders bezahlen</Button>
-      <Button variant="secondary" onclick={() => (open = false)}>Schließen</Button>
+      <Button variant="ghost" onclick={() => (step = 'choose')}>{tx.payOtherWay}</Button>
+      <Button variant="secondary" onclick={() => (open = false)}>{t().common.close}</Button>
     {:else}
-      <Button variant="ghost" onclick={() => (step = 'choose')}>Zurück</Button>
+      <Button variant="ghost" onclick={() => (step = 'choose')}>{t().common.back}</Button>
     {/if}
   {/snippet}
 </Modal>

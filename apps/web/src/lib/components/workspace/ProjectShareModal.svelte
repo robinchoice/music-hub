@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, locale } from '$lib/i18n/index.js';
   import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
@@ -75,9 +76,9 @@
     }
     try {
       await navigator.clipboard.writeText(url);
-      toastSuccess('Link kopiert');
+      toastSuccess(t().workspace.share.copied);
     } catch {
-      toastError('Kopieren ging nicht, bitte den Link markieren und kopieren.');
+      toastError(t().workspace.share.copyFailed);
     }
   }
 
@@ -96,7 +97,7 @@
 
   async function switchOff() {
     if (!link) return;
-    if (!confirm('Link ausschalten? Wer ihn hat, kann das Projekt dann nicht mehr hören. Ein neuer Link hat eine andere Adresse.')) return;
+    if (!confirm(t().workspace.share.confirmSwitchOff)) return;
     try {
       await api.delete(`/share/project-link/${link.id}`);
     } catch {
@@ -104,7 +105,7 @@
       return;
     }
     link = null;
-    toastSuccess('Link ausgeschaltet');
+    toastSuccess(t().workspace.share.switchedOff);
   }
 
   function expiry(e: Event) {
@@ -123,7 +124,7 @@
     inviting = true;
     try {
       await api.post(`/projects/${projectId}/members`, { email: inviteEmail.trim(), roles: [inviteRole] });
-      toastSuccess(`Einladung an ${inviteEmail.trim()} verschickt`);
+      toastSuccess(t().workspace.share.inviteSent(inviteEmail.trim()));
       inviteEmail = '';
     } catch {
       // The API client already showed the error
@@ -133,91 +134,91 @@
   }
 </script>
 
-<Modal bind:open title="{projectName} teilen">
+<Modal bind:open title={t().workspace.share.title(projectName)}>
   <section>
     <div class="section-head">
       <div>
-        <h3>Zum Reinhören</h3>
-        <p class="hint">Alle mit dem Link hören das Projekt, ohne Konto.</p>
+        <h3>{t().workspace.share.listen}</h3>
+        <p class="hint">{t().workspace.share.listenHint}</p>
       </div>
       {#if link}
-        <Button variant="ghost" size="sm" onclick={switchOff}>Ausschalten</Button>
+        <Button variant="ghost" size="sm" onclick={switchOff}>{t().workspace.share.switchOff}</Button>
       {/if}
     </div>
 
     {#if loading}
-      <p class="muted">Lädt…</p>
+      <p class="muted">{t().workspace.loading}</p>
     {:else}
       <div class="url-row">
         <input
           type="text"
           readonly
-          value={link ? url : 'Der Link entsteht beim ersten Kopieren'}
+          value={link ? url : t().workspace.share.linkOnCopy}
           class:placeholder={!link}
           onclick={(e) => link && (e.target as HTMLInputElement).select()}
-          aria-label="Link zum Reinhören"
+          aria-label={t().workspace.share.listenLinkLabel}
         />
-        <Button size="sm" onclick={copy} loading={busy && !link}>Link kopieren</Button>
+        <Button size="sm" onclick={copy} loading={busy && !link}>{t().workspace.share.copyLink}</Button>
       </div>
 
       {#if link}
         <div class="options">
           <label class="option">
             <span>
-              Spielt
+              {t().workspace.share.plays}
               <small>
-                {link.trackIds ? `${shownCount} von ${tracks.length} Songs` : `Alle ${tracks.length} Songs, neue kommen automatisch dazu`}
+                {link.trackIds ? t().workspace.share.playsSome(shownCount, tracks.length) : t().workspace.share.playsAll(tracks.length)}
               </small>
             </span>
             <select value={link.follows} onchange={(e) => update({ follows: (e.target as HTMLSelectElement).value })} disabled={busy}>
-              <option value="latest">Neueste Version jedes Songs</option>
-              <option value="approved">Nur freigegebene Versionen</option>
+              <option value="latest">{t().workspace.share.followsLatest}</option>
+              <option value="approved">{t().workspace.share.followsApproved}</option>
             </select>
           </label>
           {#if canComment}
             <label class="option">
-              <span>Kommentare erlauben <small>Mit Namen, ohne Konto</small></span>
+              <span>{t().workspace.share.allowComments} <small>{t().workspace.share.allowCommentsHint}</small></span>
               <input type="checkbox" checked={link.allowComments} onchange={(e) => update({ allowComments: (e.target as HTMLInputElement).checked })} disabled={busy} />
             </label>
           {/if}
           {#if may.canDownload}
             <label class="option">
-              <span>Originale zum Download <small>Die Dateien der gezeigten Versionen</small></span>
+              <span>{t().workspace.share.allowDownload} <small>{t().workspace.share.allowDownloadHint}</small></span>
               <input type="checkbox" checked={link.allowDownload} onchange={(e) => update({ allowDownload: (e.target as HTMLInputElement).checked })} disabled={busy} />
             </label>
           {/if}
 
           <details class="more">
             <summary>
-              Mehr: Passwort, Ablauf, Songs auswählen
-              {#if link.hasPassword}<span class="flag">Passwort</span>{/if}
-              {#if link.expiresAt}<span class="flag">läuft ab</span>{/if}
-              {#if link.trackIds}<span class="flag">Auswahl</span>{/if}
+              {t().workspace.share.more}
+              {#if link.hasPassword}<span class="flag">{t().workspace.share.flagPassword}</span>{/if}
+              {#if link.expiresAt}<span class="flag">{t().workspace.share.flagExpires}</span>{/if}
+              {#if link.trackIds}<span class="flag">{t().workspace.share.flagSelection}</span>{/if}
             </summary>
 
             <div class="more-row">
-              <span class="label">Passwort</span>
+              <span class="label">{t().workspace.share.password}</span>
               {#if link.hasPassword}
-                <span class="muted">ist gesetzt</span>
-                <Button variant="ghost" size="sm" onclick={() => update({ password: null }, 'Passwort entfernt')}>Entfernen</Button>
+                <span class="muted">{t().workspace.share.passwordIsSet}</span>
+                <Button variant="ghost" size="sm" onclick={() => update({ password: null }, t().workspace.share.passwordRemoved)}>{t().common.remove}</Button>
               {:else}
-                <form class="inline" onsubmit={(e) => { e.preventDefault(); void update({ password }, 'Passwort gesetzt').then(() => (password = '')); }}>
-                  <input type="text" bind:value={password} placeholder="optional" aria-label="Passwort" />
-                  <Button type="submit" variant="secondary" size="sm" disabled={!password}>Setzen</Button>
+                <form class="inline" onsubmit={(e) => { e.preventDefault(); void update({ password }, t().workspace.share.passwordSetDone).then(() => (password = '')); }}>
+                  <input type="text" bind:value={password} placeholder={t().workspace.share.passwordOptional} aria-label={t().workspace.share.password} />
+                  <Button type="submit" variant="secondary" size="sm" disabled={!password}>{t().workspace.share.passwordSet}</Button>
                 </form>
               {/if}
             </div>
 
             <div class="more-row">
-              <span class="label">Läuft ab</span>
+              <span class="label">{t().workspace.share.expires}</span>
               {#if link.expiresAt}
-                <span class="muted">am {formatDate(link.expiresAt)}</span>
-                <Button variant="ghost" size="sm" onclick={() => update({ expiresAt: null })}>Nie</Button>
+                <span class="muted">{t().workspace.share.expiresOn(formatDate(link.expiresAt))}</span>
+                <Button variant="ghost" size="sm" onclick={() => update({ expiresAt: null })}>{t().workspace.share.never}</Button>
               {:else}
-                <select onchange={expiry} disabled={busy} aria-label="Läuft ab">
-                  <option value="0">nie</option>
-                  <option value="7">nach 7 Tagen</option>
-                  <option value="30">nach 30 Tagen</option>
+                <select onchange={expiry} disabled={busy} aria-label={t().workspace.share.expires}>
+                  <option value="0">{t().workspace.share.neverOption}</option>
+                  <option value="7">{t().workspace.share.after7}</option>
+                  <option value="30">{t().workspace.share.after30}</option>
                 </select>
               {/if}
             </div>
@@ -225,11 +226,11 @@
             <div class="songs">
               <label class="song">
                 <input type="radio" checked={!link.trackIds} onchange={() => update({ trackIds: null })} disabled={busy} />
-                <span>Alle Songs, auch spätere</span>
+                <span>{t().workspace.share.allSongs}</span>
               </label>
               <label class="song">
                 <input type="radio" checked={!!link.trackIds} onchange={() => update({ trackIds: tracks.map((t) => t.id) })} disabled={busy} />
-                <span>Nur ausgewählte</span>
+                <span>{t().workspace.share.selectedOnly}</span>
               </label>
               {#if link.trackIds}
                 <ul>
@@ -257,26 +258,26 @@
   </section>
 
   <section class="team">
-    <h3>Zum Mitarbeiten</h3>
+    <h3>{t().workspace.share.collaborate}</h3>
     {#if canInvite}
-      <p class="hint">Eingeladene bekommen ein Konto und einen Login-Link per Mail.</p>
+      <p class="hint">{t().workspace.share.inviteHint}</p>
       <form class="invite" onsubmit={invite}>
-        <input type="email" bind:value={inviteEmail} placeholder="name@beispiel.de" aria-label="E-Mail" required />
-        <select bind:value={inviteRole} aria-label="Rolle">
+        <input type="email" bind:value={inviteEmail} placeholder={t().workspace.share.emailPlaceholder} aria-label={t().common.email} required />
+        <select bind:value={inviteRole} aria-label={t().workspace.share.role}>
           {#each assignableRoles as r}
-            <option value={r}>{ROLE_LABELS[r]}</option>
+            <option value={r}>{ROLE_LABELS[locale()][r]}</option>
           {/each}
         </select>
-        <Button type="submit" variant="secondary" size="sm" loading={inviting}>Einladen</Button>
+        <Button type="submit" variant="secondary" size="sm" loading={inviting}>{t().common.invite}</Button>
       </form>
-      <a class="manage" href="/projects/{projectId}/settings">Mitglieder verwalten</a>
+      <a class="manage" href="/projects/{projectId}/settings">{t().workspace.share.manageMembers}</a>
     {:else}
-      <p class="hint">Einladen können der Besitzer und das Management des Projekts.</p>
+      <p class="hint">{t().workspace.share.onlyOwnerInvites}</p>
     {/if}
   </section>
 
   {#snippet actions()}
-    <Button variant="secondary" size="sm" onclick={() => (open = false)}>Schließen</Button>
+    <Button variant="secondary" size="sm" onclick={() => (open = false)}>{t().common.close}</Button>
   {/snippet}
 </Modal>
 

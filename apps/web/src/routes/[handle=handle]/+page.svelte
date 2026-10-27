@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -53,7 +54,7 @@
   async function load() {
     const res = await fetch(`/api/v1/profiles/${handle}`).catch(() => null);
     if (!res?.ok) {
-      error = (await res?.json().catch(() => null))?.error ?? 'Dieses Profil gibt es nicht.';
+      error = (await res?.json().catch(() => null))?.error ?? t().guest.profile.notFound;
       return;
     }
     data = await res.json();
@@ -82,7 +83,7 @@
       requestOpen = false;
       message = '';
       data!.contact = 'sent';
-      toastSuccess(`Anfrage an ${data!.profile.name} geschickt`);
+      toastSuccess(t().guest.profile.requestSent(data!.profile.name));
     } catch {
       // The API client already showed the error
     } finally {
@@ -106,7 +107,7 @@
 </script>
 
 <svelte:head>
-  <title>{data ? `${data.profile.name} — Offene Musik` : 'Offene Musik — Music Hub'}</title>
+  <title>{data ? `${data.profile.name} — ${t().guest.openHeader.openMusic}` : t().guest.openList.title}</title>
 </svelte:head>
 
 <div class="shell">
@@ -116,7 +117,7 @@
     {#if error}
       <div class="gone">
         <p>{error}</p>
-        <Button variant="secondary" href="/offen">Offene Musik entdecken</Button>
+        <Button variant="secondary" href="/offen">{t().guest.openTrack.discover}</Button>
       </div>
     {:else if data}
       {@const p = data.profile}
@@ -126,7 +127,7 @@
           <h1>{p.name}</h1>
           {#if p.bio || p.artists.length}
             <p class="bio">
-              {p.bio ?? ''}{p.bio && p.artists.length ? ' · ' : ''}{#if p.artists.length}spielt in {#each p.artists as a, i (a)}{i ? (i === p.artists.length - 1 ? ' und ' : ', ') : ''}<b>{a}</b>{/each}{/if}
+              {p.bio ?? ''}{p.bio && p.artists.length ? ' · ' : ''}{#if p.artists.length}{t().guest.profile.playsIn} {#each p.artists as a, i (a)}{i ? (i === p.artists.length - 1 ? ` ${t().guest.profile.and} ` : ', ') : ''}<b>{a}</b>{/each}{/if}
             </p>
           {/if}
           {#if p.links.length}
@@ -137,96 +138,96 @@
         </div>
         <div class="cta">
           {#if data.contact === 'self'}
-            <Button variant="secondary" href="/account#profil"><Icon name="edit" size={14} /> Profil bearbeiten</Button>
+            <Button variant="secondary" href="/account#profil"><Icon name="edit" size={14} /> {t().guest.profile.editProfile}</Button>
           {:else if data.contact === 'connected'}
-            <Button variant="secondary" href="/projects/{data.sharedProjectId}">Gemeinsames Projekt öffnen</Button>
+            <Button variant="secondary" href="/projects/{data.sharedProjectId}">{t().guest.profile.openSharedProject}</Button>
           {:else if data.contact === 'sent'}
-            <Button variant="secondary" disabled><Icon name="check" size={14} /> Anfrage geschickt</Button>
+            <Button variant="secondary" disabled><Icon name="check" size={14} /> {t().guest.profile.requestSentButton}</Button>
           {:else if data.contact === 'needs-open'}
-            <Button variant="secondary" disabled>Anfrage schicken</Button>
+            <Button variant="secondary" disabled>{t().guest.profile.sendRequest}</Button>
           {:else if data.contact !== 'closed'}
-            <Button onclick={startRequest}><Icon name="mail" size={14} /> Anfrage schicken</Button>
+            <Button onclick={startRequest}><Icon name="mail" size={14} /> {t().guest.profile.sendRequest}</Button>
           {/if}
         </div>
       </section>
 
       {#if data.contact === 'sent'}
-        <PushPrompt text="Soll Music Hub dir Bescheid geben, sobald {p.name} deine Anfrage annimmt?" />
+        <PushPrompt text={t().guest.profile.pushText(p.name)} />
       {/if}
 
       {#if data.contact === 'needs-open'}
         <p class="note">
-          {p.name} nimmt Anfragen von Leuten an, die selbst einen Track offen gestellt haben. Das geht auf der Seite deines Tracks unter „Offen stellen“, sobald er eine freigegebene Version hat.
-          <a href="/dashboard">Zu deinen Projekten</a>
+          {t().guest.profile.needsOpen(p.name)}
+          <a href="/dashboard">{t().guest.profile.toProjects}</a>
         </p>
       {:else if data.contact === 'closed'}
-        <p class="note">{p.name} nimmt gerade keine Anfragen an.</p>
+        <p class="note">{t().guest.profile.closed(p.name)}</p>
       {/if}
 
       {#if data.stats}
         <dl class="stats">
-          <div><dt>{data.stats.tracks === 1 ? 'offener Track' : 'offene Tracks'}</dt><dd>{data.stats.tracks}</dd></div>
-          <div><dt>Stars</dt><dd>{data.stats.stars}</dd></div>
-          <div><dt>Remixe von anderen</dt><dd>{data.stats.remixes}</dd></div>
-          <div><dt>Downloads</dt><dd>{data.stats.downloads}</dd></div>
+          <div><dt>{data.stats.tracks === 1 ? t().guest.profile.openTrackOne : t().guest.profile.openTrackMany}</dt><dd>{data.stats.tracks}</dd></div>
+          <div><dt>{t().guest.profile.stars}</dt><dd>{data.stats.stars}</dd></div>
+          <div><dt>{t().guest.profile.remixesByOthers}</dt><dd>{data.stats.remixes}</dd></div>
+          <div><dt>{t().guest.profile.downloads}</dt><dd>{data.stats.downloads}</dd></div>
         </dl>
       {/if}
 
       {#if data.tracks.length}
         <div class="tabs" role="tablist">
-          <button role="tab" aria-selected={tab === 'own'} class:on={tab === 'own'} onclick={() => (tab = 'own')}>Offene Tracks <span>{own.length}</span></button>
-          <button role="tab" aria-selected={tab === 'remixes'} class:on={tab === 'remixes'} onclick={() => (tab = 'remixes')}>Remixe von {p.name} <span>{remixes.length}</span></button>
+          <button role="tab" aria-selected={tab === 'own'} class:on={tab === 'own'} onclick={() => (tab = 'own')}>{t().guest.profile.tabOpenTracks} <span>{own.length}</span></button>
+          <button role="tab" aria-selected={tab === 'remixes'} class:on={tab === 'remixes'} onclick={() => (tab = 'remixes')}>{t().guest.profile.tabRemixes(p.name)} <span>{remixes.length}</span></button>
         </div>
         <ul class="rows">
-          {#each shown as t (t.id)}
+          {#each shown as tr (tr.id)}
             <li>
-              <a class="row" href="/offen/{t.id}">
-                <CoverImage src={t.coverUrl} name={t.name} size="sm" rounded="md" />
+              <a class="row" href="/offen/{tr.id}">
+                <CoverImage src={tr.coverUrl} name={tr.name} size="sm" rounded="md" />
                 <span class="grow">
-                  <b>{t.name}</b>
-                  <span class="faint">{t.artistOrProject} · {OPEN_LICENSE_INFO[t.license].label} · {t.stemCount === 1 ? '1 Spur' : `${t.stemCount} Spuren`}</span>
+                  <b>{tr.name}</b>
+                  <span class="faint">{tr.artistOrProject} · {OPEN_LICENSE_INFO[locale()][tr.license].label} · {t().common.stems(tr.stemCount)}</span>
                 </span>
-                {#if t.remixCount}<span class="faint remixes">{t.remixCount === 1 ? '1 Remix' : `${t.remixCount} Remixe`}</span>{/if}
+                {#if tr.remixCount}<span class="faint remixes">{t().guest.openList.remixes(tr.remixCount)}</span>{/if}
               </a>
-              <button class="star" class:on={t.starred} onclick={() => toggleStar(t)} aria-pressed={t.starred} title={t.starred ? 'Stern zurücknehmen' : 'Stern geben'}>
-                <Icon name="star" size={13} /> {t.stars}
+              <button class="star" class:on={tr.starred} onclick={() => toggleStar(tr)} aria-pressed={tr.starred} title={tr.starred ? t().guest.profile.unstar : t().guest.profile.star}>
+                <Icon name="star" size={13} /> {tr.stars}
               </button>
             </li>
           {:else}
-            <li class="faint empty">{tab === 'own' ? 'Noch kein eigener Track offen.' : 'Noch kein Remix offen.'}</li>
+            <li class="faint empty">{tab === 'own' ? t().guest.profile.noOwnOpen : t().guest.profile.noRemixOpen}</li>
           {/each}
         </ul>
       {:else}
-        <p class="faint empty">{p.name} hat noch keinen Track offen gestellt.</p>
+        <p class="faint empty">{t().guest.profile.noneOpen(p.name)}</p>
       {/if}
     {/if}
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>
 
 {#if data}
-  <Modal bind:open={requestOpen} title="Anfrage an {data.profile.name}">
+  <Modal bind:open={requestOpen} title={t().guest.profile.requestTo(data.profile.name)}>
     <div class="form">
       {#if data.tracks.length}
         <label>
-          Worum geht es?
+          {t().guest.profile.about}
           <select bind:value={about}>
-            <option value="">Allgemein</option>
-            {#each data.tracks as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+            <option value="">{t().guest.profile.general}</option>
+            {#each data.tracks as tr (tr.id)}<option value={tr.id}>{tr.name}</option>{/each}
           </select>
         </label>
       {/if}
       <label>
-        Deine Nachricht
-        <textarea bind:value={message} rows="5" maxlength={MAX_REQUEST_LENGTH} placeholder="Wer bist du, und was möchtest du zusammen machen?"></textarea>
+        {t().guest.profile.yourMessage}
+        <textarea bind:value={message} rows="5" maxlength={MAX_REQUEST_LENGTH} placeholder={t().guest.profile.messagePlaceholder}></textarea>
         <span class="counter">{message.length} / {MAX_REQUEST_LENGTH}</span>
       </label>
-      <p class="faint">{data.profile.name} sieht deinen Namen, diese Nachricht und dein Profil, falls du eins hast. Weiter schreibt ihr erst, wenn {data.profile.name} annimmt: Dann landet ihr in einem gemeinsamen Projekt.</p>
+      <p class="faint">{t().guest.profile.requestInfo(data.profile.name)}</p>
     </div>
     {#snippet actions()}
-      <Button variant="ghost" onclick={() => (requestOpen = false)}>Abbrechen</Button>
-      <Button onclick={send} loading={sending} disabled={!message.trim()}>Schicken</Button>
+      <Button variant="ghost" onclick={() => (requestOpen = false)}>{t().common.cancel}</Button>
+      <Button onclick={send} loading={sending} disabled={!message.trim()}>{t().guest.profile.send}</Button>
     {/snippet}
   </Modal>
 {/if}

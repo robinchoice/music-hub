@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
   import { MAX_FILE_SIZE_LABEL, byFileName, checkAudioFiles, unreadableFiles, uploadVersion } from '$lib/audio/upload.js';
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -34,7 +35,7 @@
   let files = $state<File[]>([]);
   let loaded = $state(0);
   let firstNumber = $state(1);
-  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   // The close button cancels the upload, so nothing turns up as a version later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
@@ -43,7 +44,7 @@
   export function cancel() {
     if (!inFlight) return;
     abort.abort();
-    toast('Upload abgebrochen');
+    toast(t().track.upload.aborted);
   }
 
   onMount(() => {
@@ -87,7 +88,7 @@
     try {
       const unreadable = await unreadableFiles(selected);
       if (unreadable.length > 0) {
-        error = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
+        error = t().track.drop.unreadable(unreadable.length, unreadable.map((f) => f.name).join(', '));
         return;
       }
 
@@ -114,10 +115,10 @@
       onUploaded(total);
     } catch (err) {
       if (abort.signal.aborted) return;
-      const message = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
+      const message = err instanceof Error ? err.message : t().track.drop.failed;
       error =
         total > 1
-          ? `${selected[current - 1].name}: ${message} (${current - 1} von ${total} hochgeladen)`
+          ? t().track.drop.partial(selected[current - 1].name, message, current - 1, total)
           : message;
     } finally {
       onRegistering(false);
@@ -135,8 +136,8 @@
     <input
       type="text"
       bind:value={label}
-      aria-label="Versionsbezeichnung"
-      placeholder="Versionsbezeichnung, z. B. „Rough Mix“"
+      aria-label={t().track.drop.versionLabel}
+      placeholder={t().track.drop.versionLabelPlaceholder}
       disabled={uploading}
     />
   </div>
@@ -164,24 +165,24 @@
 
     {#if uploading}
       <div class="upload-files" aria-live="polite">
-        {#if total > 1}<b>Datei {current || 1} von {total}</b>{/if}
+        {#if total > 1}<b>{t().track.drop.fileOf(current || 1, total)}</b>{/if}
         {#each files as file, i}
           <div class="upload-file">
             <b>{file.name}</b>
-            <span>{mb(file.size)} MB · wird V{firstNumber + i}</span>
+            <span>{mb(file.size)} MB · {t().track.drop.becomesV(firstNumber + i)}</span>
             {#if i + 1 === current}
               <div class="progress-container" role="progressbar" aria-label={file.name} aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100">
                 <div class="progress-bar" style="width: {progress}%"></div>
-                <span class="progress-text">{mb(loaded)} von {mb(file.size)} MB</span>
+                <span class="progress-text">{t().track.drop.loadedOf(mb(loaded), mb(file.size))}</span>
               </div>
-            {:else}<small>{i + 1 < current ? 'Hochgeladen' : 'Wartet'}</small>{/if}
+            {:else}<small>{i + 1 < current ? t().track.drop.uploadedState : t().track.drop.waiting}</small>{/if}
           </div>
         {/each}
       </div>
     {:else}
       <div class="dropzone-content">
         <span class="dropzone-icon"><Icon name="upload" size={28} /></span>
-        <p><span class="mouse">Audio-Dateien hierher ziehen oder klicken</span><span class="touch">Tippen, um Audio-Dateien auszuwählen</span></p>
+        <p><span class="mouse">{t().track.drop.dragAudio}</span><span class="touch">{t().track.drop.tapAudio}</span></p>
         <span class="formats">WAV, MP3, FLAC, AIFF — max. {MAX_FILE_SIZE_LABEL}</span>
       </div>
     {/if}

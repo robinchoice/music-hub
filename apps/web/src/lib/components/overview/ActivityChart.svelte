@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import DashCard from './DashCard.svelte';
   import { weekBuckets, type OverviewEvent, type WeekBucket } from '$lib/utils/overview.js';
 
@@ -11,30 +12,30 @@
   const top = $derived(Math.max(5, Math.ceil(Math.max(...buckets.map((b) => b.versions + b.comments)) / 5) * 5));
   const px = (n: number) => (n / top) * HEIGHT;
   const label = (b: WeekBucket) =>
-    `KW ${b.week}${b.current ? ', diese Woche' : ''}\n${b.versions} ${b.versions === 1 ? 'Version' : 'Versionen'}\n${b.comments} ${b.comments === 1 ? 'Kommentar' : 'Kommentare'}`;
+    `${b.current ? t().overview.activity.weekThis(b.week) : t().overview.activity.weekShort(b.week)}\n${t().common.versions(b.versions)}\n${t().common.comments(b.comments)}`;
 </script>
 
-<DashCard icon="activity" title="Aktivität" sub="pro Kalenderwoche" {span}>
+<DashCard icon="activity" title={t().overview.activity.title} sub={t().overview.activity.sub} {span}>
   {#snippet actions()}
-    <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
+    <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? t().overview.activity.chart : t().overview.activity.table}</button>
   {/snippet}
   {#if table}
     <table class="mini-table">
-      <thead><tr><th>Woche</th><th>Versionen</th><th>Kommentare</th></tr></thead>
+      <thead><tr><th>{t().overview.activity.week}</th><th>{t().overview.activity.versions}</th><th>{t().overview.activity.comments}</th></tr></thead>
       <tbody>
         {#each buckets as b (b.week)}
-          <tr><td>KW {b.week}{b.current ? ' (diese)' : ''}</td><td>{b.versions}</td><td>{b.comments}</td></tr>
+          <tr><td>{b.current ? t().overview.activity.weekThisShort(b.week) : t().overview.activity.weekShort(b.week)}</td><td>{b.versions}</td><td>{b.comments}</td></tr>
         {/each}
       </tbody>
     </table>
   {:else}
     <div class="legend">
-      <span><i style="background: var(--color-series-1)"></i>Versionen</span>
-      <span><i style="background: var(--color-series-2)"></i>Kommentare</span>
+      <span><i style="background: var(--color-series-1)"></i>{t().overview.activity.versions}</span>
+      <span><i style="background: var(--color-series-2)"></i>{t().overview.activity.comments}</span>
     </div>
     <div class="plot" style="height: {HEIGHT}px">
       {#each [0, top / 2, top] as line (line)}
-        <i class="grid" class:base={line === 0} style="bottom: {px(line)}px"><span>{line.toLocaleString('de-DE')}</span></i>
+        <i class="grid" class:base={line === 0} style="bottom: {px(line)}px"><span>{line.toLocaleString(dateLocale())}</span></i>
       {/each}
       <div class="cols">
         {#each buckets as b (b.week)}
@@ -43,7 +44,7 @@
             {#if b.comments}<i class="seg c top" style="height: {Math.max(2, px(b.comments) - (b.versions ? 1 : 0))}px"></i>{/if}
             {#if b.comments && b.versions}<i class="gap"></i>{/if}
             {#if b.versions}<i class="seg v" class:top={!b.comments} style="height: {Math.max(2, px(b.versions) - (b.comments ? 1 : 0))}px"></i>{/if}
-            <span class="x">KW {b.week}</span>
+            <span class="x">{t().overview.activity.weekShort(b.week)}</span>
           </button>
         {/each}
       </div>

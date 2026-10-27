@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { onMount } from 'svelte';
   import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
@@ -34,21 +35,17 @@
     remixCount: 0,
   };
 
-  const metaOf = (t: OpenTrack) =>
+  const metaOf = (track: OpenTrack) =>
     [
-      t.duration ? formatTime(t.duration) : '',
-      t.stemCount === 1 ? '1 Spur' : `${t.stemCount} Spuren`,
-      t.remixCount ? (t.remixCount === 1 ? '1 Remix' : `${t.remixCount} Remixe`) : '',
+      track.duration ? formatTime(track.duration) : '',
+      t().common.stems(track.stemCount),
+      track.remixCount ? t().guest.openList.remixes(track.remixCount) : '',
     ]
       .filter(Boolean)
       .join(' · ');
 
   // The rules of lib/open.ts in the API
-  const steps = [
-    { title: 'Track freigeben', text: 'Du stellst den freigegebenen Mix offen und wählst die CC-Lizenz. Alle, deren Mix oder Spuren drinstecken, stimmen zu.' },
-    { title: 'Hier erscheinen', text: 'Mix und Spuren, die bis dahin hochgeladen waren, mehr nicht.' },
-    { title: 'Remixe entstehen', text: 'Wer remixt, legt mit deinen Spuren einen eigenen Track an und nennt dich, wie die Lizenz es verlangt.' },
-  ];
+  const steps = $derived(t().guest.openList.steps);
 
   onMount(async () => {
     tracks = await fetch('/api/v1/open')
@@ -59,7 +56,7 @@
 </script>
 
 <svelte:head>
-  <title>Offene Musik — Music Hub</title>
+  <title>{t().guest.openList.title}</title>
 </svelte:head>
 
 <div class="shell">
@@ -67,11 +64,8 @@
     <OpenHeader />
 
     <section class="intro">
-      <h1>Offene Musik</h1>
-      <p>
-        Songs, deren Künstler Mix und Spuren zum Remixen freigegeben haben, unter Creative Commons.
-        Hör rein, lad die Spuren herunter oder leg deinen eigenen Remix an.
-      </p>
+      <h1>{t().guest.openList.heading}</h1>
+      <p>{t().guest.openList.intro}</p>
     </section>
 
     <ol class="steps">
@@ -85,42 +79,42 @@
     </ol>
 
     {#if tracks === null}
-      <p class="faint">Lädt…</p>
+      <p class="faint">{t().guest.listenTrack.loading}</p>
     {:else}
       <div class="tracks">
         <ul class="list">
-          {#each tracks.length ? tracks : [example] as t (t.id)}
+          {#each tracks.length ? tracks : [example] as track (track.id)}
             <li>
-              <a href="/offen/{t.id}">
-                <CoverImage src={t.coverUrl} name={t.name} size="md" rounded="md" />
+              <a href="/offen/{track.id}">
+                <CoverImage src={track.coverUrl} name={track.name} size="md" rounded="md" />
                 <span class="text">
-                  <b>{t.name}</b>
-                  <span class="faint">{t.artist}</span>
+                  <b>{track.name}</b>
+                  <span class="faint">{track.artist}</span>
                 </span>
-                <span class="meta faint">{metaOf(t)}</span>
-                <span class="license">{OPEN_LICENSE_INFO[t.license].label}</span>
-                {#if t.id === OPEN_EXAMPLE_ID}<span class="tag">Beispiel</span>{/if}
+                <span class="meta faint">{metaOf(track)}</span>
+                <span class="license">{OPEN_LICENSE_INFO[locale()][track.license].label}</span>
+                {#if track.id === OPEN_EXAMPLE_ID}<span class="tag">{t().guest.openList.example}</span>{/if}
               </a>
             </li>
           {/each}
         </ul>
         {#if !tracks.length}
-          <p class="faint">Noch ist kein echter Track offen. Der erste könnte deiner sein.</p>
+          <p class="faint">{t().guest.openList.noneYet}</p>
         {/if}
       </div>
     {/if}
 
     <section class="cta">
       {#if $user}
-        <Button size="lg" href="/dashboard">Zum Dashboard</Button>
-        <span class="hint">Einen freigegebenen Track stellst du dort über „Offen stellen“ zur Verfügung.</span>
+        <Button size="lg" href="/dashboard">{t().guest.openList.toDashboard}</Button>
+        <span class="hint">{t().guest.openList.dashboardHint}</span>
       {:else}
-        <Button size="lg" href="/register">Konto anlegen und Track freigeben</Button>
-        <a class="textlink" href="/login?next=%2Foffen">Schon dabei? Einloggen</a>
+        <Button size="lg" href="/register">{t().guest.openList.registerAndOpen}</Button>
+        <a class="textlink" href="/login?next=%2Foffen">{t().guest.openList.alreadyMember}</a>
       {/if}
     </section>
 
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>

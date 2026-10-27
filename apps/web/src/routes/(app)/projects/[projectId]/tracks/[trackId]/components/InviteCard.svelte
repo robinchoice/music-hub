@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from '$lib/components/ui/Button.svelte';
   import { api } from '$lib/api/client.js';
+  import { t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
 
   let {
@@ -29,7 +30,7 @@
     inviting = true;
     try {
       await api.post(`/projects/${projectId}/members`, { email: address, role: 'artist' });
-      toastSuccess(`${address} ist eingeladen`);
+      toastSuccess(t().track.invite.invited(address));
       onInvited();
     } catch {
       // The API client already showed the error
@@ -50,7 +51,7 @@
         guestUrl = `${window.location.origin}/listen/${res.link.token}`;
       }
       // Some browsers refuse the clipboard after the await, the link then stays visible to copy by hand
-      await navigator.clipboard.writeText(guestUrl).then(() => toastSuccess('Link kopiert'), () => {});
+      await navigator.clipboard.writeText(guestUrl).then(() => toastSuccess(t().track.invite.linkCopied), () => {});
     } catch {
       // The API client already showed the error
     } finally {
@@ -60,17 +61,17 @@
 </script>
 
 <section class="invite" aria-labelledby="invite-title">
-  <h2 id="invite-title">V{versionNumber} ist da. Wer soll reinhören?</h2>
-  <p>Feedback kommt erst, wenn jemand zuhört. Leute mit Konto kommentieren im Projekt, alle anderen über einen Link, ohne Konto.</p>
+  <h2 id="invite-title">{t().track.invite.title(versionNumber)}</h2>
+  <p>{t().track.invite.text}</p>
   <form class="fields" onsubmit={invite}>
-    <input type="email" bind:value={email} placeholder="lea@beispiel.de" aria-label="E-Mail-Adresse" />
-    <Button type="submit" loading={inviting} disabled={!email.trim()}>Einladen</Button>
-    <Button variant="secondary" loading={linking} onclick={copyLink}>Link kopieren</Button>
+    <input type="email" bind:value={email} placeholder="lea@beispiel.de" aria-label={t().track.invite.emailAddress} />
+    <Button type="submit" loading={inviting} disabled={!email.trim()}>{t().common.invite}</Button>
+    <Button variant="secondary" loading={linking} onclick={copyLink}>{t().track.invite.copyLink}</Button>
   </form>
   {#if guestUrl}
-    <input class="link" type="text" readonly value={guestUrl} aria-label="Gast-Link" onclick={(e) => (e.target as HTMLInputElement).select()} />
+    <input class="link" type="text" readonly value={guestUrl} aria-label={t().track.invite.guestLink} onclick={(e) => (e.target as HTMLInputElement).select()} />
   {/if}
-  <small>Später jederzeit über „Teilen“ oben rechts. <button class="later" onclick={onDismiss}>Nicht jetzt</button></small>
+  <small>{t().track.invite.later} <button class="later" onclick={onDismiss}>{t().track.invite.notNow}</button></small>
 </section>
 
 <style>

@@ -26,6 +26,7 @@ import {
 } from '../lib/deliveries.js';
 import { ownProjectLink, trackLinkSettings } from './share.js';
 import type { AppEnv } from '../types.js';
+import { locale } from '../lib/i18n.js';
 
 // The studio's side of a delivery (Auftrag) on its project link. Any owner of the project manages it;
 // creating one needs the Solo plan (or an admin address). The client's side is in routes/share.ts.
@@ -33,7 +34,7 @@ import type { AppEnv } from '../types.js';
 type ProjectLink = typeof projectShareLinks.$inferSelect;
 
 const deliveryError = <S extends 400 | 403 | 404 | 409>(c: Context<AppEnv>, code: DeliveryErrorCode, status: S) =>
-  c.json({ error: DELIVERY_ERRORS[code], code }, status);
+  c.json({ error: DELIVERY_ERRORS[locale(c)][code], code }, status);
 
 const isUuid = (value: string) => z.string().uuid().safeParse(value).success;
 

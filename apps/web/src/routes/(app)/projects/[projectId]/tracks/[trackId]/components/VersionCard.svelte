@@ -3,6 +3,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { t } from '$lib/i18n/index.js';
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
   import { fileDetails, hasWaveform, isDecided, versionTitle, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
@@ -74,13 +75,6 @@
     feedback?: Snippet;
   } = $props();
 
-  const STATUS_LABEL: Record<string, string> = {
-    uploaded: 'Wird verarbeitet',
-    processing: 'Wird verarbeitet',
-    ready: 'Bereit',
-    approved: 'Freigegeben',
-    rejected: 'Abgelehnt',
-  };
   const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error' | 'accent'> = {
     approved: 'success',
     rejected: 'error',
@@ -149,11 +143,11 @@
 
     <span class="status" class:pop={approvedHere === version.id && version.status === 'approved'}>
       {#if unreadable}
-        <Badge variant="warning">Nicht verarbeitet</Badge>
+        <Badge variant="warning">{t().track.versionCard.notProcessed}</Badge>
       {:else if processing}
-        <Badge><span class="pulse"></span>Wird verarbeitet</Badge>
+        <Badge><span class="pulse"></span>{t().track.versionCard.status.processing}</Badge>
       {:else}
-        <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{STATUS_LABEL[version.status] ?? version.status}</Badge>
+        <Badge variant={STATUS_VARIANT[version.status] ?? 'default'}>{t().track.versionCard.status[version.status] ?? version.status}</Badge>
       {/if}
     </span>
 
@@ -167,53 +161,53 @@
             onApprove();
           }}
         >
-          <span class="ok"><Icon name="check" size={14} /> Freigeben</span>
+          <span class="ok"><Icon name="check" size={14} /> {t().track.versionCard.approve}</span>
         </Button>
       {/if}
       {#if onFinish}
         <Button variant={finishCount > 0 ? 'primary' : 'ghost'} size="sm" onclick={onFinish}>
-          <Icon name="check" size={14} /> Fertig mit V{version.versionNumber}{#if finishCount > 0}{' '}<span class="count">{finishCount}</span>{/if}
+          <Icon name="check" size={14} /> {t().track.versionCard.doneWith(version.versionNumber)}{#if finishCount > 0}{' '}<span class="count">{finishCount}</span>{/if}
         </Button>
       {/if}
 
       {#if versions.length > 1}
-        <button class="icon-btn" title="Alle Versionen vergleichen" aria-label="Alle Versionen vergleichen" onclick={onCompare}>
+        <button class="icon-btn" title={t().track.versionCard.compareAll} aria-label={t().track.versionCard.compareAll} onclick={onCompare}>
           <Icon name="compare" size={15} />
         </button>
       {/if}
 
       <div class="menu-root">
-        <button class="icon-btn" title="Weitere Aktionen" aria-label="Weitere Aktionen" onclick={() => toggle('more')}>
+        <button class="icon-btn" title={t().track.versionCard.moreActions} aria-label={t().track.versionCard.moreActions} onclick={() => toggle('more')}>
           <Icon name="more" size={16} />
         </button>
         {#if menu === 'more'}
           <div class="menu" role="menu">
             {#if canEdit}
-              <button role="menuitem" onclick={() => pick(onEdit)}><Icon name="edit" size={14} /> Bezeichnung und Notizen</button>
+              <button role="menuitem" onclick={() => pick(onEdit)}><Icon name="edit" size={14} /> {t().track.versionCard.labelAndNotes}</button>
             {/if}
             {#if canDownload}
-              <button role="menuitem" onclick={() => pick(onDownload)}><Icon name="download" size={14} /> Original herunterladen</button>
+              <button role="menuitem" onclick={() => pick(onDownload)}><Icon name="download" size={14} /> {t().track.versionCard.downloadOriginal}</button>
             {/if}
             {#if offlineAvailable}
-              <button role="menuitem" onclick={() => pick(onOfflineRemove)}><Icon name="cloud-check" size={14} /> Offline-Kopie entfernen</button>
+              <button role="menuitem" onclick={() => pick(onOfflineRemove)}><Icon name="cloud-check" size={14} /> {t().track.versionCard.removeOffline}</button>
             {:else if offlineDownloading}
-              <span class="menu-cap">Offline-Download {offlineProgress}%</span>
+              <span class="menu-cap">{t().track.versionCard.offlineDownload(offlineProgress)}</span>
             {:else}
-              <button role="menuitem" onclick={() => pick(() => onOfflineDownload('stream'))}><Icon name="cloud-download" size={14} /> Offline speichern (MP3)</button>
+              <button role="menuitem" onclick={() => pick(() => onOfflineDownload('stream'))}><Icon name="cloud-download" size={14} /> {t().track.versionCard.saveOfflineMp3}</button>
               {#if canDownload}
-                <button role="menuitem" onclick={() => pick(() => onOfflineDownload('original'))}><Icon name="cloud-download" size={14} /> Offline speichern (Original)</button>
+                <button role="menuitem" onclick={() => pick(() => onOfflineDownload('original'))}><Icon name="cloud-download" size={14} /> {t().track.versionCard.saveOfflineOriginal}</button>
               {/if}
             {/if}
             {#if canUpload}
-              <button role="menuitem" onclick={() => pick(onBranch)}><Icon name="git-branch" size={14} /> Variante davon hochladen</button>
+              <button role="menuitem" onclick={() => pick(onBranch)}><Icon name="git-branch" size={14} /> {t().track.versionCard.uploadVariant}</button>
             {/if}
             {#if canApprove && version.branchLabel}
-              <button role="menuitem" onclick={() => pick(onPromote)}><Icon name="arrow-up" size={14} /> Als Hauptversion</button>
+              <button role="menuitem" onclick={() => pick(onPromote)}><Icon name="arrow-up" size={14} /> {t().track.versionCard.makeMain}</button>
             {/if}
             {#if isOwner}
               <hr />
-              <button role="menuitem" class="danger" onclick={() => pick(onDelete)}><Icon name="trash" size={14} /> Version in den Papierkorb</button>
-              <span class="menu-hint">Mit allen Kommentaren, 30 Tage im Papierkorb. Freigabelinks pausieren so lange.</span>
+              <button role="menuitem" class="danger" onclick={() => pick(onDelete)}><Icon name="trash" size={14} /> {t().track.versionCard.versionToTrash}</button>
+              <span class="menu-hint">{t().track.versionCard.trashHint}</span>
             {/if}
           </div>
         {/if}
@@ -223,36 +217,36 @@
 
   {#if showDecision && version.openCommentCount > 0}
     <p class="open-hint">
-      {version.openCommentCount === 1 ? 'Noch ein offener Punkt' : `Noch ${version.openCommentCount} offene Punkte`} zu V{version.versionNumber}
+      {t().track.versionCard.openPoints(version.openCommentCount, version.versionNumber)}
     </p>
   {/if}
   {#if version.notes}
-    <p class="notes"><span>Neu</span>{version.notes}</p>
+    <p class="notes"><span>{t().track.versionCard.new}</span>{version.notes}</p>
   {/if}
   {#if unreadable}
     <div class="unreadable" role="alert">
-      <b>Diese Datei lässt sich nicht verarbeiten.</b>
-      <p>„{version.originalFileName}“ hat keine Wellenform und keine Länge. Prüfe den Export und lade die Datei erneut hoch.</p>
+      <b>{t().track.versionCard.cannotProcess}</b>
+      <p>{t().track.versionCard.noWaveform(version.originalFileName)}</p>
       <div class="retry-actions">
-        {#if canUpload}<Button size="sm" onclick={onUpload}>Neu hochladen</Button>{/if}
-        {#if isOwner}<Button size="sm" variant="secondary" onclick={onDelete}>Version in den Papierkorb</Button>{/if}
+        {#if canUpload}<Button size="sm" onclick={onUpload}>{t().track.versionCard.uploadAgain}</Button>{/if}
+        {#if isOwner}<Button size="sm" variant="secondary" onclick={onDelete}>{t().track.versionCard.versionToTrash}</Button>{/if}
       </div>
     </div>
   {/if}
   {#if version.rejectionReason}
-    <p class="reason">Abgelehnt: „{version.rejectionReason}“</p>
+    <p class="reason">{t().track.versionCard.rejected(version.rejectionReason)}</p>
   {/if}
 
   {#if processing}
     <div class="player pending">
       <div class="pending-row">
-        <button class="pending-play" disabled aria-label="Abspielen"><Icon name="play" size={24} /></button>
+        <button class="pending-play" disabled aria-label={t().track.player.play}><Icon name="play" size={24} /></button>
         <div class="breath" aria-hidden="true">
           {#each PENDING_BARS as h, i}<i style="height: {h}%; animation-delay: {i * 30}ms"></i>{/each}
         </div>
       </div>
       <p class="pending-hint">
-        Hochgeladen. Wir rechnen die Wellenform und eine Version zum Streamen, das dauert meist unter einer Minute. Du kannst die Seite verlassen.
+        {t().track.versionCard.pendingHint}
       </p>
     </div>
   {:else if !unreadable}

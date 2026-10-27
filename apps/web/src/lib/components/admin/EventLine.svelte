@@ -77,7 +77,7 @@
       case 'comment':
         return [e.projectName, e.userId ? '' : linkBy].filter(Boolean).join(' · ');
       case 'invite':
-        return e.role ? `als ${ROLE_LABELS[e.role]}` : '';
+        return e.role ? `als ${ROLE_LABELS.de[e.role]}` : '';
       case 'push':
         return e.device ?? '';
       default:

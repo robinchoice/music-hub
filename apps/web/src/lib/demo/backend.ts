@@ -1,8 +1,10 @@
 // Sample data and request handlers for the demo. They answer the requests of the real pages the way the API
 // does, so the landing page can show the current frontend without a server. Changes stay in this browser window.
-// When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … fehlt".
-import { COMMENT_REACTIONS, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
+// When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … missing".
+// The texts come from the area `landing` (sample) in the current language; switching it reseeds the data.
+import { COMMENT_REACTIONS, type Locale, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
 import type { Review, ReviewVerdict, TrackComment, Version } from '$lib/utils/track.js';
+import { locale, t } from '$lib/i18n/index.js';
 import { OPEN_EXAMPLE_ID } from './mode.js';
 
 // UUIDs that gen_random_uuid() never produces, so a stray request to the API only gets a 404.
@@ -69,23 +71,24 @@ type DemoStem = {
 };
 
 function seed() {
+  const d = t().landing.sample;
   const now = Date.now();
   const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
   const HOUR = 60;
   const DAY = 24 * HOUR;
 
   const projects: DemoProject[] = [
-    { id: uuid(10), name: 'Nachtbus EP', description: 'Vier Songs aus dem Proberaum.', artist: 'Fernlicht', coverUrl: COVER, createdAt: ago(30 * DAY), updatedAt: ago(2 * HOUR) },
-    { id: uuid(11), name: 'Live im Keller', description: null, artist: 'Fernlicht', coverUrl: null, createdAt: ago(60 * DAY), updatedAt: ago(12 * DAY) },
-    { id: uuid(12), name: 'Podcast-Intro Funkloch', description: null, artist: null, coverUrl: null, createdAt: ago(20 * DAY), updatedAt: ago(9 * DAY) },
+    { id: uuid(10), name: d.project, description: d.projectDescription, artist: d.band, coverUrl: COVER, createdAt: ago(30 * DAY), updatedAt: ago(2 * HOUR) },
+    { id: uuid(11), name: d.cellar, description: null, artist: d.band, coverUrl: null, createdAt: ago(60 * DAY), updatedAt: ago(12 * DAY) },
+    { id: uuid(12), name: d.podcast, description: null, artist: null, coverUrl: null, createdAt: ago(20 * DAY), updatedAt: ago(9 * DAY) },
   ];
   const track = (n: number, projectId: string, name: string, status: TrackStatus, sortOrder: number, coverUrl: string | null = null): DemoTrack =>
     ({ id: uuid(n), projectId, name, description: null, coverUrl, status, section: null, sortOrder, createdAt: ago(30 * DAY), updatedAt: ago(2 * HOUR) });
   const tracks: DemoTrack[] = [
-    track(20, uuid(10), 'Nachtbus', 'in_progress', 0, COVER),
-    track(21, uuid(10), 'Kreise', 'sketch', 1),
-    track(22, uuid(10), 'Halbmond', 'final', 2),
-    track(23, uuid(11), 'Zugabe', 'in_progress', 0),
+    track(20, uuid(10), d.nightBus, 'in_progress', 0, COVER),
+    track(21, uuid(10), d.circles, 'sketch', 1),
+    track(22, uuid(10), d.halfMoon, 'final', 2),
+    track(23, uuid(11), d.encore, 'in_progress', 0),
     track(24, uuid(12), 'Jingle', 'final', 0),
   ];
 
@@ -111,10 +114,10 @@ function seed() {
     ...loudness,
   });
   const versions: DemoVersion[] = [
-    version(104, 4, 'Mix 2 – mehr Bass', 'ready', 2 * HOUR, 'Bass +2 dB, Snare-Hall kürzer, Backings im Refrain breiter', 'Nachtbus_Mix2.wav', { integratedLufs: -15.3, truePeak: -0.49, loudnessRange: 8.7 }),
-    version(103, 3, null, 'ready', 26 * HOUR, 'Wie V2, nur ohne Shaker', 'Nachtbus_Mix1_ohne_Shaker.wav', { integratedLufs: -15.9, truePeak: -0.35, loudnessRange: 10.3 }, { of: 102, label: 'Ohne Shaker' }),
-    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, 'Erster Mix von Lisa', 'Nachtbus_Mix1.wav', { integratedLufs: -15.9, truePeak: 0.33, loudnessRange: 10.1 }),
-    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, 'Bounce aus dem Proberaum', 'Nachtbus_rough.wav', { integratedLufs: -15.5, truePeak: -1.22, loudnessRange: 7.5 }),
+    version(104, 4, d.v4Label, 'ready', 2 * HOUR, d.v4Notes, `${d.fileName}_Mix2.wav`, { integratedLufs: -15.3, truePeak: -0.49, loudnessRange: 8.7 }),
+    version(103, 3, null, 'ready', 26 * HOUR, d.v3Notes, d.v3File, { integratedLufs: -15.9, truePeak: -0.35, loudnessRange: 10.3 }, { of: 102, label: d.v3Branch }),
+    version(102, 2, 'Mix 1', 'rejected', 3 * DAY, d.v2Notes, `${d.fileName}_Mix1.wav`, { integratedLufs: -15.9, truePeak: 0.33, loudnessRange: 10.1 }),
+    version(101, 1, 'Rough Mix', 'ready', 7 * DAY, d.v1Notes, `${d.fileName}_rough.wav`, { integratedLufs: -15.5, truePeak: -1.22, loudnessRange: 7.5 }),
   ];
 
   const comment = (n: number, versionN: number, by: Person | string, body: string, t: number | null, minutesAgo: number, extra: { resolved?: number; parent?: number } = {}): DemoComment => ({
@@ -129,21 +132,21 @@ function seed() {
     user: typeof by === 'string' ? null : by,
   });
   const comments: DemoComment[] = [
-    comment(401, 104, MARA, 'Insgesamt top. Die Höhen sind mir noch etwas scharf.', null, 10),
-    comment(402, 104, LISA, 'Snare in der Strophe etwas zu laut', 42, 60),
-    comment(403, 104, JONAS, 'Bass sitzt jetzt richtig gut 👍', 65, 58, { resolved: 30 }),
-    comment(404, 104, JONAS, 'Backings im Refrain noch etwas lauter?', 72, 40),
-    comment(405, 104, KAI, 'Mach ich in Mix 3.', null, 20, { parent: 404 }),
-    comment(406, 104, 'Tom (Label)', 'Refrain ist stark. Fürs Radio bitte noch eine Version mit kürzerem Intro.', 112, 25),
-    comment(407, 104, LISA, 'Solo-Gitarre könnte breiter sein', 126, 30),
-    comment(301, 103, MARA, 'Ohne Shaker atmet der Refrain viel mehr.', 64, 25 * HOUR),
-    comment(302, 103, JONAS, 'Hier fehlt er mir aber ein bisschen.', 82, 24 * HOUR, { resolved: 20 * HOUR }),
-    comment(201, 102, MARA, `${REJECTION_PREFIX}Bass zu dünn, Hangtom klingt hohl`, null, 3 * DAY - 60),
-    comment(202, 102, JONAS, 'Hangtom klingt hohl', 33, 3 * DAY - 180),
-    comment(203, 102, LISA, 'Vocals im Refrain sitzen gut', 63, 3 * DAY - 150, { resolved: 3 * DAY - 100 }),
-    comment(204, 102, LISA, 'Outro zu lang, nach zwei Runden ausblenden', 144, 3 * DAY - 120),
-    comment(101, 101, JONAS, 'Tempo passt, Groove auch.', 22, 7 * DAY - 60, { resolved: 6 * DAY }),
-    comment(102, 101, MARA, 'Zweite Strophe noch mal neu singen', 94, 7 * DAY - 30, { resolved: 4 * DAY }),
+    comment(401, 104, MARA, d.comments.c401, null, 10),
+    comment(402, 104, LISA, d.comments.c402, 42, 60),
+    comment(403, 104, JONAS, d.comments.c403, 65, 58, { resolved: 30 }),
+    comment(404, 104, JONAS, d.comments.c404, 72, 40),
+    comment(405, 104, KAI, d.comments.c405, null, 20, { parent: 404 }),
+    comment(406, 104, 'Tom (Label)', d.comments.c406, 112, 25),
+    comment(407, 104, LISA, d.comments.c407, 126, 30),
+    comment(301, 103, MARA, d.comments.c301, 64, 25 * HOUR),
+    comment(302, 103, JONAS, d.comments.c302, 82, 24 * HOUR, { resolved: 20 * HOUR }),
+    comment(201, 102, MARA, `${REJECTION_PREFIX}${d.comments.c201}`, null, 3 * DAY - 60),
+    comment(202, 102, JONAS, d.comments.c202, 33, 3 * DAY - 180),
+    comment(203, 102, LISA, d.comments.c203, 63, 3 * DAY - 150, { resolved: 3 * DAY - 100 }),
+    comment(204, 102, LISA, d.comments.c204, 144, 3 * DAY - 120),
+    comment(101, 101, JONAS, d.comments.c101, 22, 7 * DAY - 60, { resolved: 6 * DAY }),
+    comment(102, 101, MARA, d.comments.c102, 94, 7 * DAY - 30, { resolved: 4 * DAY }),
   ];
   const react = (n: number, emoji: string, people: Person[]) =>
     (comments.find((c) => c.id === uuid(n))!.reactions = [{ emoji, users: people.map(({ id, name }) => ({ id, name })) }]);
@@ -154,8 +157,8 @@ function seed() {
   const stem = (n: number, name: string, mb: number): DemoStem => ({
     id: uuid(n),
     trackId: uuid(20),
-    name: `Nachtbus ${name}`,
-    originalFileName: `Nachtbus_${name.replace(/ /g, '_')}.wav`,
+    name: `${d.nightBus} ${name}`,
+    originalFileName: `${d.fileName}_${name.replace(/ /g, '_')}.wav`,
     mimeType: 'audio/wav',
     fileSize: Math.round(mb * 1024 * 1024),
     createdAt: ago(5 * DAY),
@@ -163,8 +166,8 @@ function seed() {
   });
   const stems: DemoStem[] = [
     stem(501, 'Kick In', 41.2), stem(502, 'Kick Out', 41.2), stem(503, 'Snare Top', 40.9), stem(504, 'Snare Bottom', 40.9),
-    stem(505, 'Hangtom', 40.9), stem(506, 'Overheads', 81.7), stem(507, 'Room', 81.7), stem(508, 'Bass DI', 40.9),
-    stem(509, 'Gitarre L', 40.9), stem(510, 'Gitarre R', 40.9), stem(511, 'Lead Vocal', 52.4), stem(512, 'Backings', 48.1),
+    stem(505, d.stems.tom, 40.9), stem(506, 'Overheads', 81.7), stem(507, 'Room', 81.7), stem(508, 'Bass DI', 40.9),
+    stem(509, d.stems.guitarL, 40.9), stem(510, d.stems.guitarR, 40.9), stem(511, 'Lead Vocal', 52.4), stem(512, d.stems.backings, 48.1),
   ];
 
   // Jonas has finished V4; Lisa forgot "Fertig", so her comments went out on their own
@@ -179,16 +182,25 @@ function seed() {
     user: by,
   });
   const reviews: DemoReview[] = [
-    review(601, 104, JONAS, 'notes', 2, 35, 'Bass sitzt, die Backings fehlen mir noch.'),
+    review(601, 104, JONAS, 'notes', 2, 35, d.reviewNote),
     review(602, 104, LISA, null, 2, 15),
-    review(603, 102, MARA, 'changes', 1, 3 * DAY - 60, 'Bass zu dünn, Hangtom klingt hohl'),
+    review(603, 102, MARA, 'changes', 1, 3 * DAY - 60, d.comments.c201),
   ];
 
   return { projects, tracks, versions, comments, stems, reviews };
 }
 
-const db = seed();
+// Seeded on the first request: the language is only known once a page is rendering
+let db!: ReturnType<typeof seed>;
+let seededIn: Locale | undefined;
 let nextId = 900;
+
+// The sample data is in the language of the page; after a switch it starts over
+function ensureLanguage() {
+  if (seededIn === locale()) return;
+  db = seed();
+  seededIn = locale();
+}
 
 // "Erledigt" and the last visit of "Tracks"; like every change in the demo they stay in this window
 const overviewState = { dismissed: new Set<string>(), tracksSeenAt: null as string | null };
@@ -263,7 +275,7 @@ function demoPeaks(v: DemoVersion): number[] {
 
 class NotFound extends Error {
   constructor() {
-    super('Nicht gefunden');
+    super(t().landing.sample.notFound);
   }
 }
 const find = <T extends { id: string }>(list: T[], id: string): T => {
@@ -553,16 +565,18 @@ const ROUTES: [string, RegExp, Handler][] = [
 
 /** The example on /offen: Nachtbus as GET /open/:trackId would return it once opened. */
 export function demoOpenTrack() {
+  ensureLanguage();
+  const d = t().landing.sample;
   const mix = find(db.versions, uuid(104));
   const people = [JONAS, KAI, LISA, MARA];
   return {
-    track: { id: OPEN_EXAMPLE_ID, name: 'Nachtbus', description: null, credit: null, forkedFromId: null },
-    artist: 'Fernlicht',
+    track: { id: OPEN_EXAMPLE_ID, name: d.nightBus, description: null, credit: null, forkedFromId: null },
+    artist: d.band,
     people: people.map((p) => ({ ...p, handle: null })),
     stars: 12,
     starred: false,
     license: 'cc-by' as const,
-    credit: `„Nachtbus“ von Fernlicht (${people.map((p) => p.name).join(', ')}) · CC BY 4.0 · ${location.origin}/offen/${OPEN_EXAMPLE_ID}`,
+    credit: d.credit(d.nightBus, d.band, people.map((p) => p.name).join(', '), `${location.origin}/offen/${OPEN_EXAMPLE_ID}`),
     coverUrl: COVER,
     version: { duration: mix.duration },
     streamUrl: mix.audio,
@@ -576,11 +590,12 @@ export function demoOpenTrack() {
 /** Answers a request like the API under /api/v1 would, from the sample data. */
 export async function demoRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   await new Promise((resolve) => setTimeout(resolve, 80));
+  ensureLanguage();
   const pathname = path.split('?')[0];
   for (const [m, pattern, handler] of ROUTES) {
     const match = m === method ? pattern.exec(pathname) : null;
     if (match) return structuredClone(handler(match.slice(1), body as Body)) as T;
   }
-  console.warn(`[Demo] ${method} ${pathname} fehlt in den Demo-Daten`);
-  throw new Error('In der Demo nicht verfügbar');
+  console.warn(`[Demo] ${method} ${pathname} is missing in the demo data`);
+  throw new Error(t().landing.sample.unavailable);
 }

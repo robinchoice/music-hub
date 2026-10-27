@@ -180,3 +180,27 @@ test('magic link verification limits each IP without consuming blocked links', a
   await db.update(rateLimits).set({ resetAt: new Date(Date.now() - 1) }).where(eq(rateLimits.key, `link-checks-per-ip:${ip}`));
   expect((await verify(next)).status).toBe(200);
 });
+
+test('errors follow the locale cookie, else Accept-Language, and the web stores the language for mails', async () => {
+  const wrong = async (headers: Record<string, string>) => {
+    const res = await app.request('/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': crypto.randomUUID(), ...headers },
+      body: JSON.stringify({ email: freshEmail(), password: 'not-the-password' }),
+    });
+    return res.json();
+  };
+  expect((await wrong({})).error).toBe('E-Mail oder Passwort falsch');
+  expect((await wrong({ 'accept-language': 'en-GB,en;q=0.9' })).error).toBe('Wrong email or password');
+  expect((await wrong({ 'accept-language': 'en', cookie: 'locale=de' })).error).toBe('E-Mail oder Passwort falsch');
+
+  const [user] = await db.insert(users).values({ email: freshEmail(), name: 'Kim' }).returning({ id: users.id });
+  const token = generateToken();
+  await db.insert(sessions).values({ userId: user.id, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + 60_000) });
+  const locale = async () => (await db.select({ locale: users.locale }).from(users).where(eq(users.id, user.id)))[0].locale;
+  // The plugin says nothing and leaves the language alone
+  await app.request('/auth/me', { headers: { authorization: `Bearer ${token}` } });
+  expect(await locale()).toBe('de');
+  await app.request('/auth/me', { headers: { cookie: `session=${token}; locale=en` } });
+  expect(await locale()).toBe('en');
+});

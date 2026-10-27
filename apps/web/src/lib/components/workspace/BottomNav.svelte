@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { getContext } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { tasks } from '$lib/stores/overview.js';
   import { requests } from '$lib/stores/requests.js';
@@ -8,13 +9,13 @@
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
   // Projects and account sit in the menu
-  const ITEMS = [
-    { href: '/dashboard', icon: 'home', label: 'Übersicht' },
-    { href: '/for-you', icon: 'inbox', label: 'Für dich' },
-  ] as const;
+  const ITEMS = $derived([
+    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview },
+    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou },
+  ] as const);
 </script>
 
-<nav class="bottom-nav" aria-label="Hauptnavigation">
+<nav class="bottom-nav" aria-label={t().workspace.nav.main}>
   {#each ITEMS as item (item.href)}
     <a href={item.href} class="nav-item" class:active={$page.url.pathname === item.href}>
       <Icon name={item.icon} size={22} />
@@ -27,7 +28,7 @@
 
   <button class="nav-item" onclick={() => openMobileMenu?.()}>
     <Icon name="music" size={22} />
-    <span>Projekte</span>
+    <span>{t().workspace.nav.projects}</span>
   </button>
 </nav>
 

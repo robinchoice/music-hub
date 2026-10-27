@@ -1,3 +1,4 @@
+import { t } from '$lib/i18n/index.js';
 import {
   getAllOfflineVersions,
   getOfflineVersion,
@@ -41,7 +42,7 @@ export async function downloadForOffline(
 
   // Download audio with progress tracking
   const audioRes = await fetch(audioUrl);
-  if (!audioRes.ok) throw new Error(`Audio-Download fehlgeschlagen: ${audioRes.status}`);
+  if (!audioRes.ok) throw new Error(t().overview.offline.audioFailed(audioRes.status));
 
   const contentLength = Number(audioRes.headers.get('Content-Length') ?? '0');
   let loaded = 0;

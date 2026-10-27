@@ -2,6 +2,7 @@
   import { onMount, type Snippet } from 'svelte';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { formatTime } from '$lib/utils/format.js';
   import { commentMarkers, openPass, type ReviewVerdict } from '$lib/utils/track.js';
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
@@ -37,7 +38,7 @@
     downloadUrl: string | null;
     allowComments: boolean;
     comments: Comment[];
-    /** Guest reviews of the version, to tell which of your comments the next "Fertig" sends */
+    /** Guest reviews of the version, to tell which of your comments the next "Done" sends */
     reviews: { guestName: string | null; createdAt: string }[];
     uploaderName: string | null;
   };
@@ -64,7 +65,7 @@
     previous?: (() => void) | undefined;
     next?: (() => void) | undefined;
     onLoad?: (data: { project: { name: string }; track: { name: string } }) => void;
-    /** Part of a delivery: the client decides per song through `actions`, not with "Rückmeldung abschließen" */
+    /** Part of a delivery: the client decides per song through `actions`, not with "Finish review" */
     paywall?: boolean;
     /** Whether the comment form shows; the comments themselves always do */
     commenting?: boolean;
@@ -88,9 +89,9 @@
   let submitting = $state(false);
   let playerRef = $state<WaveformPlayer>();
   let reviewOpen = $state(false);
-  // The name the last "Fertig" went out under; a new name starts over
+  // The name the last "Done" went out under; a new name starts over
   let reviewSentAs = $state<string | null>(null);
-  // Your comments since your last "Fertig", recognised by the name you comment with
+  // Your comments since your last "Done", recognised by the name you comment with
   const guestPass = $derived(data && guestName.trim() ? openPass(data.comments, data.reviews ?? [], `guest:${guestName.trim()}`) : []);
   const reviewDone = $derived(reviewSentAs === guestName.trim() && guestPass.length === 0);
 
@@ -117,15 +118,15 @@
         const j = await res.json();
         if (j.passwordRequired) {
           passwordRequired = true;
-          error = password ? 'Das Passwort ist nicht richtig. Bitte versuche es erneut.' : '';
+          error = password ? t().guest.listenTrack.wrongPassword : '';
           return;
         }
       }
       if (!res.ok) {
-        error = res.status === 404 ? 'Dieser Link wurde nicht gefunden.'
-          : res.status === 410 ? 'Dieser Link ist gerade nicht verfügbar.'
-          : res.status === 429 ? 'Zu viele Versuche. Bitte warte etwas und versuche es erneut.'
-          : 'Der Link konnte nicht geladen werden. Bitte versuche es erneut.';
+        error = res.status === 404 ? t().guest.listenTrack.notFound
+          : res.status === 410 ? t().guest.listenTrack.unavailable
+          : res.status === 429 ? t().guest.listenTrack.tooManyAttempts
+          : t().guest.listenTrack.loadFailed;
         loading = false;
         return;
       }
@@ -139,7 +140,7 @@
       passwordRequired = false;
       if (!eventId) await createListenEvent();
     } catch {
-      error = 'Keine Verbindung. Bitte prüfe dein Internet und versuche es erneut.';
+      error = t().guest.listenTrack.offline;
     } finally {
       loading = false;
     }
@@ -258,14 +259,14 @@
       });
       if (!res.ok) {
         const message =
-          res.status === 429 ? 'Zu viele Rückmeldungen, bitte später noch einmal.'
-          : res.status === 409 ? 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.'
-          : 'Rückmeldung fehlgeschlagen';
+          res.status === 429 ? t().guest.listenTrack.tooManyReviews
+          : res.status === 409 ? t().guest.listenTrack.newerVersion
+          : t().guest.listenTrack.reviewFailed;
         toastError(message);
         throw new Error(message);
       }
     } catch (err) {
-      if (err instanceof TypeError) toastError('Keine Verbindung. Bitte versuche es erneut.');
+      if (err instanceof TypeError) toastError(t().guest.listenTrack.offlineRetry);
       throw err;
     }
     reviewSentAs = guestName.trim();
@@ -288,9 +289,9 @@
       });
       // 409: the link follows the track and shows a newer version by now
       if (!res.ok) {
-        commentError = res.status === 409 ? 'Inzwischen gibt es eine neuere Version. Lade die Seite neu, um sie zu hören.'
-          : res.status === 429 ? 'Zu viele Kommentare. Bitte warte etwas und versuche es erneut.'
-          : 'Kommentar nicht gesendet. Bitte versuche es erneut.';
+        commentError = res.status === 409 ? t().guest.listenTrack.newerVersion
+          : res.status === 429 ? t().guest.listenTrack.tooManyComments
+          : t().guest.listenTrack.commentFailed;
         return;
       }
       body = '';
@@ -299,7 +300,7 @@
       localStorage.setItem('listenName', guestName.trim());
       await load();
     } catch {
-      commentError = 'Keine Verbindung. Dein Kommentar bleibt hier, bitte versuche es erneut.';
+      commentError = t().guest.listenTrack.offlineComment;
     } finally {
       submitting = false;
     }
@@ -308,18 +309,18 @@
 
 <div class="listen-track">
     {#if loading && !passwordRequired}
-      <p class="muted">Lädt…</p>
+      <p class="muted">{t().guest.listenTrack.loading}</p>
     {:else if passwordRequired}
       <form class="password-gate" onsubmit={(e) => { e.preventDefault(); load(); }}>
-        <h1>🔒 Geschützter Link</h1>
-        <p>Bitte Passwort eingeben:</p>
-        <input type="password" bind:value={password} placeholder="Passwort" aria-label="Passwort" autocomplete="current-password" required />
-        <Button type="submit" {loading}>Öffnen</Button>
+        <h1>{t().guest.listenTrack.protectedLink}</h1>
+        <p>{t().guest.listenTrack.enterPassword}</p>
+        <input type="password" bind:value={password} placeholder={t().common.password} aria-label={t().common.password} autocomplete="current-password" required />
+        <Button type="submit" {loading}>{t().common.open}</Button>
         {#if error}<p class="error" role="alert">{error}</p>{/if}
       </form>
     {:else if error && !data}
       <p class="error" role="alert">{error}</p>
-      <Button onclick={load}>Erneut versuchen</Button>
+      <Button onclick={load}>{t().common.retry}</Button>
     {:else if data}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       {#if inAlbum}
@@ -346,29 +347,29 @@
             audioDuration={data.version.duration}
             markers={commentMarkers(data.comments)}
             session={{ title: data.track.name, artist: data.project.name, previous, next }}
-            onTimeClick={(t) => (commentTimestamp = Math.round(t * 10) / 10)}
+            onTimeClick={(time) => (commentTimestamp = Math.round(time * 10) / 10)}
             onPlay={onPlay}
             onPause={onPause}
             onFinish={onFinish}
           />
         {:else}
-          <p class="preparing" role="status">Die Vorschau wird vorbereitet. Schau gleich noch einmal vorbei.</p>
+          <p class="preparing" role="status">{t().guest.listenTrack.preparing}</p>
         {/if}
       </div>
 
       {#if showNamePrompt}
         <div class="name-prompt">
-          <p>Wie heißt du? So wissen die Künstler, wer zugehört hat.</p>
+          <p>{t().guest.listenTrack.namePrompt}</p>
           <div class="name-prompt-row">
             <input
               type="text"
               bind:value={nameInput}
-              placeholder="Dein Name"
+              placeholder={t().guest.listenTrack.yourName}
               onkeydown={(e) => e.key === 'Enter' && submitName()}
               autofocus
             />
-            <Button size="sm" onclick={submitName} disabled={!nameInput.trim()}>OK</Button>
-            <button class="skip-btn" onclick={dismissName}>Überspringen</button>
+            <Button size="sm" onclick={submitName} disabled={!nameInput.trim()}>{t().guest.listenTrack.ok}</Button>
+            <button class="skip-btn" onclick={dismissName}>{t().guest.listenTrack.skip}</button>
           </div>
         </div>
       {/if}
@@ -380,31 +381,31 @@
       {#if data.downloadUrl}
         <div class="actions">
           <a href={data.downloadUrl} target="_blank" rel="noopener">
-            <Button variant="ghost" size="sm">↓ Original herunterladen</Button>
+            <Button variant="ghost" size="sm">{t().guest.listenTrack.downloadOriginal}</Button>
           </a>
         </div>
       {/if}
 
       {#if data.allowComments && commenting}
         <form class="comment-form" onsubmit={submitComment}>
-          <h2>Feedback hinterlassen</h2>
-          <p class="hint">Kommentare sind sofort für alle mit dem Link sichtbar.</p>
-          <input type="text" bind:value={guestName} placeholder="Dein Name" required />
+          <h2>{t().guest.listenTrack.leaveFeedback}</h2>
+          <p class="hint">{t().guest.listenTrack.feedbackHint}</p>
+          <input type="text" bind:value={guestName} placeholder={t().guest.listenTrack.yourName} required />
           {#if commentTimestamp !== null}
             <span class="ts-badge">
-              bei {formatTime(commentTimestamp)}
+              {t().guest.listenTrack.atTime(formatTime(commentTimestamp))}
               <button type="button" onclick={() => (commentTimestamp = null)}>×</button>
             </span>
           {/if}
           <textarea
             bind:value={body}
-            placeholder="Was denkst du? (Klick auf die Wellenform für Timestamp)"
+            placeholder={t().guest.listenTrack.commentPlaceholder}
             rows="3"
             required
           ></textarea>
           {#if commentError}<p class="error" role="alert">{commentError}</p>{/if}
           <Button type="submit" loading={submitting} disabled={!body.trim() || !guestName.trim()}>
-            Kommentar speichern
+            {t().guest.listenTrack.saveComment}
           </Button>
         </form>
 
@@ -412,23 +413,23 @@
           <div class="finish">
             <p role="status">
               {#if reviewDone}
-                Danke, {guestName.trim()}, deine Rückmeldung ist angekommen. Du kannst weiterhören.
+                {t().guest.listenTrack.thanks(guestName.trim())}
               {:else if guestPass.length > 0}
-                {guestPass.length === 1 ? 'Dein Kommentar ist gespeichert.' : `Deine ${guestPass.length} Kommentare sind gespeichert.`}
-                Schließ deine Rückmeldung ab, wenn du durch bist. Dann geht alles gesammelt an {data.uploaderName ?? 'die Person, die den Song hochgeladen hat'}.
+                {guestPass.length === 1 ? t().guest.listenTrack.savedOne : t().guest.listenTrack.savedMany(guestPass.length)}
+                {t().guest.listenTrack.finishHint(data.uploaderName ?? t().guest.listenTrack.uploaderFallback)}
               {:else}
-                Durchgehört? Sag kurz, wie du es findest.
+                {t().guest.listenTrack.listenedThrough}
               {/if}
             </p>
             {#if !reviewDone}
-              <Button variant={guestPass.length > 0 ? 'primary' : 'secondary'} onclick={() => (reviewOpen = true)}>Rückmeldung abschließen</Button>
+              <Button variant={guestPass.length > 0 ? 'primary' : 'secondary'} onclick={() => (reviewOpen = true)}>{t().guest.listenTrack.finishReview}</Button>
             {/if}
           </div>
           <ReviewSheet
             bind:open={reviewOpen}
-            title="Rückmeldung abschließen"
+            title={t().guest.listenTrack.finishReview}
             versionNumber={data.version.versionNumber}
-            uploaderName={data.uploaderName ?? 'Wer hochgeladen hat'}
+            uploaderName={data.uploaderName ?? t().guest.listenTrack.uploaderSubject}
             guest
             pass={guestPass}
             onSubmit={submitReview}
@@ -438,8 +439,8 @@
 
       {#snippet commentContent(c: Comment)}
         <div class="comment-head">
-          <strong>{c.user?.name ?? c.guestName ?? 'Gast'}</strong>
-          {#if !c.user}<span class="guest">Gast</span>{/if}
+          <strong>{c.user?.name ?? c.guestName ?? t().common.guest}</strong>
+          {#if !c.user}<span class="guest">{t().common.guest}</span>{/if}
           {#if c.timestampSeconds !== null}
             <button class="ts" onclick={() => playerRef?.seekToTime(c.timestampSeconds!)}>
               {formatTime(c.timestampSeconds)}
@@ -450,7 +451,7 @@
       {/snippet}
 
       <section class="comments">
-        <h2>Kommentare ({data.comments.length})</h2>
+        <h2>{t().guest.listenTrack.commentsHeading(data.comments.length)}</h2>
         {#each data.comments.filter((c) => !c.parentId || !data?.comments.some((parent) => parent.id === c.parentId)) as c}
           <div class="comment">
             {@render commentContent(c)}
@@ -462,13 +463,13 @@
           </div>
         {/each}
         {#if data.comments.length === 0}
-          <p class="muted">Noch keine Kommentare.</p>
+          <p class="muted">{t().guest.listenTrack.noComments}</p>
         {/if}
       </section>
 
       {#if !inAlbum}
         <footer>
-          <p class="muted">Geteilt über Music Hub</p>
+          <p class="muted">{t().guest.listenTrack.sharedVia}</p>
         </footer>
       {/if}
     {/if}

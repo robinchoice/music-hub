@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -30,7 +31,7 @@
   let sent = $state<string[]>([]);
 
   // An existing song with that name gets the files, otherwise a new one is created
-  const existing = $derived(data?.tracks.find((t) => t.name.trim().toLowerCase() === songName.trim().toLowerCase()) ?? null);
+  const existing = $derived(data?.tracks.find((track) => track.name.trim().toLowerCase() === songName.trim().toLowerCase()) ?? null);
 
   onMount(async () => {
     guestName = localStorage.getItem('listenName') ?? '';
@@ -75,7 +76,7 @@
 </script>
 
 <svelte:head>
-  <title>{data ? `Spuren schicken — ${data.project.name}` : 'Music Hub'}</title>
+  <title>{data ? t().guest.upload.title(data.project.name) : 'Music Hub'}</title>
   <meta name="robots" content="noindex" />
 </svelte:head>
 
@@ -84,44 +85,44 @@
     <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
 
     {#if loading}
-      <p class="muted">Lädt…</p>
+      <p class="muted">{t().guest.listenTrack.loading}</p>
     {:else if error || !data}
       <div class="gone">
-        <h1>Link nicht verfügbar</h1>
-        <p class="muted">{error || 'Dieser Upload-Link gilt nicht mehr.'} Frag die Person, die ihn dir geschickt hat, nach einem neuen.</p>
+        <h1>{t().guest.upload.unavailable}</h1>
+        <p class="muted">{error || t().guest.upload.noLongerValid} {t().guest.upload.askForNew}</p>
       </div>
     {:else}
       <header>
         <p class="project">{data.project.artist ? `${data.project.artist} · ` : ''}{data.project.name}</p>
-        <h1>Spuren schicken</h1>
-        <p class="lead">{data.invitedBy} hat dich eingeladen, Dateien in dieses Projekt zu laden. Ein Konto brauchst du dafür nicht.</p>
+        <h1>{t().guest.upload.heading}</h1>
+        <p class="lead">{t().guest.upload.lead(data.invitedBy)}</p>
       </header>
 
       {#if !target}
         <form class="card" onsubmit={start}>
-          <Input label="Dein Name" bind:value={guestName} placeholder="Wie sollen wir dich nennen?" autofocus={!guestName} />
-          <Input label="Für welchen Song?" bind:value={songName} placeholder="Songtitel" list="songs" />
+          <Input label={t().guest.upload.yourName} bind:value={guestName} placeholder={t().guest.upload.namePlaceholder} autofocus={!guestName} />
+          <Input label={t().guest.upload.whichSong} bind:value={songName} placeholder={t().guest.upload.songPlaceholder} list="songs" />
           <datalist id="songs">
-            {#each data.tracks as t (t.id)}<option value={t.name}></option>{/each}
+            {#each data.tracks as track (track.id)}<option value={track.name}></option>{/each}
           </datalist>
           {#if songName.trim()}
             <p class="hint">
-              {existing ? `Die Dateien kommen zu „${existing.name}“.` : `„${songName.trim()}“ wird als neuer Song angelegt.`}
+              {existing ? t().guest.upload.toExisting(existing.name) : t().guest.upload.newSong(songName.trim())}
             </p>
           {:else if data.tracks.length}
-            <p class="hint">Schon im Projekt: {data.tracks.map((t) => t.name).join(', ')}</p>
+            <p class="hint">{t().guest.upload.alreadyThere(data.tracks.map((track) => track.name).join(', '))}</p>
           {/if}
           <label class="note">
-            <span class="input-label">Notiz an {data.invitedBy} (optional)</span>
-            <textarea bind:value={note} rows="3" maxlength="2000" placeholder="Zum Beispiel: Gesang bitte etwas lauter, Tempo 92 BPM"></textarea>
+            <span class="input-label">{t().guest.upload.noteTo(data.invitedBy)}</span>
+            <textarea bind:value={note} rows="3" maxlength="2000" placeholder={t().guest.upload.notePlaceholder}></textarea>
           </label>
-          <Button type="submit" loading={starting} disabled={!guestName.trim() || !songName.trim()}>Weiter</Button>
+          <Button type="submit" loading={starting} disabled={!guestName.trim() || !songName.trim()}>{t().guest.upload.next}</Button>
         </form>
       {:else}
         <section class="card">
           <div class="target">
             <span><Icon name="music" size={14} /> <b>{target.name}</b></span>
-            <button class="link" onclick={otherSong} disabled={uploading}>Anderer Song</button>
+            <button class="link" onclick={otherSong} disabled={uploading}>{t().guest.upload.otherSong}</button>
           </div>
           {#key target.id}
             <StemUploadDropzone trackId={target.id} base="{base}/track/{target.id}" extra={{ guestName: guestName.trim() }} onUploaded={uploaded} bind:uploading />
@@ -130,11 +131,11 @@
       {/if}
 
       {#if sent.length}
-        <p class="done"><Icon name="check" size={14} /> Angekommen: {sent.join(', ')}. Du kannst weitere Dateien schicken oder die Seite schließen.</p>
+        <p class="done"><Icon name="check" size={14} /> {t().guest.upload.arrived(sent.join(', '))}</p>
       {/if}
     {/if}
 
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>

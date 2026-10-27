@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Locale } from '../i18n.js';
 import { SUPPORTED_AUDIO_FORMATS, MAX_FILE_SIZE, GUEST_STORAGE_CHOICES } from '../constants/audio.js';
 
 export const createTrackSchema = z.object({
@@ -12,14 +13,25 @@ export type TrackStatus = (typeof TRACK_STATUSES)[number];
 // The production stages in their order; in_progress is only kept for tracks that already have it
 export const TRACK_STAGES = ['sketch', 'recording', 'mixing', 'mastering', 'final', 'released'] as const satisfies readonly TrackStatus[];
 
-export const TRACK_STATUS_LABELS: Record<TrackStatus, string> = {
-  sketch: 'Demo',
-  in_progress: 'In Arbeit',
-  recording: 'Recording',
-  mixing: 'Mix',
-  mastering: 'Master',
-  final: 'Final',
-  released: 'Veröffentlicht',
+export const TRACK_STATUS_LABELS: Record<Locale, Record<TrackStatus, string>> = {
+  de: {
+    sketch: 'Demo',
+    in_progress: 'In Arbeit',
+    recording: 'Recording',
+    mixing: 'Mix',
+    mastering: 'Master',
+    final: 'Final',
+    released: 'Veröffentlicht',
+  },
+  en: {
+    sketch: 'Demo',
+    in_progress: 'In progress',
+    recording: 'Recording',
+    mixing: 'Mix',
+    mastering: 'Master',
+    final: 'Final',
+    released: 'Released',
+  },
 };
 
 export const coverKeySchema = z.string().regex(/^covers\/[0-9a-f-]{36}\.(jpg|png|webp)$/);

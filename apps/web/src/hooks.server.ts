@@ -1,3 +1,4 @@
+import { pickLocale } from '@music-hub/shared';
 import { captureException } from './monitoring.server';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import dns from 'node:dns';
@@ -26,10 +27,16 @@ const SECURITY_HEADERS = {
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { pathname, search } = event.url;
+  // The language chosen in the footer, else the browser's, see $lib/i18n
+  const locale = pickLocale(event.cookies.get('locale') ?? event.request.headers.get('accept-language'));
+  event.locals.locale = locale;
   const response =
     pathname.startsWith('/api/') || AGENT_PATH.test(pathname)
       ? await proxy(event.request, `${API_ORIGIN}${pathname}${search}`)
-      : ((await markdown(event.request, event.url)) ?? (await resolve(event)));
+      : ((await markdown(event.request, event.url)) ??
+        (await resolve(event, {
+          transformPageChunk: ({ html }) => html.replace('<html lang="de">', `<html lang="${locale}">`),
+        })));
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
   return response;
 };

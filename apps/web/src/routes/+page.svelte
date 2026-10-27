@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { authLoading, user } from '$lib/stores/auth.js';
   import { toast, toastError } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -9,6 +9,7 @@
   import DemoFrame from '$lib/components/landing/DemoFrame.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
   import { DEMO, demoRequest } from '$lib/demo/backend.js';
+  import { locale, t } from '$lib/i18n/index.js';
   import ReviewSheet from '$lib/components/review/ReviewSheet.svelte';
   import {
     feedbackRows,
@@ -78,7 +79,6 @@
     };
     mq.addEventListener('change', onChange);
     mounted = true;
-    load();
     return () => mq.removeEventListener('change', onChange);
   });
 
@@ -89,6 +89,12 @@
     return () => {
       document.documentElement.style.overflow = '';
     };
+  });
+
+  // The sample data follows the language: reload it once the switch has gone through
+  $effect(() => {
+    locale();
+    if (mounted) untrack(load);
   });
 
   async function load() {
@@ -116,7 +122,7 @@
     await load();
   }
 
-  const elsewhere = () => toast('Das geht oben im Demo-Fenster.');
+  const elsewhere = () => toast(t().landing.demo.elsewhere);
   const card = {
     narrow: false,
     canUpload: false,
@@ -151,9 +157,9 @@
     const { id, versionNumber } = decision;
     await send('POST', `/versions/${id}/reviews`, { verdict, note: note || undefined });
     if (verdict === 'approve') {
-      toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => send('POST', `/versions/${id}/unapprove`) });
+      toast(t().landing.demo.approved(versionNumber), 'success', 8000, { label: t().common.undo, run: () => send('POST', `/versions/${id}/unapprove`) });
     } else {
-      toast(`${reviews[id]?.uploader?.name ?? 'Kai'} bekommt Bescheid`, 'success');
+      toast(t().landing.demo.notified(reviews[id]?.uploader?.name ?? 'Kai'), 'success');
     }
   }
 
@@ -202,7 +208,7 @@
     if (!input || stopped) return;
     await wait(900);
     const setValue = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set;
-    for (const ch of 'Hi-Hats ab hier etwas leiser?') {
+    for (const ch of t().landing.demo.typedComment) {
       if (stopped || !setValue) return;
       setValue.call(input, input.value + ch);
       input.dispatchEvent(new win.Event('input', { bubbles: true }));
@@ -214,11 +220,8 @@
 </script>
 
 <svelte:head>
-  <title>Music Hub — Versionen für Musik. Ohne Chaos.</title>
-  <meta
-    name="description"
-    content="Music Hub hält jeden Stand deines Songs fest. Feedback sitzt auf der Sekunde, um die es geht, und am Ende ist klar, welcher Mix freigegeben ist. Open Source und selbst hostbar."
-  />
+  <title>{t().landing.meta.title}</title>
+  <meta name="description" content={t().landing.meta.description} />
   <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
 </svelte:head>
 
@@ -247,32 +250,29 @@
       <a href="/" class="wordmark"><Tile size={32} /> Music Hub</a>
       <div class="nav-right">
         {#if signedIn}
-          <Button href="/dashboard" size="sm">Zum Dashboard</Button>
+          <Button href="/dashboard" size="sm">{t().landing.dashboard}</Button>
         {:else}
           <div class="nav-auth">
-            <Button href="/login" size="sm" variant="secondary">Einloggen</Button>
-            <Button href="/register" size="sm">Konto anlegen</Button>
+            <Button href="/login" size="sm" variant="secondary">{t().common.logIn}</Button>
+            <Button href="/register" size="sm">{t().common.signUp}</Button>
           </div>
         {/if}
       </div>
     </nav>
 
     <header class="hero">
-      <h1>Versionen für Musik. Ohne Chaos.</h1>
+      <h1>{t().common.claim}</h1>
       <div class="hero-side">
-        <p class="lede">
-          Für Producer, Bands und alle, die am Song arbeiten: Music Hub hält jeden Stand fest, Kommentare
-          sitzen auf der Sekunde, und am Ende ist klar, welcher Mix freigegeben ist.
-        </p>
+        <p class="lede">{t().landing.hero.lede}</p>
         <div class="ctas">
           {#if signedIn}
-            <Button href="/dashboard" size="lg">Zum Dashboard</Button>
+            <Button href="/dashboard" size="lg">{t().landing.dashboard}</Button>
           {:else}
-            <Button href="/register" size="lg">Konto anlegen</Button>
+            <Button href="/register" size="lg">{t().common.signUp}</Button>
           {/if}
-          <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">Open Source, selbst hostbar →</a>
+          <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">{t().landing.hero.openSource}</a>
         </div>
-        <p class="fine">Kostenlos, solange Plätze frei sind. Zum Reinhören reicht ein Link.</p>
+        <p class="fine">{t().landing.hero.fine}</p>
       </div>
     </header>
   </div>
@@ -282,15 +282,17 @@
       <div class="phone-demo" class:open={heroOpen}>
         {#if heroOpen}
           <div class="phone-demo-bar">
-            <span>Demo mit Beispieldaten</span>
-            <button onclick={() => (heroOpen = false)}>Schließen</button>
+            <span>{t().landing.demo.phoneBar}</span>
+            <button onclick={() => (heroOpen = false)}>{t().common.close}</button>
           </div>
         {/if}
         <div class="phone-demo-frame">
-          <DemoFrame src={DEMO.trackPath} title="Music Hub mit Beispieldaten" interactive={heroOpen} onready={intro} />
+          {#key locale()}
+            <DemoFrame src={DEMO.trackPath} title={t().landing.demo.phoneTitle} interactive={heroOpen} onready={intro} />
+          {/key}
         </div>
         {#if !heroOpen}
-          <button class="phone-demo-open" onclick={() => (heroOpen = true)}>Ausprobieren</button>
+          <button class="phone-demo-open" onclick={() => (heroOpen = true)}>{t().landing.demo.tryIt}</button>
         {/if}
       </div>
     {:else if mounted}
@@ -299,14 +301,16 @@
           <i></i><i></i><i></i>
           <span class="url"><Icon name="lock" size={11} /> hub.pleasance.org</span>
         </div>
-        <DemoFrame
-          src={DEMO.trackPath}
-          title="Music Hub mit Beispieldaten: die Seite eines Tracks"
-          width={1440}
-          height={880}
-          fit
-          onready={intro}
-        />
+        {#key locale()}
+          <DemoFrame
+            src={DEMO.trackPath}
+            title={t().landing.demo.desktopTitle}
+            width={1440}
+            height={880}
+            fit
+            onready={intro}
+          />
+        {/key}
       </div>
     {:else}
       <div class="window placeholder" aria-hidden="true"></div>
@@ -314,34 +318,31 @@
     <p class="try">
       <span class="dot"></span>
       <span>
-        <b>Probier's aus:</b>
-        {small ? 'Tipp auf „Ausprobieren“ und kommentier an der Wellenform.' : 'Klick in die Wellenform und schreib einen Kommentar.'}
-        Das ist die echte Oberfläche mit Beispieldaten, gespeichert wird nichts.
+        <b>{t().landing.demo.tryLabel}</b>
+        {small ? t().landing.demo.tryPhone : t().landing.demo.tryDesktop}
+        {t().landing.demo.tryNote}
       </span>
     </p>
   </div>
 
   <main class="page">
     <section class="sec">
-      <h2>Schluss mit Final_v3_REAL.wav</h2>
-      <p class="body">
-        Neue Version hochladen, die alte bleibt daneben. Statt Ordnern und Sprachnachrichten: ein Track, alle
-        Versionen, jede mit Status und offenen Punkten.
-      </p>
+      <h2>{t().landing.chaos.title}</h2>
+      <p class="body">{t().landing.chaos.body}</p>
       <div class="ba">
         <div class="ba-col before">
-          <h3>Bisher</h3>
+          <h3>{t().landing.chaos.before}</h3>
           <div class="chaos" aria-hidden="true">
-            <div class="file f1"><Icon name="music" size={15} /> Nachtbus_mix_final.wav</div>
+            <div class="file f1"><Icon name="music" size={15} /> {t().landing.chaos.file1}</div>
             <div class="bubble voice"><Icon name="play" size={14} /><i></i><small>0:47</small></div>
-            <div class="file f2"><Icon name="music" size={15} /> Nachtbus_mix_final_v2.wav</div>
-            <div class="bubble text">welcher Link ist jetzt der aktuelle??</div>
-            <div class="file f3"><Icon name="music" size={15} /> Nachtbus_final_v3_REAL.wav</div>
-            <div class="file f4"><Icon name="music" size={15} /> <s>Nachtbus_final_v3_REAL_2.wav</s></div>
+            <div class="file f2"><Icon name="music" size={15} /> {t().landing.chaos.file2}</div>
+            <div class="bubble text">{t().landing.chaos.question}</div>
+            <div class="file f3"><Icon name="music" size={15} /> {t().landing.chaos.file3}</div>
+            <div class="file f4"><Icon name="music" size={15} /> <s>{t().landing.chaos.file4}</s></div>
           </div>
         </div>
         <div class="ba-col after">
-          <h3>Mit Music Hub · klick eine Version</h3>
+          <h3>{t().landing.chaos.after}</h3>
           {#if listed}
             <VersionList {versions} selectedId={listed.id} onSelect={(v) => (listId = v.id)} />
             <p class="after-foot"><b>V{listed.versionNumber}</b> {listed.notes}</p>
@@ -352,12 +353,9 @@
 
     <section class="feat">
       <div class="feat-text">
-        <h3>Feedback auf die Sekunde.</h3>
-        <p>
-          Klick in die Wellenform und schreib, was dir auffällt. Der Kommentar hängt an V4 bei 0:42, ein Klick
-          auf den Zeitstempel spielt genau diese Stelle. Was in V2 offen geblieben ist, steht gleich darunter.
-        </p>
-        <p class="hint">Hak einen Punkt aus V2 als erledigt ab.</p>
+        <h3>{t().landing.feedback.title}</h3>
+        <p>{t().landing.feedback.body}</p>
+        <p class="hint">{t().landing.feedback.hint}</p>
       </div>
       <div class="frag frag-stack" use:visible={() => (feedbackVisible = true)}>
         {#if feedback}
@@ -391,12 +389,9 @@
 
     <section class="feat">
       <div class="feat-text">
-        <h3>Freigeben oder zurück an den Mix.</h3>
-        <p>
-          Wer fertig gehört hat, sagt es mit einem Klick: freigeben, Änderungen nötig oder nur Anmerkungen. Wer
-          hochgeladen hat, bekommt das Urteil und alle Anmerkungen in einer Nachricht.
-        </p>
-        <p class="hint">Gib V4 frei oder schick sie mit „Fertig mit V4“ zurück an den Mix.</p>
+        <h3>{t().landing.approval.title}</h3>
+        <p>{t().landing.approval.body}</p>
+        <p class="hint">{t().landing.approval.hint}</p>
       </div>
       <div class="frag frag-stack">
         {#if decision}
@@ -409,8 +404,8 @@
             onApprove={async () => {
               const { id, versionNumber } = decision;
               await send('POST', `/versions/${id}/approve`);
-              toast(`V${versionNumber} ist freigegeben`, 'success', 8000, {
-                label: 'Rückgängig',
+              toast(t().landing.demo.approved(versionNumber), 'success', 8000, {
+                label: t().common.undo,
                 run: () => send('POST', `/versions/${id}/unapprove`),
               });
             }}
@@ -427,50 +422,50 @@
     </section>
 
     <section class="sec">
-      <h2>Für alle, die am Song arbeiten.</h2>
+      <h2>{t().landing.audience.title}</h2>
       <div class="sides">
         <div class="side">
-          <h3>Producer und Engineers</h3>
+          <h3>{t().landing.audience.producers}</h3>
           <ul>
-            <li><Icon name="check" size={18} /> Mixe per Drag-and-drop hochladen, auch mehrere auf einmal</li>
-            <li><Icon name="check" size={18} /> Spuren pro Track, für den Mix als ZIP</li>
-            <li><Icon name="check" size={18} /> Leertaste spielt, C kommentiert, ← und → wechseln die Version</li>
+            {#each t().landing.audience.producersItems as item}
+              <li><Icon name="check" size={18} /> {item}</li>
+            {/each}
           </ul>
         </div>
         <div class="phone">
           <img
             src="/demo/nachtbus-handy.png"
-            alt="Der Track Nachtbus am Handy: V4 mit Wellenform, Kommentaren und Knöpfen zum Freigeben"
+            alt={t().landing.audience.phoneAlt}
             width="390"
             height="844"
             loading="lazy"
           />
         </div>
         <div class="side">
-          <h3>Band, Artists und Kunden</h3>
+          <h3>{t().landing.audience.band}</h3>
           <ul>
-            <li><Icon name="check" size={18} /> Am Handy anhören und kommentieren, als App installierbar</li>
-            <li><Icon name="check" size={18} /> Zum Reinhören reicht ein Link, ganz ohne Account</li>
-            <li><Icon name="check" size={18} /> Freigeben mit einem Tipp</li>
+            {#each t().landing.audience.bandItems as item}
+              <li><Icon name="check" size={18} /> {item}</li>
+            {/each}
           </ul>
         </div>
       </div>
     </section>
 
     <section class="final">
-      <h2>Dein nächster Mix hat ein Zuhause.</h2>
-      <p>Leg ein Projekt an, lad V1 hoch und schick den Link an deine Band.</p>
+      <h2>{t().landing.final.title}</h2>
+      <p>{t().landing.final.body}</p>
       {#if signedIn}
-        <Button href="/dashboard" size="lg">Zum Dashboard</Button>
+        <Button href="/dashboard" size="lg">{t().landing.dashboard}</Button>
       {:else}
-        <Button href="/register" size="lg">Konto anlegen</Button>
+        <Button href="/register" size="lg">{t().common.signUp}</Button>
       {/if}
-      <p class="fine">Kostenlos, solange Plätze frei sind. Läuft auf Servern in Deutschland.</p>
+      <p class="fine">{t().landing.final.fine}</p>
     </section>
 
     <p class="oss">
-      <span>Music Hub ist Open Source (AGPL-3.0). Mit Docker und einem S3-Bucket läuft er auch auf deinem Server.</span>
-      <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">Anleitung auf GitHub →</a>
+      <span>{t().landing.oss.text}</span>
+      <a class="textlink" href={SELF_HOSTING} target="_blank" rel="noopener">{t().landing.oss.link}</a>
     </p>
 
     <SiteFooter />

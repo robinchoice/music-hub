@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
-import { OPEN_LICENSES, OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
+import { OPEN_LICENSES, OPEN_LICENSE_INFO, type Locale, type OpenLicense } from '@music-hub/shared';
 import {
   openConsents,
   openTracks,
@@ -162,16 +162,17 @@ export async function openStems(db: Db, trackId: string, openedAt: Date) {
 
 export const artistOf = (project: { name: string; artist: string | null }) => project.artist || project.name;
 
-// "„Nachtbus“ von Fernlicht (Robin, Lea) · CC BY-SA 4.0 · https://…/offen/<id>"
-export function creditLine(trackName: string, artist: string, names: string[], license: OpenLicense, trackId: string) {
+// "„Nachtbus“ von Fernlicht (Robin, Lea) · CC BY-SA 4.0 · https://…/offen/<id>", in English "“Nachtbus” by …"
+export function creditLine(trackName: string, artist: string, names: string[], license: OpenLicense, trackId: string, locale: Locale) {
   const people = names.length && !(names.length === 1 && names[0] === artist) ? ` (${names.join(', ')})` : '';
-  return `„${trackName}“ von ${artist}${people} · ${OPEN_LICENSE_INFO[license].label} · ${openUrl(trackId)}`;
+  const title = locale === 'de' ? `„${trackName}“ von` : `“${trackName}” by`;
+  return `${title} ${artist}${people} · ${OPEN_LICENSE_INFO[locale][license].label} · ${openUrl(trackId)}`;
 }
 
 // Takes an open track over into one of the user's projects as a new track. The stems point to the
 // same files as the original, so a remix costs no storage until the user uploads something.
 // Returns null if the track isn't open or the user may not add tracks to the project.
-export async function forkTrack(db: Database, sourceId: string, userId: string, projectId: string) {
+export async function forkTrack(db: Database, sourceId: string, userId: string, projectId: string, locale: Locale) {
   const source = await liveOpenTrack(db, sourceId);
   if (!source) return null;
   const [membership] = await db
@@ -193,7 +194,7 @@ export async function forkTrack(db: Database, sourceId: string, userId: string, 
         createdById: userId,
         forkedFromId: sourceId,
         license,
-        credit: creditLine(source.track.name, artistOf(source.project), names, license, sourceId),
+        credit: creditLine(source.track.name, artistOf(source.project), names, license, sourceId, locale),
       })
       .returning();
     if (files.length) {

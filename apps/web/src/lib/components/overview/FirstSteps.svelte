@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { trackHref, type OverviewIndex, type ProjectGroup } from '$lib/utils/overview.js';
@@ -19,21 +20,21 @@
 <ol class="steps">
   <li class:done={next > 1} class:now={next === 1}>
     <span class="n">{#if next > 1}<Icon name="check" size={14} stroke={2.6} />{:else}1{/if}</span>
-    <h2>Projekt anlegen</h2>
-    <p>Album, EP oder Single, mit Artist und Cover.</p>
-    {#if next === 1}<Button href="/projects/new">Neues Projekt</Button>{/if}
+    <h2>{t().overview.firstSteps.createTitle}</h2>
+    <p>{t().overview.firstSteps.createText}</p>
+    {#if next === 1}<Button href="/projects/new">{t().overview.shared.newProject}</Button>{/if}
   </li>
   <li class:done={next > 2} class:now={next === 2}>
     <span class="n">{#if next > 2}<Icon name="check" size={14} stroke={2.6} />{:else}2{/if}</span>
-    <h2>Mix hochladen</h2>
-    <p>Dein Mix wird die erste Version eines Tracks. Spuren gehen auch.</p>
-    {#if next === 2}<Button href={uploadHref}>Mix hochladen</Button>{/if}
+    <h2>{t().overview.firstSteps.uploadTitle}</h2>
+    <p>{t().overview.firstSteps.uploadText}</p>
+    {#if next === 2}<Button href={uploadHref}>{t().overview.firstSteps.uploadButton}</Button>{/if}
   </li>
   <li class:now={next === 3}>
     <span class="n">3</span>
-    <h2>Leute dazuholen</h2>
-    <p>Band, Produzentin oder Label hören rein und kommentieren an der Stelle.</p>
-    {#if next === 3 && project}<Button href="/projects/{project.id}/settings">{project.name} teilen</Button>{/if}
+    <h2>{t().overview.firstSteps.inviteTitle}</h2>
+    <p>{t().overview.firstSteps.inviteText}</p>
+    {#if next === 3 && project}<Button href="/projects/{project.id}/settings">{t().overview.shared.shareProject(project.name)}</Button>{/if}
   </li>
 </ol>
 

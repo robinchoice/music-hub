@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import { formatDate } from '$lib/utils/format.js';
@@ -34,48 +35,48 @@
   }
 
   async function renew() {
-    if (!confirm('Neuen Link erzeugen? Der bisherige funktioniert dann nicht mehr.')) return;
+    if (!confirm(t().workspace.uploadLink.confirmRenew)) return;
     await create();
-    toastSuccess('Neuer Link erstellt');
+    toastSuccess(t().workspace.uploadLink.renewed);
   }
 
   async function switchOff() {
-    if (!confirm('Upload-Link ausschalten? Niemand kann darüber mehr Dateien schicken.')) return;
+    if (!confirm(t().workspace.uploadLink.confirmSwitchOff)) return;
     await api.delete(`/upload-links/project/${projectId}`);
     link = null;
-    toastSuccess('Upload-Link ausgeschaltet');
+    toastSuccess(t().workspace.uploadLink.switchedOff);
   }
 
   async function copy() {
     await navigator.clipboard.writeText(url);
-    toastSuccess('Link kopiert');
+    toastSuccess(t().workspace.uploadLink.copied);
   }
 </script>
 
-<Modal bind:open title="Upload-Link">
+<Modal bind:open title={t().workspace.uploadLink.title}>
   <p class="intro">
-    Wer diesen Link hat, kann ohne Konto Spuren und eine Notiz in dieses Projekt laden: zu einem bestehenden Song oder als neuen Song. Die Dateien zählen zum Speicher der Person, die den Link erstellt hat. Ob und wie viel Gäste hochladen dürfen, stellst du <a href="/account#gaeste">in deinem Konto</a> ein.
+    {t().workspace.uploadLink.introBefore} <a href="/account#gaeste">{t().workspace.uploadLink.introLink}</a>{t().workspace.uploadLink.introAfter}
   </p>
   {#if loading}
-    <p class="muted">Lädt…</p>
+    <p class="muted">{t().workspace.loading}</p>
   {:else if link}
     <div class="url-row">
-      <input type="text" readonly value={url} onclick={(e) => (e.target as HTMLInputElement).select()} aria-label="Upload-Link" />
-      <Button size="sm" onclick={copy}>Kopieren</Button>
+      <input type="text" readonly value={url} onclick={(e) => (e.target as HTMLInputElement).select()} aria-label={t().workspace.uploadLink.title} />
+      <Button size="sm" onclick={copy}>{t().common.copy}</Button>
     </div>
-    <p class="muted">Erstellt von {link.createdByName} am {formatDate(link.createdAt)}</p>
+    <p class="muted">{t().workspace.uploadLink.createdBy(link.createdByName, formatDate(link.createdAt))}</p>
     {#if link.paused}
-      <p class="paused">Gerade ausgeschaltet: Im Konto von {link.createdByName} sind Uploads von Gästen nicht erlaubt.</p>
+      <p class="paused">{t().workspace.uploadLink.paused(link.createdByName)}</p>
     {/if}
   {:else}
-    <Button onclick={create} loading={busy}>Link erstellen</Button>
+    <Button onclick={create} loading={busy}>{t().workspace.uploadLink.create}</Button>
   {/if}
   {#snippet actions()}
     {#if link}
-      <Button variant="ghost" size="sm" onclick={renew} loading={busy}>Neuer Link</Button>
-      <Button variant="danger" size="sm" onclick={switchOff}>Ausschalten</Button>
+      <Button variant="ghost" size="sm" onclick={renew} loading={busy}>{t().workspace.uploadLink.renew}</Button>
+      <Button variant="danger" size="sm" onclick={switchOff}>{t().workspace.uploadLink.switchOff}</Button>
     {/if}
-    <Button variant="secondary" size="sm" onclick={() => (open = false)}>Schließen</Button>
+    <Button variant="secondary" size="sm" onclick={() => (open = false)}>{t().common.close}</Button>
   {/snippet}
 </Modal>
 

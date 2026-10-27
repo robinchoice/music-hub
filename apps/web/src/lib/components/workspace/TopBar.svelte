@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { getContext } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
 
   let {
     crumbs = [],
@@ -15,7 +16,7 @@
 </script>
 
 <header class="topbar">
-  <button class="hamburger" onclick={() => openMobileMenu?.()} aria-label="Menü öffnen">
+  <button class="hamburger" onclick={() => openMobileMenu?.()} aria-label={t().workspace.nav.openMenu}>
     <Icon name="menu" size={20} />
   </button>
   <nav class="crumbs" aria-label="Breadcrumb">

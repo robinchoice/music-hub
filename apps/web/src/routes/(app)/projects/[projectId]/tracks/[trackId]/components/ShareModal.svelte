@@ -3,6 +3,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { api } from '$lib/api/client.js';
+  import { t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import { timeAgo } from '$lib/utils/format.js';
   import AnalyticsPanel from './AnalyticsPanel.svelte';
@@ -37,12 +38,6 @@
     canComment?: boolean;
     canDownload?: boolean;
   } = $props();
-
-  const FOLLOWS_FLAG: Record<ShareFollows, string> = {
-    version: '',
-    latest: 'folgt neuester Version',
-    approved: 'folgt Freigabe',
-  };
 
   let tab = $state<'create' | 'manage'>('create');
   let follows = $state<ShareFollows>('version');
@@ -92,13 +87,13 @@
 
   async function copy(url: string) {
     await navigator.clipboard.writeText(url);
-    toastSuccess('Link kopiert');
+    toastSuccess(t().track.invite.linkCopied);
   }
 
   async function revoke(linkId: string) {
-    if (!confirm('Diesen Link wirklich widerrufen? Niemand kann ihn dann mehr öffnen.')) return;
+    if (!confirm(t().track.share.confirmRevoke)) return;
     await api.delete(`/share/${linkId}`);
-    toastSuccess('Link widerrufen');
+    toastSuccess(t().track.share.revoked);
     await loadLinks();
   }
 
@@ -113,66 +108,66 @@
   }
 </script>
 
-<Modal bind:open title="Teilen">
+<Modal bind:open title={t().track.share.title}>
   <div class="tabs">
-    <button class:active={tab === 'create'} onclick={() => (tab = 'create')}>Neuer Link</button>
-    <button class:active={tab === 'manage'} onclick={() => (tab = 'manage')}>Aktive Links</button>
+    <button class:active={tab === 'create'} onclick={() => (tab = 'create')}>{t().track.share.newLink}</button>
+    <button class:active={tab === 'manage'} onclick={() => (tab = 'manage')}>{t().track.share.activeLinks}</button>
   </div>
 
   {#if tab === 'create'}
     {#if !createdUrl}
       <div class="form">
         <fieldset class="follows">
-          <legend>Der Link spielt</legend>
+          <legend>{t().track.share.linkPlays}</legend>
           <label class="row">
             <input type="radio" bind:group={follows} value="version" />
-            <span>Diese Version (V{versionNumber})</span>
+            <span>{t().track.share.thisVersion(versionNumber)}</span>
           </label>
           <label class="row">
             <input type="radio" bind:group={follows} value="latest" />
-            <span>Immer die neueste Version</span>
+            <span>{t().track.share.alwaysLatest}</span>
           </label>
           <label class="row">
             <input type="radio" bind:group={follows} value="approved" />
-            <span>Immer die neueste freigegebene Version</span>
+            <span>{t().track.share.alwaysApproved}</span>
           </label>
           {#if follows === 'latest'}
-            <p class="hint">Wer den Link hat, hört auch jede Version, die du später hochlädst.</p>
+            <p class="hint">{t().track.share.latestHint}</p>
           {:else if follows === 'approved'}
             <p class="hint">
-              Wer den Link hat, hört auch jede Version, die später freigegeben wird.{#if !hasApproved}{' '}Bis die erste freigegeben ist, spielt der Link nichts.{/if}
+              {t().track.share.approvedHint}{#if !hasApproved}{' '}{t().track.share.approvedHintEmpty}{/if}
             </p>
           {/if}
         </fieldset>
         {#if canComment}
           <label class="row">
             <input type="checkbox" bind:checked={allowComments} />
-            <span>Kommentare erlauben (auch ohne Account)</span>
+            <span>{t().track.share.allowComments}</span>
           </label>
         {/if}
         {#if canDownload}
           <label class="row">
             <input type="checkbox" bind:checked={allowDownload} />
-            <span>Download des Originals erlauben</span>
+            <span>{t().track.share.allowDownload}</span>
           </label>
         {/if}
         <label class="field">
-          <span>Passwort (optional)</span>
-          <input type="text" bind:value={password} placeholder="leer = kein Passwort" />
+          <span>{t().track.share.passwordOptional}</span>
+          <input type="text" bind:value={password} placeholder={t().track.share.passwordPlaceholder} />
         </label>
       </div>
     {:else}
       <div class="result">
-        <p>Link erstellt:</p>
+        <p>{t().track.share.created}</p>
         <input type="text" readonly value={createdUrl} onclick={(e) => (e.target as HTMLInputElement).select()} />
-        <Button size="sm" onclick={() => copy(createdUrl)}>Kopieren</Button>
+        <Button size="sm" onclick={() => copy(createdUrl)}>{t().common.copy}</Button>
       </div>
     {/if}
   {:else}
     {#if loadingLinks}
-      <p class="muted">Lädt…</p>
+      <p class="muted">{t().track.analytics.loading}</p>
     {:else if links.length === 0}
-      <p class="muted">Keine aktiven Links für diese Version.</p>
+      <p class="muted">{t().track.share.noLinks}</p>
     {:else}
       <ul class="link-list">
         {#each links as link}
@@ -180,19 +175,19 @@
             <div class="link-meta">
               <span class="token">/listen/{link.token.slice(0, 12)}…</span>
               <div class="flags">
-                {#if link.follows && link.follows !== 'version'}<span class="flag">{FOLLOWS_FLAG[link.follows]}</span>{/if}
-                {#if link.hasPassword}<span class="flag"><Icon name="lock" size={11} /> Passwort</span>{/if}
-                {#if link.allowComments}<span class="flag">Kommentare</span>{/if}
-                {#if link.allowDownload}<span class="flag">Download</span>{/if}
-                <span class="flag age">erstellt {timeAgo(link.createdAt)}</span>
-                {#if link.expiresAt}<span class="flag expire">läuft {timeAgo(link.expiresAt)}</span>{/if}
+                {#if link.follows && link.follows !== 'version'}<span class="flag">{t().track.share.followsFlag[link.follows]}</span>{/if}
+                {#if link.hasPassword}<span class="flag"><Icon name="lock" size={11} /> {t().common.password}</span>{/if}
+                {#if link.allowComments}<span class="flag">{t().track.share.comments}</span>{/if}
+                {#if link.allowDownload}<span class="flag">{t().track.share.download}</span>{/if}
+                <span class="flag age">{t().track.share.createdAgo(timeAgo(link.createdAt))}</span>
+                {#if link.expiresAt}<span class="flag expire">{t().track.share.expiresAgo(timeAgo(link.expiresAt))}</span>{/if}
               </div>
             </div>
             <div class="link-actions">
-              <button class="icon-btn" onclick={() => copy(urlFor(link.token))} title="Link kopieren" aria-label="Kopieren">
+              <button class="icon-btn" onclick={() => copy(urlFor(link.token))} title={t().track.invite.copyLink} aria-label={t().common.copy}>
                 <Icon name="link" size={14} />
               </button>
-              <button class="icon-btn danger" onclick={() => revoke(link.id)} title="Widerrufen" aria-label="Widerrufen">
+              <button class="icon-btn danger" onclick={() => revoke(link.id)} title={t().track.share.revoke} aria-label={t().track.share.revoke}>
                 <Icon name="x" size={14} />
               </button>
             </div>
@@ -201,7 +196,7 @@
       </ul>
     {/if}
     <section class="listeners">
-      <h3>Hörer</h3>
+      <h3>{t().track.share.listeners}</h3>
       <AnalyticsPanel {versionId} />
     </section>
   {/if}
@@ -209,14 +204,14 @@
   {#snippet actions()}
     {#if tab === 'create'}
       {#if !createdUrl}
-        <Button variant="ghost" onclick={() => (open = false)}>Abbrechen</Button>
-        <Button loading={creating} onclick={create}>Link erzeugen</Button>
+        <Button variant="ghost" onclick={() => (open = false)}>{t().common.cancel}</Button>
+        <Button loading={creating} onclick={create}>{t().track.share.generate}</Button>
       {:else}
-        <Button variant="ghost" onclick={reset}>Weiteren erzeugen</Button>
-        <Button onclick={() => { open = false; reset(); }}>Fertig</Button>
+        <Button variant="ghost" onclick={reset}>{t().track.share.generateAnother}</Button>
+        <Button onclick={() => { open = false; reset(); }}>{t().track.share.done}</Button>
       {/if}
     {:else}
-      <Button onclick={() => (open = false)}>Schließen</Button>
+      <Button onclick={() => (open = false)}>{t().common.close}</Button>
     {/if}
   {/snippet}
 </Modal>

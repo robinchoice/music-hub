@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { timeAgo } from '$lib/utils/format.js';
   import { versionTitle, type Version } from '$lib/utils/track.js';
 
@@ -25,16 +26,16 @@
 <div class="version-list">
   {#if head}
     <div class="head">
-      <span class="cap">Versionen</span>
+      <span class="cap">{t().track.versionList.versions}</span>
       <span class="count">{versions.length}</span>
       {#if canUpload && onUpload}
-        <button class="text-btn" onclick={onUpload}><Icon name="upload" size={13} /> Neue Version</button>
+        <button class="text-btn" onclick={onUpload}><Icon name="upload" size={13} /> {t().track.versionList.newVersion}</button>
       {/if}
     </div>
   {/if}
 
   {#if versions.length === 0}
-    <p class="empty">Noch keine Versionen.</p>
+    <p class="empty">{t().track.versionList.none}</p>
   {:else}
     <ul>
       {#each versions as v (v.id)}
@@ -43,7 +44,7 @@
             class="row"
             class:selected={v.id === selectedId}
             class:variant={!!v.branchLabel}
-            title={v.branchLabel && numberOf(v.parentVersionId) ? `Variante von V${numberOf(v.parentVersionId)}` : undefined}
+            title={v.branchLabel && numberOf(v.parentVersionId) ? t().track.versionList.variantOf(numberOf(v.parentVersionId)!) : undefined}
             onclick={() => onSelect(v)}
           >
             <span class="dot {v.status}" class:current={v.id === selectedId}>
@@ -59,10 +60,10 @@
                 {#if v.branchLabel}<Icon name="git-branch" size={12} />{/if}
                 <span class="title">{versionTitle(v)}</span>
                 <span class="meta">
-                  {#if v.openCommentCount > 0}<em>{v.openCommentCount} offen</em>{:else}{timeAgo(v.createdAt)}{/if}
+                  {#if v.openCommentCount > 0}<em>{t().track.versionList.open(v.openCommentCount)}</em>{:else}{timeAgo(v.createdAt)}{/if}
                 </span>
               </span>
-              {#if v.rejectionReason}<span class="reason">„{v.rejectionReason}“</span>{/if}
+              {#if v.rejectionReason}<span class="reason">{t().common.quote(v.rejectionReason)}</span>{/if}
             </span>
           </button>
         </li>
@@ -71,7 +72,7 @@
   {/if}
 
   {#if !head && canUpload && onUpload}
-    <button class="add" onclick={onUpload}><Icon name="upload" size={14} /> Neue Version hochladen</button>
+    <button class="add" onclick={onUpload}><Icon name="upload" size={14} /> {t().track.versionList.uploadNew}</button>
   {/if}
 </div>
 

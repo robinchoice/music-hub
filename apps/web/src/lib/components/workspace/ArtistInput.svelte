@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Input from '$lib/components/ui/Input.svelte';
   import { overviewIndex } from '$lib/stores/overview.js';
   import { artistNames } from '$lib/utils/overview.js';
@@ -45,9 +46,9 @@
     oninput={() => ((open = true), (active = -1))}
     {onkeydown}
   >
-    <Input label="Artist (optional)" bind:value placeholder="Wählen oder neu eingeben" autocomplete="off" />
+    <Input label={t().workspace.artistInput.label} bind:value placeholder={t().workspace.artistInput.placeholder} autocomplete="off" />
     {#if open && shown.length}
-      <ul role="listbox" aria-label="Bestehende Artists">
+      <ul role="listbox" aria-label={t().workspace.artistInput.existing}>
         {#each shown as name, i (name)}
           <!-- pointerdown keeps the focus in the field, the keyboard works through the field -->
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_interactive_supports_focus -->
@@ -65,7 +66,7 @@
     {/if}
   </div>
   {#if typed && !match}
-    <span class="hint">Neuer Artist</span>
+    <span class="hint">{t().workspace.artistInput.isNew}</span>
   {/if}
 </div>
 

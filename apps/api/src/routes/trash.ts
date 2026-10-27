@@ -6,6 +6,7 @@ import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
 import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 const KINDS = ['track', 'version', 'stem', 'revision', 'comment'] as const;
 type Kind = (typeof KINDS)[number];
@@ -280,7 +281,7 @@ export const trashRoutes = new Hono<AppEnv>()
           .select({ trackId: openTracks.trackId })
           .from(openTracks)
           .where(and(eq(openTracks.trackId, item.trackId), isNotNull(openTracks.openedAt)));
-        if (open) return c.json({ error: 'Der Track ist offen. Schließe ihn, um Spuren wiederherzustellen.' }, 409);
+        if (open) return c.json({ error: t(c).errors.trackOpen }, 409);
       }
       await setState(tx, kind, [id], { deletedAt: null, deletedById: null, discardedAt: null });
       return c.json({ ok: true });

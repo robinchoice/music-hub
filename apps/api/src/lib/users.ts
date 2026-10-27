@@ -1,6 +1,6 @@
 import { asc, desc, inArray, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
+import { SIGNUP_STORAGE_PER_USER, type Locale, pickLocale } from '@music-hub/shared';
 import { pushSubscriptions, users, type Database } from '@music-hub/db';
 
 // Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
@@ -35,8 +35,9 @@ export async function createAccount(db: Pick<Database, 'transaction'>, values: t
 }
 
 // The account an invitation creates. Two invitations at the same moment both end up with the one row.
-export async function inviteeAccount(db: Pick<Database, 'insert' | 'select'>, email: string) {
-  const [user] = await db.insert(users).values({ email, name: email.split('@')[0] }).onConflictDoNothing().returning();
+// It starts in the inviter's language, the first login sets the invitee's own.
+export async function inviteeAccount(db: Pick<Database, 'insert' | 'select'>, email: string, locale: Locale) {
+  const [user] = await db.insert(users).values({ email, name: email.split('@')[0], locale }).onConflictDoNothing().returning();
   return user ?? (await findUserByEmail(db, email))!;
 }
 
@@ -47,9 +48,9 @@ export const notBlocked = (userId: PgColumn) =>
 // How to tell these people about new versions and feedback: a push if they have a subscription,
 // otherwise a mail unless they turned the version mails off. Blocked accounts hear nothing.
 export async function reachOf(db: Pick<Database, 'select'>, userIds: string[]) {
-  if (!userIds.length) return { push: [] as string[], mail: [] as { email: string; mailToken: string }[] };
+  if (!userIds.length) return { push: [] as string[], mail: [] as { email: string; mailToken: string; locale: Locale }[] };
   const rows = await db
-    .select({ userId: users.id, email: users.email, mailToken: users.mailToken, versionMails: users.versionMails, blockedAt: users.blockedAt })
+    .select({ userId: users.id, email: users.email, mailToken: users.mailToken, versionMails: users.versionMails, blockedAt: users.blockedAt, locale: users.locale })
     .from(users)
     .where(inArray(users.id, userIds));
   const subscribed = new Set(
@@ -58,6 +59,6 @@ export async function reachOf(db: Pick<Database, 'select'>, userIds: string[]) {
   const reachable = rows.filter((u) => !u.blockedAt);
   return {
     push: reachable.filter((u) => subscribed.has(u.userId)).map((u) => u.userId),
-    mail: reachable.filter((u) => !subscribed.has(u.userId) && u.versionMails).map((u) => ({ email: u.email, mailToken: u.mailToken })),
+    mail: reachable.filter((u) => !subscribed.has(u.userId) && u.versionMails).map((u) => ({ email: u.email, mailToken: u.mailToken, locale: pickLocale(u.locale) })),
   };
 }

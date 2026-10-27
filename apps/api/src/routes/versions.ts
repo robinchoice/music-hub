@@ -25,6 +25,7 @@ import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import { mayDownload, membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 // Reminders to give feedback on a version, per version and person
 const reviewReminders = rateLimit('review-reminders', 1, 60 * 60 * 1000);
@@ -174,7 +175,7 @@ export const versionRoutes = new Hono<AppEnv>()
 
     // The stored file decides the size, not what the client claims
     const fileSize = await getObjectSize(input.fileKey);
-    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
+    if (fileSize === null) return c.json({ error: t(c).errors.fileMissing }, 400);
 
     const version = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
@@ -400,7 +401,7 @@ export const versionRoutes = new Hono<AppEnv>()
     if (!membership || !membership.canApprove) return c.json({ error: 'Forbidden' }, 403);
 
     const updated = await undoApproval(db, versionId, userId);
-    if (!updated) return c.json({ error: 'Die Freigabe lässt sich nicht mehr zurücknehmen.' }, 409);
+    if (!updated) return c.json({ error: t(c).errors.approvalFinal }, 409);
     await withdrawApproval(db, versionId, userId);
     publish(db, version.trackId, { type: 'review:new', data: { versionId } });
 
@@ -536,13 +537,13 @@ export const versionRoutes = new Hono<AppEnv>()
     const fromName = await nameOf(db, userId);
     const { push, mail } = await reachOf(db, [person.id]);
     if (push.length) {
-      await notifyUser(db, person.id, {
+      await notifyUser(db, person.id, (m) => ({
         projectId: track.projectId,
         trackId: track.id,
-        title: `${fromName} wartet auf deine Rückmeldung`,
+        title: m.push.waitingForReview(fromName),
         body: `${track.name} V${version.versionNumber}`,
         url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}`,
-      }).catch(() => {});
+      })).catch(() => {});
     } else if (mail.length) {
       await sendReviewReminderEmail(mail[0].email, mail[0].mailToken, {
         fromName,
@@ -551,7 +552,7 @@ export const versionRoutes = new Hono<AppEnv>()
         versionId: version.id,
         trackName: track.name,
         versionNumber: version.versionNumber,
-      }).catch((err) => console.error('[Reviews] Reminder mail failed:', err));
+      }, mail[0].locale).catch((err) => console.error('[Reviews] Reminder mail failed:', err));
     }
     return c.json({ message: 'Reminded' });
   });

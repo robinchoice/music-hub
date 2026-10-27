@@ -60,13 +60,13 @@ export async function takeDueNotices(db: Database) {
 
 export async function deliverNotices(db: Database, batch: NoticeBatch) {
   const [first] = batch.items;
-  const payload =
+  await notifyUsers(db, batch.pushTo, (m) =>
     batch.items.length === 1
-      ? { title: 'Neue Version', body: `${first.trackName} — V${first.versionNumber} hochgeladen`, url: `/projects/${batch.projectId}/tracks/${first.trackId}` }
-      : { title: 'Neue Versionen', body: `${batch.actorName}: ${batch.items.length} neue Versionen in ${batch.projectName}`, url: `/projects/${batch.projectId}` };
-  await notifyUsers(db, batch.pushTo, { ...payload, projectId: batch.projectId, ...(batch.items.length === 1 ? { trackId: first.trackId } : {}) });
-  for (const { email, mailToken } of batch.mailTo) {
-    await sendVersionsEmail(email, mailToken, batch).catch((err) => console.error('[Notices] Mail failed:', err));
+      ? { title: m.push.newVersion, body: m.push.versionUploaded(first.trackName, first.versionNumber), url: `/projects/${batch.projectId}/tracks/${first.trackId}`, projectId: batch.projectId, trackId: first.trackId }
+      : { title: m.push.newVersions, body: m.push.versionsUploaded(batch.actorName, batch.items.length, batch.projectName), url: `/projects/${batch.projectId}`, projectId: batch.projectId },
+  );
+  for (const { email, mailToken, locale } of batch.mailTo) {
+    await sendVersionsEmail(email, mailToken, batch, locale).catch((err) => console.error('[Notices] Mail failed:', err));
   }
 }
 

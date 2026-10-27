@@ -2,6 +2,7 @@
   import { MAX_ZIP_SIZE } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { demoMode } from '$lib/demo/mode.js';
+  import { t } from '$lib/i18n/index.js';
   import { toastError, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { formatFileSize, formatWhen, timeAgo } from '$lib/utils/format.js';
   import { replaceStemFile } from '$lib/audio/upload.js';
@@ -84,8 +85,8 @@
   }
 
   function downloadZip() {
-    if (demoMode) return toastError('In der Demo nicht verfügbar');
-    if (totalSize > MAX_ZIP_SIZE) return toastError('Zu groß für ein ZIP — bitte die Spuren einzeln laden');
+    if (demoMode) return toastError(t().track.stems.demoUnavailable);
+    if (totalSize > MAX_ZIP_SIZE) return toastError(t().track.stems.zipTooBig);
     // As a plain download the browser writes the stream to disk and shows progress
     const a = document.createElement('a');
     a.href = `/api/v1/stems/track/${trackId}/download-zip`;
@@ -99,7 +100,7 @@
   }
 
   function pickReplacement(stem: Stem) {
-    if (demoMode) return toastError('In der Demo nicht verfügbar');
+    if (demoMode) return toastError(t().track.stems.demoUnavailable);
     replaceTarget = stem;
     fileInput.click();
   }
@@ -115,7 +116,7 @@
       const updated = await replaceStemFile<Stem>(trackId, stem.id, file, (p) => replacing && (replacing.progress = p));
       stems = stems.map((s) => (s.id === stem.id ? { ...updated, revisionCount: (s.revisionCount ?? 0) + 1 } : s));
       if (historyOf === stem.id) await loadRevisions(stem.id);
-      toastSuccess(`Neue Fassung von „${spurDisplayName(stem.name, trackName)}“ hochgeladen`);
+      toastSuccess(t().track.stems.newTakeUploaded(spurDisplayName(stem.name, trackName)));
     } catch (err) {
       // API errors were shown already
       if (!(err as { status?: number }).status) toastError((err as Error).message);
@@ -149,7 +150,7 @@
       const { stem: updated } = await api.post<{ stem: Stem }>(`/stems/revisions/${revision.id}/restore`);
       stems = stems.map((s) => (s.id === stem.id ? { ...updated, ...(s.revisionCount !== undefined && { revisionCount: s.revisionCount }) } : s));
       await loadRevisions(stem.id);
-      toastSuccess(`„${revision.originalFileName}“ ist wieder die aktuelle Fassung`);
+      toastSuccess(t().track.stems.takeRestored(revision.originalFileName));
     } catch {
       // The API client already showed the error
     }
@@ -162,7 +163,7 @@
       revisions = revisions.filter((r) => r.id !== revision.id);
       count(-1);
       if (!revisions.length) historyOf = null;
-      toastTrash(`Fassung ${n} von „${spurDisplayName(stem.name, trackName)}“ liegt im Papierkorb`, async () => {
+      toastTrash(t().track.stems.takeTrashed(n, spurDisplayName(stem.name, trackName)), async () => {
         await api.post(`/trash/revision/${revision.id}/restore`);
         count(1);
         if (historyOf === stem.id) await loadRevisions(stem.id);
@@ -177,7 +178,7 @@
     try {
       await api.delete(`/stems/${stem.id}`);
       stems = stems.filter((s) => s.id !== stem.id);
-      toastTrash(`Spur „${label}“ liegt im Papierkorb`, async () => {
+      toastTrash(t().track.stems.stemTrashed(label), async () => {
         await api.post(`/trash/stem/${stem.id}/restore`);
         await loadStems();
       });
@@ -189,7 +190,7 @@
   }
 
   async function deleteNote(note: GuestNote) {
-    if (!confirm(`Notiz von ${note.guestName} löschen?`)) return;
+    if (!confirm(t().track.stems.confirmDeleteNote(note.guestName))) return;
     await api.delete(`/upload-links/notes/${note.id}`);
     notes = notes.filter((n) => n.id !== note.id);
   }
@@ -197,13 +198,13 @@
 
 <div class="spuren">
   {#if notes.length > 0}
-    <ul class="notes" aria-label="Notizen von Gästen">
+    <ul class="notes" aria-label={t().track.stems.guestNotes}>
       {#each notes as note (note.id)}
         <li>
           <p class="note-head">
             <b>{note.guestName}</b> · {timeAgo(note.createdAt)}
             {#if canUpload}
-              <button class="row-btn" onclick={() => deleteNote(note)} title="Notiz löschen" aria-label={`Notiz von ${note.guestName} löschen`}>
+              <button class="row-btn" onclick={() => deleteNote(note)} title={t().track.stems.deleteNote} aria-label={t().track.stems.deleteNoteOf(note.guestName)}>
                 <Icon name="x" size={12} />
               </button>
             {/if}
@@ -216,26 +217,26 @@
 
   {#if stems.length > 0}
     <p class="summary">
-      {stems.length} {stems.length === 1 ? 'Datei' : 'Dateien'} · {formatFileSize(totalSize)}{lastUpload ? ` · zuletzt ${timeAgo(lastUpload)}` : ''}
+      {t().track.stems.files(stems.length)} · {formatFileSize(totalSize)}{lastUpload ? ` · ${t().track.stems.lastAgo(timeAgo(lastUpload))}` : ''}
     </p>
   {/if}
 
   {#if stems.length > 0}
     <div class="tools">
       {#if canDownload}
-        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> Alle als ZIP</Button>
+        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> {t().track.stems.allAsZip}</Button>
       {/if}
       {#if canUpload}
-        <Button variant="secondary" size="sm" onclick={onUpload}><Icon name="upload" size={14} /> Hochladen</Button>
+        <Button variant="secondary" size="sm" onclick={onUpload}><Icon name="upload" size={14} /> {t().track.stems.upload}</Button>
       {/if}
     </div>
   {/if}
 
   {#if stems.length === 0}
     <div class="empty">
-      <p>Noch keine Spuren.</p>
+      <p>{t().track.stems.none}</p>
       {#if canUpload}
-        <Button size="sm" onclick={onUpload}><Icon name="upload" size={14} /> Spuren hochladen</Button>
+        <Button size="sm" onclick={onUpload}><Icon name="upload" size={14} /> {t().track.stems.uploadStems}</Button>
       {/if}
     </div>
   {:else}
@@ -245,7 +246,7 @@
           <Icon name="music" size={13} />
           <span class="name">{label}</span>
           {#if stem.guestName}
-            <span class="guest" title="Über den Upload-Link geschickt">von {stem.guestName}</span>
+            <span class="guest" title={t().track.stems.viaUploadLink}>{t().track.stems.fromGuest(stem.guestName)}</span>
           {/if}
           {#if stem.revisionCount}
             <button
@@ -253,16 +254,16 @@
               class:on={historyOf === stem.id}
               onclick={() => toggleHistory(stem)}
               aria-expanded={historyOf === stem.id}
-              title="Frühere Fassungen"
+              title={t().track.stems.earlierTakes}
             >
-              Fassung {stem.revisionCount + 1}
+              {t().track.stems.take(stem.revisionCount + 1)}
             </button>
           {/if}
           <span class="size">
             {replacing?.id === stem.id ? `${replacing.progress} %` : formatFileSize(stem.fileSize)}
           </span>
           {#if canDownload}
-            <button class="row-btn" onclick={() => downloadStem(stem)} title="Herunterladen" aria-label={`${label} herunterladen`}>
+            <button class="row-btn" onclick={() => downloadStem(stem)} title={t().track.stems.download} aria-label={t().track.stems.downloadOf(label)}>
               <Icon name="download" size={13} />
             </button>
           {/if}
@@ -271,8 +272,8 @@
               class="row-btn hover-only"
               onclick={() => pickReplacement(stem)}
               disabled={!!replacing}
-              title="Neue Fassung hochladen"
-              aria-label={`Neue Fassung von ${label} hochladen`}
+              title={t().track.stems.uploadTake}
+              aria-label={t().track.stems.uploadTakeOf(label)}
             >
               <Icon name="upload" size={13} />
             </button>
@@ -282,8 +283,8 @@
               class="row-btn delete"
               onclick={() => deleteStem(stem, label)}
               disabled={deleting === stem.id}
-              title="In den Papierkorb"
-              aria-label={`${label} in den Papierkorb`}
+              title={t().track.stems.toTrash}
+              aria-label={t().track.stems.toTrashOf(label)}
             >
               <Icon name="trash" size={13} />
             </button>
@@ -293,15 +294,15 @@
           {#each revisions as revision, i (revision.id)}
             <li class="revision" title={revision.originalFileName}>
               <span class="name">
-                Fassung {revisions.length - i} · {revision.createdByName} · bis {formatWhen(revision.replacedAt)}
+                {t().track.stems.takeLine(revisions.length - i, revision.createdByName, formatWhen(revision.replacedAt))}
               </span>
               <span class="size">{formatFileSize(revision.fileSize)}</span>
               {#if canDownload}
                 <button
                   class="row-btn"
                   onclick={() => downloadRevision(revision)}
-                  title="Herunterladen"
-                  aria-label={`Fassung ${revisions.length - i} herunterladen`}
+                  title={t().track.stems.download}
+                  aria-label={t().track.stems.downloadTake(revisions.length - i)}
                 >
                   <Icon name="download" size={13} />
                 </button>
@@ -310,8 +311,8 @@
                 <button
                   class="row-btn"
                   onclick={() => restoreRevision(stem, revision)}
-                  title="Wieder zur aktuellen Fassung machen"
-                  aria-label={`Fassung ${revisions.length - i} wiederherstellen`}
+                  title={t().track.stems.makeCurrent}
+                  aria-label={t().track.stems.restoreTake(revisions.length - i)}
                 >
                   <Icon name="restore" size={13} />
                 </button>
@@ -320,8 +321,8 @@
                 <button
                   class="row-btn delete"
                   onclick={() => deleteRevision(stem, revision, revisions.length - i)}
-                  title="In den Papierkorb"
-                  aria-label={`Fassung ${revisions.length - i} in den Papierkorb`}
+                  title={t().track.stems.toTrash}
+                  aria-label={t().track.stems.takeToTrashLabel(revisions.length - i)}
                 >
                   <Icon name="trash" size={13} />
                 </button>

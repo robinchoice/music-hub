@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -52,7 +53,7 @@
   let contact = $state('');
   let reporting = $state(false);
 
-  const info = $derived(data ? OPEN_LICENSE_INFO[data.license] : null);
+  const info = $derived(data ? OPEN_LICENSE_INFO[locale()][data.license] : null);
   const totalSize = $derived(data?.stems.reduce((sum, s) => sum + s.fileSize, 0) ?? 0);
 
   onMount(async () => {
@@ -65,7 +66,7 @@
     }
     const res = await fetch(`/api/v1/open/${trackId}`).catch(() => null);
     if (!res?.ok) {
-      error = (await res?.json().catch(() => null))?.error ?? 'Diese Seite ist nicht (mehr) offen.';
+      error = (await res?.json().catch(() => null))?.error ?? t().guest.openTrack.gone;
       return;
     }
     const open: OpenTrack = await res.json();
@@ -75,13 +76,13 @@
     if ($page.url.searchParams.has('remix')) void startFork();
   });
 
-  const notInExample = () => toastError('Im Beispiel nicht verfügbar');
+  const notInExample = () => toastError(t().guest.openTrack.notInExample);
 
   async function download(path: string) {
     if (example) return notInExample();
     const res = await fetch(`/api/v1/open/${trackId}/${path}`);
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return toastError(body.error ?? 'Download fehlgeschlagen');
+    if (!res.ok) return toastError(body.error ?? t().guest.openTrack.downloadFailed);
     location.href = body.url;
   }
 
@@ -102,7 +103,7 @@
 
   async function copyCredit() {
     await navigator.clipboard.writeText(data!.credit);
-    toastSuccess('Credit kopiert');
+    toastSuccess(t().guest.openTrack.creditCopied);
   }
 
   async function startFork() {
@@ -118,7 +119,7 @@
   async function fork() {
     forking = true;
     try {
-      const projectId = target === 'new' ? (await api.post<{ project: { id: string } }>('/projects', { name: 'Remixe' })).project.id : target;
+      const projectId = target === 'new' ? (await api.post<{ project: { id: string } }>('/projects', { name: t().guest.openTrack.newProjectName })).project.id : target;
       const { track } = await api.post<{ track: { id: string; projectId: string } }>(`/open/${trackId}/fork`, { projectId });
       await goto(`/projects/${track.projectId}/tracks/${track.id}`);
     } catch {
@@ -136,10 +137,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason, email: contact.trim() || undefined }),
       });
-      if (!res.ok) return toastError((await res.json().catch(() => ({}))).error ?? 'Meldung fehlgeschlagen');
+      if (!res.ok) return toastError((await res.json().catch(() => ({}))).error ?? t().guest.openTrack.reportFailed);
       reportOpen = false;
       reason = '';
-      toastSuccess('Danke, wir sehen uns das an');
+      toastSuccess(t().guest.openTrack.reportThanks);
     } finally {
       reporting = false;
     }
@@ -147,7 +148,7 @@
 </script>
 
 <svelte:head>
-  <title>{data ? `${data.track.name} — ${data.artist}` : 'Offene Musik — Music Hub'}</title>
+  <title>{data ? `${data.track.name} — ${data.artist}` : t().guest.openList.title}</title>
 </svelte:head>
 
 <div class="shell">
@@ -157,25 +158,25 @@
     {#if error}
       <div class="gone">
         <p>{error}</p>
-        <Button variant="secondary" href="/offen">Offene Musik entdecken</Button>
+        <Button variant="secondary" href="/offen">{t().guest.openTrack.discover}</Button>
       </div>
     {:else if data && info}
       {#if example}
         <div class="example">
-          <p><b>Beispiel mit erfundenen Daten.</b> So sieht ein offener Track aus, Download und Remix gibt es bei echten Tracks.</p>
-          {#if !$user}<Button size="sm" href="/register">Konto anlegen</Button>{/if}
+          <p><b>{t().guest.openTrack.exampleBold}</b> {t().guest.openTrack.exampleRest}</p>
+          {#if !$user}<Button size="sm" href="/register">{t().common.signUp}</Button>{/if}
         </div>
       {/if}
       <section class="hero">
         <CoverImage src={data.coverUrl} name={data.track.name} size="xl" rounded="lg" />
         <div class="title">
-          <span class="eyebrow">Offene Spuren</span>
+          <span class="eyebrow">{t().guest.openTrack.eyebrow}</span>
           <h1>{data.track.name}</h1>
           <div class="by">
             <span class="avatars">
               {#each data.people as p (p.id)}
                 {#if p.handle}
-                  <a href="/@{p.handle}" title="Profil von {p.name}" aria-label="Profil von {p.name}"><Avatar src={p.avatarUrl} name={p.name} size="md" /></a>
+                  <a href="/@{p.handle}" title={t().guest.openTrack.profileOf(p.name)} aria-label={t().guest.openTrack.profileOf(p.name)}><Avatar src={p.avatarUrl} name={p.name} size="md" /></a>
                 {:else}
                   <Avatar src={p.avatarUrl} name={p.name} size="sm" />
                 {/if}
@@ -186,10 +187,10 @@
           </div>
         </div>
         <div class="actions">
-          <button class="star" class:on={data.starred} onclick={toggleStar} aria-pressed={data.starred} title={data.starred ? 'Stern zurücknehmen' : 'Stern geben'}>
+          <button class="star" class:on={data.starred} onclick={toggleStar} aria-pressed={data.starred} title={data.starred ? t().guest.openTrack.unstar : t().guest.openTrack.star}>
             <Icon name="star" size={15} /> {data.stars}
           </button>
-          <Button onclick={startFork}><Icon name="git-branch" size={14} /> Remixen in Music Hub</Button>
+          <Button onclick={startFork}><Icon name="git-branch" size={14} /> {t().guest.openTrack.remixHere}</Button>
         </div>
       </section>
 
@@ -207,11 +208,11 @@
       <div class="grid">
         <section class="card">
           <h2>
-            Spuren <span class="count">{data.stems.length}</span>
+            {t().guest.openTrack.stems} <span class="count">{data.stems.length}</span>
             <span class="spacer"></span>
-            <Button size="sm" variant="secondary" onclick={() => download('mix')}>Mix</Button>
+            <Button size="sm" variant="secondary" onclick={() => download('mix')}>{t().guest.openTrack.mix}</Button>
             {#if data.stems.length}
-              <Button size="sm" variant="secondary" href={example ? undefined : `/api/v1/open/${trackId}/zip`} onclick={example ? notInExample : undefined}>Alle · ZIP</Button>
+              <Button size="sm" variant="secondary" href={example ? undefined : `/api/v1/open/${trackId}/zip`} onclick={example ? notInExample : undefined}>{t().guest.openTrack.allZip}</Button>
             {/if}
           </h2>
           {#if data.stems.length}
@@ -220,31 +221,31 @@
                 <li>
                   <span class="grow">{s.name}</span>
                   <span class="faint">{formatFileSize(s.fileSize)}</span>
-                  <button class="icon" onclick={() => download(`stems/${s.id}`)} title="{s.name} laden" aria-label="{s.name} laden">
+                  <button class="icon" onclick={() => download(`stems/${s.id}`)} title={t().guest.openTrack.downloadStem(s.name)} aria-label={t().guest.openTrack.downloadStem(s.name)}>
                     <Icon name="download" size={15} />
                   </button>
                 </li>
               {/each}
             </ul>
-            <p class="faint">Zusammen {formatFileSize(totalSize)}</p>
+            <p class="faint">{t().guest.openTrack.together(formatFileSize(totalSize))}</p>
           {:else}
-            <p class="faint">Zu diesem Track gibt es nur den Mix.</p>
+            <p class="faint">{t().guest.openTrack.onlyMix}</p>
           {/if}
         </section>
 
         <div class="side">
           <section class="card">
-            <h2>So nennst du die Quelle <span class="spacer"></span><Button size="sm" variant="secondary" onclick={copyCredit}>Kopieren</Button></h2>
+            <h2>{t().guest.openTrack.creditHeading} <span class="spacer"></span><Button size="sm" variant="secondary" onclick={copyCredit}>{t().common.copy}</Button></h2>
             <p class="credit">{data.credit}</p>
             {#if data.track.credit}
-              <p class="faint">Dieser Track ist selbst ein Remix von {#if data.track.forkedFromId}<a href="/offen/{data.track.forkedFromId}">{data.track.credit}</a>{:else}{data.track.credit}{/if}</p>
+              <p class="faint">{t().guest.openTrack.isRemixOf} {#if data.track.forkedFromId}<a href="/offen/{data.track.forkedFromId}">{data.track.credit}</a>{:else}{data.track.credit}{/if}</p>
             {/if}
           </section>
 
           <section class="card">
-            <h2>Stammbaum <span class="count">{data.remixes.count === 1 ? '1 Remix' : `${data.remixes.count} Remixe`}</span></h2>
+            <h2>{t().guest.openTrack.tree} <span class="count">{t().guest.openList.remixes(data.remixes.count)}</span></h2>
             <ul class="tree">
-              <li class="node">{data.track.name} <span class="faint">Original</span></li>
+              <li class="node">{data.track.name} <span class="faint">{t().guest.openTrack.original}</span></li>
               {#each data.remixes.open as r (r.id)}
                 <li class="node l1"><a href="/offen/{r.id}">{r.name}</a> <span class="faint">{r.artist}</span></li>
                 {#each r.remixes as rr (rr.id)}
@@ -253,44 +254,44 @@
               {/each}
             </ul>
             {#if data.remixes.count > data.remixes.open.length}
-              <p class="faint">Offen sind nur die genannten, die anderen Remixe sind noch privat.</p>
+              <p class="faint">{t().guest.openTrack.onlyNamedOpen}</p>
             {:else if !data.remixes.count}
-              <p class="faint">Noch kein Remix. Mach den ersten.</p>
+              <p class="faint">{t().guest.openTrack.noRemixYet}</p>
             {/if}
           </section>
         </div>
       </div>
 
-      {#if !example}<p class="legal">Verletzt diese Seite deine Rechte? <button class="link" onclick={() => (reportOpen = true)}>Melden</button></p>{/if}
+      {#if !example}<p class="legal">{t().guest.openTrack.infringes} <button class="link" onclick={() => (reportOpen = true)}>{t().guest.openTrack.report}</button></p>{/if}
     {/if}
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>
 
-<Modal bind:open={forkOpen} title="Remix anlegen">
+<Modal bind:open={forkOpen} title={t().guest.openTrack.forkTitle}>
   <div class="form">
-    <p class="faint">Die Spuren landen als neuer Track in deinem Projekt. Sie belegen keinen Speicher, erst was du selbst hochlädst.</p>
+    <p class="faint">{t().guest.openTrack.forkInfo}</p>
     {#each projects as p (p.project.id)}
       <label class="choice"><input type="radio" bind:group={target} value={p.project.id} /> {p.project.name}</label>
     {/each}
-    <label class="choice"><input type="radio" bind:group={target} value="new" /> Neues Projekt „Remixe“</label>
+    <label class="choice"><input type="radio" bind:group={target} value="new" /> {t().guest.openTrack.newProject}</label>
   </div>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (forkOpen = false)}>Abbrechen</Button>
-    <Button onclick={fork} loading={forking}>Remix anlegen</Button>
+    <Button variant="ghost" onclick={() => (forkOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={fork} loading={forking}>{t().guest.openTrack.forkTitle}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={reportOpen} title="Seite melden">
+<Modal bind:open={reportOpen} title={t().guest.openTrack.reportTitle}>
   <div class="form">
-    <p class="faint">Zum Beispiel, wenn darin deine Musik oder fremde Samples stecken. Wir prüfen das und nehmen die Seite bei Bedarf offline.</p>
-    <textarea bind:value={reason} rows="4" placeholder="Was ist das Problem?"></textarea>
-    <input type="email" bind:value={contact} placeholder="Deine E-Mail für Rückfragen (optional)" />
+    <p class="faint">{t().guest.openTrack.reportInfo}</p>
+    <textarea bind:value={reason} rows="4" placeholder={t().guest.openTrack.reasonPlaceholder}></textarea>
+    <input type="email" bind:value={contact} placeholder={t().guest.openTrack.contactPlaceholder} />
   </div>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (reportOpen = false)}>Abbrechen</Button>
-    <Button onclick={report} loading={reporting} disabled={!reason.trim()}>Melden</Button>
+    <Button variant="ghost" onclick={() => (reportOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={report} loading={reporting} disabled={!reason.trim()}>{t().guest.openTrack.report}</Button>
   {/snippet}
 </Modal>
 

@@ -10,6 +10,7 @@ import { encryptSecret, paymentsConfigured } from '../lib/payments/secrets.js';
 import { PaymentServiceError } from '../lib/payments/errors.js';
 import { maskIban, normalizeIban, validIban } from '../lib/payments/girocode.js';
 import type { AppEnv } from '../types.js';
+import { locale } from '../lib/i18n.js';
 
 // Where the caller receives the money of their deliveries: their own Lightning wallet over NWC, which
 // may only make and look up invoices, and their bank account for transfers. The NWC secret never
@@ -27,7 +28,7 @@ const accountView = (row: PaymentAccountRow | undefined): PaymentAccount => ({
 const accountChanges = rateLimit('payment-account-changes', 20, 60 * 60_000);
 
 const deliveryError = <S extends 400 | 502 | 503>(c: Context<AppEnv>, code: DeliveryErrorCode, status: S) =>
-  c.json({ error: DELIVERY_ERRORS[code], code }, status);
+  c.json({ error: DELIVERY_ERRORS[locale(c)][code], code }, status);
 
 export const paymentAccountRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -82,7 +83,7 @@ export const paymentAccountRoutes = new Hono<AppEnv>()
         }
       } catch (err) {
         // Only our own messages: other errors may carry the connection string
-        if (err instanceof PaymentServiceError) return c.json({ error: err.message, code: err.code }, 502);
+        if (err instanceof PaymentServiceError) return c.json({ error: err.text(locale(c)), code: err.code }, 502);
         console.error('[Payments] Wallet check failed');
         return deliveryError(c, 'wallet_unreachable', 502);
       }

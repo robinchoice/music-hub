@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t, dateLocale } from '$lib/i18n/index.js';
   import { GUEST_STORAGE_CHOICES } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { formatGb } from '$lib/utils/format.js';
@@ -23,23 +24,23 @@
 
 {#if settings}
   <section class="card" id="gaeste">
-    <h2>Uploads von Gästen</h2>
+    <h2>{t().workspace.guestUploads.title}</h2>
     <label class="toggle">
       <input type="checkbox" checked={settings.allowed} onchange={(e) => save({ allowed: e.currentTarget.checked })} />
       <span>
-        <b>Gäste ohne Konto dürfen hochladen</b>
-        <small>Über die Upload-Links, die du in deinen Projekten erstellst. Ausgeschaltet nehmen alle deine Links keine Dateien mehr an.</small>
+        <b>{t().workspace.guestUploads.allow}</b>
+        <small>{t().workspace.guestUploads.allowHint}</small>
       </span>
     </label>
     {#if settings.allowed}
       <label class="field">
-        Höchstens
+        {t().workspace.guestUploads.atMost}
         <select value={settings.limit} onchange={(e) => save({ limit: Number(e.currentTarget.value) })}>
           {#each GUEST_STORAGE_CHOICES as bytes (bytes)}
-            <option value={bytes}>{(bytes / 1024 ** 3).toLocaleString('de-DE')} GB</option>
+            <option value={bytes}>{(bytes / 1024 ** 3).toLocaleString(dateLocale())} GB</option>
           {/each}
         </select>
-        <small>Gäste belegen davon gerade {formatGb(settings.used)}. Das zählt zu deinem eigenen Speicher.</small>
+        <small>{t().workspace.guestUploads.usedHint(formatGb(settings.used))}</small>
       </label>
     {/if}
   </section>

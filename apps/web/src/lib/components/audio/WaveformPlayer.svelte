@@ -4,6 +4,7 @@
   import { APP_BAND, GLOW, bandColor } from '@music-hub/shared';
   import { formatTime, initials } from '$lib/utils/format.js';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { t } from '$lib/i18n/index.js';
   import type { CommentMarker } from '$lib/utils/track.js';
   import { claimSession, releaseSession, sessionPlaying, sessionPosition, type SessionInfo } from '$lib/media-session.js';
 
@@ -253,7 +254,7 @@
       class:compact-btn={compact}
       onclick={togglePlay}
       disabled={!isReady}
-      aria-label={isPlaying ? 'Pause' : 'Abspielen'}
+      aria-label={isPlaying ? t().track.player.pause : t().track.player.play}
     >
       <Icon name={isPlaying ? 'pause' : 'play'} size={compact ? 18 : 24} />
     </button>
@@ -271,7 +272,7 @@
                 class:done={group.items.every((m) => m.resolved)}
                 style="left: {group.x}px"
                 title={group.items.map((m) => `${m.userName}: ${m.body}`).join('\n')}
-                aria-label={single ? `Kommentar von ${group.items[0].userName} bei ${formatTime(group.items[0].timestampSeconds)}` : `${group.items.length} Kommentare ab ${formatTime(group.items[0].timestampSeconds)}`}
+                aria-label={single ? t().track.player.commentBy(group.items[0].userName, formatTime(group.items[0].timestampSeconds)) : t().track.player.commentsFrom(group.items.length, formatTime(group.items[0].timestampSeconds))}
                 onclick={() => openGroup(group)}
               >
                 <span class="marker-dot" class:count={!single}>{single ? initials(group.items[0].userName) : group.items.length}</span>
@@ -293,12 +294,12 @@
                 <span class="bubble-text">
                   <b>{m.userName}</b> <span class="bubble-time">{formatTime(m.timestampSeconds)}</span>
                   <span class="bubble-body">{m.body.split('\n')[0]}</span>
-                  {#if m.replies > 0}<span class="bubble-replies">{m.replies} {m.replies === 1 ? 'Antwort' : 'Antworten'}</span>{/if}
+                  {#if m.replies > 0}<span class="bubble-replies">{t().track.player.replies(m.replies)}</span>{/if}
                 </span>
               </button>
             {/each}
             {#if bubble.pinned}
-              <button class="bubble-close" onclick={closeBubble} aria-label="Schließen"><Icon name="x" size={12} /></button>
+              <button class="bubble-close" onclick={closeBubble} aria-label={t().common.close}><Icon name="x" size={12} /></button>
             {/if}
           </div>
         {/if}
@@ -308,10 +309,10 @@
         <div class="meta-row">
           <span class="time">{formatTime(currentTime)}</span>
           <div class="meta-controls">
-            <button class="ctl" onclick={() => skip(-10)} aria-label="10 Sekunden zurück">
+            <button class="ctl" onclick={() => skip(-10)} aria-label={t().track.player.back10}>
               <Icon name="skip-back" size={14} />
             </button>
-            <button class="ctl" onclick={() => skip(10)} aria-label="10 Sekunden vor">
+            <button class="ctl" onclick={() => skip(10)} aria-label={t().track.player.forward10}>
               <Icon name="skip-forward" size={14} />
             </button>
             {#if markers.length > 0}
@@ -320,14 +321,14 @@
                 class:off={!showBubbles}
                 onclick={toggleBubbles}
                 aria-pressed={showBubbles}
-                aria-label="Kommentare beim Abspielen einblenden"
-                title={showBubbles ? 'Kommentare beim Abspielen ausblenden' : 'Kommentare beim Abspielen einblenden'}
+                aria-label={t().track.player.showBubbles}
+                title={showBubbles ? t().track.player.hideBubbles : t().track.player.showBubbles}
               >
                 <Icon name="comment" size={14} />
               </button>
             {/if}
             <div class="volume" onmouseenter={() => (showVolume = true)} onmouseleave={() => (showVolume = false)} role="group">
-              <button class="ctl" aria-label="Lautstärke">
+              <button class="ctl" aria-label={t().track.player.volume}>
                 <Icon name={volume === 0 ? 'volume-off' : 'volume'} size={14} />
               </button>
               {#if showVolume}
@@ -339,7 +340,7 @@
                   value={volume}
                   oninput={(e) => setVol(Number((e.target as HTMLInputElement).value))}
                   class="volume-slider"
-                  aria-label="Lautstärke einstellen"
+                  aria-label={t().track.player.setVolume}
                 />
               {/if}
             </div>

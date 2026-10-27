@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { TRACK_STATUS_LABELS } from '@music-hub/shared';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -28,18 +29,18 @@
 
 <div class="row" class:open={expanded}>
   <div class="song">
-    <span class="dot" style="background: {STATUS_COLORS[info.track.status]}" title={TRACK_STATUS_LABELS[info.track.status]}></span>
+    <span class="dot" style="background: {STATUS_COLORS[info.track.status]}" title={TRACK_STATUS_LABELS[locale()][info.track.status]}></span>
     <div class="st">
       <div class="name">
         <a {href} onclick={() => handOff(info.track.id)}>{info.track.name}</a>
-        {#if info.isNew}<span class="newdot" title="Neu seit deinem letzten Besuch"></span>{/if}
+        {#if info.isNew}<span class="newdot" title={t().overview.shared.newSince}></span>{/if}
       </div>
       <div class="ver">
         {#if v}
           <span class="vchip">V{v.versionNumber}</span>
           {#if versionName(v)}<span>{versionName(v)}</span>{/if}
         {:else}
-          <span class="dim">noch leer</span>
+          <span class="dim">{t().overview.row.empty}</span>
         {/if}
       </div>
     </div>
@@ -50,8 +51,8 @@
       <MiniWave version={v} markers={markersFor(ix, comments)} />
     {:else if canUpload}
       <div class="first-upload">
-        <Button size="sm" variant="secondary" href="{href}?upload=spuren"><Icon name="upload" size={14} /> Spuren</Button>
-        <Button size="sm" variant="secondary" href="{href}?upload=version"><Icon name="upload" size={14} /> Version</Button>
+        <Button size="sm" variant="secondary" href="{href}?upload=spuren"><Icon name="upload" size={14} /> {t().overview.row.stems}</Button>
+        <Button size="sm" variant="secondary" href="{href}?upload=version"><Icon name="upload" size={14} /> {t().overview.row.version}</Button>
       </div>
     {/if}
   </div>
@@ -83,9 +84,9 @@
       <p class="reason">
         {#if v.decidedById}
           <Avatar name={fullName(ix, v.decidedById)} src={avatarOf(ix, v.decidedById)} size="xs" />
-          <span><b>{firstName(fullName(ix, v.decidedById))}</b> hat <span class="vchip">V{v.versionNumber}</span> abgelehnt{v.rejectionReason ? `: „${v.rejectionReason}“` : '.'}</span>
+          <span><b>{firstName(fullName(ix, v.decidedById))}</b> {t().overview.row.rejectedBefore} <span class="vchip">V{v.versionNumber}</span>{t().overview.row.rejectedAfter}{v.rejectionReason ? `: ${t().overview.shared.quote(v.rejectionReason)}` : '.'}</span>
         {:else}
-          <span><span class="vchip">V{v.versionNumber}</span> wurde abgelehnt{v.rejectionReason ? `: „${v.rejectionReason}“` : '.'}</span>
+          <span><span class="vchip">V{v.versionNumber}</span>{t().overview.row.wasRejected}{v.rejectionReason ? `: ${t().overview.shared.quote(v.rejectionReason)}` : '.'}</span>
         {/if}
       </p>
     {:else}

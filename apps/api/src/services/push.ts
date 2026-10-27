@@ -1,7 +1,12 @@
 import webpush from 'web-push';
 import { eq, inArray } from 'drizzle-orm';
-import { pushSubscriptions, projectMembers, type Database } from '@music-hub/db';
+import { pushSubscriptions, projectMembers, users, type Database } from '@music-hub/db';
+import { LOCALES, pickLocale } from '@music-hub/shared';
+import { messages, type Messages } from '../lib/messages.js';
 import { saveNotifications, type NotificationDetails } from '../lib/push-notifications.js';
+
+// The details of a push, written for each recipient in their language
+export type LocalizedNotification = (m: Messages) => NotificationDetails;
 
 export function pushSignal(id: bigint) {
   return { type: 'notification', id: id.toString() };
@@ -40,7 +45,7 @@ export async function notifyProjectMembers(
   db: Database,
   projectId: string,
   excludeUserId: string,
-  payload: NotificationDetails,
+  payload: LocalizedNotification,
 ): Promise<void> {
   if (!process.env.VAPID_PUBLIC_KEY) return;
 
@@ -56,15 +61,20 @@ export async function notifyProjectMembers(
   await notifyUsers(db, userIds, payload);
 }
 
-export async function notifyUsers(db: Database, userIds: string[], payload: NotificationDetails): Promise<void> {
+export async function notifyUsers(db: Database, userIds: string[], payload: LocalizedNotification): Promise<void> {
   if (!process.env.VAPID_PUBLIC_KEY || userIds.length === 0) return;
 
   const subs = await db
-    .select()
+    .select({ id: pushSubscriptions.id, userId: pushSubscriptions.userId, endpoint: pushSubscriptions.endpoint, p256dh: pushSubscriptions.p256dh, auth: pushSubscriptions.auth, locale: users.locale })
     .from(pushSubscriptions)
+    .innerJoin(users, eq(users.id, pushSubscriptions.userId))
     .where(inArray(pushSubscriptions.userId, userIds));
 
-  const notifications = await saveNotifications(db, subs.map((sub) => sub.userId), payload);
+  const notifications: Awaited<ReturnType<typeof saveNotifications>> = [];
+  for (const locale of LOCALES) {
+    const recipients = subs.filter((sub) => pickLocale(sub.locale) === locale).map((sub) => sub.userId);
+    notifications.push(...(await saveNotifications(db, recipients, payload(messages[locale]))));
+  }
   const stale: string[] = [];
   await Promise.all(
     subs.map(async (sub) => {
@@ -82,7 +92,7 @@ export async function notifyUsers(db: Database, userIds: string[], payload: Noti
 export async function notifyUser(
   db: Database,
   userId: string,
-  payload: NotificationDetails,
+  payload: LocalizedNotification,
 ): Promise<void> {
   await notifyUsers(db, [userId], payload);
 }

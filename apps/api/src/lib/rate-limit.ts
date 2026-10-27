@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { rateLimits, type Database } from '@music-hub/db';
+import { t } from './i18n.js';
 
 // Fixed-window counters in Postgres, so all API instances share them and a
 // restart keeps them. `name` keeps the keys of different limits apart.
@@ -46,5 +47,5 @@ export function clientIp(c: Context) {
 }
 
 export function tooManyRequests(c: Context) {
-  return c.json({ error: 'Zu viele Versuche — bitte später erneut probieren' }, 429);
+  return c.json({ error: t(c).errors.tooManyRequests }, 429);
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import PeakBars from './PeakBars.svelte';
   import { listen, toggleListen, seekListen } from '$lib/stores/listen.js';
@@ -24,7 +25,7 @@
 </script>
 
 <div class="wf" class:big class:playing>
-  <button type="button" class="play" aria-label={playing ? 'Pause' : 'Abspielen'} onclick={() => toggleListen(version)}>
+  <button type="button" class="play" aria-label={playing ? t().overview.wave.pause : t().overview.wave.play} onclick={() => toggleListen(version)}>
     <Icon name={playing ? 'pause' : 'play'} size={big ? 18 : 12} />
   </button>
   <div class="track">

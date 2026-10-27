@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api/client.js';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { dateLocale, t } from '$lib/i18n/index.js';
 
   type ListenEvent = {
     id: string;
@@ -36,7 +37,7 @@
     try {
       data = await api.get<Analytics>(`/share/version/${versionId}/analytics`);
     } catch {
-      error = 'Analytics konnten nicht geladen werden.';
+      error = t().track.analytics.loadFailed;
     } finally {
       loading = false;
     }
@@ -48,7 +49,7 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString('de-DE', {
+    return new Date(iso).toLocaleString(dateLocale(), {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
@@ -57,29 +58,29 @@
 
 <div class="analytics">
   {#if loading}
-    <p class="muted">Lädt…</p>
+    <p class="muted">{t().track.analytics.loading}</p>
   {:else if error}
     <p class="muted">{error}</p>
   {:else if data}
     {#if data.totalOpens === 0}
-      <p class="muted">Noch keine Aufrufe. Teile einen Link um Analytics zu sehen.</p>
+      <p class="muted">{t().track.analytics.none}</p>
     {:else}
       <div class="stats-grid">
         <div class="stat">
           <span class="stat-value">{data.totalOpens}</span>
-          <span class="stat-label">Geöffnet</span>
+          <span class="stat-label">{t().track.analytics.opened}</span>
         </div>
         <div class="stat">
           <span class="stat-value">{data.totalPlays}</span>
-          <span class="stat-label">Abgespielt</span>
+          <span class="stat-label">{t().track.analytics.played}</span>
         </div>
         <div class="stat">
           <span class="stat-value">{data.uniqueListeners}</span>
-          <span class="stat-label">Personen</span>
+          <span class="stat-label">{t().track.analytics.people}</span>
         </div>
         <div class="stat">
           <span class="stat-value">{data.completionRate}%</span>
-          <span class="stat-label">Abschluss</span>
+          <span class="stat-label">{t().track.analytics.completion}</span>
         </div>
       </div>
 
@@ -87,14 +88,14 @@
         {#each data.events as e (e.id)}
           <div class="event-row">
             <div class="event-info">
-              <span class="listener-name">{e.listenerName ?? 'Anonym'}</span>
+              <span class="listener-name">{e.listenerName ?? t().track.analytics.anonymous}</span>
               <span class="event-meta">
                 {formatDate(e.openedAt)}
                 {#if e.firstPlayAt}
-                  · {formatDuration(e.listenSeconds)} gehört
-                  {#if e.completed}<span class="completed-badge">✓ Komplett</span>{/if}
+                  · {t().track.analytics.heard(formatDuration(e.listenSeconds))}
+                  {#if e.completed}<span class="completed-badge">✓ {t().track.analytics.complete}</span>{/if}
                 {:else}
-                  · nicht abgespielt
+                  · {t().track.analytics.notPlayed}
                 {/if}
               </span>
             </div>

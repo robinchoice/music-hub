@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, getContext } from 'svelte';
   import { goto } from '$app/navigation';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toast } from '$lib/stores/toast.js';
   import { loadOverview } from '$lib/stores/overview.js';
@@ -40,7 +41,7 @@
       memberships = memberships.filter((x) => x.project.id !== m.project.id);
       reloadSidebar?.();
       void loadOverview();
-      toast(`„${m.project.name}“ ist wieder da`, 'success', 6000, { label: 'Öffnen', run: () => goto(`/projects/${m.project.id}`) });
+      toast(t().workspace.archivePage.restored(m.project.name), 'success', 6000, { label: t().common.open, run: () => goto(`/projects/${m.project.id}`) });
     } catch {
       // The API client already showed the error
     } finally {
@@ -49,15 +50,15 @@
   }
 </script>
 
-<TopBar crumbs={[{ label: 'Archiv' }]} />
+<TopBar crumbs={[{ label: t().workspace.nav.archive }]} />
 
 <div class="archive-page">
   <header class="head">
     <span class="head-icon"><Icon name="archive" size={24} /></span>
     <div>
-      <h1>Archiv</h1>
-      <p>Archivierte Projekte bleiben mit allen Tracks und Dateien erhalten, bis ihr Besitzer sie wiederherstellt.</p>
-      <p>Ihre Dateien zählen weiter zum Speicher.</p>
+      <h1>{t().workspace.nav.archive}</h1>
+      <p>{t().workspace.archivePage.intro}</p>
+      <p>{t().workspace.archivePage.storage}</p>
     </div>
   </header>
 
@@ -70,8 +71,8 @@
   {:else if memberships.length === 0}
     <div class="empty">
       <Icon name="archive" size={28} />
-      <b>Das Archiv ist leer</b>
-      <p>Archivierte Projekte, an denen du beteiligt bist, landen hier.</p>
+      <b>{t().workspace.archivePage.emptyTitle}</b>
+      <p>{t().workspace.archivePage.emptyText}</p>
     </div>
   {:else}
     <div class="list">
@@ -82,15 +83,15 @@
             <div class="title">{m.project.name}</div>
             <div class="sub">
               {#if m.project.artist}<span class="artist">{m.project.artist}</span> · {/if}
-              {m.trackCount}&nbsp;{m.trackCount === 1 ? 'Track' : 'Tracks'} · archiviert {timeAgo(m.project.updatedAt)}
+              {t().workspace.archivePage.meta(m.trackCount, timeAgo(m.project.updatedAt))}
             </div>
           </div>
           {#if m.role === 'owner'}
             <Button variant="secondary" size="sm" loading={restoring === m.project.id} onclick={() => restore(m)}>
-              <Icon name="restore" size={13} /> <span class="btn-label">Wiederherstellen</span>
+              <Icon name="restore" size={13} /> <span class="btn-label">{t().workspace.archivePage.restore}</span>
             </Button>
           {:else}
-            <span class="note">Nur der Besitzer kann es wiederherstellen</span>
+            <span class="note">{t().workspace.archivePage.ownerOnly}</span>
           {/if}
         </div>
       {/each}

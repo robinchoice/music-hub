@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dateLocale, locale, t } from '$lib/i18n/index.js';
   import { onMount, onDestroy, tick, getContext } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -176,10 +177,10 @@
   const view = $derived($page.url.searchParams.get('view') === 'compare' && versions.length > 1 ? 'compare' : 'listen');
   // Loudness and stage of every version come from the overview
   const mixerInfo = $derived.by(() => {
-    const t = $overviewIndex?.tracks.get(trackId);
-    return $overviewIndex && t ? trackInfo($overviewIndex, t) : null;
+    const row = $overviewIndex?.tracks.get(trackId);
+    return $overviewIndex && row ? trackInfo($overviewIndex, row) : null;
   });
-  const openLabel = $derived(openState?.license ? OPEN_LICENSE_INFO[openState.license].label : '');
+  const openLabel = $derived(openState?.license ? OPEN_LICENSE_INFO[locale()][openState.license].label : '');
   // Asked to agree to opening the track
   const consentPending = $derived(
     !!openState?.license && !openState.openedAt && !!openState.contributors.find((p) => p.id === $user?.id && !p.consented),
@@ -235,16 +236,16 @@
           .get<{ members: unknown[] }>(`/projects/${projectId}/members`, true)
           .then((res) => (memberCount = res.members.length), () => {});
       }
-      const t = tracksRes.tracks.find((t) => t.id === trackId);
-      if (!t || !trackVersions || !stemsRes) {
+      const found = tracksRes.tracks.find((t) => t.id === trackId);
+      if (!found || !trackVersions || !stemsRes) {
         missing = true;
         return;
       }
-      trackName = t?.name || '';
-      trackCoverUrl = t?.coverUrl ?? null;
-      trackStatus = t?.status ?? 'sketch';
-      trackSection = t?.section ?? null;
-      forkedFrom = t.credit ? { id: t.forkedFromId ?? null, credit: t.credit, license: t.license ?? null } : null;
+      trackName = found.name || '';
+      trackCoverUrl = found.coverUrl ?? null;
+      trackStatus = found.status ?? 'sketch';
+      trackSection = found.section ?? null;
+      forkedFrom = found.credit ? { id: found.forkedFromId ?? null, credit: found.credit, license: found.license ?? null } : null;
       openState = openRes?.open ?? null;
       versions = trackVersions.versions;
       stems = stemsRes.stems;
@@ -269,7 +270,7 @@
         const wasProcessing = versions.some((v) => v.id === data.versionId && isProcessing(v));
         await refreshVersions();
         const finished = versions.find((v) => v.id === data.versionId);
-        if (wasProcessing && finished && hasWaveform(finished) && data.status === 'ready' && !data.undone) toastSuccess(`V${finished.versionNumber} ist fertig`);
+        if (wasProcessing && finished && hasWaveform(finished) && data.status === 'ready' && !data.undone) toastSuccess(t().track.page.versionReady(finished.versionNumber));
         // Processing finished: reload so the player gets the MP3 and the waveform
         if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
           await selectVersion(selectedVersion, true);
@@ -355,13 +356,13 @@
     statusMenuOpen = false;
     await api.patch(`/tracks/${trackId}`, { status: s });
     reloadSidebar?.();
-    toastSuccess(`Status: ${TRACK_STATUS_LABELS[s]}`);
+    toastSuccess(t().track.page.statusSet(TRACK_STATUS_LABELS[locale()][s]));
   }
 
   async function handlePromote() {
     if (!selectedVersion) return;
     await api.post(`/versions/${selectedVersion.id}/promote`);
-    toastSuccess('Als Hauptversion festgelegt');
+    toastSuccess(t().track.page.madeMain);
     await refreshVersions();
   }
 
@@ -432,7 +433,7 @@
     if (!selectedVersion) return;
     const { id, versionNumber } = selectedVersion;
     await api.post(`/versions/${id}/approve`);
-    toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => undoApprove(id) });
+    toast(t().track.page.approved(versionNumber), 'success', 8000, { label: t().common.undo, run: () => undoApprove(id) });
     await refreshVersions();
     await reloadOpenState();
   }
@@ -459,21 +460,21 @@
     const { id, versionNumber } = selectedVersion;
     await trackComments.finish(verdict, note);
     if (verdict === 'approve') {
-      toast(`V${versionNumber} ist freigegeben`, 'success', 8000, { label: 'Rückgängig', run: () => undoApprove(id) });
+      toast(t().track.page.approved(versionNumber), 'success', 8000, { label: t().common.undo, run: () => undoApprove(id) });
       await reloadOpenState();
     } else {
-      toastSuccess(`${trackComments.uploader?.name ?? 'Der Uploader'} bekommt Bescheid`);
+      toastSuccess(t().track.page.notified(trackComments.uploader?.name ?? t().track.page.theUploader));
     }
   }
 
   async function handleComment(body: string, timestamp: number | null) {
     await trackComments.add(body, timestamp);
-    toastSuccess('Kommentar gespeichert');
+    toastSuccess(t().track.page.commentSaved);
   }
 
   async function handleDeleteComment(id: string) {
     await trackComments.remove(id);
-    toastTrash('Kommentar liegt im Papierkorb', () => handleRestoreComment(id));
+    toastTrash(t().track.page.commentTrashed, () => handleRestoreComment(id));
     void loadOverview();
   }
 
@@ -509,7 +510,7 @@
     const tracksRes = await api.get<{ tracks: { id: string; coverUrl: string | null }[] }>(`/tracks/project/${projectId}`);
     trackCoverUrl = tracksRes.tracks.find((t) => t.id === trackId)?.coverUrl ?? null;
     coverEditOpen = false;
-    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
+    toastSuccess(key ? t().track.page.coverSaved : t().track.page.coverRemoved);
   }
 
   function openRename() {
@@ -524,7 +525,7 @@
     trackName = name;
     renameOpen = false;
     reloadSidebar?.();
-    toastSuccess('Track umbenannt');
+    toastSuccess(t().track.page.renamed);
   }
 
   function openVersionEdit() {
@@ -542,7 +543,7 @@
         label: editVersionLabel.trim() || null,
         notes: editVersionNotes.trim() || null,
       });
-      toastSuccess('Version aktualisiert');
+      toastSuccess(t().track.page.versionUpdated);
       editVersionOpen = false;
       await refreshVersions();
     } catch {
@@ -554,7 +555,7 @@
 
   async function deleteTrack() {
     await api.delete(`/tracks/${trackId}`);
-    toastTrash(`„${trackName}“ liegt im Papierkorb`, async () => {
+    toastTrash(t().track.page.trackTrashed(trackName), async () => {
       await api.post(`/trash/track/${trackId}/restore`);
       reloadSidebar?.();
       void loadOverview();
@@ -599,10 +600,10 @@
         { trackId, projectId, title: trackName, versionNumber: selectedVersion.versionNumber },
         (pct) => { offlineProgress = pct; },
       );
-      toastSuccess('Offline verfügbar');
+      toastSuccess(t().track.page.offlineReady);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Fehler';
-      toastSuccess(`Download fehlgeschlagen: ${msg}`);
+      const msg = e instanceof Error ? e.message : t().track.drop.error;
+      toastSuccess(t().track.page.downloadFailed(msg));
     } finally {
       offlineDownloading = false;
     }
@@ -611,14 +612,14 @@
   async function handleOfflineRemove() {
     if (!selectedVersion) return;
     await removeOffline(selectedVersion.id);
-    toastSuccess('Offline-Version entfernt');
+    toastSuccess(t().track.page.offlineRemoved);
   }
 
   async function deleteVersion() {
     if (!selectedVersion) return;
     const { id, versionNumber } = selectedVersion;
     await api.delete(`/versions/${id}`);
-    toastTrash(`V${versionNumber} liegt im Papierkorb`, async () => {
+    toastTrash(t().track.page.versionTrashed(versionNumber), async () => {
       await api.post(`/trash/version/${id}/restore`);
       await loadVersions();
       const restored = versions.find((v) => v.id === id);
@@ -638,27 +639,27 @@
 
 <TopBar
   crumbs={[
-    { label: 'Projekte', href: '/dashboard' },
+    { label: t().track.page.projects, href: '/dashboard' },
     { label: projectName || '…', href: `/projects/${projectId}` },
     { label: trackName || '…' },
   ]}
 >
   {#snippet actions()}
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
-      <Icon name="share" size={14} /> <span class="btn-label">Teilen</span>
+      <Icon name="share" size={14} /> <span class="btn-label">{t().track.page.share}</span>
     </Button>
     {#if openState && role === 'owner' && !openState.license}
       <Button size="sm" variant="ghost" onclick={() => (openModal = true)}>
-        <Icon name="git-branch" size={14} /> <span class="btn-label">Offen stellen</span>
+        <Icon name="git-branch" size={14} /> <span class="btn-label">{t().track.page.makeOpen}</span>
       </Button>
     {/if}
     {#if canUpload}
       <Button size="sm" onclick={openUpload}>
-        <Icon name="upload" size={14} /> Neue Version
+        <Icon name="upload" size={14} /> {t().track.versionList.newVersion}
       </Button>
     {/if}
     {#if !isNarrow && view === 'listen'}
-      <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title="Seitenleiste umschalten" aria-label="Seitenleiste umschalten">
+      <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t().track.page.togglePanel} aria-label={t().track.page.togglePanel}>
         <Icon name="panel" size={16} />
       </button>
     {/if}
@@ -674,16 +675,16 @@
       </div>
     {:else if missing}
       <EmptyState
-        title="Diesen Track gibt es hier nicht mehr"
-        description="Er wurde gelöscht. Gelöschte Tracks liegen 30 Tage im Papierkorb."
+        title={t().track.page.missingTitle}
+        description={t().track.page.missingText}
       >
         {#snippet action()}
-          <Button href="/projects/{projectId}">Zum Projekt</Button>
+          <Button href="/projects/{projectId}">{t().track.page.toProject}</Button>
         {/snippet}
       </EmptyState>
     {:else}
       <div class="track-head">
-        <button class="track-cover-btn" onclick={() => canUpload && (coverEditOpen = true)} disabled={!canUpload} aria-label="Cover ändern">
+        <button class="track-cover-btn" onclick={() => canUpload && (coverEditOpen = true)} disabled={!canUpload} aria-label={t().track.page.changeCover}>
           <CoverImage src={trackCoverUrl} name={trackName} size="lg" rounded="lg" />
         </button>
         <div class="title-block">
@@ -705,33 +706,33 @@
               <span class="section-tag">{trackSection}</span>
             {/if}
             <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'versions'} onclick={() => showPanel('versions')}>
-              <Icon name="list" size={13} /><b>{versions.length}</b> {versions.length === 1 ? 'Version' : 'Versionen'}
+              <Icon name="list" size={13} /><b>{versions.length}</b> {t().track.page.versionNoun(versions.length)}
             </button>
             <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
-              <Icon name="music" size={13} /><b>{stems.length}</b> {stems.length === 1 ? 'Spur' : 'Spuren'}
+              <Icon name="music" size={13} /><b>{stems.length}</b> {t().track.page.stemNoun(stems.length)}
             </button>
             {#if openState?.openedAt}
-              <button class="chip open" onclick={() => (openModal = true)}>Offen · {openLabel}</button>
+              <button class="chip open" onclick={() => (openModal = true)}>{t().track.page.openLabel(openLabel)}</button>
             {:else if openState?.license}
-              <button class="chip" onclick={() => (openModal = true)}><Icon name="git-branch" size={13} /> Offen stellen: wartet auf Zustimmung</button>
+              <button class="chip" onclick={() => (openModal = true)}><Icon name="git-branch" size={13} /> {t().track.page.awaitingConsent}</button>
             {/if}
           </div>
         </div>
         {#if canUpload || role === 'owner'}
           <div class="track-menu-root">
-            <button class="icon-btn" title="Track-Aktionen" aria-label="Track-Aktionen" onclick={() => (trackMenuOpen = !trackMenuOpen)}>
+            <button class="icon-btn" title={t().track.page.trackActions} aria-label={t().track.page.trackActions} onclick={() => (trackMenuOpen = !trackMenuOpen)}>
               <Icon name="more" size={18} />
             </button>
             {#if trackMenuOpen}
               <div class="menu" role="menu">
                 {#if canUpload}
-                  <button role="menuitem" onclick={() => { trackMenuOpen = false; coverEditOpen = true; }}><Icon name="upload" size={14} /> Cover ändern</button>
-                  <button role="menuitem" onclick={() => { trackMenuOpen = false; openRename(); }}><Icon name="edit" size={14} /> Umbenennen</button>
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; coverEditOpen = true; }}><Icon name="upload" size={14} /> {t().track.page.changeCover}</button>
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; openRename(); }}><Icon name="edit" size={14} /> {t().track.page.rename}</button>
                 {/if}
                 {#if role === 'owner'}
                   <hr />
-                  <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> Track in den Papierkorb</button>
-                  <span class="menu-hint">Mit allen Versionen, Kommentaren und Spuren, 30 Tage im Papierkorb</span>
+                  <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> {t().track.page.trackToTrash}</button>
+                  <span class="menu-hint">{t().track.page.trackTrashHint}</span>
                 {/if}
               </div>
             {/if}
@@ -741,8 +742,8 @@
 
       {#if consentPending}
         <div class="open-banner">
-          <span><b>{openState?.contributors.find((p) => p.id === openState?.requestedById)?.name ?? 'Jemand'}</b> möchte {trackName} unter {openLabel} offen stellen. Dafür braucht es deine Zustimmung.</span>
-          <Button size="sm" onclick={() => (openModal = true)}>Ansehen</Button>
+          <span><b>{openState?.contributors.find((p) => p.id === openState?.requestedById)?.name ?? t().common.someone}</b>{t().track.page.consentText(trackName, openLabel)}</span>
+          <Button size="sm" onclick={() => (openModal = true)}>{t().track.page.view}</Button>
         </div>
       {/if}
 
@@ -750,9 +751,9 @@
         <div class="fork-banner">
           <Icon name="git-branch" size={16} />
           <span>
-            <b>Remix</b> von {#if forkedFrom.id}<a href={openPath(forkedFrom.id)}>{forkedFrom.credit}</a>{:else}{forkedFrom.credit}{/if}
+            <b>Remix</b> {t().track.page.remixOf} {#if forkedFrom.id}<a href={openPath(forkedFrom.id)}>{forkedFrom.credit}</a>{:else}{forkedFrom.credit}{/if}
             <small>
-              {#if forkedFrom.license === 'cc0'}Gemeinfrei, du musst niemanden nennen.{:else if forkedFrom.license === 'cc-by-sa'}Veröffentlichst du den Remix, nenne die Quelle so und stelle ihn ebenfalls unter CC BY-SA.{:else}Veröffentlichst du den Remix, nenne die Quelle so.{/if}
+              {#if forkedFrom.license === 'cc0'}{t().track.page.remixCc0}{:else if forkedFrom.license === 'cc-by-sa'}{t().track.page.remixCcBySa}{:else}{t().track.page.remixCredit}{/if}
             </small>
           </span>
         </div>
@@ -760,13 +761,13 @@
 
       <TabBar
         tabs={[
-          { id: 'listen', label: 'Hören' },
+          { id: 'listen', label: t().track.page.listen },
           {
             id: 'compare',
-            label: 'Vergleichen',
+            label: t().track.page.compare,
             count: versions.length > 1 ? versions.length : undefined,
             disabled: versions.length < 2,
-            title: versions.length < 2 ? 'Vergleichen geht ab 2 Versionen' : undefined,
+            title: versions.length < 2 ? t().track.page.compareNeedsTwo : undefined,
           },
         ]}
         active={view}
@@ -775,18 +776,18 @@
 
       {#if showUpload}
         <div class="upload-zone">
-          <button class="close-upload cancel-version" disabled={savingUpload} onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title="Upload abbrechen" aria-label="Upload abbrechen">
-            {savingUpload ? 'Wird gespeichert' : 'Abbrechen'}
+          <button class="close-upload cancel-version" disabled={savingUpload} onclick={() => { versionZone?.cancel(); showUpload = false; branchFromId = null; }} title={t().track.page.cancelUpload} aria-label={t().track.page.cancelUpload}>
+            {savingUpload ? t().track.page.saving : t().common.cancel}
           </button>
           <p class="upload-title">
-            <b>{branchFromId ? 'Variante hochladen' : 'Neue Version hochladen'}</b>
-            <span>wird V{nextVersionNumber} · jede Datei wird eine eigene Version</span>
+            <b>{branchFromId ? t().track.page.uploadVariant : t().track.versionList.uploadNew}</b>
+            <span>{t().track.page.uploadSub(nextVersionNumber)}</span>
           </p>
           {#if branchFromId}
             <div class="branch-banner">
-              <span>Variante von <strong>V{versions.find((v) => v.id === branchFromId)?.versionNumber}</strong></span>
-              <input type="text" bind:value={branchLabelInput} placeholder="Name der Variante (z. B. „andere Vocals“)" />
-              <button class="cancel-branch" onclick={() => (branchFromId = null)} aria-label="Variante abbrechen">×</button>
+              <span>{t().track.page.variantOf} <strong>V{versions.find((v) => v.id === branchFromId)?.versionNumber}</strong></span>
+              <input type="text" bind:value={branchLabelInput} placeholder={t().track.page.variantPlaceholder} />
+              <button class="cancel-branch" onclick={() => (branchFromId = null)} aria-label={t().track.page.cancelVariant}>×</button>
             </div>
           {/if}
           {#key pickedVersions}
@@ -797,12 +798,12 @@
             onRegistering={(saving) => (savingUpload = saving)}
             initialFiles={pickedVersions}
             parentVersionId={branchFromId}
-            branchLabel={branchFromId ? branchLabelInput || 'Variante' : null}
+            branchLabel={branchFromId ? branchLabelInput || t().track.page.variantDefault : null}
             onUploaded={(count) => {
               showUpload = false;
               branchFromId = null;
               loadVersions();
-              toast(count === 1 ? 'Datei hochgeladen · wird verarbeitet' : `${count} Dateien hochgeladen · wird verarbeitet`);
+              toast(t().track.drop.uploaded(count));
             }}
           />
           {/key}
@@ -816,12 +817,12 @@
 
       {#if showStemUpload}
         <div class="upload-zone">
-          <button class="close-upload" onclick={() => { stemZone?.cancel(); showStemUpload = false; }} title="Upload abbrechen" aria-label="Upload abbrechen">
+          <button class="close-upload" onclick={() => { stemZone?.cancel(); showStemUpload = false; }} title={t().track.page.cancelUpload} aria-label={t().track.page.cancelUpload}>
             <Icon name="x" size={16} />
           </button>
           <p class="upload-title">
-            <b>Spuren hochladen</b>
-            <span>einzeln oder alle auf einmal</span>
+            <b>{t().track.stems.uploadStems}</b>
+            <span>{t().track.page.stemsSub}</span>
           </p>
           {#key pickedStems}
           <StemUploadDropzone
@@ -831,7 +832,7 @@
             onUploaded={async () => {
               showStemUpload = false;
               stems = (await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`)).stems;
-              toastSuccess('Spuren hochgeladen');
+              toastSuccess(t().track.page.stemsUploaded);
               showPanel('spuren');
             }}
           />
@@ -847,19 +848,17 @@
         {/if}
       {:else if versions.length === 0}
         <EmptyState
-          title="Noch keine Version"
-          description={stems.length
-            ? `${stems.length === 1 ? '1 Spur liegt' : `${stems.length} Spuren liegen`} bereit. Lade einen Mix hoch, um ihn hier zu hören und zu kommentieren.`
-            : 'Fang mit den Spuren an oder lade direkt einen Mix als erste Version hoch.'}
+          title={t().track.page.noVersion}
+          description={stems.length ? t().track.page.stemsReady(stems.length) : t().track.page.startWithStems}
         >
           {#snippet action()}
             {#if canUpload && !showUpload && !showStemUpload}
               <div class="empty-actions">
                 <Button variant={stems.length ? 'secondary' : 'primary'} onclick={openStemUpload}>
-                  <Icon name="upload" size={14} /> {stems.length ? 'Weitere Spuren' : 'Spuren hochladen'}
+                  <Icon name="upload" size={14} /> {stems.length ? t().track.page.moreStems : t().track.stems.uploadStems}
                 </Button>
                 <Button variant={stems.length ? 'primary' : 'secondary'} onclick={openUpload}>
-                  <Icon name="upload" size={14} /> Version hochladen
+                  <Icon name="upload" size={14} /> {t().track.page.uploadVersion}
                 </Button>
               </div>
             {/if}
@@ -925,11 +924,11 @@
           {#snippet feedback()}
             {#if canFinish && myPass.length > 0}
               <p class="finish-hint">
-                {trackComments.uploader?.name ?? 'Wer hochgeladen hat'} bekommt Bescheid, sobald du „Fertig“ drückst, sonst automatisch {REVIEW_QUIET_MINUTES} Minuten nach deinem letzten Kommentar.
+                {t().track.page.finishHint(trackComments.uploader?.name ?? t().track.page.whoUploaded, REVIEW_QUIET_MINUTES)}
               </p>
             {/if}
             {#if trackComments.uploader && trackComments.uploader.id === $user?.id}
-              <PushPrompt --margin="var(--space-3) 0 0" text="Soll Music Hub dir Bescheid geben, sobald jemand mit V{selectedVersion!.versionNumber} fertig ist? Auch wenn die Seite zu ist." />
+              <PushPrompt --margin="var(--space-3) 0 0" text={t().track.page.pushPrompt(selectedVersion!.versionNumber)} />
             {/if}
             {#if feedbackRowsShown.length > 0}
               <FeedbackList
@@ -937,7 +936,7 @@
                 versionNumber={selectedVersion!.versionNumber}
                 currentUserId={$user?.id ?? null}
                 remindable={canRemind ? trackComments.waiting.map((p) => p.id) : []}
-                onRemind={(userId) => api.post(`/versions/${selectedVersion!.id}/reviews/remind/${userId}`).then(() => toastSuccess('Erinnerung geschickt'))}
+                onRemind={(userId) => api.post(`/versions/${selectedVersion!.id}/reviews/remind/${userId}`).then(() => toastSuccess(t().track.page.reminderSent))}
               />
             {/if}
           {/snippet}
@@ -945,16 +944,16 @@
         {/if}
 
         {#if showNewVersion && !comparePair && selectedVersion && predecessor}
-          <section class="new-version" aria-label="Neue Version vergleichen">
-            <h2>V{selectedVersion.versionNumber} ist da</h2>
+          <section class="new-version" aria-label={t().track.page.compareNew}>
+            <h2>{t().track.page.versionHere(selectedVersion.versionNumber)}</h2>
             <dl>
-              <div><dt>Dauer</dt><dd>{formatTime(predecessor.duration ?? 0)} → {formatTime(selectedVersion.duration ?? 0)}</dd></div>
+              <div><dt>{t().track.page.duration}</dt><dd>{formatTime(predecessor.duration ?? 0)} → {formatTime(selectedVersion.duration ?? 0)}</dd></div>
               {#if predecessor.integratedLufs != null && selectedVersion.integratedLufs != null}
-                <div><dt>Lautheit</dt><dd>{predecessor.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {selectedVersion.integratedLufs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} LUFS</dd></div>
+                <div><dt>{t().track.page.loudness}</dt><dd>{predecessor.integratedLufs.toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {selectedVersion.integratedLufs.toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} LUFS</dd></div>
               {/if}
-              <div><dt>Offen aus V{predecessor.versionNumber}</dt><dd>{trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length} {trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length === 1 ? 'offener Punkt' : 'offene Punkte'}</dd></div>
+              <div><dt>{t().track.page.openFrom(predecessor.versionNumber)}</dt><dd>{t().track.page.openPointsCount(trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length)}</dd></div>
             </dl>
-            <div class="new-version-actions"><Button onclick={openComparison}>V{predecessor.versionNumber} ↔ V{selectedVersion.versionNumber} vergleichen</Button><Button variant="ghost" onclick={dismissComparison}>Ausblenden</Button></div>
+            <div class="new-version-actions"><Button onclick={openComparison}>{t().track.page.compareVersions(predecessor.versionNumber, selectedVersion.versionNumber)}</Button><Button variant="ghost" onclick={dismissComparison}>{t().track.page.hide}</Button></div>
           </section>
         {/if}
 
@@ -1023,16 +1022,16 @@
 {#snippet tabSwitch()}
   <div class="tab-switch" role="tablist">
     <button role="tab" aria-selected={panelTab === 'versions'} class:on={panelTab === 'versions'} onclick={() => (panelTab = 'versions')}>
-      Versionen <i>{versions.length}</i>
+      {t().track.versionList.versions} <i>{versions.length}</i>
     </button>
     <button role="tab" aria-selected={panelTab === 'spuren'} class:on={panelTab === 'spuren'} onclick={() => (panelTab = 'spuren')}>
-      Spuren <i>{stems.length}</i>
+      {t().track.page.stemsTab} <i>{stems.length}</i>
     </button>
   </div>
 {/snippet}
 
 {#if isNarrow}
-  <Sheet bind:open={sheetOpen} title={panelTab === 'versions' ? 'Versionen' : 'Spuren'}>
+  <Sheet bind:open={sheetOpen} title={panelTab === 'versions' ? t().track.versionList.versions : t().track.page.stemsTab}>
     <div class="sheet-tabs">{@render tabSwitch()}</div>
     {#if panelTab === 'versions'}
       <VersionList
@@ -1067,49 +1066,49 @@
   <ReviewSheet
     bind:open={reviewOpen}
     versionNumber={selectedVersion.versionNumber}
-    uploaderName={trackComments.uploader?.name ?? 'Wer hochgeladen hat'}
+    uploaderName={trackComments.uploader?.name ?? t().track.page.whoUploaded}
     {canApprove}
     pass={myPass}
     onSubmit={submitReview}
   />
 {/if}
 
-<Modal bind:open={coverEditOpen} title="Track-Cover ändern">
+<Modal bind:open={coverEditOpen} title={t().track.page.changeTrackCover}>
   <div class="cover-modal">
     <CoverUpload currentUrl={trackCoverUrl} name={trackName} onChange={saveTrackCover} />
   </div>
   {#snippet actions()}
-    <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>
+    <Button onclick={() => (coverEditOpen = false)}>{t().common.close}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={renameOpen} title="Track umbenennen">
+<Modal bind:open={renameOpen} title={t().track.page.renameTrack}>
   <form class="edit-form" onsubmit={(e) => { e.preventDefault(); saveRename(); }}>
     <label>
-      <span class="lbl">Name</span>
+      <span class="lbl">{t().common.name}</span>
       <input type="text" bind:value={renameValue} maxlength="255" />
     </label>
   </form>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (renameOpen = false)}>Abbrechen</Button>
-    <Button onclick={saveRename} disabled={!renameValue.trim()}>Speichern</Button>
+    <Button variant="ghost" onclick={() => (renameOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={saveRename} disabled={!renameValue.trim()}>{t().common.save}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={editVersionOpen} title="Version bearbeiten">
+<Modal bind:open={editVersionOpen} title={t().track.page.editVersion}>
   <div class="edit-form">
     <label>
-      <span class="lbl">Bezeichnung</span>
-      <input type="text" bind:value={editVersionLabel} placeholder="z. B. „Mehr Bass“" />
+      <span class="lbl">{t().track.page.label}</span>
+      <input type="text" bind:value={editVersionLabel} placeholder={t().track.page.labelPlaceholder} />
     </label>
     <label>
-      <span class="lbl">Notizen</span>
-      <textarea bind:value={editVersionNotes} rows="4" placeholder="Was hat sich geändert?"></textarea>
+      <span class="lbl">{t().track.page.notes}</span>
+      <textarea bind:value={editVersionNotes} rows="4" placeholder={t().track.page.notesPlaceholder}></textarea>
     </label>
   </div>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (editVersionOpen = false)}>Abbrechen</Button>
-    <Button onclick={saveVersion} loading={savingVersion}>Speichern</Button>
+    <Button variant="ghost" onclick={() => (editVersionOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={saveVersion} loading={savingVersion}>{t().common.save}</Button>
   {/snippet}
 </Modal>
 

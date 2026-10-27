@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
@@ -34,7 +35,7 @@
   const ix = $derived($overviewIndex);
   const groups = $derived(ix ? projectGroups(ix) : []);
   const events = $derived(ix ? eventsOf(ix) : []);
-  const today = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const today = $derived(new Date().toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' }));
 
   // Until someone else is in one of your projects, three steps lead to the first feedback
   const alone = $derived(ix ? isAlone(ix) : false);
@@ -44,9 +45,9 @@
   const parts = $derived.by(() => {
     const w = weekSummary(events);
     const out: string[] = [];
-    if (w.versions) out.push(w.versions === 1 ? '1 neue Version' : `${w.versions} neue Versionen`);
-    if (w.comments) out.push(w.comments === 1 ? '1 Kommentar' : `${w.comments} Kommentare`);
-    if (w.approvals) out.push(w.approvals === 1 ? 'eine Freigabe' : `${w.approvals} Freigaben`);
+    if (w.versions) out.push(t().overview.dashboard.newVersions(w.versions));
+    if (w.comments) out.push(t().common.comments(w.comments));
+    if (w.approvals) out.push(t().overview.dashboard.approvals(w.approvals));
     return out;
   });
 
@@ -58,11 +59,11 @@
   const showLoudness = $derived(loudnessGroups(groups).length > 0);
 </script>
 
-<TopBar crumbs={[{ label: 'Übersicht' }]}>
+<TopBar crumbs={[{ label: t().overview.dashboard.title }]}>
   {#snippet actions()}
     <!-- The steps carry the main button while they show -->
-    {#if !alone}<Button href="/projects/new" size="sm">Neues Projekt</Button>
-    {:else if ix?.data.projects.length}<Button href="/projects/new" size="sm" variant="secondary">Neues Projekt</Button>{/if}
+    {#if !alone}<Button href="/projects/new" size="sm">{t().overview.shared.newProject}</Button>
+    {:else if ix?.data.projects.length}<Button href="/projects/new" size="sm" variant="secondary">{t().overview.shared.newProject}</Button>{/if}
   {/snippet}
 </TopBar>
 
@@ -80,15 +81,15 @@
       <p class="date">{today}</p>
       <p class="sum">
         {#if welcome}
-          Willkommen{$user ? `, ${firstName($user.name)}` : ''}. <b>In drei Schritten</b> hörst du das erste Feedback zu deinem Song.
+          {t().overview.dashboard.welcome($user ? firstName($user.name) : null)} <b>{t().overview.dashboard.welcomeBold}</b> {t().overview.dashboard.welcomeAfter}
         {:else if parts.length}
-          In den letzten sieben Tagen:{#each parts as part, i (part)}{i === 0 ? ' ' : i === parts.length - 1 ? ' und ' : ', '}<b>{part}</b>{/each}.
+          {t().overview.dashboard.lastWeek}{#each parts as part, i (part)}{t().overview.dashboard.separator(i, parts.length)}<b>{part}</b>{/each}.
         {:else}
-          In den letzten sieben Tagen war es ruhig.
+          {t().overview.dashboard.quiet}
         {/if}
-        {#if alone && !welcome}Noch hört niemand mit.{/if}
+        {#if alone && !welcome}{t().overview.dashboard.nobodyListens}{/if}
         {#if $tasks.length}
-          <a href="/for-you">{$tasks.length === 1 ? 'Eine Aufgabe wartet' : `${$tasks.length} Aufgaben warten`} auf dich.</a>
+          <a href="/for-you">{t().overview.dashboard.tasksWaiting($tasks.length)}</a>
         {/if}
       </p>
     </div>

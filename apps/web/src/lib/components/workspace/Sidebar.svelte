@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { t } from '$lib/i18n/index.js';
   import { user, logout } from '$lib/stores/auth.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -14,15 +15,15 @@
   type ProjectMembership = { project: OverviewProject; trackCount: number };
   type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
 
-  const NAV = [
-    { href: '/dashboard', icon: 'home', label: 'Übersicht' },
-    { href: '/for-you', icon: 'inbox', label: 'Für dich' },
-    { href: '/offen', icon: 'git-branch', label: 'Offene Musik' },
-    { href: '/trash', icon: 'trash', label: 'Papierkorb' },
-    { href: '/archive', icon: 'archive', label: 'Archiv' },
-  ] as const;
+  const NAV = $derived([
+    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview },
+    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou },
+    { href: '/offen', icon: 'git-branch', label: t().workspace.nav.openMusic },
+    { href: '/trash', icon: 'trash', label: t().workspace.nav.trash },
+    { href: '/archive', icon: 'archive', label: t().workspace.nav.archive },
+  ] as const);
 
-  // Only for addresses in ADMIN_EMAILS
+  // Only for addresses in ADMIN_EMAILS; the admin area stays German
   const ADMIN_NAV = [
     { href: '/admin', icon: 'gauge', label: 'Lagebild' },
     { href: '/admin/users', icon: 'users', label: 'Nutzerliste' },
@@ -127,7 +128,7 @@
   <div class="sb-head">
     <a href="/dashboard" class="logo" onclick={handleNavClick}><Tile size={28} /> Music Hub</a>
     {#if open}
-      <button class="close" onclick={onClose} aria-label="Schließen">
+      <button class="close" onclick={onClose} aria-label={t().common.close}>
         <Icon name="x" size={18} />
       </button>
     {/if}
@@ -138,8 +139,8 @@
       bind:this={searchInput}
       type="text"
       bind:value={query}
-      placeholder={touch ? 'Suchen…' : 'Suchen…  (/)'}
-      aria-label="Suchen"
+      placeholder={touch ? t().workspace.sidebar.search : t().workspace.sidebar.searchWithKey}
+      aria-label={t().workspace.sidebar.searchLabel}
     />
   </div>
 
@@ -177,8 +178,8 @@
 
   <div class="section">
     <div class="section-head">
-      <span>Projekte</span>
-      <a href="/projects/new" class="add" title="Neues Projekt" aria-label="Neues Projekt" onclick={handleNavClick}>
+      <span>{t().workspace.sidebar.projects}</span>
+      <a href="/projects/new" class="add" title={t().workspace.sidebar.newProject} aria-label={t().workspace.sidebar.newProject} onclick={handleNavClick}>
         <Icon name="plus" size={14} />
       </a>
     </div>
@@ -188,7 +189,7 @@
         <div class="artist-group">
           {#if group.artist}
             <div class="artist-head" class:active={$page.params.artist === group.artist}>
-              <button class="toggle" onclick={() => toggleArtist(group.artist)} aria-label={expanded ? 'Zuklappen' : 'Aufklappen'}>
+              <button class="toggle" onclick={() => toggleArtist(group.artist)} aria-label={expanded ? t().workspace.sidebar.collapse : t().workspace.sidebar.expand}>
                 <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
               </button>
               <a href="/artists/{encodeURIComponent(group.artist)}" class="artist-name" onclick={handleNavClick}>{group.artist}</a>
@@ -196,7 +197,7 @@
             </div>
           {:else}
             <div class="artist-head ungrouped">
-              <span class="artist-name">Ohne Zuordnung</span>
+              <span class="artist-name">{t().workspace.sidebar.unassigned}</span>
             </div>
           {/if}
 
@@ -240,9 +241,9 @@
         </div>
       {/each}
       {#if filtered.length === 0 && query}
-        <p class="empty">Nichts gefunden für „{query}“</p>
+        <p class="empty">{t().workspace.sidebar.nothingFound(query)}</p>
       {:else if projects.length === 0}
-        <p class="empty">Noch keine Projekte</p>
+        <p class="empty">{t().workspace.sidebar.noProjects}</p>
       {/if}
     </div>
   </div>
@@ -257,8 +258,8 @@
     </button>
     {#if menuOpen}
       <div class="menu" role="menu">
-        <a href="/account" onclick={() => { menuOpen = false; handleNavClick(); }}>Konto</a>
-        <button onclick={handleLogout}>Abmelden</button>
+        <a href="/account" onclick={() => { menuOpen = false; handleNavClick(); }}>{t().workspace.sidebar.account}</a>
+        <button onclick={handleLogout}>{t().workspace.sidebar.logout}</button>
       </div>
     {/if}
   </div>

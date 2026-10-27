@@ -11,6 +11,8 @@ import { contactState, openTracksOf, sharedProject, suggestHandle, visibleProfil
 import { notifyUser } from '../services/push.js';
 import { sendContactRequestEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
+import { pickLocale } from '@music-hub/shared';
 
 const DAY = 24 * 60 * 60 * 1000;
 const requestsPerUser = rateLimit('contact-requests-per-user', 10, DAY);
@@ -31,7 +33,7 @@ export const profileRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const input = c.req.valid('json');
     const [taken] = await db.select({ userId: profiles.userId }).from(profiles).where(eq(profiles.handle, input.handle));
-    if (taken && taken.userId !== userId) return c.json({ error: 'Diesen Namen hat schon jemand.' }, 409);
+    if (taken && taken.userId !== userId) return c.json({ error: t(c).errors.handleTaken }, 409);
 
     const values = { ...input, bio: input.bio || null, updatedAt: new Date() };
     const [profile] = await db
@@ -46,7 +48,7 @@ export const profileRoutes = new Hono<AppEnv>()
   .get('/:handle', optionalAuth, async (c) => {
     const db = c.get('db');
     const found = await visibleProfile(db, c.req.param('handle'));
-    if (!found) return c.json({ error: 'Dieses Profil gibt es nicht.' }, 404);
+    if (!found) return c.json({ error: t(c).errors.noProfile }, 404);
     const { profile } = found;
     const viewerId = c.get('userId') as string | undefined;
 
@@ -92,11 +94,11 @@ export const profileRoutes = new Hono<AppEnv>()
     const userId = c.get('userId');
     const { message, trackId } = c.req.valid('json');
     const found = await visibleProfile(db, c.req.param('handle'));
-    if (!found) return c.json({ error: 'Dieses Profil gibt es nicht.' }, 404);
+    if (!found) return c.json({ error: t(c).errors.noProfile }, 404);
     const state = await contactState(db, found.profile, userId);
-    if (state === 'sent') return c.json({ error: 'Deine Anfrage ist schon unterwegs.' }, 409);
-    if (state === 'connected') return c.json({ error: 'Ihr habt schon ein gemeinsames Projekt.' }, 409);
-    if (state !== 'allowed') return c.json({ error: 'Anfragen sind hier gerade nicht möglich.' }, 403);
+    if (state === 'sent') return c.json({ error: t(c).errors.requestSent }, 409);
+    if (state === 'connected') return c.json({ error: t(c).errors.alreadyConnected }, 409);
+    if (state !== 'allowed') return c.json({ error: t(c).errors.requestsClosed }, 403);
     if (!(await requestsPerUser.hit(db, userId))) return tooManyRequests(c);
 
     // Only one of the recipient's open tracks can be what it is about
@@ -108,15 +110,15 @@ export const profileRoutes = new Hono<AppEnv>()
 
     const [[sender], [recipient]] = await Promise.all([
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
-      db.select({ email: users.email }).from(users).where(eq(users.id, found.profile.userId)),
+      db.select({ email: users.email, locale: users.locale }).from(users).where(eq(users.id, found.profile.userId)),
     ]);
-    runInBackground(notifyUser(db, found.profile.userId, {
+    runInBackground(notifyUser(db, found.profile.userId, (m) => ({
       requestId: request.id,
-      title: `Anfrage von ${sender.name}`,
+      title: m.push.contactRequest(sender.name),
       body: message.length > 120 ? `${message.slice(0, 119)}…` : message,
       url: '/for-you',
-    }).catch((err) => console.error('[Push] Contact request failed:', err.message)));
-    runInBackground(sendContactRequestEmail(recipient.email, sender.name, message).catch((err) =>
+    })).catch((err) => console.error('[Push] Contact request failed:', err.message)));
+    runInBackground(sendContactRequestEmail(recipient.email, sender.name, message, pickLocale(recipient.locale)).catch((err) =>
       console.error('[Email] Contact request failed:', err.message),
     ));
     return c.json({ request: { id: request.id } }, 201);

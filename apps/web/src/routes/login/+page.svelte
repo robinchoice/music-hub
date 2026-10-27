@@ -1,8 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { loginTexts, safeNextPath } from '@music-hub/shared';
+  import { loginMessages, safeNextPath } from '@music-hub/shared';
   import { isApiError } from '$lib/api/client.js';
+  import { locale, t } from '$lib/i18n/index.js';
   import { user, login, sendMagicLink, verifyCode, passkeyLogin, isPasskeyCancelled } from '$lib/stores/auth.js';
   import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
   import { onMount, onDestroy, tick } from 'svelte';
@@ -25,8 +26,7 @@
   // Magic Link
   let magicEmail = $state('');
   let code = $state('');
-  let language = $state('de');
-  const texts = $derived(loginTexts(language));
+  const texts = $derived(loginMessages[locale()]);
   let magicSent = $state(false);
   let magicLoading = $state(false);
   let magicError = $state('');
@@ -41,7 +41,6 @@
     const updateVisibility = () => (visible = document.visibilityState === 'visible');
     updateVisibility();
     document.addEventListener('visibilitychange', updateVisibility);
-    language = navigator.language;
     passkeys = browserSupportsWebAuthn();
     browserSupportsWebAuthnAutofill().then((available) => (autofillAvailable = available));
     return () => document.removeEventListener('visibilitychange', updateVisibility);
@@ -106,7 +105,7 @@
       await login(email, password);
       goto(next ?? '/dashboard');
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
+      error = err instanceof Error ? err.message : t().guest.login.failed;
     } finally {
       loading = false;
     }
@@ -121,7 +120,7 @@
       await sendMagicLink(magicEmail, next ?? undefined, updates);
       magicSent = true;
     } catch (err) {
-      magicError = err instanceof Error ? err.message : 'Fehler beim Senden';
+      magicError = err instanceof Error ? err.message : t().guest.login.sendFailed;
     } finally {
       magicLoading = false;
     }
@@ -145,26 +144,26 @@
 
 <div class="shell">
   <div class="login-page">
-    <a href="/" class="back">← Zurück</a>
+    <a href="/" class="back">← {t().common.back}</a>
 
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
-      <h1>Einloggen</h1>
+      <h1>{t().common.logIn}</h1>
 
       <div class="tabs">
-        <button class:active={tab === 'password'} onclick={() => (tab = 'password')}>Passwort</button>
-        <button class:active={tab === 'magic'} onclick={() => (tab = 'magic')}>Magic Link</button>
+        <button class:active={tab === 'password'} onclick={() => (tab = 'password')}>{t().common.password}</button>
+        <button class:active={tab === 'magic'} onclick={() => (tab = 'magic')}>{t().guest.login.magicTab}</button>
       </div>
 
       {#if tab === 'password'}
         <form onsubmit={handleLogin}>
-          <Input type="email" autocomplete="username webauthn" bind:value={email} placeholder="deine@email.de" label="E-Mail" />
-          <Input type="password" bind:value={password} placeholder="Dein Passwort" label="Passwort" />
+          <Input type="email" autocomplete="username webauthn" bind:value={email} placeholder={t().guest.login.emailPlaceholder} label={t().common.email} />
+          <Input type="password" bind:value={password} placeholder={t().guest.login.passwordPlaceholder} label={t().common.password} />
           {#if error}
             <p class="error">{error}</p>
           {/if}
           <Button type="submit" size="lg" {loading} disabled={!email || !password}>
-            Einloggen
+            {t().common.logIn}
           </Button>
         </form>
       {:else}
@@ -174,19 +173,19 @@
             <Input label={texts.code} bind:value={code} inputmode="numeric" autocomplete="one-time-code" maxlength={6} error={magicError} />
             <Button type="submit" loading={magicLoading} disabled={!/^\d{6}$/.test(code)}>{texts.verify}</Button>
             <Button variant="secondary" onclick={() => { magicSent = false; magicEmail = ''; code = ''; magicError = ''; }}>
-              Andere Adresse
+              {t().guest.login.otherAddress}
             </Button>
           </form>
         {:else}
           <form onsubmit={handleMagicLink}>
-            <p class="hint">Kein Passwort? Wir schicken dir einen Login-Link per E-Mail.</p>
-            <Input type="email" autocomplete="username webauthn" bind:value={magicEmail} placeholder="deine@email.de" label="E-Mail" error={magicError} />
+            <p class="hint">{t().guest.login.magicHint}</p>
+            <Input type="email" autocomplete="username webauthn" bind:value={magicEmail} placeholder={t().guest.login.emailPlaceholder} label={t().common.email} error={magicError} />
             <label class="check">
               <input type="checkbox" bind:checked={updates} />
-              <span>Schick mir Updates zu neuen Funktionen per Mail. Abbestellen geht jederzeit.</span>
+              <span>{t().guest.login.updatesOptIn}</span>
             </label>
             <Button type="submit" size="lg" loading={magicLoading}>
-              Login-Link senden
+              {t().guest.login.sendLink}
             </Button>
           </form>
         {/if}
@@ -198,10 +197,10 @@
         </div>
       {/if}
       {#if passkeyError}<p class="error" role="alert">{passkeyError}</p>{/if}
-      <p class="switch">Noch kein Konto oder kein Passwort? <a href="/register">Konto anlegen</a></p>
+      <p class="switch">{t().guest.login.noAccount} <a href="/register">{t().common.signUp}</a></p>
     </div>
 
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>

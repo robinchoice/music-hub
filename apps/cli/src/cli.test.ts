@@ -290,7 +290,7 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
   const { tracks: songs } = await projectWithTracks(ada, 'Klanglabor Album', ['Morgenrot', 'Abendrot']);
   const create = ['deliveries', 'create', '--project', 'klanglabor album', '--client', 'Kim', '--price', '120'];
 
-  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.plan_required });
+  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.plan_required });
   await db.update(users).set({ plan: 'solo' }).where(eq(users.id, ada.id));
 
   expect((await cli([...create.slice(0, -1), '12.345'])).code).toBe(2);
@@ -316,7 +316,7 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
     tracks: [{ trackId: songs[0]!.id, name: 'Morgenrot', priceCents: 12000, roundsUsed: 0, roundsIncluded: 3 }],
     totals: { totalCents: 12000, trackCount: 1, approvedCount: 0 },
   });
-  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.delivery_exists });
+  expect(await cli(create)).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.delivery_exists });
 
   const line = [delivery.id, 'Klanglabor Album', 'Kim', 'offen', '0/1 freigegeben', formatEuro(12000)].join(' · ');
   expect(await cli(['deliveries', 'list'])).toMatchObject({ code: 0, out: line });
@@ -347,7 +347,7 @@ test('deliveries: a studio with the Solo plan creates, lists and shows a deliver
     delivery: { status: 'paid', payments: [{ method: 'transfer', status: 'paid', confirmedByName: 'Ada' }] },
   });
   expect(await cli(['deliveries', 'confirm-payment', delivery.id])).toMatchObject({ code: 1, err: texts.noOpenTransfer });
-  expect(await cli(['deliveries', 'cancel', delivery.id])).toMatchObject({ code: 1, err: DELIVERY_ERRORS.not_open });
+  expect(await cli(['deliveries', 'cancel', delivery.id])).toMatchObject({ code: 1, err: DELIVERY_ERRORS.de.not_open });
 });
 
 test('deliveries: cancelling frees the link for a new one, others in the project only see their refusal', async () => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import DashCard from './DashCard.svelte';
   import { trackHref, turnRows, type OverviewIndex, type ProjectGroup } from '$lib/utils/overview.js';
@@ -9,14 +10,14 @@
   const rows = $derived(turnRows(ix, groups.flatMap((g) => g.list)));
 </script>
 
-<DashCard icon="users" title="Wer ist dran" sub="laufende Tracks" {span}>
+<DashCard icon="users" title={t().overview.turn.title} sub={t().overview.turn.sub} {span}>
   {#each rows as row (row.key)}
     <div class="who">
       <Avatar name={row.avatarName} src={row.avatarUrl} size="sm" />
       <div class="main">
         <div class="name">
           <span>{row.label}</span>
-          <small>{row.infos.length === 1 ? '1 Track' : `${row.infos.length} Tracks`}</small>
+          <small>{t().common.tracks(row.infos.length)}</small>
         </div>
         <div class="chips">
           {#each row.infos as info (info.track.id)}

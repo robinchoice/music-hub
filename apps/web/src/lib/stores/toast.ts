@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { t } from '$lib/i18n/index.js';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'trash';
 
@@ -27,4 +28,4 @@ export function removeToast(id: string) {
 export const toastSuccess = (msg: string) => toast(msg, 'success');
 export const toastError = (msg: string) => toast(msg, 'error', 6000);
 // Something went to the trash; for eight seconds it can be undone right here
-export const toastTrash = (msg: string, undo: () => void) => toast(msg, 'trash', 8000, { label: 'Rückgängig', run: undo });
+export const toastTrash = (msg: string, undo: () => void) => toast(msg, 'trash', 8000, { label: t().common.undo, run: undo });

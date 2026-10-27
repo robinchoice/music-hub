@@ -15,6 +15,7 @@ import { sendFeedbackEmail } from '../services/email.js';
 import { membershipOf } from './access.js';
 import { reachOf } from './users.js';
 import { publish } from '../services/sse.js';
+import { messages, type Messages } from './messages.js';
 
 const QUIET = `${REVIEW_QUIET_MINUTES} minutes`;
 const WINDOW = `${REVIEW_PASS_HOURS} hours`;
@@ -100,20 +101,21 @@ export async function submitReview(
   return review;
 }
 
-function feedbackText(authorName: string, trackName: string, versionNumber: number, verdict: ReviewVerdict | null, count: number, note: string | null) {
+function feedbackText(m: Messages, authorName: string, trackName: string, versionNumber: number, verdict: ReviewVerdict | null, count: number, note: string | null) {
+  const text = m.review;
   const version = `${trackName} V${versionNumber}`;
-  const notes = count === 0 ? null : count === 1 ? 'eine Anmerkung' : `${count} Anmerkungen`;
-  const quote = note ? `„${note.length > 80 ? `${note.slice(0, 79)}…` : note}“` : null;
+  const notes = count === 0 ? null : text.notes(count);
+  const quote = note ? text.quote(note.length > 80 ? `${note.slice(0, 79)}…` : note) : null;
   const parts = (...list: (string | null)[]) => list.filter(Boolean).join(' · ');
   switch (verdict) {
     case 'approve':
-      return { title: `V${versionNumber} freigegeben`, body: parts(`${authorName} hat ${version} freigegeben`, notes, quote) };
+      return { title: text.approvedTitle(versionNumber), body: parts(text.approvedBody(authorName, version), notes, quote) };
     case 'fine':
-      return { title: `${authorName}: V${versionNumber} passt`, body: parts(version, notes, quote) };
+      return { title: text.fineTitle(authorName, versionNumber), body: parts(version, notes, quote) };
     case 'changes':
-      return { title: `${authorName} wünscht Änderungen`, body: parts(version, notes, quote) };
+      return { title: text.changesTitle(authorName), body: parts(version, notes, quote) };
     default:
-      return { title: `Feedback zu V${versionNumber}`, body: parts(`${authorName}: ${notes ?? 'keine Anmerkungen'} zu ${version}`, quote) };
+      return { title: text.feedbackTitle(versionNumber), body: parts(text.feedbackBody(authorName, notes ?? text.noNotes, version), quote) };
   }
 }
 
@@ -127,19 +129,19 @@ async function deliverFeedback(
   if (!(await membershipOf(db, track.projectId, version.createdById))) return;
   const { push, mail } = await reachOf(db, [version.createdById]);
 
-  const text = feedbackText(input.authorName, track.name, version.versionNumber, input.verdict, input.comments.length, input.note);
+  const text = (m: Messages) => feedbackText(m, input.authorName, track.name, version.versionNumber, input.verdict, input.comments.length, input.note);
   if (push.length) {
-    await notifyUser(db, version.createdById, { projectId: track.projectId, trackId: track.id, ...text, url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}` });
+    await notifyUser(db, version.createdById, (m) => ({ projectId: track.projectId, trackId: track.id, ...text(m), url: `/projects/${track.projectId}/tracks/${track.id}?v=${version.id}` }));
   } else if (mail.length) {
     await sendFeedbackEmail(mail[0].email, mail[0].mailToken, {
-      title: text.title,
+      title: text(messages[mail[0].locale]).title,
       projectId: track.projectId,
       trackId: track.id,
       trackName: track.name,
       versionNumber: version.versionNumber,
       note: input.note,
       comments: input.comments,
-    });
+    }, mail[0].locale);
   }
 }
 

@@ -167,7 +167,7 @@
     <div class="body">
       <div class="invite">
         {#if p.invitedTo}
-          Eingeladen am <b>{formatWhen(p.invitedTo.at)}</b> zu <b>{p.invitedTo.projectName}</b> als {ROLE_LABELS[p.invitedTo.role]}.
+          Eingeladen am <b>{formatWhen(p.invitedTo.at)}</b> zu <b>{p.invitedTo.projectName}</b> als {ROLE_LABELS.de[p.invitedTo.role]}.
         {/if}
         Noch nie angemeldet, als Name steht noch der Teil der Adresse vor dem @.
         {#if invite}{invite.long}{/if}
@@ -315,7 +315,7 @@
       {#each detail?.projects ?? [] as project (project.id)}
         <li>
           <span class="grow"><b>{project.name}</b>{#if project.artist}<span class="sub">{project.artist}</span>{/if}</span>
-          <span class="role">{ROLE_LABELS[project.role]}</span>
+          <span class="role">{ROLE_LABELS.de[project.role]}</span>
           <span class="t">seit {longDate(project.since)}</span>
         </li>
       {/each}

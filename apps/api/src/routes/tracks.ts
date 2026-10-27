@@ -12,17 +12,18 @@ import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { notifyUser } from '../services/push.js';
 import { membershipOf, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 // Reminders to agree to opening a track, per track and person
 const openReminders = rateLimit('open-reminders', 1, 60 * 60 * 1000);
 
 function askForConsent(db: Database, track: { id: string; name: string; projectId: string }, userId: string) {
-  return notifyUser(db, userId, {
+  return notifyUser(db, userId, (m) => ({
     projectId: track.projectId, trackId: track.id,
-    title: 'Offen stellen?',
-    body: `${track.name} soll offen werden. Stimmst du zu?`,
+    title: m.push.openConsent,
+    body: m.push.openConsentBody(track.name),
     url: `/projects/${track.projectId}/tracks/${track.id}`,
-  }).catch(() => {});
+  })).catch(() => {});
 }
 
 export const trackRoutes = new Hono<AppEnv>()
@@ -150,10 +151,10 @@ export const trackRoutes = new Hono<AppEnv>()
 
     const state = await openStateOf(db, track.id);
     if (!state.allowedLicenses.includes(license)) {
-      return c.json({ error: 'Diese Lizenz erlaubt das Original nicht' }, 400);
+      return c.json({ error: t(c).errors.licenseNoOriginal }, 400);
     }
     const result = await requestOpen(db, track.id, userId, license);
-    if (!result) return c.json({ error: 'Erst eine Version freigeben' }, 400);
+    if (!result) return c.json({ error: t(c).errors.approveFirst }, 400);
 
     const open = await openStateOf(db, track.id);
     if (!result.opened) {

@@ -253,6 +253,13 @@
       "when": 1793029467340,
       "tag": "0035_deliveries",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793121907985,
+      "tag": "0036_user_locale",
+      "breakpoints": true
     }
   ]
 }

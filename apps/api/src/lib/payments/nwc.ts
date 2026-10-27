@@ -1,7 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { NWCClient } from '@getalby/sdk/nwc';
-import { DELIVERY_ERRORS } from '@music-hub/shared';
 import { z } from 'zod';
 import { PaymentServiceError, withTimeout } from './errors.js';
 
@@ -53,8 +52,6 @@ export const REQUIRED_METHODS = ['make_invoice', 'lookup_invoice'] as const;
 // Each relay round trip (connect, request and reply) gets at most this long
 export const NWC_TIMEOUT_MS = 10_000;
 
-const INVALID_URL = 'Diese Wallet-Verbindung ist ungültig.';
-
 let factory: NwcFactory | null = null;
 
 /** Test hook: API tests inject a fake wallet; null restores the real connection. */
@@ -68,7 +65,7 @@ export function setNwcFactory(next: NwcFactory | null): void {
  */
 export async function connectNwc(url: string, options: { timeoutMs?: number; allowLocalRelays?: boolean } = {}): Promise<NwcClient> {
   const checked = options.allowLocalRelays !== true;
-  if (checked && relayProblem(url)) throw new PaymentServiceError(DELIVERY_ERRORS.relay_refused);
+  if (checked && relayProblem(url)) throw new PaymentServiceError('relay_refused');
   if (factory) return factory(url);
   return connectRelay(url, options.timeoutMs ?? NWC_TIMEOUT_MS, checked);
 }
@@ -156,7 +153,7 @@ async function assertPublicRelays(relays: string[]) {
     const host = new URL(relay).hostname.replace(/^\[|\]$/g, '');
     const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => []);
     if (addresses.length === 0) throw new PaymentServiceError();
-    if (addresses.some((a) => blockedAddress(a.address))) throw new PaymentServiceError(DELIVERY_ERRORS.relay_refused);
+    if (addresses.some((a) => blockedAddress(a.address))) throw new PaymentServiceError('relay_refused');
   }
 }
 
@@ -180,7 +177,7 @@ async function connectRelay(url: string, timeoutMs: number, publicOnly: boolean)
     client = new NWCClient({ nostrWalletConnectUrl: url, requireSecret: true });
   } catch {
     // The SDK's message may quote parts of the URL
-    throw new PaymentServiceError(INVALID_URL);
+    throw new PaymentServiceError('wallet_invalid');
   }
   const call = async <T>(run: () => Promise<T>): Promise<T> => {
     try {

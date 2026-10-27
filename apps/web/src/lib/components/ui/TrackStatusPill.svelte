@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale } from '$lib/i18n/index.js';
   import { TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
 
   let {
@@ -44,7 +45,7 @@
   style="background: {c.bg}; color: {c.fg}; border-color: {c.border}"
 >
   <span class="dot" style="background: {c.fg}"></span>
-  {TRACK_STATUS_LABELS[status] ?? status}
+  {TRACK_STATUS_LABELS[locale()][status] ?? status}
 </span>
 
 <style>

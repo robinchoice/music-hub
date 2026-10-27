@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import DashCard from './DashCard.svelte';
   import { formatGb, formatGbSplit } from '$lib/utils/format.js';
   import type { OverviewStorage } from '$lib/utils/overview.js';
@@ -9,24 +10,24 @@
   const [versions, stems] = $derived(formatGbSplit(storage.usedBytes, storage.versionBytes));
   const limit = $derived(`${Math.round(storage.limitBytes / 1024 ** 3)} GB`);
   const tip = $derived(
-    `${formatGb(storage.usedBytes)} von ${limit} belegt (${Math.round(pct(storage.usedBytes))} %)\nVersionen ${versions}, Spuren ${stems}`,
+    t().overview.storage.tip(formatGb(storage.usedBytes), limit, Math.round(pct(storage.usedBytes)), versions, stems),
   );
 </script>
 
-<DashCard icon="drive" title="Speicher" sub="deine Uploads">
-  <div class="num">{formatGb(storage.usedBytes)} <span>von {limit}</span></div>
+<DashCard icon="drive" title={t().overview.storage.title} sub={t().overview.storage.sub}>
+  <div class="num">{formatGb(storage.usedBytes)} <span>{t().overview.storage.of(limit)}</span></div>
   <div class="meter" data-tt={tip}>
     {#if storage.versionBytes}<i style="width: {pct(storage.versionBytes)}%; background: var(--color-series-1)"></i>{/if}
     {#if storage.stemBytes}<i style="width: {pct(storage.stemBytes)}%; background: var(--color-series-2)"></i>{/if}
   </div>
   <div class="legend">
-    <span><i style="background: var(--color-series-1)"></i>Versionen {versions}</span>
-    <span><i style="background: var(--color-series-2)"></i>Spuren {stems}</span>
+    <span><i style="background: var(--color-series-1)"></i>{t().overview.storage.versions(versions)}</span>
+    <span><i style="background: var(--color-series-2)"></i>{t().overview.storage.stems(stems)}</span>
   </div>
   {#if storage.topTracks.length}
     <ul class="top">
-      {#each storage.topTracks as t (t.trackId)}
-        <li><span>{t.name}</span><b>{formatGb(t.bytes)}</b></li>
+      {#each storage.topTracks as top (top.trackId)}
+        <li><span>{top.name}</span><b>{formatGb(top.bytes)}</b></li>
       {/each}
     </ul>
   {/if}

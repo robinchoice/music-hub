@@ -23,6 +23,7 @@ import { handlesOf } from '../lib/profiles.js';
 import { sendOpenReportEmail } from '../services/email.js';
 import { zipResponse } from './stems.js';
 import type { AppEnv } from '../types.js';
+import { locale, t } from '../lib/i18n.js';
 
 const HOUR = 60 * 60 * 1000;
 // Open stems are public; these keep a single address from running up the bucket's traffic
@@ -30,7 +31,6 @@ const downloadsPerIp = rateLimit('open-downloads-per-ip', 300, HOUR);
 const zipsPerIp = rateLimit('open-zips-per-ip', 10, HOUR);
 const reportsPerIp = rateLimit('open-reports-per-ip', 5, HOUR);
 
-const NOT_OPEN = 'Diese Seite ist nicht (mehr) offen.';
 
 const countDownload = (db: Database, trackId: string) =>
   db.update(openTracks).set({ downloadCount: sql`${openTracks.downloadCount} + 1` }).where(eq(openTracks.trackId, trackId));
@@ -69,7 +69,7 @@ export const openRoutes = new Hono<AppEnv>()
   .get('/:trackId', optionalAuth, async (c) => {
     const db = c.get('db');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     const { open, track, version, project } = found;
     const license = open.license as OpenLicense;
 
@@ -95,7 +95,7 @@ export const openRoutes = new Hono<AppEnv>()
       starred: !!starred,
       license,
       openedAt: open.openedAt,
-      credit: creditLine(track.name, artistOf(project), people.map((p) => p.name), license, track.id),
+      credit: creditLine(track.name, artistOf(project), people.map((p) => p.name), license, track.id, locale(c)),
       coverUrl: cover ? await createDownloadUrl(cover) : null,
       version: { duration: version.duration, label: version.label },
       streamUrl: await createDownloadUrl(version.streamFileKey || version.originalFileKey),
@@ -108,7 +108,7 @@ export const openRoutes = new Hono<AppEnv>()
   .get('/:trackId/stems/:stemId', async (c) => {
     const db = c.get('db');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     const stem = (await openStems(db, found.track.id, found.open.openedAt!)).find((s) => s.id === c.req.param('stemId'));
     if (!stem) return c.json({ error: 'Not found' }, 404);
     if (!(await downloadsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
@@ -119,7 +119,7 @@ export const openRoutes = new Hono<AppEnv>()
   .get('/:trackId/mix', async (c) => {
     const db = c.get('db');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     if (!(await downloadsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     await countDownload(db, found.track.id);
     const { version } = found;
@@ -129,11 +129,11 @@ export const openRoutes = new Hono<AppEnv>()
   .get('/:trackId/zip', async (c) => {
     const db = c.get('db');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     const files = await openStems(db, found.track.id, found.open.openedAt!);
     if (files.length === 0) return c.json({ error: 'No stems found' }, 404);
     if (files.reduce((sum, s) => sum + s.fileSize, 0) > MAX_ZIP_SIZE) {
-      return c.json({ error: 'Zu groß für ein ZIP — bitte die Spuren einzeln laden' }, 413);
+      return c.json({ error: t(c).errors.zipTooLarge }, 413);
     }
     if (!(await zipsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     await countDownload(db, found.track.id);
@@ -144,7 +144,7 @@ export const openRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const { reason, email } = c.req.valid('json');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     if (!(await reportsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     await db.insert(openReports).values({ trackId: found.track.id, reason, email: email ?? null });
@@ -156,14 +156,14 @@ export const openRoutes = new Hono<AppEnv>()
 
   .post('/:trackId/fork', requireAuth, zValidator('json', forkTrackSchema), async (c) => {
     const db = c.get('db');
-    const track = await forkTrack(db, c.req.param('trackId'), c.get('userId'), c.req.valid('json').projectId);
+    const track = await forkTrack(db, c.req.param('trackId'), c.get('userId'), c.req.valid('json').projectId, locale(c));
     if (!track) return c.json({ error: 'Forbidden' }, 403);
     return c.json({ track: { id: track.id, projectId: track.projectId } }, 201);
   })
   .put('/:trackId/star', requireAuth, async (c) => {
     const db = c.get('db');
     const found = await liveOpenTrack(db, c.req.param('trackId'));
-    if (!found) return c.json({ error: NOT_OPEN }, 404);
+    if (!found) return c.json({ error: t(c).errors.notOpen }, 404);
     await db.insert(stars).values({ userId: c.get('userId'), trackId: found.track.id }).onConflictDoNothing();
     return c.json({ ok: true });
   })

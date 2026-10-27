@@ -63,7 +63,7 @@ const landingEn: PublicPage = {
   path: '/',
   title: 'Music Hub',
   description: SITE.en.tagline,
-  body: `For producers, bands and everyone working on a song: Music Hub keeps every version, comments sit on the exact second, and in the end it is clear which mix is approved. Free while places last. Listening only takes a link. The app itself is in German.
+  body: `For producers, bands and everyone working on a song: Music Hub keeps every version, comments sit on the exact second, and in the end it is clear which mix is approved. Free while places last. Listening only takes a link.
 
 ## No more Final_v3_REAL.wav
 
@@ -80,21 +80,23 @@ Whoever has finished listening says so with one click: approve, changes needed o
 ## For everyone working on the song
 
 - Producers and engineers: upload mixes by drag and drop, several at once. Stems per track, as a ZIP for the mix. Space plays, C comments, ← and → switch the version.
-- Bands, artists and clients: listen and comment on the phone, installable as an app. Listening only takes a link, no account needed. Approve with one tap.
+- Bands, artists and clients: listen and comment on your phone, installable as an app. Listening only takes a link, no account needed. Approve with one tap.
 
 ## Open source
 
 Music Hub is open source (AGPL-3.0) and runs on servers in Germany. With Docker and an S3 bucket it runs on your server too: https://github.com/robinchoice/music-hub`,
 };
 
-const GERMAN_ONLY = 'This page is only available in German, the German text is the binding one.';
-
 function imprint(locale: Locale): PublicPage {
   return {
     path: '/impressum',
     title: locale === 'de' ? 'Impressum' : 'Imprint',
     description: locale === 'de' ? 'Music Hub ist ein Angebot von Pleasance.' : 'Music Hub is run by Pleasance.',
-    body: `${locale === 'en' ? `${GERMAN_ONLY}\n\n` : ''}## Angaben gemäß § 5 DDG
+    body: locale === 'de' ? IMPRINT_DE : IMPRINT_EN,
+  };
+}
+
+const IMPRINT_DE = `## Angaben gemäß § 5 DDG
 
 Robin Wahl
 Pleasance
@@ -121,9 +123,36 @@ Die Inhalte dieser Seite wurden mit größter Sorgfalt erstellt. Für die Richti
 
 ## Haftung für Links
 
-Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte kein Einfluss besteht. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter verantwortlich.`,
-  };
-}
+Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte kein Einfluss besteht. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter verantwortlich.`;
+
+const IMPRINT_EN = `## Information pursuant to § 5 DDG
+
+Robin Wahl
+Pleasance
+Bugginger Straße 37
+79114 Freiburg
+
+## Contact
+
+Email: hello@pleasance.org
+
+## Responsible for content pursuant to § 18 (2) MStV
+
+Robin Wahl
+Bugginger Straße 37
+79114 Freiburg
+
+## User-generated content
+
+Audio files, comments and other content in the projects come from their members and from guests with a shared link. If you notice unlawful content there, write to me at hello@pleasance.org and I will review it and remove it if necessary.
+
+## Liability for content
+
+The content of this site was created with the greatest care. However, no guarantee can be given for the accuracy, completeness and timeliness of the content.
+
+## Liability for links
+
+This website contains links to external third-party websites over whose content we have no influence. The respective provider is always responsible for the content of the linked pages.`;
 
 function privacy(locale: Locale): PublicPage {
   return {
@@ -133,7 +162,7 @@ function privacy(locale: Locale): PublicPage {
       locale === 'de'
         ? 'Welche Daten Music Hub erhebt, wofür und wo sie liegen. Keine Werbung, kein Tracking.'
         : 'Which data Music Hub collects, what for and where it is stored. No ads, no tracking.',
-    body: `${locale === 'en' ? `${GERMAN_ONLY}\n\n` : ''}${PRIVACY_DE}`,
+    body: locale === 'de' ? PRIVACY_DE : PRIVACY_EN,
   };
 }
 
@@ -151,7 +180,7 @@ Music Hub läuft auf meinem eigenen Server bei der Hetzner Online GmbH (Industri
 
 ## 3. Konto und Anmeldung
 
-Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse und, falls du eines festlegst, dein Passwort als Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten je nach Zweck zwischen 15 Minuten und sieben Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich 30 Tage lang angemeldet hält. Apps wie das DAW-Plugin melden sich über einen Gerätecode an, ihre Anmeldung gilt 180 Tage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die Löschung bittest.
+Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse, die Sprache für Mails und Benachrichtigungen und, falls du eines festlegst, dein Passwort als Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten je nach Zweck zwischen 15 Minuten und sieben Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich 30 Tage lang angemeldet hält. Apps wie das DAW-Plugin melden sich über einen Gerätecode an, ihre Anmeldung gilt 180 Tage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die Löschung bittest.
 
 Außerdem speichere ich, wann du Music Hub zuletzt benutzt hast, auf wenige Minuten genau. Jede Nutzung überschreibt diesen Zeitpunkt, ein Verlauf entsteht dabei nicht. Zusammen mit deinen Logins, Uploads und Kommentaren zeigt er mir als Betreiber, wer gerade online ist und wer schon länger nicht mehr da war. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem Überblick über den Betrieb).
 
@@ -175,7 +204,7 @@ Benachrichtigungen über neue oder freigegebene Versionen gibt es nur, wenn du s
 
 ## 8. Speicherung auf deinem Gerät
 
-Music Hub legt in deinem Browser nur ab, was für die Funktion nötig ist: das Cookie für die Anmeldung, deinen Namen für geteilte Links, ob du die Einführung schon gesehen hast, und Audiodateien, die du ausdrücklich offline speicherst. Ein Service Worker hält die Programmdateien vor, damit Music Hub schnell lädt und sich als App installieren lässt. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG (unbedingt erforderlich).
+Music Hub legt in deinem Browser nur ab, was für die Funktion nötig ist: das Cookie für die Anmeldung, die Sprache, die du in der Fußzeile wählst, deinen Namen für geteilte Links, ob du die Einführung schon gesehen hast, und Audiodateien, die du ausdrücklich offline speicherst. Ein Service Worker hält die Programmdateien vor, damit Music Hub schnell lädt und sich als App installieren lässt. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG (unbedingt erforderlich).
 
 ## 9. Die Demo auf der Startseite
 
@@ -192,3 +221,59 @@ Die Datenbank sichere ich jede Nacht verschlüsselt, bei Hetzner in Deutschland 
 ## 12. Deine Rechte
 
 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Eine Einwilligung kannst du jederzeit für die Zukunft widerrufen. Wende dich dazu an die oben genannte Kontaktadresse. Außerdem hast du das Recht, dich bei einer Datenschutz-Aufsichtsbehörde zu beschweren, zum Beispiel beim Landesbeauftragten für den Datenschutz und die Informationsfreiheit Baden-Württemberg.`;
+
+const PRIVACY_EN = `Last updated: October 2026. This is a translation, the German version is binding.
+
+Music Hub is a tool for music productions: versions, feedback and approvals. You get an account by signing up, as long as places are free, or by invitation. This page explains which data arises, what I need it for and where it is stored. There is no advertising, tracking or analytics service.
+
+## 1. Controller
+
+Robin Wahl, Pleasance, Bugginger Straße 37, 79114 Freiburg, Email: hello@pleasance.org
+
+## 2. Hosting
+
+Music Hub runs on my own server at Hetzner Online GmbH (Industriestr. 25, 91710 Gunzenhausen, Germany), the server is located in Nuremberg. The uploaded files are also stored at Hetzner in Nuremberg. When you visit, your browser transmits technically necessary data such as your IP address, the time and the browser type. The server needs it to deliver the pages and to limit abuse. To rate-limit requests, it keeps your IP address in memory for a short time. The fonts are also loaded from this server, there is no connection to Google. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in secure and reliable operation).
+
+## 3. Account and login
+
+For your account I store your name, your email address, the language for mails and notifications and, if you set one, your password as a hash. Accounts are created by signing up or by invitation, and you confirm both with a link sent by email. Links sent by email are valid between 15 minutes and seven days, depending on their purpose. After you log in, Music Hub sets a cookie that keeps you logged in for 30 days. Apps such as the DAW plugin log in with a device code, their login is valid for 180 days. The legal basis is Art. 6(1)(b) GDPR (use of Music Hub). Your account stays until you ask for it to be deleted.
+
+I also store when you last used Music Hub, accurate to a few minutes. Every use overwrites this time, no history builds up. Together with your logins, uploads and comments, it shows me as the operator who is online right now and who has not been around for a while. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in an overview of operations).
+
+## 4. Projects, files and comments
+
+What you upload or write in Music Hub, that is audio files, stems, covers, comments and approvals, I store so that the members of your project can work with it. It is visible only to these members and to everyone you send a link to. My server converts audio files for playback and measures their loudness in the process. The legal basis is Art. 6(1)(b) GDPR. The content stays stored until it is deleted in the project. Deleted items then stay in the trash for 30 days and can be restored there. After that, or as soon as they are permanently deleted there, I keep them for at most another 60 days so that I can restore accidentally deleted items on request, and then delete them along with their files. Replaced covers and files that were deleted before the trash was introduced remain in storage for now. On request I delete earlier.
+
+## 5. Sharing by link
+
+Whoever opens a shared link does not need an account. In doing so I store the time, how long and whether the listener heard it to the end, your browser’s identifier, a shortened hash of your IP address instead of the address itself, and your name if you give one. I store comments with the name you give for them. So that you do not have to type it every time, your browser remembers this name. Whoever created the link sees this information as listening statistics and receives at most one email per hour saying that someone listened in. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in attributing feedback and seeing whether a mix has arrived). The information is deleted as soon as the link is deleted or the version is permanently deleted.
+
+## 6. Emails
+
+Music Hub sends invitations, login links, listening notifications and emails about new versions and reviews from noreply@pleasance.org via Proton (Proton AG, Route de la Galaise 32, 1228 Plan-les-Ouates, Switzerland). For Switzerland there is an adequacy decision of the EU Commission (Art. 45 GDPR). The legal basis is Art. 6(1)(b) GDPR. You only receive emails about new versions and reviews as long as you have not enabled push on any device. You can unsubscribe in your account or via the link in each of these emails.
+
+You only receive updates about new features if you tick the box when logging in or signing up and confirm with the link in the email, or turn them on in your account. For this I store since when you have been receiving them. The legal basis is your consent (Art. 6(1)(a) GDPR). You can unsubscribe at any time in your account or via the link in each update email.
+
+## 7. Push notifications
+
+Notifications about new or approved versions exist only if you turn them on in your account and allow them in the browser. For this I store your browser’s push address, the associated keys and your browser’s identifier. The messages are delivered encrypted via the push service of your browser’s vendor, such as Google, Mozilla or Apple. Data may be transferred to the USA in the process. The legal basis is your consent (Art. 6(1)(a) GDPR). You can turn push off at any time in your account or in the browser.
+
+## 8. Storage on your device
+
+Music Hub stores in your browser only what is needed for it to work: the cookie for logging in, the language you pick in the footer, your name for shared links, whether you have already seen the introduction, and audio files you explicitly save offline. A service worker keeps the program files so that Music Hub loads quickly and can be installed as an app. The legal basis is § 25(2) no. 2 TDDDG (strictly necessary).
+
+## 9. The demo on the start page
+
+The demo on the start page runs with sample data only in your browser. What you enter there is neither stored nor transmitted.
+
+## 10. Error reports
+
+If an error occurs in Music Hub, a report goes to GlitchTip, which runs on my own server. The reports contain technical details about the error, but no account data, cookies or request contents. GlitchTip deletes the reports after 90 days. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in error-free operation).
+
+## 11. Backups
+
+I back up the database every night, encrypted, at Hetzner in Germany and on my own hardware. I keep backups for at most twelve months.
+
+## 12. Your rights
+
+You have the right of access, rectification, erasure, restriction of processing, data portability and objection. You can withdraw your consent at any time with effect for the future. To do so, contact the address given above. You also have the right to lodge a complaint with a data protection supervisory authority, for example the State Commissioner for Data Protection and Freedom of Information of Baden-Württemberg.`;

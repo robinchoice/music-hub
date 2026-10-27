@@ -2,6 +2,7 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { COMMENT_REACTIONS } from '@music-hub/shared';
+  import { t } from '$lib/i18n/index.js';
   import { formatTime, timeAgo } from '$lib/utils/format.js';
   import type { TrackComment } from '$lib/utils/track.js';
 
@@ -40,7 +41,7 @@
     onRestore?: () => Promise<void>;
   } = $props();
 
-  const displayName = $derived(comment.user?.name ?? comment.guestName ?? 'Gast');
+  const displayName = $derived(comment.user?.name ?? comment.guestName ?? t().common.guest);
   const isGuest = $derived(!comment.user);
   const isMine = $derived(!!currentUserId && comment.user?.id === currentUserId);
 
@@ -57,7 +58,7 @@
   const reactions = $derived(comment.reactions ?? []);
   const canReact = $derived(!!onReact && canComment && !!currentUserId);
   const reactedByMe = (emoji: string) => !!reactions.find((r) => r.emoji === emoji)?.users.some((u) => u.id === currentUserId);
-  const reactorNames = (users: { id: string; name: string }[]) => users.map((u) => (u.id === currentUserId ? 'Du' : u.name)).join(', ');
+  const reactorNames = (users: { id: string; name: string }[]) => users.map((u) => (u.id === currentUserId ? t().common.you : u.name)).join(', ');
 
   // False when the action failed, the API client already showed the error
   async function run(action: () => Promise<void>) {
@@ -114,14 +115,14 @@
     <span class="ghost"><Icon name="trash" size={12} /></span>
     <div class="body">
       <div class="head">
-        <span class="gone-text">Kommentar gelöscht</span>
+        <span class="gone-text">{t().track.comment.deleted}</span>
         {#if comment.timestampSeconds !== null}
           <button class="ts" onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
         {/if}
       </div>
       {#if comment.restorable && onRestore}
         <div class="actions">
-          <button onclick={() => onRestore && run(onRestore)} disabled={busy}><Icon name="restore" size={12} /> Wiederherstellen</button>
+          <button onclick={() => onRestore && run(onRestore)} disabled={busy}><Icon name="restore" size={12} /> {t().track.comment.restore}</button>
         </div>
       {/if}
     </div>
@@ -132,13 +133,13 @@
   <div class="body">
     <div class="head">
       <span class="author">{displayName}</span>
-      {#if isGuest}<span class="tag">Gast</span>{/if}
-      {#if versionTag}<span class="vtag" title="Kommentar zu {versionTag}">{versionTag}</span>{/if}
-      {#if fresh}<span class="fresh-tag" title="Geht mit deinem nächsten „Fertig“ an den Uploader">neu in deinem Durchgang</span>{/if}
+      {#if isGuest}<span class="tag">{t().common.guest}</span>{/if}
+      {#if versionTag}<span class="vtag" title={t().track.comment.commentOn(versionTag)}>{versionTag}</span>{/if}
+      {#if fresh}<span class="fresh-tag" title={t().track.comment.freshTitle}>{t().track.comment.fresh}</span>{/if}
       {#if comment.timestampSeconds !== null}
-        <button class="ts" class:other={!!versionTag} title={versionTag ? `Stelle in ${versionTag}` : undefined} onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
+        <button class="ts" class:other={!!versionTag} title={versionTag ? t().track.comment.positionIn(versionTag) : undefined} onclick={() => onSeek?.(comment.timestampSeconds!)}>{formatTime(comment.timestampSeconds)}</button>
       {:else if !isReply}
-        <span class="tag">Allgemein</span>
+        <span class="tag">{t().track.comment.general}</span>
       {/if}
       <span class="when">{timeAgo(comment.createdAt)}</span>
     </div>
@@ -147,8 +148,8 @@
       <form class="inline-form" onsubmit={(e) => { e.preventDefault(); saveEdit(); }}>
         <textarea bind:value={editBody} rows="2"></textarea>
         <div class="form-actions">
-          <button type="button" class="link" onclick={() => (editing = false)}>Abbrechen</button>
-          <button type="submit" class="link primary" disabled={!editBody.trim() || busy}>Speichern</button>
+          <button type="button" class="link" onclick={() => (editing = false)}>{t().common.cancel}</button>
+          <button type="submit" class="link primary" disabled={!editBody.trim() || busy}>{t().common.save}</button>
         </div>
       </form>
     {:else}
@@ -168,7 +169,7 @@
             </span>
           {/each}
           {#if picking}
-            <div class="picker" role="group" aria-label="Reaktion wählen">
+            <div class="picker" role="group" aria-label={t().track.comment.pickReaction}>
               {#each COMMENT_REACTIONS as emoji (emoji)}
                 <button class:mine={reactedByMe(emoji)} aria-pressed={reactedByMe(emoji)} onclick={() => react(emoji)} disabled={busy}>{emoji}</button>
               {/each}
@@ -178,33 +179,33 @@
       {/if}
       <div class="actions">
         {#if onReply && canComment && !isReply}
-          <button onclick={() => (replying = !replying)}><Icon name="comment" size={12} /> Antworten</button>
+          <button onclick={() => (replying = !replying)}><Icon name="comment" size={12} /> {t().track.comment.reply}</button>
         {/if}
         {#if canReact}
-          <button onclick={() => (picking = !picking)} aria-expanded={picking}><Icon name="smile" size={12} /> Reagieren</button>
+          <button onclick={() => (picking = !picking)} aria-expanded={picking}><Icon name="smile" size={12} /> {t().track.comment.react}</button>
         {/if}
         {#if canComment && !isReply}
           {#if comment.resolvedAt && onReopen}
-            <button onclick={() => onReopen && run(onReopen)} disabled={busy}>Wieder öffnen</button>
+            <button onclick={() => onReopen && run(onReopen)} disabled={busy}>{t().track.comment.reopen}</button>
           {:else if !comment.resolvedAt && onResolve}
-            <button class="ok" onclick={() => onResolve && run(onResolve)} disabled={busy}><Icon name="check" size={12} /> Abhaken</button>
+            <button class="ok" onclick={() => onResolve && run(onResolve)} disabled={busy}><Icon name="check" size={12} /> {t().track.comment.resolve}</button>
           {/if}
         {/if}
         {#if isMine && onEdit}
-          <button onclick={startEdit}><Icon name="edit" size={12} /> Bearbeiten</button>
+          <button onclick={startEdit}><Icon name="edit" size={12} /> {t().track.comment.edit}</button>
         {/if}
         {#if isMine && onDelete}
-          <button class="danger" onclick={() => onDelete && run(onDelete)} disabled={busy}><Icon name="trash" size={12} /> Löschen</button>
+          <button class="danger" onclick={() => onDelete && run(onDelete)} disabled={busy}><Icon name="trash" size={12} /> {t().common.delete}</button>
         {/if}
       </div>
     {/if}
 
     {#if replying}
       <form class="inline-form" onsubmit={(e) => { e.preventDefault(); sendReply(); }}>
-        <textarea bind:value={replyBody} rows="2" placeholder="Antwort schreiben …"></textarea>
+        <textarea bind:value={replyBody} rows="2" placeholder={t().track.comment.writeReply}></textarea>
         <div class="form-actions">
-          <button type="button" class="link" onclick={() => (replying = false)}>Abbrechen</button>
-          <button type="submit" class="link primary" disabled={!replyBody.trim() || busy}>Antworten</button>
+          <button type="button" class="link" onclick={() => (replying = false)}>{t().common.cancel}</button>
+          <button type="submit" class="link primary" disabled={!replyBody.trim() || busy}>{t().track.comment.reply}</button>
         </div>
       </form>
     {/if}

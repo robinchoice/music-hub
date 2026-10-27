@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
@@ -39,17 +40,17 @@
 
   <div class="body">
     {#if task.kind === 'listen'}
-      <p class="text"><b>{personName(ix, task.version.createdById)}</b> hat eine neue Version hochgeladen. Dein Feedback fehlt noch.</p>
+      <p class="text"><b>{personName(ix, task.version.createdById)}</b> {t().overview.task.listen}</p>
       <MiniWave version={task.version} {markers} count={120} />
     {:else if task.kind === 'open'}
       {#if task.rejected}
         <p class="text">
-          {decider ? `${decider} hat deine Version abgelehnt` : 'Deine Version wurde abgelehnt'}{task.version.rejectionReason ? ':' : '.'}
+          {t().overview.task.rejectedBy(decider)}{task.version.rejectionReason ? ':' : '.'}
         </p>
-        {#if task.version.rejectionReason}<p class="reason">„{task.version.rejectionReason}“</p>{/if}
+        {#if task.version.rejectionReason}<p class="reason">{t().overview.shared.quote(task.version.rejectionReason)}</p>{/if}
       {/if}
       {#if open.length}
-        <p class="text">{open.length === 1 ? 'Ein offener Kommentar' : `${open.length} offene Kommentare`} zu deiner Version, von {openFrom}.</p>
+        <p class="text">{t().overview.task.openComments(open.length, openFrom)}</p>
       {/if}
       <MiniWave version={task.version} {markers} count={120} />
       {#if open.length}
@@ -68,8 +69,8 @@
       {/if}
     {:else}
       <p class="text">
-        <b>{personName(ix, task.reply.userId, task.reply.guestName)}</b> hat auf deinen Kommentar{#if task.comment.timestampSeconds !== null}
-          {' '}bei <span class="tchip">{formatTime(task.comment.timestampSeconds)}</span>{/if} geantwortet.
+        <b>{personName(ix, task.reply.userId, task.reply.guestName)}</b> {t().overview.task.replyStart}{#if task.comment.timestampSeconds !== null}
+          {t().overview.task.replyAt} <span class="tchip">{formatTime(task.comment.timestampSeconds)}</span>{/if}{t().overview.task.replyEnd}
       </p>
       <div class="thread">
         <p class="mine">{task.comment.body}</p>
@@ -82,13 +83,13 @@
 
     <div class="actions">
       {#if task.kind === 'listen'}
-        <Button size="sm" {href} onclick={() => handOff(info.track.id)}><Icon name="comment" size={14} /> Feedback geben</Button>
+        <Button size="sm" {href} onclick={() => handOff(info.track.id)}><Icon name="comment" size={14} /> {t().overview.task.giveFeedback}</Button>
       {:else if task.kind === 'open'}
-        <Button size="sm" {href} onclick={() => handOff(info.track.id)}><Icon name="upload" size={14} /> Neue Version hochladen</Button>
+        <Button size="sm" {href} onclick={() => handOff(info.track.id)}><Icon name="upload" size={14} /> {t().overview.task.uploadNew}</Button>
       {:else}
-        <Button size="sm" {href} onclick={() => handOff(info.track.id, replyAt)}><Icon name="reply" size={14} /> Antworten</Button>
+        <Button size="sm" {href} onclick={() => handOff(info.track.id, replyAt)}><Icon name="reply" size={14} /> {t().overview.task.reply}</Button>
       {/if}
-      <Button size="sm" variant="ghost" onclick={() => ondone(task.key)}><Icon name="check" size={14} /> Erledigt</Button>
+      <Button size="sm" variant="ghost" onclick={() => ondone(task.key)}><Icon name="check" size={14} /> {t().overview.task.done}</Button>
     </div>
   </div>
 </article>

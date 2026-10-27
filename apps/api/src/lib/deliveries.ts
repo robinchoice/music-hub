@@ -39,6 +39,7 @@ import { epcPayload } from './payments/girocode.js';
 import { connectNwc } from './payments/nwc.js';
 import { decryptSecret, paymentsConfigured } from './payments/secrets.js';
 import { sendDeliveryPaidEmail } from '../services/email.js';
+import { type Locale, pickLocale } from '@music-hub/shared';
 
 // The order logic of a delivery (Auftrag) on a project link: rounds, approvals, totals and payment
 // state. Routes check the link (token, password, expiry) and rate limits; everything that decides
@@ -58,10 +59,10 @@ export type DeliveryFailure = { ok: false; status: 403 | 404 | 409 | 410; code: 
 const fail = (status: DeliveryFailure['status'], code: DeliveryErrorCode, extraRoundCents?: number): DeliveryFailure =>
   extraRoundCents === undefined ? { ok: false, status, code } : { ok: false, status, code, extraRoundCents };
 
-export const failureBody = (f: DeliveryFailure): DeliveryErrorResponse =>
+export const failureBody = (f: DeliveryFailure, locale: Locale): DeliveryErrorResponse =>
   f.extraRoundCents === undefined
-    ? { error: DELIVERY_ERRORS[f.code], code: f.code }
-    : { error: DELIVERY_ERRORS[f.code], code: f.code, extraRoundCents: f.extraRoundCents };
+    ? { error: DELIVERY_ERRORS[locale][f.code], code: f.code }
+    : { error: DELIVERY_ERRORS[locale][f.code], code: f.code, extraRoundCents: f.extraRoundCents };
 
 const OPEN_PAYMENT = ['pending', 'announced'] as const;
 
@@ -630,7 +631,7 @@ export async function checkLightningPayments(db: Database, deliveryId?: string) 
 
 async function mailPaid(db: Database, delivery: Delivery, amountCents: number) {
   const [row] = await db
-    .select({ projectName: projects.name, studioName: users.name, token: projectShareLinks.token })
+    .select({ projectName: projects.name, studioName: users.name, token: projectShareLinks.token, locale: users.locale })
     .from(projectShareLinks)
     .innerJoin(projects, eq(projects.id, projectShareLinks.projectId))
     .innerJoin(users, eq(users.id, delivery.createdById))
@@ -641,8 +642,8 @@ async function mailPaid(db: Database, delivery: Delivery, amountCents: number) {
     studioName: row.studioName,
     projectName: row.projectName,
     albumToken: row.token,
-    amount: formatEuro(amountCents),
-  });
+    amount: formatEuro(amountCents, pickLocale(row.locale)),
+  }, pickLocale(row.locale));
 }
 
 // ---------- Downloads ----------

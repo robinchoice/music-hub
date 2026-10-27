@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Button from '$lib/components/ui/Button.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -11,7 +12,7 @@
   const track = $derived(ix.tracks.get(version.trackId)!);
   const project = $derived(ix.projects.get(track.projectId)!);
   const sub = $derived(
-    [`V${version.versionNumber}`, versionName(version), firstName(ix.users.get(version.createdById)?.name ?? 'Jemand')]
+    [`V${version.versionNumber}`, versionName(version), firstName(ix.users.get(version.createdById)?.name ?? t().common.someone)]
       .filter(Boolean)
       .join(' · '),
   );
@@ -27,10 +28,10 @@
     <MiniWave {version} markers={markersFor(ix, ix.commentsOf.get(version.id) ?? [])} count={120} />
   </div>
   {#if (ix.versionsOf.get(track.id)?.length ?? 0) > 1}
-    <Button size="sm" variant="ghost" href={`${trackHref(project.id, track.id, version.id)}&view=compare`}><Icon name="sliders" size={14} /> Vergleichen</Button>
+    <Button size="sm" variant="ghost" href={`${trackHref(project.id, track.id, version.id)}&view=compare`}><Icon name="sliders" size={14} /> {t().overview.dock.compare}</Button>
   {/if}
-  <Button size="sm" variant="ghost" href={trackHref(project.id, track.id, version.id)} onclick={() => handOff(track.id)}>Öffnen</Button>
-  <button type="button" class="close" aria-label="Player schließen" onclick={onclose}><Icon name="x" size={14} /></button>
+  <Button size="sm" variant="ghost" href={trackHref(project.id, track.id, version.id)} onclick={() => handOff(track.id)}>{t().common.open}</Button>
+  <button type="button" class="close" aria-label={t().overview.dock.close} onclick={onclose}><Icon name="x" size={14} /></button>
 </div>
 
 <style>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { pushStore, initPush, subscribePush } from '$lib/stores/push.svelte.js';
 
   // Asks for push where there is a reason to; the browser asks only after the click.
@@ -26,8 +27,8 @@
     <Icon name="bell" size={16} />
     <p>{text}</p>
     <div class="actions">
-      <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>Benachrichtigen</Button>
-      <Button size="sm" variant="ghost" onclick={dismiss}>Nicht jetzt</Button>
+      <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>{t().guest.pushPrompt.notify}</Button>
+      <Button size="sm" variant="ghost" onclick={dismiss}>{t().guest.pushPrompt.notNow}</Button>
     </div>
   </aside>
 {/if}

@@ -1,17 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { HANDLE_PATTERN, type RequestsFrom } from '@music-hub/shared';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
 
   type Profile = { handle: string; visible: boolean; bio: string | null; links: string[]; requestsFrom: RequestsFrom; showStats: boolean };
 
-  const REQUESTS: { value: RequestsFrom; label: string }[] = [
-    { value: 'everyone', label: 'Allen mit Konto' },
-    { value: 'open', label: 'Leuten mit eigenem offenen Track' },
-    { value: 'nobody', label: 'Niemandem' },
-  ];
+  const REQUESTS: RequestsFrom[] = ['everyone', 'open', 'nobody'];
 
   let saved = $state<Profile | null>(null);
   let loaded = $state(false);
@@ -59,7 +56,7 @@
         showStats,
       });
       fill(res.profile);
-      toastSuccess(visible ? 'Profil ist öffentlich' : 'Profil gespeichert');
+      toastSuccess(visible ? t().guest.profileSettings.public : t().guest.profileSettings.saved);
     } catch {
       // The API client already showed the error
     } finally {
@@ -69,54 +66,54 @@
 </script>
 
 <section class="card" id="profil">
-  <h2>Öffentliches Profil</h2>
+  <h2>{t().guest.profileSettings.heading}</h2>
   {#if loaded}
     <label class="toggle">
       <input type="checkbox" bind:checked={visible} />
       <span>
-        <b>Profil zeigen</b>
-        <small>Zu sehen sind nur Name, Text, Links und die Tracks, die du offen gestellt hast. Private Projekte nie.</small>
+        <b>{t().guest.profileSettings.show}</b>
+        <small>{t().guest.profileSettings.showHint}</small>
       </span>
     </label>
 
     <label class="field">
-      Adresse
+      {t().guest.profileSettings.address}
       <span class="prefix"><span>{location.host}/@</span><input bind:value={handle} maxlength="30" autocapitalize="off" spellcheck="false" /></span>
-      {#if !handleOk}<small class="error">2–30 Zeichen: Kleinbuchstaben, Ziffern und Bindestriche</small>{/if}
+      {#if !handleOk}<small class="error">{t().guest.profileSettings.handleRule}</small>{/if}
     </label>
 
     <label class="field">
-      Über dich
-      <input bind:value={bio} maxlength="200" placeholder="Gitarre, Produktion · Freiburg" />
+      {t().guest.profileSettings.aboutYou}
+      <input bind:value={bio} maxlength="200" placeholder={t().guest.profileSettings.aboutPlaceholder} />
     </label>
 
     <div class="field">
-      Links
+      {t().guest.profileSettings.links}
       {#each links as _, i (i)}
-        <input bind:value={links[i]} type="url" placeholder="https://…" aria-label="Link {i + 1}" />
+        <input bind:value={links[i]} type="url" placeholder="https://…" aria-label={t().guest.profileSettings.link(i + 1)} />
       {/each}
-      {#if !linksOk}<small class="error">Links beginnen mit https://</small>{/if}
+      {#if !linksOk}<small class="error">{t().guest.profileSettings.linksRule}</small>{/if}
     </div>
 
     <fieldset class="field">
-      <legend>Anfragen erlauben von</legend>
-      {#each REQUESTS as r (r.value)}
-        <label class="choice"><input type="radio" bind:group={requestsFrom} value={r.value} /> {r.label}</label>
+      <legend>{t().guest.profileSettings.allowRequestsFrom}</legend>
+      {#each REQUESTS as r (r)}
+        <label class="choice"><input type="radio" bind:group={requestsFrom} value={r} /> {t().guest.profileSettings.requests[r]}</label>
       {/each}
-      <small>Anfragen kommen unter „Für dich“ an. Nimmst du an, arbeitet ihr in einem gemeinsamen Projekt weiter.</small>
+      <small>{t().guest.profileSettings.requestsHint}</small>
     </fieldset>
 
     <label class="toggle">
       <input type="checkbox" bind:checked={showStats} />
       <span>
-        <b>Zahlen zeigen</b>
-        <small>Stars, Remixe und Downloads als Summe. Wer heruntergeladen hat, wird nicht gespeichert.</small>
+        <b>{t().guest.profileSettings.showNumbers}</b>
+        <small>{t().guest.profileSettings.showNumbersHint}</small>
       </span>
     </label>
 
     <div class="row">
-      <Button onclick={save} loading={saving} disabled={!handleOk || !linksOk}>Speichern</Button>
-      {#if saved?.visible}<a href="/@{saved.handle}">Profil ansehen</a>{/if}
+      <Button onclick={save} loading={saving} disabled={!handleOk || !linksOk}>{t().common.save}</Button>
+      {#if saved?.visible}<a href="/@{saved.handle}">{t().guest.profileSettings.viewProfile}</a>{/if}
     </div>
   {/if}
 </section>

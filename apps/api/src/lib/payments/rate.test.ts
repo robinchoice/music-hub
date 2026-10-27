@@ -58,7 +58,7 @@ test('refuses a broken mempool.space answer', async () => {
   globalThis.fetch = Object.assign(async () => Response.json({ USD: 110_000 }), { preconnect: realFetch.preconnect });
   const err = await eurToSats(100).catch((e: unknown) => e);
   expect(err).toBeInstanceOf(PaymentServiceError);
-  expect((err as PaymentServiceError).message).toContain('Bitcoin-Kurs');
+  expect((err as PaymentServiceError).text('de')).toContain('Bitcoin-Kurs');
   globalThis.fetch = Object.assign(async () => new Response('down', { status: 503 }), { preconnect: realFetch.preconnect });
   await expect(eurToSats(100)).rejects.toBeInstanceOf(PaymentServiceError);
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatEuro, type GuestDeliveryResponse, type PublicDelivery, type PublicDeliveryTrack } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
+  import { locale, t } from '$lib/i18n/index.js';
   import Modal from '$lib/components/ui/Modal.svelte';
   import { GuestError, guestRequest } from '$lib/utils/delivery.js';
 
@@ -49,9 +50,11 @@
     extraPrice = null;
   });
 
+  const tx = $derived(t().delivery.decision);
+  const euro = (cents: number) => formatEuro(cents, locale());
   const extra = $derived(mode === 'round' && (track.nextRoundExtra || extraPrice !== null));
   const price = $derived(extraPrice ?? extraRoundCents);
-  const title = $derived(mode === 'approve' ? `„${trackName}“ freigeben?` : extra ? `Zusatzrunde für „${trackName}“?` : `Änderungen für „${trackName}“ anfordern`);
+  const title = $derived(mode === 'approve' ? tx.approveTitle(trackName) : extra ? tx.extraTitle(trackName) : tx.requestTitle(trackName));
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -75,7 +78,7 @@
         extraPrice = err.extraRoundCents ?? extraRoundCents;
         error = err.message;
       } else {
-        error = err instanceof Error ? err.message : 'Das hat nicht geklappt. Bitte versuche es erneut.';
+        error = err instanceof Error ? err.message : tx.failed;
       }
     } finally {
       sending = false;
@@ -86,42 +89,40 @@
 <Modal bind:open {title}>
   <form class="decision" onsubmit={submit}>
     {#if mode === 'approve'}
-      <p>Du gibst Version {versionNumber} frei. Nach der Zahlung lädst du sie als WAV herunter.</p>
+      <p>{tx.approveInfo(versionNumber)}</p>
     {:else if extra}
       <p>
-        {track.roundsIncluded === 0 ? 'Korrekturrunden sind nicht inklusive.' : track.roundsIncluded === 1 ? 'Die inklusive Runde ist genutzt.' : `Die ${track.roundsIncluded} inklusiven Runden sind genutzt.`}
-        Eine weitere Runde kostet <b>{formatEuro(price)}</b>. Sie kommt auf die Schlussrechnung.
+        {tx.includedUsed(track.roundsIncluded)}
+        {tx.costsBefore}<b>{euro(price)}</b>{tx.costsAfter}
       </p>
     {:else}
       <p>
-        Das ist Runde {track.roundsUsed + 1} von {track.roundsIncluded}. Deine Kommentare zu Version {versionNumber} gehen gesammelt
-        ans Studio, das sich mit einer neuen Version meldet.
+        {tx.roundInfo(track.roundsUsed + 1, track.roundsIncluded, versionNumber)}
       </p>
     {/if}
     {#if mode === 'round' && announced !== null}
       <p class="note">
-        Du hast schon {formatEuro(announced)} per Überweisung angekündigt. Die Überweisung bleibt gültig, das Studio rechnet sie an.
-        Den Download gibt es, sobald wieder alle Songs freigegeben sind{extra ? ' und die Zusatzrunde bezahlt ist' : ''}.
+        {tx.announcedNote(euro(announced), !!extra)}
       </p>
     {/if}
     <label>
-      <span>Dein Name</span>
+      <span>{tx.yourName}</span>
       <input type="text" bind:value={name} maxlength={100} autocomplete="name" required />
     </label>
     <label>
-      <span>{mode === 'approve' ? 'Nachricht ans Studio (optional)' : 'Was soll sich ändern? (optional)'}</span>
+      <span>{mode === 'approve' ? tx.messageToStudio : tx.whatToChange}</span>
       <textarea bind:value={note} rows="3" maxlength={2000}></textarea>
     </label>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </form>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (open = false)}>Abbrechen</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>{t().common.cancel}</Button>
     {#if mode === 'approve'}
-      <Button loading={sending} disabled={!name.trim()} onclick={submit}>Freigeben</Button>
+      <Button loading={sending} disabled={!name.trim()} onclick={submit}>{tx.approve}</Button>
     {:else if extra}
-      <Button loading={sending} disabled={!name.trim()} onclick={submit}>Zahlungspflichtig beauftragen · {formatEuro(price)}</Button>
+      <Button loading={sending} disabled={!name.trim()} onclick={submit}>{tx.orderWithPayment(euro(price))}</Button>
     {:else}
-      <Button loading={sending} disabled={!name.trim()} onclick={submit}>Änderungen anfordern</Button>
+      <Button loading={sending} disabled={!name.trim()} onclick={submit}>{tx.requestChanges}</Button>
     {/if}
   {/snippet}
 </Modal>

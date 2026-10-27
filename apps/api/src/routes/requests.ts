@@ -10,6 +10,7 @@ import { acceptRequest, declineRequest, pendingRequests } from '../lib/profiles.
 import { notifyUser } from '../services/push.js';
 import { sendInviteEmail, sendRequestReportEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
+import { pickLocale } from '@music-hub/shared';
 
 // Contact requests sent to you through your profile
 export const requestRoutes = new Hono<AppEnv>()
@@ -56,15 +57,15 @@ export const requestRoutes = new Hono<AppEnv>()
     const [[project], [me], [sender]] = await Promise.all([
       db.select({ name: projects.name }).from(projects).where(eq(projects.id, result.projectId)),
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)),
-      db.select({ email: users.email }).from(users).where(eq(users.id, result.fromUserId)),
+      db.select({ email: users.email, locale: users.locale }).from(users).where(eq(users.id, result.fromUserId)),
     ]);
-    runInBackground(notifyUser(db, result.fromUserId, {
+    runInBackground(notifyUser(db, result.fromUserId, (m) => ({
       projectId: result.projectId,
-      title: `${me.name} hat angenommen`,
-      body: `Ihr arbeitet jetzt zusammen in „${project.name}“.`,
+      title: m.push.requestAccepted(me.name),
+      body: m.push.requestAcceptedBody(project.name),
       url: `/projects/${result.projectId}`,
-    }).catch((err) => console.error('[Push] Accepted request failed:', err.message)));
-    runInBackground(sendInviteEmail(sender.email, result.projectId, project.name, me.name, null).catch((err) =>
+    })).catch((err) => console.error('[Push] Accepted request failed:', err.message)));
+    runInBackground(sendInviteEmail(sender.email, result.projectId, project.name, me.name, null, pickLocale(sender.locale)).catch((err) =>
       console.error('[Email] Accepted request failed:', err.message),
     ));
     return c.json({ projectId: result.projectId });

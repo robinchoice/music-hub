@@ -75,7 +75,7 @@ test('once the uploader pauses, the whole batch goes out as one', async () => {
   expect(batch.pushTo).toEqual([lena]);
   expect(batch.mailTo.map((m) => m.email)).toHaveLength(1);
   const [tomRow] = await db.select().from(users).where(eq(users.id, tom));
-  expect(batch.mailTo[0]).toEqual({ email: tomRow.email, mailToken: tomRow.mailToken });
+  expect(batch.mailTo[0]).toEqual({ email: tomRow.email, mailToken: tomRow.mailToken, locale: 'de' });
   expect(await due()).toHaveLength(0);
 });
 

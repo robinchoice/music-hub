@@ -4,6 +4,7 @@
   import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { byFileName, checkAudioFiles, trackNameFromFile, unreadableFiles, uploadAudioFile, registerVersion } from '$lib/audio/upload.js';
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -29,8 +30,8 @@
     state: 'wartet' | 'lädt hoch' | 'speichert' | 'fertig' | 'fehler' | 'abgebrochen';
     matchId: string | null; newTrack: boolean; locked: boolean; number: number; matchedNumber: number; abort: AbortController; error?: string;
   };
-  const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
-  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase(dateLocale());
+  const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   let input = $state<HTMLInputElement>();
   let rows = $state<Row[]>([]);
@@ -54,7 +55,7 @@
     const unreadable = await unreadableFiles(files);
     if (unreadable.length > 0) {
       preparing = false;
-      error = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
+      error = t().track.drop.unreadable(unreadable.length, unreadable.map((f) => f.name).join(', '));
       return;
     }
 
@@ -104,7 +105,7 @@
       } catch (err) {
         if (row.abort.signal.aborted) { row.state = 'abgebrochen'; continue; }
         row.state = 'fehler';
-        row.error = err instanceof Error ? err.message : 'Upload fehlgeschlagen';
+        row.error = err instanceof Error ? err.message : t().track.drop.failed;
       }
     }
     onDone();
@@ -114,7 +115,7 @@
       goto(`/projects/${projectId}/tracks/${lastTrackId}`);
       return;
     }
-    if (ok) toast(`${ok} ${ok === 1 ? 'Datei hochgeladen' : 'Dateien hochgeladen'} · wird verarbeitet`);
+    if (ok) toast(t().track.drop.uploaded(ok));
     rows = rows.filter((r) => r.state === 'fehler' || r.state === 'abgebrochen');
     transferring = false;
   }
@@ -122,7 +123,7 @@
   function cancel(row: Row) {
     row.abort.abort();
     row.state = 'abgebrochen';
-    toast('Upload abgebrochen');
+    toast(t().track.upload.aborted);
   }
 
   function toggleTarget(row: Row) {
@@ -153,7 +154,7 @@
     class="zone"
     class:over={dragOver}
     role="region"
-    aria-label="Mix hochladen"
+    aria-label={t().track.drop.uploadMix}
     ondragover={(e) => {
       e.preventDefault();
       dragOver = true;
@@ -162,13 +163,13 @@
     ondrop={handleDrop}
   >
     <span class="icon"><Icon name="upload" size={22} /></span>
-    <h2>Mix hier ablegen</h2>
-    <p>Den Track erkennen wir am Dateinamen. Weitere Mixe desselben Songs werden neue Versionen.</p>
-    <Button onclick={pick}>Dateien auswählen</Button>
+    <h2>{t().track.drop.dropMix}</h2>
+    <p>{t().track.drop.hint}</p>
+    <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
     <span class="formats">WAV, MP3, FLAC, AIFF · max. 500 MB</span>
   </div>
   {#if onEmptyTrack}
-    <p class="empty-track">Nur Spuren, noch kein Mix? <button type="button" onclick={onEmptyTrack}>Leeren Track anlegen</button></p>
+    <p class="empty-track">{t().track.drop.onlyStems} <button type="button" onclick={onEmptyTrack}>{t().track.drop.createEmpty}</button></p>
   {/if}
 {/if}
 
@@ -183,21 +184,21 @@
         <div>
           <b>{row.name}</b>
           <small>{row.file} · {mb(row.size)} MB</small>
-          <small class="target">{#if row.matchId && !row.newTrack}wird {row.number ? `V${row.number}` : 'eine neue Version'} von „{row.name}“{:else}Neuer Track · wird V1{/if}</small>
+          <small class="target">{#if row.matchId && !row.newTrack}{t().track.drop.becomes(row.number, row.name)}{:else}{t().track.drop.newTrack}{/if}</small>
           {#if row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
-            <button type="button" class="switch-target" onclick={() => toggleTarget(row)}>{row.newTrack ? 'Stattdessen als neue Version anhängen' : 'Stattdessen neuer Track'}</button>
+            <button type="button" class="switch-target" onclick={() => toggleTarget(row)}>{row.newTrack ? t().track.drop.attachInstead : t().track.drop.newTrackInstead}</button>
           {/if}
           {#if row.state === 'lädt hoch'}
             <span class="bar" role="progressbar" aria-label={row.file} aria-valuenow={row.progress} aria-valuemin="0" aria-valuemax="100"><i style="width: {row.progress}%"></i></span>
-            <small>{mb(row.loaded)} von {mb(row.size)} MB</small>
+            <small>{t().track.drop.loadedOf(mb(row.loaded), mb(row.size))}</small>
           {/if}
           {#if row.error}<small class="row-error" role="alert">{row.error}</small>{/if}
         </div>
         {#if row.state === 'wartet' || row.state === 'lädt hoch'}
-          <button type="button" class="switch-target" aria-label={`Upload von ${row.file} abbrechen`} onclick={() => cancel(row)}>Abbrechen</button>
+          <button type="button" class="switch-target" aria-label={t().track.drop.cancelUpload(row.file)} onclick={() => cancel(row)}>{t().common.cancel}</button>
         {/if}
         <span class="state" class:bad={row.state === 'fehler'}>
-          {row.state === 'lädt hoch' ? `${row.progress} %` : row.state === 'fehler' ? 'Fehler' : row.state}
+          {row.state === 'lädt hoch' ? `${row.progress} %` : row.state === 'fehler' ? t().track.drop.error : t().track.drop.states[row.state]}
         </span>
       </li>
     {/each}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t, dateLocale } from '$lib/i18n/index.js';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -21,7 +22,7 @@
   });
 
   function formatDate(ts: number): string {
-    return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return new Date(ts).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   async function handleRemove(versionId: string) {
@@ -34,17 +35,17 @@
   }
 
   async function handleRemoveAll() {
-    if (!confirm('Alle offline-verfügbaren Versionen entfernen?')) return;
+    if (!confirm(t().workspace.offline.confirmRemoveAll)) return;
     for (const v of offlineVersions.value) {
       await removeOffline(v.versionId);
     }
   }
 </script>
 
-<TopBar crumbs={[{ label: 'Projekte', href: '/dashboard' }, { label: 'Offline-Tracks' }]}>
+<TopBar crumbs={[{ label: t().workspace.nav.projects, href: '/dashboard' }, { label: t().workspace.offline.title }]}>
   {#snippet actions()}
     {#if offlineVersions.value.length > 0}
-      <Button size="sm" variant="ghost" onclick={handleRemoveAll}>Alle entfernen</Button>
+      <Button size="sm" variant="ghost" onclick={handleRemoveAll}>{t().workspace.offline.removeAll}</Button>
     {/if}
   {/snippet}
 </TopBar>
@@ -52,12 +53,12 @@
 <div class="offline-page">
   {#if offlineVersions.value.length === 0}
     <EmptyState
-      title="Keine Offline-Tracks"
-      description="Öffne einen Track, klicke auf das Cloud-Icon neben einer Version und wähle eine Qualität zum Download."
+      title={t().workspace.offline.emptyTitle}
+      description={t().workspace.offline.emptyText}
     />
   {:else}
     <div class="storage-bar">
-      <span class="storage-label">Gerätespeicher belegt:</span>
+      <span class="storage-label">{t().workspace.offline.storageUsed}</span>
       <span class="storage-value">{formatFileSize(storageUsed)} / {formatFileSize(storageQuota)}</span>
     </div>
 
@@ -68,7 +69,7 @@
             <span class="version-title">{v.title}</span>
             <span class="version-meta">
               V{v.versionNumber}
-              · {v.quality === 'stream' ? 'Stream (MP3)' : 'Original'}
+              · {v.quality === 'stream' ? t().workspace.offline.stream : t().workspace.offline.original}
               · {formatFileSize(v.sizeBytes)}
               · {formatDate(v.downloadedAt)}
             </span>
@@ -77,7 +78,7 @@
             class="remove-btn"
             onclick={() => handleRemove(v.versionId)}
             disabled={removing === v.versionId}
-            aria-label="Offline entfernen"
+            aria-label={t().workspace.offline.remove}
           >
             <Icon name="x" size={16} />
           </button>

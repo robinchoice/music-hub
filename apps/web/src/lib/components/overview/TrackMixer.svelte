@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '$lib/api/client.js';
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -150,7 +151,7 @@
 
   const soloDuration = $derived(solo?.duration ?? 0);
   const author = (c: TrackComment) =>
-    c.user ? (c.user.id === ix.me ? 'Du' : firstName(c.user.name)) : `${c.guestName ?? 'Gast'} (Gast)`;
+    c.user ? (c.user.id === ix.me ? t().common.you : firstName(c.user.name)) : t().overview.names.guestNamed(c.guestName ?? t().common.guest);
   const topLevel = (list: TrackComment[]) => list.filter((c) => !c.parentId);
   // Comments of the solo version: open first, then by position
   const listed = $derived(
@@ -165,17 +166,17 @@
       .map((c) => ({
         id: c.id,
         seconds: c.timestampSeconds!,
-        tip: `${author(c)} bei ${formatTime(c.timestampSeconds!)}: ${c.body.length > 46 ? `${c.body.slice(0, 45)}…` : c.body}`,
+        tip: t().overview.marker(author(c), formatTime(c.timestampSeconds!), c.body.length > 46 ? `${c.body.slice(0, 45)}…` : c.body),
         done: !!c.resolvedAt,
       })),
   );
 </script>
 
 {#if !online}
-  <EmptyState title="Keine Verbindung" description="Vergleichen braucht eine Verbindung, weil alle Versionen gleichzeitig streamen." />
+  <EmptyState title={t().overview.mixer.offline} description={t().overview.mixer.offlineText} />
 {:else if solo}
   <div class="transport">
-    <button type="button" class="play" aria-label={playing ? 'Stopp' : 'Start'} disabled={!mixer} onclick={toggle}>
+    <button type="button" class="play" aria-label={playing ? t().overview.mixer.stop : t().overview.mixer.start} disabled={!mixer} onclick={toggle}>
       <Icon name={playing ? 'pause' : 'play'} size={20} />
     </button>
     <div class="now">
@@ -195,27 +196,27 @@
     </div>
     <div class="opts">
       <button type="button" class="switch" class:on={match} role="switch" aria-checked={match} onclick={toggleMatch}>
-        <i></i>Lautheit angleichen
+        <i></i>{t().overview.mixer.matchLoudness}
       </button>
-      <span class="kbd"><kbd>1</kbd>–<kbd>{Math.min(9, versions.length)}</kbd> wechselt, <kbd>Leertaste</kbd> startet</span>
+      <span class="kbd"><kbd>1</kbd>–<kbd>{Math.min(9, versions.length)}</kbd> {t().overview.mixer.keysSwitch}, <kbd>{t().overview.mixer.space}</kbd> {t().overview.mixer.keysStart}</span>
     </div>
   </div>
 
-  <section class="desk" aria-label="Kanalzüge">
+  <section class="desk" aria-label={t().overview.mixer.strips}>
     <div class="legend-strip" aria-hidden="true">
-      <div class="lbl" style="height: 52px">Version</div>
-      <div class="lbl" style="height: var(--row-who)">Von</div>
-      <div class="lbl" style="height: var(--row-lamp)">Stand</div>
-      <div class="lbl" style="height: 150px">Pegel L/R</div>
-      <div class="lbl" style="height: 16px">Lautheit</div>
+      <div class="lbl" style="height: 52px">{t().overview.mixer.version}</div>
+      <div class="lbl" style="height: var(--row-who)">{t().overview.mixer.from}</div>
+      <div class="lbl" style="height: var(--row-lamp)">{t().overview.mixer.status}</div>
+      <div class="lbl" style="height: 150px">{t().overview.mixer.level}</div>
+      <div class="lbl" style="height: 16px">{t().overview.mixer.loudness}</div>
       <div class="scale">
         <div class="marks">
           {#each SCALE as [p, label] (label)}<span style="bottom: {p}%">{label}</span>{/each}
         </div>
       </div>
-      <div class="lbl" style="height: 16px">Angleich</div>
-      <div class="lbl" style="height: 36px">Hören</div>
-      <div class="lbl" style="height: 16px">Kommentare</div>
+      <div class="lbl" style="height: 16px">{t().overview.mixer.match}</div>
+      <div class="lbl" style="height: 36px">{t().overview.mixer.listen}</div>
+      <div class="lbl" style="height: 16px">{t().overview.mixer.comments}</div>
     </div>
     {#each versions as v, i (v.id)}
       <MixerStrip
@@ -237,24 +238,24 @@
 
   <DashCard
     icon="comment"
-    title="Kommentare zu V{solo.versionNumber}"
-    sub={listed.length ? (openCount ? `${openCount} offen` : 'alle erledigt') : ''}
+    title={t().overview.mixer.commentsOn(solo.versionNumber)}
+    sub={listed.length ? (openCount ? t().overview.mixer.openCount(openCount) : t().overview.mixer.allResolved) : ''}
   >
     {#if listed.length}
       <ul class="cms">
         {#each listed as c (c.id)}
           <li>
             <button type="button" disabled={c.timestampSeconds === null} onclick={() => c.timestampSeconds !== null && jump(c.timestampSeconds)}>
-              <Avatar name={c.user?.name ?? c.guestName ?? 'Gast'} src={c.user?.avatarUrl ?? null} size="xs" />
+              <Avatar name={c.user?.name ?? c.guestName ?? t().common.guest} src={c.user?.avatarUrl ?? null} size="xs" />
               {#if c.timestampSeconds !== null}<span class="tchip">{formatTime(c.timestampSeconds)}</span>{/if}
-              <span class="body"><b>{author(c)}</b>{c.body}{#if c.resolvedAt}<span class="dim">{' '}· erledigt</span>{/if}</span>
+              <span class="body"><b>{author(c)}</b>{c.body}{#if c.resolvedAt}<span class="dim">{' '}· {t().overview.mixer.resolved}</span>{/if}</span>
               <span class="when">{formatWhen(c.createdAt)}</span>
             </button>
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="empty">Zu dieser Version gibt es keine Kommentare.</p>
+      <p class="empty">{t().overview.mixer.noComments}</p>
     {/if}
   </DashCard>
 {/if}

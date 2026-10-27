@@ -1,7 +1,10 @@
 <script lang="ts">
   import { toasts, removeToast, type ToastType } from '$lib/stores/toast.js';
+  import { t } from '$lib/i18n/index.js';
   import Icon from './Icon.svelte';
 
+  // The loop below calls its toast t
+  const closeLabel = $derived(t().common.close);
   const icons: Record<ToastType, 'check' | 'x' | 'comment' | 'trash'> = {
     success: 'check',
     error: 'x',
@@ -22,7 +25,7 @@
           <button class="toast-action" onclick={() => { removeToast(t.id); action.run(); }}>{action.label}</button>
           <span class="toast-bar" style="animation-duration: {t.duration}ms"></span>
         {/if}
-        <button class="toast-close" onclick={() => removeToast(t.id)} aria-label="Schließen">
+        <button class="toast-close" onclick={() => removeToast(t.id)} aria-label={closeLabel}>
           <Icon name="x" size={14} />
         </button>
       </div>

@@ -165,7 +165,7 @@ test('rounds count per song, the next one beyond the included ones needs confirm
   const unconfirmed = await requestRound(db, { delivery, link, trackId: first, versionId: v2, guestName: 'Lena' });
   expect(unconfirmed).toMatchObject({ ok: false, status: 409, code: 'extra_round', extraRoundCents: 4000 });
   if (unconfirmed.ok) throw new Error('expected a refusal');
-  expect(failureBody(unconfirmed)).toEqual({ error: expect.any(String), code: 'extra_round', extraRoundCents: 4000 });
+  expect(failureBody(unconfirmed, 'de')).toEqual({ error: expect.any(String), code: 'extra_round', extraRoundCents: 4000 });
 
   // Confirming needs the price the client saw
   const stale = await requestRound(db, { delivery, link, trackId: first, versionId: v2, guestName: 'Lena', confirmExtra: true, extraRoundCents: 3000 });

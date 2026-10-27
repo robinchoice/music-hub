@@ -1,5 +1,6 @@
-// Pure helpers for the track page. No $lib imports, so they can be checked with `bun -e`.
+// Helpers for the track page.
 import { hasPermission, REVIEW_PASS_HOURS, type ProjectRole, type ReviewVerdict } from '@music-hub/shared';
+import { dateLocale, t } from '$lib/i18n/index.js';
 import { formatLufs, formatTruePeak } from './format.js';
 
 export type { ReviewVerdict } from '@music-hub/shared';
@@ -29,17 +30,18 @@ export type Version = {
 const LOSSLESS = new Set(['WAV', 'WAVE', 'AIF', 'AIFF', 'FLAC']);
 
 export function fileDetails(v: Version) {
+  const d = t().track.details;
   const ext = v.originalFileName.match(/\.(\w+)$/)?.[1]?.toUpperCase();
   return [
     ext && { text: ext },
-    v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString('de-DE')} kHz`, title: 'Abtastrate' },
+    v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString(dateLocale())} kHz`, title: d.sampleRate },
     v.bitDepth && ext && LOSSLESS.has(ext) && {
-      text: `${v.bitDepth} Bit${/^(flt|dbl)/.test(v.sampleFormat ?? '') ? ' Float' : ''}`,
-      title: 'Bittiefe',
+      text: `${v.bitDepth} Bit${/^(flt|dbl)/.test(v.sampleFormat ?? '') ? ` ${d.float}` : ''}`,
+      title: d.bitDepth,
     },
-    v.integratedLufs != null && { text: `${formatLufs(v.integratedLufs)} LUFS`, title: 'Integrierte Lautheit (EBU R128)' },
-    v.truePeak != null && { text: formatTruePeak(v.truePeak), title: 'True Peak' },
-    v.loudnessRange != null && { text: `LRA ${formatLufs(v.loudnessRange)} LU`, title: 'Lautheitsumfang (Loudness Range)' },
+    v.integratedLufs != null && { text: `${formatLufs(v.integratedLufs)} LUFS`, title: d.integratedLoudness },
+    v.truePeak != null && { text: formatTruePeak(v.truePeak), title: d.truePeak },
+    v.loudnessRange != null && { text: `LRA ${formatLufs(v.loudnessRange)} LU`, title: d.loudnessRange },
   ].filter((d): d is { text: string; title?: string } => !!d);
 }
 
@@ -121,7 +123,7 @@ export function spurDisplayName(name: string, trackName: string): string {
 }
 
 export function compareSpurNames(a: string, b: string): number {
-  return a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' });
+  return a.localeCompare(b, dateLocale(), { numeric: true, sensitivity: 'base' });
 }
 
 /** General comments first, then by position in the song, then by age. */
@@ -161,7 +163,7 @@ export function commentMarkers(comments: MarkerSource[]): CommentMarker[] {
       id: c.id,
       timestampSeconds: c.timestampSeconds!,
       body: c.body,
-      userName: c.user?.name ?? c.guestName ?? 'Gast',
+      userName: c.user?.name ?? c.guestName ?? t().common.guest,
       resolved: !!c.resolvedAt,
       replies: shown.filter((r) => r.parentId === c.id).length,
     }));
@@ -203,7 +205,7 @@ export type FeedbackRow = { key: string; name: string; avatarUrl: string | null;
 export function feedbackRows(comments: TrackComment[], reviews: Review[], waiting: Person[], uploaderId: string | null, now = Date.now()): FeedbackRow[] {
   const rows = new Map<string, FeedbackRow>();
   const person = (x: { user: Person | null; guestName?: string | null }) =>
-    x.user ? { name: x.user.name, avatarUrl: x.user.avatarUrl } : { name: x.guestName ?? 'Gast', avatarUrl: null };
+    x.user ? { name: x.user.name, avatarUrl: x.user.avatarUrl } : { name: x.guestName ?? t().common.guest, avatarUrl: null };
 
   // Newest first: the first review of each author is their current verdict
   for (const r of [...reviews].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {

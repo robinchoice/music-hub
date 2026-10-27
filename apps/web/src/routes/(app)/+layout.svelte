@@ -2,6 +2,7 @@
   import { onMount, setContext } from 'svelte';
   import { beforeNavigate, goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { t } from '$lib/i18n/index.js';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import Sidebar from '$lib/components/workspace/Sidebar.svelte';
   import BottomNav from '$lib/components/workspace/BottomNav.svelte';
@@ -54,7 +55,7 @@
   <div class="workspace">
     <Sidebar bind:this={sidebarRef} bind:open={mobileMenuOpen} onClose={() => (mobileMenuOpen = false)} />
     {#if mobileMenuOpen}
-      <button class="backdrop" onclick={() => (mobileMenuOpen = false)} aria-label="Menü schließen"></button>
+      <button class="backdrop" onclick={() => (mobileMenuOpen = false)} aria-label={t().workspace.nav.closeMenu}></button>
     {/if}
     <main class="main">
       <!-- Pages read their ids once on mount: a new project or track needs a fresh page -->

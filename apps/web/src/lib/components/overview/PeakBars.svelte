@@ -16,6 +16,7 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
   import { downsample, type Marker } from '$lib/utils/overview.js';
   import { formatTime } from '$lib/utils/format.js';
 
@@ -103,7 +104,7 @@
   style="--p: {Math.min(1, progress)}"
   role="slider"
   tabindex="0"
-  aria-label="Position"
+  aria-label={t().overview.shared.playerPosition}
   aria-valuemin={0}
   aria-valuemax={Math.round(duration)}
   aria-valuenow={Math.round(progress * duration)}

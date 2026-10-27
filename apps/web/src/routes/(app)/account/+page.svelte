@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import { user } from '$lib/stores/auth.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -40,7 +41,7 @@
     try {
       const res = await api.patch<{ user: typeof $user }>('/auth/me', { updates });
       user.set(res.user);
-      toastSuccess(updates ? 'Updates per Mail eingeschaltet' : 'Updates per Mail ausgeschaltet');
+      toastSuccess(updates ? t().overview.account.updatesOn : t().overview.account.updatesOff);
     } catch {
       // The API client already showed the error
     }
@@ -52,7 +53,7 @@
     try {
       const res = await api.patch<{ user: typeof $user }>('/auth/me', { name: name.trim() });
       user.set(res.user);
-      toastSuccess('Profil gespeichert');
+      toastSuccess(t().overview.account.saved);
     } catch {
       // The API client already showed the error
     } finally {
@@ -61,28 +62,28 @@
   }
 </script>
 
-<TopBar crumbs={[{ label: 'Konto' }]} />
+<TopBar crumbs={[{ label: t().overview.account.title }]} />
 
 <div class="page">
   <header>
-    <h1>Konto</h1>
-    <p class="sub">Dein Profil — sichtbar für andere im Projekt.</p>
+    <h1>{t().overview.account.title}</h1>
+    <p class="sub">{t().overview.account.sub}</p>
   </header>
 
   <section class="card">
-    <h2>Benachrichtigungen</h2>
+    <h2>{t().overview.account.notifications}</h2>
     {#if pushStore.state !== 'unsupported'}
       {#if pushStore.state === 'denied'}
-        <p class="push-hint">Push-Benachrichtigungen wurden im Browser blockiert. Bitte in den Browser-Einstellungen erlauben.</p>
+        <p class="push-hint">{t().overview.account.pushDenied}</p>
       {:else if pushStore.state === 'subscribed'}
         <div class="push-row">
-          <span class="push-active">Push-Benachrichtigungen aktiv</span>
-          <Button size="sm" variant="ghost" onclick={unsubscribePush} loading={pushStore.loading}>Deaktivieren</Button>
+          <span class="push-active">{t().overview.account.pushActive}</span>
+          <Button size="sm" variant="ghost" onclick={unsubscribePush} loading={pushStore.loading}>{t().overview.account.pushOff}</Button>
         </div>
       {:else}
         <div class="push-row">
-          <span class="push-desc">Werde benachrichtigt, wenn neue Versionen hochgeladen werden oder jemand mit deiner Version fertig ist.</span>
-          <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>Aktivieren</Button>
+          <span class="push-desc">{t().overview.account.pushText}</span>
+          <Button size="sm" onclick={subscribePush} loading={pushStore.loading}>{t().overview.account.pushOn}</Button>
         </div>
       {/if}
     {/if}
@@ -93,36 +94,36 @@
           checked={$user.versionMails ?? true}
           onchange={(e) => setVersionMails(e.currentTarget.checked)}
         />
-        <span>Mails zu neuen Versionen und Rückmeldungen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.</span>
+        <span>{t().overview.account.versionMails}</span>
       </label>
       <label class="mail-row">
         <input type="checkbox" checked={!!$user.updatesSince} onchange={(e) => setUpdates(e.currentTarget.checked)} />
         <span>
-          Updates per Mail: neue Funktionen in Music Hub, ein paar Mal im Monat.
-          {#if $user.updatesSince}Eingeschaltet am {new Date($user.updatesSince).toLocaleDateString('de-DE')}.{/if}
+          {t().overview.account.updates}
+          {#if $user.updatesSince}{t().overview.account.updatesSince(new Date($user.updatesSince).toLocaleDateString(dateLocale()))}{/if}
         </span>
       </label>
     {/if}
   </section>
 
   <section class="card">
-    <h2>Wiedergabe</h2>
+    <h2>{t().overview.account.playback}</h2>
     <label class="mail-row">
       <input type="checkbox" checked={hideTitle} onchange={(e) => setTitleHidden((hideTitle = e.currentTarget.checked))} />
-      <span>Titel auf Sperrbildschirm, Uhr und Autodisplay verbergen, dort steht dann nur „Music Hub“. Gilt für dieses Gerät, offene Tracks zeigen ihren Titel immer.</span>
+      <span>{t().overview.account.hideTitle}</span>
     </label>
   </section>
 
   {#if $user}
     <section class="card">
-      <h2>Profil</h2>
+      <h2>{t().overview.account.profile}</h2>
       <div class="profile-row">
         <Avatar name={$user.name} src={$user.avatarUrl ?? null} size="lg" />
         <div class="form">
-          <Input label="Anzeige-Name" bind:value={name} />
-          <p class="email-line">E-Mail: <span>{$user.email}</span></p>
+          <Input label={t().overview.account.displayName} bind:value={name} />
+          <p class="email-line">{t().overview.account.email} <span>{$user.email}</span></p>
           <Button onclick={save} loading={saving} disabled={!name.trim() || name === $user.name}>
-            Speichern
+            {t().common.save}
           </Button>
         </div>
       </div>
@@ -133,7 +134,7 @@
     <PaymentAccountSettings />
   {/if}
 
-  <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+  <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
 </div>
 
 <style>

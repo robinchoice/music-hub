@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import Button from '$lib/components/ui/Button.svelte';
+  import { t } from '$lib/i18n/index.js';
 
   // ?liste=updates comes from the update mails, without it from the version mails
   const updates = $page.url.searchParams.get('liste') === 'updates';
@@ -24,32 +25,32 @@
 </script>
 
 <svelte:head>
-  <title>Mails abbestellen — Music Hub</title>
+  <title>{t().landing.unsubscribe.title}</title>
 </svelte:head>
 
 {#if updates}
-  <h1>Updates per Mail</h1>
+  <h1>{t().landing.unsubscribe.updatesTitle}</h1>
   {#if state === 'done'}
-    <p>Abbestellt. Music Hub schickt dir keine Updates zu neuen Funktionen mehr. Login-Mails kommen weiter, wenn du sie anforderst.</p>
-    <Button variant="secondary" onclick={resubscribe}>Doch wieder bestellen</Button>
+    <p>{t().landing.unsubscribe.updatesDone}</p>
+    <Button variant="secondary" onclick={resubscribe}>{t().landing.unsubscribe.resubscribe}</Button>
   {:else if state === 'again'}
-    <p>Wieder bestellt. Du bekommst wieder Updates zu neuen Funktionen.</p>
+    <p>{t().landing.unsubscribe.updatesAgain}</p>
   {:else}
-    <p>Du bekommst eine Mail, wenn Music Hub neue Funktionen hat, höchstens ein paar Mal im Monat.</p>
+    <p>{t().landing.unsubscribe.updatesIdle}</p>
     {#if state === 'error'}
-      <p>Das hat nicht geklappt. Versuch es noch einmal oder schalte die Updates in deinem Konto aus.</p>
+      <p>{t().landing.unsubscribe.updatesError}</p>
     {/if}
-    <Button onclick={unsubscribe} loading={state === 'busy'}>Abbestellen</Button>
+    <Button onclick={unsubscribe} loading={state === 'busy'}>{t().landing.unsubscribe.unsubscribe}</Button>
   {/if}
 {:else}
-  <h1>Mails zu Versionen und Rückmeldungen</h1>
+  <h1>{t().landing.unsubscribe.noticesTitle}</h1>
   {#if state === 'done'}
-    <p>Abbestellt. Du bekommst keine Mails zu neuen Versionen und Rückmeldungen mehr. In deinem Konto kannst du sie wieder einschalten.</p>
+    <p>{t().landing.unsubscribe.noticesDone}</p>
   {:else}
-    <p>Du bekommst eine Mail, wenn in deinen Projekten neue Versionen hochgeladen werden oder jemand mit deiner Version fertig ist und du keinen Push aktiviert hast.</p>
+    <p>{t().landing.unsubscribe.noticesIdle}</p>
     {#if state === 'error'}
-      <p>Das hat nicht geklappt. Versuch es noch einmal oder schalte die Mails in deinem Konto aus.</p>
+      <p>{t().landing.unsubscribe.noticesError}</p>
     {/if}
-    <Button onclick={unsubscribe} loading={state === 'busy'}>Abbestellen</Button>
+    <Button onclick={unsubscribe} loading={state === 'busy'}>{t().landing.unsubscribe.unsubscribe}</Button>
   {/if}
 {/if}

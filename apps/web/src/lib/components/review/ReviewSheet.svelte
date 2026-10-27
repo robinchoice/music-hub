@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { formatTime } from '$lib/utils/format.js';
   import type { ReviewVerdict } from '$lib/utils/track.js';
 
@@ -16,7 +17,7 @@
     onSubmit,
   }: {
     open: boolean;
-    /** Defaults to "Fertig mit V4"; guests see no version numbers */
+    /** Defaults to "Done with V4"; guests see no version numbers */
     title?: string | null;
     versionNumber: number;
     uploaderName: string;
@@ -42,26 +43,26 @@
     }
   });
 
-  // Who may approve decides with "Freigeben" or "Änderungen nötig"; everyone else gives an opinion
+  // Who may approve decides with "Approve" or "Changes needed"; everyone else gives an opinion
   const options = $derived<{ value: ReviewVerdict; title: string; text: string; disabled?: boolean }[]>([
     canApprove
-      ? { value: 'approve', title: 'Freigeben', text: `V${versionNumber} ist so fertig.` }
-      : { value: 'approve', title: 'Freigeben', text: guest ? 'Freigeben können nur Projektmitglieder mit Freigaberecht.' : 'Nur mit Freigaberecht.', disabled: true },
-    ...(canApprove ? [] : [{ value: 'fine' as const, title: 'Passt für mich', text: 'Von meiner Seite kann es so bleiben.' }]),
+      ? { value: 'approve', title: t().guest.reviewSheet.approveTitle, text: t().guest.reviewSheet.approveText(versionNumber) }
+      : { value: 'approve', title: t().guest.reviewSheet.approveTitle, text: guest ? t().guest.reviewSheet.approveGuestOnly : t().guest.reviewSheet.approveNeedsRight, disabled: true },
+    ...(canApprove ? [] : [{ value: 'fine' as const, title: t().guest.reviewSheet.fineTitle, text: t().guest.reviewSheet.fineText }]),
     {
       value: 'changes',
-      title: 'Änderungen nötig',
+      title: t().guest.reviewSheet.changesTitle,
       text: canApprove
-        ? `V${versionNumber} gilt als abgelehnt, ${uploaderName} setzt die Anmerkungen um.`
-        : `${uploaderName} soll die Anmerkungen umsetzen, bevor es weitergeht.`,
+        ? t().guest.reviewSheet.changesTextApprover(versionNumber, uploaderName)
+        : t().guest.reviewSheet.changesText(uploaderName),
     },
-    { value: 'notes', title: 'Nur Anmerkungen', text: 'Kein Urteil, nur Hinweise.' },
+    { value: 'notes', title: t().guest.reviewSheet.notesTitle, text: t().guest.reviewSheet.notesText },
   ]);
 
   const summary = $derived(
     pass.length === 0
-      ? 'Keine neuen Anmerkungen, dein Urteil reicht.'
-      : `${pass.length === 1 ? 'Eine Anmerkung geht' : `${pass.length} Anmerkungen gehen`} gesammelt an ${uploaderName}.${guest ? ' Andere mit dem Link können sie schon lesen.' : ''}`,
+      ? t().guest.reviewSheet.summaryNone
+      : `${pass.length === 1 ? t().guest.reviewSheet.summaryOne(uploaderName) : t().guest.reviewSheet.summaryMany(pass.length, uploaderName)}${guest ? t().guest.reviewSheet.summaryGuest : ''}`,
   );
 
   async function send() {
@@ -78,7 +79,7 @@
   }
 </script>
 
-<Modal bind:open title={title ?? `Fertig mit V${versionNumber}`}>
+<Modal bind:open title={title ?? t().guest.reviewSheet.defaultTitle(versionNumber)}>
   <p class="sub">{summary}</p>
   {#if pass.length > 0}
     <ul class="pass">
@@ -91,7 +92,7 @@
     </ul>
   {/if}
   <fieldset class="verdicts" bind:this={list}>
-    <legend class="sr-only">Urteil</legend>
+    <legend class="sr-only">{t().guest.reviewSheet.verdict}</legend>
     {#each options as option (option.value + option.title)}
       <label class="verdict" class:on={verdict === option.value && !option.disabled} class:disabled={option.disabled}>
         <input type="radio" {name} value={option.value} bind:group={verdict} disabled={option.disabled} />
@@ -100,10 +101,10 @@
       </label>
     {/each}
   </fieldset>
-  <textarea bind:value={note} rows="3" maxlength="2000" placeholder="Gesamteindruck (optional)" aria-label="Gesamteindruck"></textarea>
+  <textarea bind:value={note} rows="3" maxlength="2000" placeholder={t().guest.reviewSheet.notePlaceholder} aria-label={t().guest.reviewSheet.noteLabel}></textarea>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (open = false)}>Weiter hören</Button>
-    <Button onclick={send} loading={sending} disabled={!verdict}>Abschicken</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>{t().guest.reviewSheet.keepListening}</Button>
+    <Button onclick={send} loading={sending} disabled={!verdict}>{t().guest.reviewSheet.send}</Button>
   {/snippet}
 </Modal>
 

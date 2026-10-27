@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -45,17 +46,17 @@
 
   // Whom a reply went to, seen from you
   function replyTo(e: OverviewEvent) {
-    if (!ix || !e.parent) return 'jemandem';
-    return e.parent.userId === ix.me ? 'dir' : personName(ix, e.parent.userId, e.parent.guestName);
+    if (!ix || !e.parent) return t().overview.forYou.someone;
+    return e.parent.userId === ix.me ? t().overview.forYou.you : personName(ix, e.parent.userId, e.parent.guestName);
   }
 </script>
 
-<TopBar crumbs={[{ label: 'Für dich' }]} />
+<TopBar crumbs={[{ label: t().overview.forYou.title }]} />
 
 <div class="page">
-  <h1>Für dich {#if $tasks.length + $requests.length}<span class="count">{$tasks.length + $requests.length}</span>{/if}</h1>
-  <p class="sub">Was gerade auf dich wartet, das Neueste zuerst.</p>
-  <PushPrompt --margin="0 0 var(--space-5)" text="Neue Versionen und Rückmeldungen als Benachrichtigung, auch wenn Music Hub zu ist." />
+  <h1>{t().overview.forYou.title} {#if $tasks.length + $requests.length}<span class="count">{$tasks.length + $requests.length}</span>{/if}</h1>
+  <p class="sub">{t().overview.forYou.sub}</p>
+  <PushPrompt --margin="0 0 var(--space-5)" text={t().overview.forYou.push} />
 
   {#if $requests.length}
     <div class="list requests">
@@ -83,45 +84,45 @@
   {:else if alone}
     <div class="empty">
       <div class="ok alone"><Icon name="users" size={22} stroke={2.2} /></div>
-      <h2>Noch hört niemand mit</h2>
-      <p>Hol Leute in dein Projekt. Sobald sie kommentieren, antworten oder neue Versionen hochladen, steht es hier.</p>
+      <h2>{t().overview.forYou.aloneTitle}</h2>
+      <p>{t().overview.forYou.aloneText}</p>
       <div class="cta">
         {#if project}
-          <Button href="/projects/{project.id}/settings">{project.name} teilen</Button>
+          <Button href="/projects/{project.id}/settings">{t().overview.shared.shareProject(project.name)}</Button>
         {:else}
-          <Button href="/projects/new">Neues Projekt</Button>
+          <Button href="/projects/new">{t().overview.shared.newProject}</Button>
         {/if}
       </div>
     </div>
   {:else if !$requests.length}
     <div class="empty">
       <div class="ok"><Icon name="check" size={22} stroke={2.4} /></div>
-      <h2>Alles erledigt</h2>
-      <p>Nichts wartet auf dich. Sobald jemand eine Version hochlädt, dir antwortet oder eine Anfrage schickt, steht es hier.</p>
+      <h2>{t().overview.forYou.allDoneTitle}</h2>
+      <p>{t().overview.forYou.allDoneText}</p>
     </div>
   {/if}
 
   {#if ix && recent.length}
     <section class="recent">
-      <h2>Zuletzt</h2>
+      <h2>{t().overview.forYou.recent}</h2>
       {#each recent as e (`${e.kind}:${e.comment?.id ?? e.version?.id ?? e.track.id}`)}
         <div class="line">
           <Avatar name={fullName(ix, e.actorId, e.guestName)} src={avatarOf(ix, e.actorId)} size="xs" />
           <p>
             <b>{personName(ix, e.actorId, e.guestName)}</b>
             {#if e.kind === 'version'}
-              hat <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span> hochgeladen
+              {t().overview.forYou.version.before} <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span>{t().overview.forYou.version.after}
             {:else if e.kind === 'comment'}
-              hat <span class="t">{e.track.name}</span>{#if e.comment && e.comment.timestampSeconds !== null}
-                {' '}bei <span class="tchip">{formatTime(e.comment.timestampSeconds)}</span>{/if} kommentiert
+              {t().overview.forYou.comment.before} <span class="t">{e.track.name}</span>{#if e.comment && e.comment.timestampSeconds !== null}
+                {t().overview.forYou.comment.at} <span class="tchip">{formatTime(e.comment.timestampSeconds)}</span>{/if}{t().overview.forYou.comment.after}
             {:else if e.kind === 'reply'}
-              hat {replyTo(e)} bei <span class="t">{e.track.name}</span> geantwortet
+              {t().overview.forYou.reply.before} {replyTo(e)}{t().overview.forYou.reply.mid} <span class="t">{e.track.name}</span>{t().overview.forYou.reply.after}
             {:else if e.kind === 'approved'}
-              hat <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span> freigegeben
+              {t().overview.forYou.approved.before} <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span>{t().overview.forYou.approved.after}
             {:else if e.kind === 'rejected'}
-              hat <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span> abgelehnt
+              {t().overview.forYou.rejected.before} <span class="t">{e.track.name}</span> <span class="vchip">V{e.version?.versionNumber}</span>{t().overview.forYou.rejected.after}
             {:else}
-              hat <span class="t">{e.track.name}</span> angelegt
+              {t().overview.forYou.created.before} <span class="t">{e.track.name}</span>{t().overview.forYou.created.after}
             {/if}
           </p>
           <span class="when">{formatWhen(e.at)}</span>
@@ -133,8 +134,8 @@
 
 {#if undoKey}
   <div class="undo" role="status">
-    Als erledigt markiert.
-    <button type="button" onclick={undo}>Rückgängig</button>
+    {t().overview.forYou.markedDone}
+    <button type="button" onclick={undo}>{t().common.undo}</button>
   </div>
 {/if}
 

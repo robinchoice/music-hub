@@ -2,6 +2,7 @@
   import { onMount, getContext } from 'svelte';
   import { page } from '$app/stores';
   import { goto, replaceState } from '$app/navigation';
+  import { t, dateLocale } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toast, toastSuccess } from '$lib/stores/toast.js';
   import { loadOverview } from '$lib/stores/overview.js';
@@ -50,14 +51,14 @@
 
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
 
-  const FILTERS: [Filter, string][] = [
-    ['all', 'Alle'],
-    ['track', 'Tracks'],
-    ['version', 'Versionen'],
-    ['stem', 'Spuren'],
-    ['revision', 'Fassungen'],
-    ['comment', 'Kommentare'],
-  ];
+  const FILTERS = $derived<[Filter, string][]>([
+    ['all', t().workspace.trash.filterAll],
+    ['track', t().workspace.trash.filterTracks],
+    ['version', t().workspace.trash.filterVersions],
+    ['stem', t().workspace.trash.filterStems],
+    ['revision', t().workspace.trash.filterRevisions],
+    ['comment', t().workspace.trash.filterComments],
+  ]);
 
   let entries = $state<Entry[]>([]);
   let loading = $state(true);
@@ -77,7 +78,6 @@
   const bytes = $derived(scoped.reduce((sum, e) => sum + ('bytes' in e ? e.bytes : 0), 0));
   const countOf = (f: Filter) => (f === 'all' ? scoped.length : scoped.filter((e) => e.kind === f).length);
   const projectName = $derived(projectOptions.find((p) => p.id === projectFilter)?.name ?? '');
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const size = (b: number) => (b >= 1024 ** 3 ? formatGb(b) : formatFileSize(b));
 
   onMount(async () => {
@@ -85,7 +85,7 @@
       entries = (await api.get<{ entries: Entry[] }>('/trash')).entries;
       projectOptions = [...new Map(entries.map((e) => [e.projectId, e.projectName]))]
         .map(([id, name]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+        .sort((a, b) => a.name.localeCompare(b.name, dateLocale()));
       if (projectFilter && !projectOptions.some((p) => p.id === projectFilter)) selectProject('');
     } finally {
       loading = false;
@@ -105,16 +105,16 @@
     if (e.kind === 'version') return `V${e.versionNumber} · ${versionTitle(e)}`;
     if (e.kind === 'stem') return spurDisplayName(e.name, e.trackName);
     if (e.kind === 'revision') return e.originalFileName;
-    return `„${e.body}“`;
+    return t().workspace.quoted(e.body);
   }
 
   // "„Nachtbus“", "V4", "Spur „Kick In“", "Kommentar"
   function shortName(e: Entry) {
-    if (e.kind === 'track') return `„${e.trackName}“`;
+    if (e.kind === 'track') return t().workspace.quoted(e.trackName);
     if (e.kind === 'version') return `V${e.versionNumber}`;
-    if (e.kind === 'stem') return `Spur „${spurDisplayName(e.name, e.trackName)}“`;
-    if (e.kind === 'revision') return `Fassung „${e.originalFileName}“`;
-    return 'Kommentar';
+    if (e.kind === 'stem') return t().workspace.trash.shortStem(spurDisplayName(e.name, e.trackName));
+    if (e.kind === 'revision') return t().workspace.trash.shortRevision(e.originalFileName);
+    return t().workspace.trash.shortComment;
   }
 
   // Where a restored entry is
@@ -126,11 +126,11 @@
   }
 
   function trackContents(e: Extract<Entry, { kind: 'track' }>, dative = false) {
-    const parts = [plural(e.versionCount, 'Version', 'Versionen'), plural(e.commentCount, 'Kommentar', dative ? 'Kommentaren' : 'Kommentare')];
-    if (e.stemCount) parts.push(plural(e.stemCount, 'Spur', 'Spuren'));
-    if (e.shareLinkCount) parts.push(plural(e.shareLinkCount, 'Freigabelink', 'Freigabelinks'));
-    if (!dative) return parts.join(' · ');
-    return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} und ${parts[parts.length - 1]}` : parts[0];
+    const m = t();
+    const parts = [m.common.versions(e.versionCount), dative ? m.workspace.trash.commentsDative(e.commentCount) : m.common.comments(e.commentCount)];
+    if (e.stemCount) parts.push(m.common.stems(e.stemCount));
+    if (e.shareLinkCount) parts.push(m.workspace.trash.shareLinks(e.shareLinkCount));
+    return dative ? m.workspace.joinList(parts) : parts.join(' · ');
   }
 
   async function restore(e: Entry) {
@@ -138,7 +138,7 @@
     entries = entries.filter((x) => x.id !== e.id);
     if (e.kind === 'track') reloadSidebar?.();
     void loadOverview();
-    toast(`${shortName(e)} ist wieder da`, 'success', 6000, { label: 'Ansehen', run: () => goto(place(e)) });
+    toast(t().workspace.trash.restored(shortName(e)), 'success', 6000, { label: t().workspace.trash.view, run: () => goto(place(e)) });
   }
 
   function askDiscard(e: Entry) {
@@ -155,7 +155,7 @@
       await api.delete(`/trash/${e.kind}/${e.id}`);
       entries = entries.filter((x) => x.id !== e.id);
       discardOpen = false;
-      toastSuccess('Endgültig gelöscht');
+      toastSuccess(t().workspace.trash.discarded);
     } catch {
       // The API client already showed the error
     } finally {
@@ -169,7 +169,7 @@
       await api.delete(projectFilter ? `/trash?project=${projectFilter}` : '/trash');
       entries = entries.filter((e) => projectFilter && e.projectId !== projectFilter);
       emptyOpen = false;
-      toastSuccess('Papierkorb geleert');
+      toastSuccess(t().workspace.trash.emptied);
     } catch {
       // The API client already showed the error
     } finally {
@@ -184,23 +184,22 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<TopBar crumbs={[{ label: 'Papierkorb' }]} />
+<TopBar crumbs={[{ label: t().workspace.nav.trash }]} />
 
 <div class="trash-page">
   <header class="head">
     <span class="head-icon"><Icon name="trash" size={24} /></span>
     <div class="grow">
-      <h1>Papierkorb</h1>
+      <h1>{t().workspace.nav.trash}</h1>
       <p>
-        Gelöschtes aus {projectName ? `„${projectName}“` : 'deinen Projekten'} bleibt {TRASH_DAYS} Tage hier und wird
-        danach endgültig gelöscht.
+        {t().workspace.trash.intro(projectName, TRASH_DAYS)}
       </p>
       {#if bytes > 0}
-        <p>Die Dateien darin belegen {size(bytes)} und zählen weiter zum Speicher.</p>
+        <p>{t().workspace.trash.storage(size(bytes))}</p>
       {/if}
     </div>
     {#if scoped.length > 0}
-      <Button variant="danger" size="sm" onclick={() => (emptyOpen = true)}><Icon name="trash" size={13} /> Papierkorb leeren</Button>
+      <Button variant="danger" size="sm" onclick={() => (emptyOpen = true)}><Icon name="trash" size={13} /> {t().workspace.trash.emptyAction}</Button>
     {/if}
   </header>
 
@@ -213,19 +212,19 @@
   {:else if entries.length === 0}
     <div class="empty">
       <Icon name="trash" size={28} />
-      <b>Der Papierkorb ist leer</b>
-      <p>Gelöschte Tracks, Versionen, Spuren und Kommentare aus allen Projekten landen hier und lassen sich {TRASH_DAYS} Tage lang wiederherstellen.</p>
+      <b>{t().workspace.trash.empty}</b>
+      <p>{t().workspace.trash.emptyText(TRASH_DAYS)}</p>
     </div>
   {:else}
     <div class="toolbar">
       {#if projectOptions.length > 1}
         <select
           class="project-select"
-          aria-label="Projekt"
+          aria-label={t().workspace.trash.project}
           value={projectFilter}
           onchange={(ev) => selectProject(ev.currentTarget.value)}
         >
-          <option value="">Alle Projekte</option>
+          <option value="">{t().workspace.trash.allProjects}</option>
           {#each projectOptions as p (p.id)}
             <option value={p.id}>{p.name}</option>
           {/each}
@@ -241,7 +240,7 @@
     </div>
 
     {#if shown.length === 0}
-      <p class="none">Nichts in dieser Auswahl.</p>
+      <p class="none">{t().workspace.trash.none}</p>
     {:else}
       <div class="list">
         {#each shown as e (e.id)}
@@ -259,33 +258,33 @@
               <div class="sub">
                 {#if !projectFilter}<span class="project">{e.projectName}</span> · {/if}
                 {#if e.kind === 'track'}
-                  Track · {trackContents(e)}
+                  {t().workspace.trash.track} · {trackContents(e)}
                 {:else if e.kind === 'version'}
-                  Version von <b>{e.trackName}</b> · {plural(e.commentCount, 'Kommentar', 'Kommentare')}{#if e.shareLinkCount} · {plural(e.shareLinkCount, 'Freigabelink', 'Freigabelinks')}{/if}
+                  {t().workspace.trash.versionOf} <b>{e.trackName}</b> · {t().common.comments(e.commentCount)}{#if e.shareLinkCount} · {t().workspace.trash.shareLinks(e.shareLinkCount)}{/if}
                 {:else if e.kind === 'stem'}
-                  Spur von <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
+                  {t().workspace.trash.stemOf} <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
                 {:else if e.kind === 'revision'}
-                  Frühere Fassung von <b>{spurDisplayName(e.name, e.trackName)}</b> in <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
+                  {t().workspace.trash.revisionOf} <b>{spurDisplayName(e.name, e.trackName)}</b> {t().workspace.trash.revisionIn} <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
                 {:else}
-                  Kommentar zu <b>{e.trackName}</b> · V{e.versionNumber}{#if e.timestampSeconds !== null} bei {formatTime(e.timestampSeconds)}{/if}{#if e.replyCount} · {plural(e.replyCount, 'Antwort bleibt', 'Antworten bleiben')} sichtbar{/if}
+                  {t().workspace.trash.commentOn} <b>{e.trackName}</b> · V{e.versionNumber}{#if e.timestampSeconds !== null} {t().workspace.trash.commentAt} {formatTime(e.timestampSeconds)}{/if}{#if e.replyCount} · {t().workspace.trash.replies(e.replyCount)}{/if}
                 {/if}
               </div>
             </div>
             <div class="meta">
-              Gelöscht {timeAgo(e.deletedAt)}
-              <span class="left" class:soon={left <= 3}>noch {left} {left === 1 ? 'Tag' : 'Tage'}</span>
+              {t().workspace.trash.deleted} {timeAgo(e.deletedAt)}
+              <span class="left" class:soon={left <= 3}>{t().workspace.trash.daysLeft(left)}</span>
             </div>
             <div class="acts">
               <Button variant="secondary" size="sm" onclick={() => restore(e)}>
-                <Icon name="restore" size={13} /> <span class="btn-label">Wiederherstellen</span>
+                <Icon name="restore" size={13} /> <span class="btn-label">{t().workspace.trash.restore}</span>
               </Button>
               <div class="row-menu">
-                <button class="icon-btn" aria-label="Weitere Aktionen" onclick={() => (menuFor = menuFor === e.id ? null : e.id)}>
+                <button class="icon-btn" aria-label={t().workspace.trash.moreActions} onclick={() => (menuFor = menuFor === e.id ? null : e.id)}>
                   <Icon name="more" size={16} />
                 </button>
                 {#if menuFor === e.id}
                   <div class="menu" role="menu">
-                    <button role="menuitem" class="danger" onclick={() => askDiscard(e)}><Icon name="trash" size={14} /> Endgültig löschen</button>
+                    <button role="menuitem" class="danger" onclick={() => askDiscard(e)}><Icon name="trash" size={14} /> {t().workspace.trash.discard}</button>
                   </div>
                 {/if}
               </div>
@@ -296,44 +295,42 @@
     {/if}
 
     <p class="foot">
-      Du siehst nur, was du wiederherstellen darfst: in deinen eigenen Projekten Tracks, Versionen, Spuren und ihre
-      Fassungen, in anderen deine eigenen Spuren und Fassungen, dazu überall deine eigenen Kommentare.
+      {t().workspace.trash.foot}
     </p>
   {/if}
 </div>
 
-<Modal bind:open={discardOpen} title="Endgültig löschen?">
+<Modal bind:open={discardOpen} title={t().workspace.trash.discardTitle}>
   {#if discarding}
     <p class="modal-text">
       {#if discarding.kind === 'track'}
-        <strong>„{discarding.trackName}“</strong> wird mit {trackContents(discarding, true)} endgültig gelöscht, auch die Audiodateien.
+        <strong>{t().workspace.quoted(discarding.trackName)}</strong>{t().workspace.trash.discardTrack(trackContents(discarding, true))}
       {:else if discarding.kind === 'version'}
-        <strong>{title(discarding)}</strong> wird mit {plural(discarding.commentCount, 'Kommentar', 'Kommentaren')} endgültig gelöscht, auch die Audiodatei.
+        <strong>{title(discarding)}</strong>{t().workspace.trash.discardVersion(t().workspace.trash.commentsDative(discarding.commentCount))}
       {:else if discarding.kind === 'stem'}
-        Die Spur <strong>„{title(discarding)}“</strong> wird endgültig gelöscht, auch die Datei.
+        {t().workspace.trash.discardStemBefore}<strong>{t().workspace.quoted(title(discarding))}</strong>{t().workspace.trash.discardStemAfter}
       {:else if discarding.kind === 'revision'}
-        Die frühere Fassung <strong>„{title(discarding)}“</strong> wird endgültig gelöscht, auch die Datei.
+        {t().workspace.trash.discardRevisionBefore}<strong>{t().workspace.quoted(title(discarding))}</strong>{t().workspace.trash.discardRevisionAfter}
       {:else}
-        Dein Kommentar <strong>{title(discarding)}</strong> wird endgültig gelöscht.
+        {t().workspace.trash.discardCommentBefore}<strong>{title(discarding)}</strong>{t().workspace.trash.discardCommentAfter}
       {/if}
     </p>
-    <p class="modal-text">Danach kannst du es nicht mehr wiederherstellen.</p>
+    <p class="modal-text">{t().workspace.trash.noUndo}</p>
   {/if}
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (discardOpen = false)}>Abbrechen</Button>
-    <Button variant="danger" loading={busy} onclick={discard}>Endgültig löschen</Button>
+    <Button variant="ghost" onclick={() => (discardOpen = false)}>{t().common.cancel}</Button>
+    <Button variant="danger" loading={busy} onclick={discard}>{t().workspace.trash.discard}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={emptyOpen} title="Papierkorb leeren?">
+<Modal bind:open={emptyOpen} title={t().workspace.trash.emptyTitle}>
   <p class="modal-text">
-    {plural(scoped.length, 'Eintrag wird', 'Einträge werden')}{projectName ? ` aus „${projectName}“` : ''} endgültig gelöscht, mit allen Versionen, Kommentaren und
-    Dateien darin.
+    {t().workspace.trash.emptyBody(scoped.length, projectName)}
   </p>
-  <p class="modal-text">Danach kannst du sie nicht mehr wiederherstellen.</p>
+  <p class="modal-text">{t().workspace.trash.emptyNoUndo}</p>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (emptyOpen = false)}>Abbrechen</Button>
-    <Button variant="danger" loading={busy} onclick={emptyTrash}>Papierkorb leeren</Button>
+    <Button variant="ghost" onclick={() => (emptyOpen = false)}>{t().common.cancel}</Button>
+    <Button variant="danger" loading={busy} onclick={emptyTrash}>{t().workspace.trash.emptyAction}</Button>
   {/snippet}
 </Modal>
 

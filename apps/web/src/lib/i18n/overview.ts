@@ -1,0 +1,581 @@
+// Overview, "Für dich", account, device, and the helpers and components behind them.
+export const de = {
+  // Used by several pages of this area
+  shared: {
+    newProject: 'Neues Projekt',
+    shareProject: (name: string) => `${name} teilen`,
+    quote: (text: string) => `„${text}“`,
+    newSince: 'Neu seit deinem letzten Besuch',
+    guests: 'Gäste',
+    playerPosition: 'Position',
+  },
+
+  // utils/overview.ts
+  names: {
+    joinNames: (names: string[]) =>
+      names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`,
+    guestNamed: (name: string) => `${name} (Gast)`,
+    guestViaLink: (name: string) => (name ? `${name} (per Link)` : 'Gäste per Link'),
+  },
+  // What someone did last, after the name: "Robin lud V3 hoch"
+  last: {
+    version: (mine: boolean, v: string): string => (mine ? `hast ${v} hochgeladen` : `lud ${v} hoch`),
+    comment: (mine: boolean): string => (mine ? 'hast kommentiert' : 'kommentierte'),
+    reply: (mine: boolean): string => (mine ? 'hast geantwortet' : 'antwortete'),
+    approved: (mine: boolean, v: string): string => (mine ? `hast ${v} freigegeben` : `gab ${v} frei`),
+    rejected: (mine: boolean, v: string): string => (mine ? `hast ${v} abgelehnt` : `lehnte ${v} ab`),
+    created: (mine: boolean): string => (mine ? 'hast den Track angelegt' : 'legte den Track an'),
+  },
+  stage: {
+    none: 'Noch keine Version',
+    processing: 'Wird verarbeitet',
+    approved: 'Freigegeben',
+    rejected: 'Abgelehnt',
+    open: (n: number) => (n === 1 ? '1 offener Kommentar' : `${n} offene Kommentare`),
+    feedback: 'Wartet auf Feedback',
+  },
+  turn: {
+    title: 'Wer ist dran',
+    sub: 'laufende Tracks',
+    mine: 'Du bist dran',
+    // "Lena ist dran", "Lena und Tom sind dran"
+    others: (names: string[], list: string) => (names.length === 1 ? `${list} ist dran` : `${list} sind dran`),
+    // "Du, Lena und Tom seid dran"
+    mineAndOthers: (list: string) => `Du, ${list} seid dran`,
+  },
+  lamp: {
+    approved: 'Frei',
+    rejected: 'Abgelehnt',
+    open: (n: number) => `${n} offen`,
+    feedback: 'Wartet auf Feedback',
+    resolved: 'erledigt',
+    none: 'ohne Feedback',
+  },
+  decision: {
+    approved: (who: string | null, date: string | null) =>
+      `Freigegeben${who ? ` von ${who}` : ''}${date ? `, ${date}` : ''}`,
+    rejected: (who: string | null, reason: string | null) =>
+      `Abgelehnt${who ? ` von ${who}` : ''}${reason ? `: „${reason}“` : ''}`,
+  },
+  // Tooltip of a comment marker on a waveform
+  marker: (who: string, time: string, body: string) => `${who} bei ${time}: ${body}`,
+
+  // Components
+  activity: {
+    title: 'Aktivität',
+    sub: 'pro Kalenderwoche',
+    chart: 'Diagramm',
+    table: 'Tabelle',
+    week: 'Woche',
+    versions: 'Versionen',
+    comments: 'Kommentare',
+    weekShort: (week: number) => `KW ${week}`,
+    weekThis: (week: number) => `KW ${week}, diese Woche`,
+    weekThisShort: (week: number) => `KW ${week} (diese)`,
+  },
+  firstSteps: {
+    createTitle: 'Projekt anlegen',
+    createText: 'Album, EP oder Single, mit Artist und Cover.',
+    uploadTitle: 'Mix hochladen',
+    uploadText: 'Dein Mix wird die erste Version eines Tracks. Spuren gehen auch.',
+    uploadButton: 'Mix hochladen',
+    inviteTitle: 'Leute dazuholen',
+    inviteText: 'Band, Produzentin oder Label hören rein und kommentieren an der Stelle.',
+  },
+  listens: {
+    title: 'Per Link gehört',
+    sub: 'geteilte Versionen',
+    played: (plays: number, fullPlays: number, until: string) =>
+      fullPlays ? `${plays}× gehört, ${fullPlays}× ganz` : `${plays}× gehört, bis ${until}`,
+    tip: (name: string, track: string, version: number, until: string, total: string | null) =>
+      `${name} hat ${track} V${version} bis ${until}${total ? ` von ${total}` : ''} gehört`,
+  },
+  loadFailed: {
+    title: 'Gerade nicht erreichbar',
+    text: 'Die Daten ließen sich nicht laden. Prüf deine Verbindung und versuch es noch einmal.',
+  },
+  loudness: {
+    title: 'Lautheit',
+    sub: 'neueste Version, LUFS',
+    chart: 'Diagramm',
+    table: 'Tabelle',
+    track: 'Track',
+    version: 'Version',
+    streaming: '−14 Streaming',
+    integrated: 'LUFS integriert',
+  },
+  wave: { play: 'Abspielen', pause: 'Pause' },
+  strip: {
+    meter: 'Pegel live, links und rechts',
+    measured: (lufs: string) => `Gemessene Lautheit: ${lufs} LUFS`,
+    matched: (lufs: string, db: string) => `Angeglichen auf ${lufs} LUFS: ${db}`,
+    noMatch: 'Kein Ausgleich',
+    broken: 'Diese Version lässt sich gerade nicht abspielen.',
+    brokenShort: 'nicht abspielbar',
+    notMeasured: 'nicht gemessen',
+    solo: 'Solo',
+  },
+  newVersions: {
+    title: 'Neu zum Anhören',
+    sub: 'neueste Versionen der anderen',
+    // "Mix 2 von Lena, vor 5 Min."; the label may be empty
+    by: (label: string, who: string, when: string) => `${label ? `${label} ` : ''}von ${who}, ${when}`,
+    compare: (version: number) => `Mit V${version} vergleichen`,
+  },
+  dock: { compare: 'Vergleichen', close: 'Player schließen' },
+  stages: {
+    title: 'Stand der Projekte',
+    feedback: 'wartet auf Feedback',
+    open: 'offene Kommentare',
+    rejected: 'abgelehnt',
+    approved: 'freigegeben',
+    none: 'noch keine Version',
+    progress: (done: number, total: number) => `${done} von ${total} fertig`,
+    noTracks: 'Noch keine Tracks',
+  },
+  timeline: {
+    title: 'Verlauf',
+    sub: 'Klick auf einen Clip spielt ihn unten ab',
+    range: 'Zeitraum',
+    weeks4: '4 Wochen',
+    weeks8: '8 Wochen',
+    months3: '3 Monate',
+    latest: 'neueste Version',
+    version: 'Version',
+    approved: 'freigegeben',
+    rejected: 'abgelehnt',
+    comment: 'Kommentar',
+    track: 'Track',
+    today: 'heute',
+    stage: 'Stand',
+    hidden: (n: number) =>
+      `${n === 1 ? 'Ein fertiger Track' : `${n} fertige Tracks`} ohne Aktivität im Zeitraum ausgeblendet.`,
+    clickToPlay: 'Klick spielt ab',
+    playAria: (track: string, version: number) => `${track} V${version} abspielen`,
+    created: (date: string) => `angelegt ${date}, noch keine Version`,
+  },
+  storage: {
+    title: 'Speicher',
+    sub: 'deine Uploads',
+    of: (limit: string) => `von ${limit}`,
+    tip: (used: string, limit: string, pct: number, versions: string, stems: string) =>
+      `${used} von ${limit} belegt (${pct} %)\nVersionen ${versions}, Spuren ${stems}`,
+    versions: (size: string) => `Versionen ${size}`,
+    stems: (size: string) => `Spuren ${size}`,
+  },
+  task: {
+    // Followed by the text; the name stands in bold before it
+    listen: 'hat eine neue Version hochgeladen. Dein Feedback fehlt noch.',
+    rejectedBy: (who: string | null) => (who ? `${who} hat deine Version abgelehnt` : 'Deine Version wurde abgelehnt'),
+    openComments: (n: number, from: string) =>
+      `${n === 1 ? 'Ein offener Kommentar' : `${n} offene Kommentare`} zu deiner Version, von ${from}.`,
+    // "<name> hat auf deinen Kommentar [bei 1:23] geantwortet."
+    replyStart: 'hat auf deinen Kommentar',
+    replyAt: ' bei',
+    replyEnd: ' geantwortet.',
+    giveFeedback: 'Feedback geben',
+    uploadNew: 'Neue Version hochladen',
+    reply: 'Antworten',
+    done: 'Erledigt',
+  },
+  row: {
+    empty: 'noch leer',
+    stems: 'Spuren',
+    version: 'Version',
+    // "<name> hat V3 abgelehnt: „…“" and "V3 wurde abgelehnt"
+    rejectedBefore: 'hat',
+    rejectedAfter: ' abgelehnt',
+    wasRejected: ' wurde abgelehnt',
+  },
+
+  mixer: {
+    offline: 'Keine Verbindung',
+    offlineText: 'Vergleichen braucht eine Verbindung, weil alle Versionen gleichzeitig streamen.',
+    stop: 'Stopp',
+    start: 'Start',
+    matchLoudness: 'Lautheit angleichen',
+    keysSwitch: 'wechselt',
+    space: 'Leertaste',
+    keysStart: 'startet',
+    strips: 'Kanalzüge',
+    version: 'Version',
+    from: 'Von',
+    status: 'Stand',
+    level: 'Pegel L/R',
+    loudness: 'Lautheit',
+    match: 'Angleich',
+    listen: 'Hören',
+    comments: 'Kommentare',
+    commentsOn: (version: number) => `Kommentare zu V${version}`,
+    openCount: (n: number) => `${n} offen`,
+    allResolved: 'alle erledigt',
+    resolved: 'erledigt',
+    noComments: 'Zu dieser Version gibt es keine Kommentare.',
+  },
+
+  // routes/(app)/dashboard
+  dashboard: {
+    title: 'Übersicht',
+    welcome: (name: string | null) => `Willkommen${name ? `, ${name}` : ''}.`,
+    welcomeBold: 'In drei Schritten',
+    welcomeAfter: 'hörst du das erste Feedback zu deinem Song.',
+    lastWeek: 'In den letzten sieben Tagen:',
+    // Separator before part i of n of "3 neue Versionen, 12 Kommentare und eine Freigabe"
+    separator: (i: number, n: number): string => (i === 0 ? ' ' : i === n - 1 ? ' und ' : ', '),
+    newVersions: (n: number) => (n === 1 ? '1 neue Version' : `${n} neue Versionen`),
+    approvals: (n: number) => (n === 1 ? 'eine Freigabe' : `${n} Freigaben`),
+    quiet: 'In den letzten sieben Tagen war es ruhig.',
+    nobodyListens: 'Noch hört niemand mit.',
+    tasksWaiting: (n: number) => `${n === 1 ? 'Eine Aufgabe wartet' : `${n} Aufgaben warten`} auf dich.`,
+  },
+
+  // routes/(app)/for-you
+  forYou: {
+    title: 'Für dich',
+    sub: 'Was gerade auf dich wartet, das Neueste zuerst.',
+    push: 'Neue Versionen und Rückmeldungen als Benachrichtigung, auch wenn Music Hub zu ist.',
+    aloneTitle: 'Noch hört niemand mit',
+    aloneText: 'Hol Leute in dein Projekt. Sobald sie kommentieren, antworten oder neue Versionen hochladen, steht es hier.',
+    allDoneTitle: 'Alles erledigt',
+    allDoneText:
+      'Nichts wartet auf dich. Sobald jemand eine Version hochlädt, dir antwortet oder eine Anfrage schickt, steht es hier.',
+    recent: 'Zuletzt',
+    markedDone: 'Als erledigt markiert.',
+    someone: 'jemandem',
+    you: 'dir',
+    // "<name> hat <track> V3 hochgeladen": text before and after the track
+    version: { before: 'hat', after: ' hochgeladen' },
+    comment: { before: 'hat', at: ' bei', after: ' kommentiert' },
+    // "hat <whom> bei <track> geantwortet"
+    reply: { before: 'hat', mid: ' bei', after: ' geantwortet' },
+    approved: { before: 'hat', after: ' freigegeben' },
+    rejected: { before: 'hat', after: ' abgelehnt' },
+    created: { before: 'hat', after: ' angelegt' },
+  },
+
+  // routes/(app)/account
+  account: {
+    title: 'Konto',
+    sub: 'Dein Profil — sichtbar für andere im Projekt.',
+    updatesOn: 'Updates per Mail eingeschaltet',
+    updatesOff: 'Updates per Mail ausgeschaltet',
+    saved: 'Profil gespeichert',
+    notifications: 'Benachrichtigungen',
+    pushDenied: 'Push-Benachrichtigungen wurden im Browser blockiert. Bitte in den Browser-Einstellungen erlauben.',
+    pushActive: 'Push-Benachrichtigungen aktiv',
+    pushOff: 'Deaktivieren',
+    pushText: 'Werde benachrichtigt, wenn neue Versionen hochgeladen werden oder jemand mit deiner Version fertig ist.',
+    pushOn: 'Aktivieren',
+    versionMails:
+      'Mails zu neuen Versionen und Rückmeldungen, solange auf keinem Gerät Push aktiv ist. Uploads kurz hintereinander kommen in einer Mail.',
+    updates: 'Updates per Mail: neue Funktionen in Music Hub, ein paar Mal im Monat.',
+    updatesSince: (date: string) => `Eingeschaltet am ${date}.`,
+    playback: 'Wiedergabe',
+    hideTitle:
+      'Titel auf Sperrbildschirm, Uhr und Autodisplay verbergen, dort steht dann nur „Music Hub“. Gilt für dieses Gerät, offene Tracks zeigen ihren Titel immer.',
+    profile: 'Profil',
+    displayName: 'Anzeige-Name',
+    email: 'E-Mail:',
+  },
+
+  // routes/(app)/device
+  device: {
+    title: 'Gerät verbinden',
+    invalidCode: 'Code ungültig',
+    approveFailed: 'Freigabe fehlgeschlagen',
+    connected: (client: string | null) => `Verbunden. Du kannst zurück zu ${client ?? 'deinem Plugin'} wechseln.`,
+    wants: (client: string | null) => `${client ?? 'Ein Plugin'} möchte sich mit deinem Konto verbinden.`,
+    connect: 'Verbinden',
+    otherCode: 'Anderer Code',
+    enterCode: 'Gib den Code ein, den dir das Plugin oder Music Hub Sync anzeigt.',
+    code: 'Code',
+    next: 'Weiter',
+  },
+
+  // lib/stores/offline.svelte.ts
+  offline: {
+    audioFailed: (status: number) => `Audio-Download fehlgeschlagen: ${status}`,
+  },
+};
+
+export const en: typeof de = {
+  shared: {
+    newProject: 'New project',
+    shareProject: (name) => `Share ${name}`,
+    quote: (text) => `“${text}”`,
+    newSince: 'New since your last visit',
+    guests: 'Guests',
+    playerPosition: 'Position',
+  },
+
+  names: {
+    joinNames: (names) =>
+      names.length < 2
+        ? names.join('')
+        : names.length === 2
+          ? `${names[0]} and ${names[1]}`
+          : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`,
+    guestNamed: (name) => `${name} (guest)`,
+    guestViaLink: (name) => (name ? `${name} (via link)` : 'Guests via link'),
+  },
+  last: {
+    version: (_mine, v) => `uploaded ${v}`,
+    comment: () => 'commented',
+    reply: () => 'replied',
+    approved: (_mine, v) => `approved ${v}`,
+    rejected: (_mine, v) => `rejected ${v}`,
+    created: () => 'created the track',
+  },
+  stage: {
+    none: 'No version yet',
+    processing: 'Processing',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    open: (n) => (n === 1 ? '1 open comment' : `${n} open comments`),
+    feedback: 'Waiting for feedback',
+  },
+  turn: {
+    title: 'Whose turn',
+    sub: 'tracks in progress',
+    mine: 'Your turn',
+    others: (names, list) => (names.length === 1 ? `${list} is up` : `${list} are up`),
+    mineAndOthers: (list) => `You, ${list} are up`,
+  },
+  lamp: {
+    approved: 'Approved',
+    rejected: 'Rejected',
+    open: (n) => `${n} open`,
+    feedback: 'Waiting for feedback',
+    resolved: 'resolved',
+    none: 'no feedback',
+  },
+  decision: {
+    approved: (who, date) => `Approved${who ? ` by ${who}` : ''}${date ? `, ${date}` : ''}`,
+    rejected: (who, reason) => `Rejected${who ? ` by ${who}` : ''}${reason ? `: “${reason}”` : ''}`,
+  },
+  marker: (who, time, body) => `${who} at ${time}: ${body}`,
+
+  activity: {
+    title: 'Activity',
+    sub: 'per calendar week',
+    chart: 'Chart',
+    table: 'Table',
+    week: 'Week',
+    versions: 'Versions',
+    comments: 'Comments',
+    weekShort: (week) => `Wk ${week}`,
+    weekThis: (week) => `Wk ${week}, this week`,
+    weekThisShort: (week) => `Wk ${week} (this)`,
+  },
+  firstSteps: {
+    createTitle: 'Create a project',
+    createText: 'Album, EP or single, with artist and cover.',
+    uploadTitle: 'Upload a mix',
+    uploadText: 'Your mix becomes the first version of a track. Stems work too.',
+    uploadButton: 'Upload mix',
+    inviteTitle: 'Bring people along',
+    inviteText: 'Band, producer or label listen in and comment right at the spot.',
+  },
+  listens: {
+    title: 'Heard via link',
+    sub: 'shared versions',
+    played: (plays, fullPlays, until) =>
+      fullPlays ? `${plays}× played, ${fullPlays}× in full` : `${plays}× played, up to ${until}`,
+    tip: (name, track, version, until, total) =>
+      `${name} listened to ${track} V${version} up to ${until}${total ? ` of ${total}` : ''}`,
+  },
+  loadFailed: {
+    title: 'Not reachable right now',
+    text: 'The data could not be loaded. Check your connection and try again.',
+  },
+  loudness: {
+    title: 'Loudness',
+    sub: 'latest version, LUFS',
+    chart: 'Chart',
+    table: 'Table',
+    track: 'Track',
+    version: 'Version',
+    streaming: '−14 streaming',
+    integrated: 'LUFS integrated',
+  },
+  wave: { play: 'Play', pause: 'Pause' },
+  strip: {
+    meter: 'Live level, left and right',
+    measured: (lufs) => `Measured loudness: ${lufs} LUFS`,
+    matched: (lufs, db) => `Matched to ${lufs} LUFS: ${db}`,
+    noMatch: 'No adjustment',
+    broken: 'This version cannot be played right now.',
+    brokenShort: 'not playable',
+    notMeasured: 'not measured',
+    solo: 'Solo',
+  },
+  newVersions: {
+    title: 'New to hear',
+    sub: 'latest versions from others',
+    by: (label, who, when) => `${label ? `${label} ` : ''}by ${who}, ${when}`,
+    compare: (version) => `Compare with V${version}`,
+  },
+  dock: { compare: 'Compare', close: 'Close player' },
+  stages: {
+    title: 'Project status',
+    feedback: 'waiting for feedback',
+    open: 'open comments',
+    rejected: 'rejected',
+    approved: 'approved',
+    none: 'no version yet',
+    progress: (done, total) => `${done} of ${total} done`,
+    noTracks: 'No tracks yet',
+  },
+  timeline: {
+    title: 'Timeline',
+    sub: 'Click a clip to play it below',
+    range: 'Range',
+    weeks4: '4 weeks',
+    weeks8: '8 weeks',
+    months3: '3 months',
+    latest: 'latest version',
+    version: 'Version',
+    approved: 'approved',
+    rejected: 'rejected',
+    comment: 'Comment',
+    track: 'Track',
+    today: 'today',
+    stage: 'Status',
+    hidden: (n) =>
+      `${n === 1 ? 'One finished track' : `${n} finished tracks`} hidden because of no activity in this range.`,
+    clickToPlay: 'Click to play',
+    playAria: (track, version) => `Play ${track} V${version}`,
+    created: (date) => `created ${date}, no version yet`,
+  },
+  storage: {
+    title: 'Storage',
+    sub: 'your uploads',
+    of: (limit) => `of ${limit}`,
+    tip: (used, limit, pct, versions, stems) =>
+      `${used} of ${limit} used (${pct}%)\nVersions ${versions}, stems ${stems}`,
+    versions: (size) => `Versions ${size}`,
+    stems: (size) => `Stems ${size}`,
+  },
+  task: {
+    listen: 'uploaded a new version. Your feedback is still missing.',
+    rejectedBy: (who) => (who ? `${who} rejected your version` : 'Your version was rejected'),
+    openComments: (n, from) =>
+      `${n === 1 ? 'One open comment' : `${n} open comments`} on your version, from ${from}.`,
+    replyStart: 'replied to your comment',
+    replyAt: ' at',
+    replyEnd: '.',
+    giveFeedback: 'Give feedback',
+    uploadNew: 'Upload new version',
+    reply: 'Reply',
+    done: 'Done',
+  },
+  row: {
+    empty: 'still empty',
+    stems: 'Stems',
+    version: 'Version',
+    rejectedBefore: 'rejected',
+    rejectedAfter: '',
+    wasRejected: ' was rejected',
+  },
+
+  mixer: {
+    offline: 'No connection',
+    offlineText: 'Comparing needs a connection because all versions stream at the same time.',
+    stop: 'Stop',
+    start: 'Start',
+    matchLoudness: 'Match loudness',
+    keysSwitch: 'switch',
+    space: 'Space',
+    keysStart: 'plays',
+    strips: 'Channel strips',
+    version: 'Version',
+    from: 'By',
+    status: 'Status',
+    level: 'Level L/R',
+    loudness: 'Loudness',
+    match: 'Match',
+    listen: 'Listen',
+    comments: 'Comments',
+    commentsOn: (version) => `Comments on V${version}`,
+    openCount: (n) => `${n} open`,
+    allResolved: 'all resolved',
+    resolved: 'resolved',
+    noComments: 'This version has no comments.',
+  },
+
+  dashboard: {
+    title: 'Overview',
+    welcome: (name) => `Welcome${name ? `, ${name}` : ''}.`,
+    welcomeBold: 'In three steps',
+    welcomeAfter: 'you will hear the first feedback on your song.',
+    lastWeek: 'In the last seven days:',
+    separator: (i, n) => (i === 0 ? ' ' : i === n - 1 ? (n === 2 ? ' and ' : ', and ') : ', '),
+    newVersions: (n) => (n === 1 ? '1 new version' : `${n} new versions`),
+    approvals: (n) => (n === 1 ? 'one approval' : `${n} approvals`),
+    quiet: 'The last seven days were quiet.',
+    nobodyListens: 'Nobody is listening yet.',
+    tasksWaiting: (n) => `${n === 1 ? 'One task is' : `${n} tasks are`} waiting for you.`,
+  },
+
+  forYou: {
+    title: 'For you',
+    sub: 'What is waiting for you right now, newest first.',
+    push: 'New versions and reviews as a notification, even when Music Hub is closed.',
+    aloneTitle: 'Nobody is listening yet',
+    aloneText: 'Bring people into your project. As soon as they comment, reply or upload new versions, it shows up here.',
+    allDoneTitle: 'All done',
+    allDoneText:
+      'Nothing is waiting for you. As soon as someone uploads a version, replies to you or sends a request, it shows up here.',
+    recent: 'Recent',
+    markedDone: 'Marked as done.',
+    someone: 'someone',
+    you: 'you',
+    version: { before: 'uploaded', after: '' },
+    comment: { before: 'commented on', at: ' at', after: '' },
+    reply: { before: 'replied to', mid: ' on', after: '' },
+    approved: { before: 'approved', after: '' },
+    rejected: { before: 'rejected', after: '' },
+    created: { before: 'created', after: '' },
+  },
+
+  account: {
+    title: 'Account',
+    sub: 'Your profile — visible to others in the project.',
+    updatesOn: 'Email updates turned on',
+    updatesOff: 'Email updates turned off',
+    saved: 'Profile saved',
+    notifications: 'Notifications',
+    pushDenied: 'Push notifications are blocked in your browser. Please allow them in the browser settings.',
+    pushActive: 'Push notifications on',
+    pushOff: 'Turn off',
+    pushText: 'Get notified when new versions are uploaded or someone is done with your version.',
+    pushOn: 'Turn on',
+    versionMails:
+      'Emails about new versions and reviews while push is not active on any device. Uploads in quick succession arrive in one email.',
+    updates: 'Email updates: new features in Music Hub, a few times a month.',
+    updatesSince: (date) => `Turned on ${date}.`,
+    playback: 'Playback',
+    hideTitle:
+      'Hide the title on the lock screen, watch and car display; they then only show “Music Hub”. Applies to this device, open tracks always show their title.',
+    profile: 'Profile',
+    displayName: 'Display name',
+    email: 'Email:',
+  },
+
+  device: {
+    title: 'Connect device',
+    invalidCode: 'Invalid code',
+    approveFailed: 'Could not connect',
+    connected: (client) => `Connected. You can switch back to ${client ?? 'your plugin'}.`,
+    wants: (client) => `${client ?? 'A plugin'} wants to connect to your account.`,
+    connect: 'Connect',
+    otherCode: 'Another code',
+    enterCode: 'Enter the code the plugin or Music Hub Sync shows you.',
+    code: 'Code',
+    next: 'Continue',
+  },
+
+  offline: {
+    audioFailed: (status) => `Audio download failed: ${status}`,
+  },
+};

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import DashCard from './DashCard.svelte';
   import { formatLufs } from '$lib/utils/format.js';
   import { loudnessGroups, versionName, type ProjectGroup, type TrackInfo } from '$lib/utils/overview.js';
@@ -16,17 +17,17 @@
   const lufsOf = (info: TrackInfo) => info.latest!.integratedLufs!;
   const tip = (info: TrackInfo) => {
     const v = info.latest!;
-    return `${info.track.name} V${v.versionNumber}${versionName(v) ? ` · ${versionName(v)}` : ''}\n${formatLufs(lufsOf(info))} LUFS integriert`;
+    return `${info.track.name} V${v.versionNumber}${versionName(v) ? ` · ${versionName(v)}` : ''}\n${formatLufs(lufsOf(info))} ${t().overview.loudness.integrated}`;
   };
 </script>
 
-<DashCard icon="gauge" title="Lautheit" sub="neueste Version, LUFS">
+<DashCard icon="gauge" title={t().overview.loudness.title} sub={t().overview.loudness.sub}>
   {#snippet actions()}
-    <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? 'Diagramm' : 'Tabelle'}</button>
+    <button type="button" class="tbtn" onclick={() => (table = !table)}>{table ? t().overview.loudness.chart : t().overview.loudness.table}</button>
   {/snippet}
   {#if table}
     <table class="mini-table">
-      <thead><tr><th>Track</th><th>Version</th><th>LUFS</th></tr></thead>
+      <thead><tr><th>{t().overview.loudness.track}</th><th>{t().overview.loudness.version}</th><th>LUFS</th></tr></thead>
       <tbody>
         {#each rows.flatMap((g) => g.rows) as info (info.track.id)}
           <tr>
@@ -40,7 +41,7 @@
   {:else}
     <div class="row">
       <span></span>
-      <div class="plot ref-head"><span class="reflbl" style="left: {x(REF)}%">−14 Streaming</span></div>
+      <div class="plot ref-head"><span class="reflbl" style="left: {x(REF)}%">{t().overview.loudness.streaming}</span></div>
       <span></span>
     </div>
     {#each rows as g (g.project.id)}
@@ -60,7 +61,7 @@
     <div class="row scale">
       <span></span>
       <div class="ticks">
-        {#each [LOW, REF, HIGH] as t (t)}<span style="left: {x(t)}%">{formatLufs(t).replace(',0', '')}</span>{/each}
+        {#each [LOW, REF, HIGH] as mark (mark)}<span style="left: {x(mark)}%">{formatLufs(mark).replace(/[.,]0$/, '')}</span>{/each}
       </div>
       <span></span>
     </div>

@@ -1,9 +1,10 @@
 import type { Context } from 'hono';
 import { sql } from 'drizzle-orm';
-import { GUEST_STORAGE_DEFAULT, MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { dateLocales, GUEST_STORAGE_DEFAULT, MAX_STORAGE_PER_USER } from '@music-hub/shared';
 import type { Database } from '@music-hub/db';
 import { rateLimit } from './rate-limit.js';
 import { keptSql } from './trash.js';
+import { locale, t } from './i18n.js';
 
 type Executor = Pick<Database, 'execute'>;
 
@@ -108,13 +109,13 @@ export async function lockStorage(tx: Executor, userId: string) {
 
 export function storageFull(c: Context, { used, limit }: Storage) {
   // Rounded down, so a nearly full account doesn't read as full
-  const gb = (bytes: number) => (Math.floor((bytes / GB) * 10) / 10).toLocaleString('de-DE');
+  const gb = (bytes: number) => (Math.floor((bytes / GB) * 10) / 10).toLocaleString(dateLocales[locale(c)]);
   return c.json(
-    { error: `Nicht genug Speicherplatz: ${gb(used)} von ${gb(limit)} GB belegt` },
+    { error: t(c).errors.storageFull(gb(used), gb(limit)) },
     413,
   );
 }
 
 export function uploadVolumeExceeded(c: Context) {
-  return c.json({ error: 'Tageslimit für Uploads erreicht — bitte später erneut versuchen' }, 429);
+  return c.json({ error: t(c).errors.uploadVolume }, 429);
 }

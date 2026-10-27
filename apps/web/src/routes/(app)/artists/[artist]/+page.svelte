@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { t } from '$lib/i18n/index.js';
   import Button from '$lib/components/ui/Button.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -20,9 +21,9 @@
   const newHref = $derived(`/projects/new?artist=${encodeURIComponent(artist)}`);
 </script>
 
-<TopBar crumbs={[{ label: 'Übersicht', href: '/dashboard' }, { label: artist }]}>
+<TopBar crumbs={[{ label: t().workspace.nav.overview, href: '/dashboard' }, { label: artist }]}>
   {#snippet actions()}
-    <Button href={newHref} size="sm">Neues Projekt</Button>
+    <Button href={newHref} size="sm">{t().workspace.sidebar.newProject}</Button>
   {/snippet}
 </TopBar>
 
@@ -33,9 +34,9 @@
   {:else if !ix}
     <Skeleton height="10rem" variant="rect" />
   {:else if !groups.length}
-    <EmptyState title="Keine Projekte" description="Für {artist} gibt es noch kein Projekt.">
+    <EmptyState title={t().workspace.artistPage.emptyTitle} description={t().workspace.artistPage.emptyText(artist)}>
       {#snippet action()}
-        <Button href={newHref}>Neues Projekt</Button>
+        <Button href={newHref}>{t().workspace.sidebar.newProject}</Button>
       {/snippet}
     </EmptyState>
   {:else}

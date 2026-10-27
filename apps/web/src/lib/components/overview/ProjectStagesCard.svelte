@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import DashCard from './DashCard.svelte';
@@ -6,13 +7,13 @@
 
   let { groups, span = 6 }: { groups: ProjectGroup[]; span?: number } = $props();
 
-  const LEGEND: [StageKey, string][] = [
-    ['feedback', 'wartet auf Feedback'],
-    ['open', 'offene Kommentare'],
-    ['rejected', 'abgelehnt'],
-    ['approved', 'freigegeben'],
-    ['none', 'noch keine Version'],
-  ];
+  const LEGEND = $derived<[StageKey, string][]>([
+    ['feedback', t().overview.stages.feedback],
+    ['open', t().overview.stages.open],
+    ['rejected', t().overview.stages.rejected],
+    ['approved', t().overview.stages.approved],
+    ['none', t().overview.stages.none],
+  ]);
 
   function tip(info: TrackInfo) {
     const v = info.latest;
@@ -21,14 +22,14 @@
   }
 </script>
 
-<DashCard icon="layers" title="Stand der Projekte" {span}>
+<DashCard icon="layers" title={t().overview.stages.title} {span}>
   {#each groups as g (g.project.id)}
     <div class="pj">
       <div class="head">
         <CoverImage src={g.project.coverUrl} name={g.project.name} size="xs" rounded="sm" />
         <a class="name" href="/projects/{g.project.id}">{g.project.name}</a>
         {#if g.project.artist}<span>{g.project.artist}</span>{/if}
-        <span class="prog">{g.list.length ? `${g.done.length} von ${g.list.length} fertig` : 'Noch keine Tracks'}</span>
+        <span class="prog">{g.list.length ? t().overview.stages.progress(g.done.length, g.list.length) : t().overview.stages.noTracks}</span>
       </div>
       {#if g.list.length}
         <div class="units">

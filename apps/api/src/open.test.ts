@@ -77,8 +77,8 @@ test('stems uploaded after opening stay private', async () => {
 });
 
 test('a remix shares the files, costs no storage and carries license and credit', async () => {
-  expect(await forkTrack(db, trackId, remixer, bandProject)).toBeNull();
-  const remix = (await forkTrack(db, trackId, remixer, remixProject))!;
+  expect(await forkTrack(db, trackId, remixer, bandProject, 'de')).toBeNull();
+  const remix = (await forkTrack(db, trackId, remixer, remixProject, 'de'))!;
 
   expect(remix.forkedFromId).toBe(trackId);
   expect(remix.license).toBe('cc-by-sa');

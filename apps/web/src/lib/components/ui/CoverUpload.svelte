@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import { api, isApiError } from '$lib/api/client.js';
   import { toastError } from '$lib/stores/toast.js';
   import CoverImage from './CoverImage.svelte';
@@ -22,11 +23,11 @@
 
   async function pickFile(file: File) {
     if (!ALLOWED.includes(file.type)) {
-      toastError('Nur JPG, PNG oder WebP');
+      toastError(t().workspace.cover.onlyImages);
       return;
     }
     if (file.size > MAX) {
-      toastError(`Bild zu groß (max. ${MAX / 1024 ** 2} MB)`);
+      toastError(t().workspace.cover.tooLarge(MAX / 1024 ** 2));
       return;
     }
     uploading = true;
@@ -40,10 +41,10 @@
         headers: { 'Content-Type': file.type },
         body: file,
       });
-      if (!res.ok) throw new Error(`Upload fehlgeschlagen (${res.status})`);
+      if (!res.ok) throw new Error(t().workspace.cover.uploadFailedStatus(res.status));
       await onChange(key, file);
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Upload fehlgeschlagen');
+      toastError(e instanceof Error ? e.message : t().workspace.cover.uploadFailed);
     } finally {
       uploading = false;
     }
@@ -55,7 +56,7 @@
       await onChange(null);
     } catch (e) {
       if (!isApiError(e)) {
-        toastError(e instanceof Error ? e.message : 'Cover konnte nicht entfernt werden');
+        toastError(e instanceof Error ? e.message : t().workspace.cover.removeFailed);
       }
     } finally {
       uploading = false;
@@ -91,12 +92,12 @@
       <span class="spinner"></span>
     {:else}
       <Icon name="upload" size={20} />
-      <span class="hint">{currentUrl ? 'Bild ändern' : 'Cover hinzufügen'}</span>
+      <span class="hint">{currentUrl ? t().workspace.cover.change : t().workspace.cover.add}</span>
     {/if}
   </div>
 </label>
 {#if currentUrl}
-  <button type="button" class="remove" onclick={remove} disabled={uploading}>Cover entfernen</button>
+  <button type="button" class="remove" onclick={remove} disabled={uploading}>{t().workspace.cover.remove}</button>
 {/if}
 </div>
 

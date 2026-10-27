@@ -6,6 +6,7 @@
   import { matchGains } from '$lib/utils/overview.js';
   import { versionTitle, type Version, type TrackComment } from '$lib/utils/track.js';
   import { onKey } from '$lib/utils/shortcuts.js';
+  import { t } from '$lib/i18n/index.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -41,7 +42,7 @@
       m.seek(position);
       created = mixer = m;
       waveforms = waves;
-    }).catch(() => { if (!cancelled) error = 'Der Vergleich konnte nicht geladen werden. Versuche es noch einmal.'; });
+    }).catch(() => { if (!cancelled) error = t().track.comparison.loadFailed; });
     return () => { cancelled = true; created?.destroy(); };
   });
   $effect(() => { mixer?.setGains(matchGains(pair.map((v) => ({ id: v.id, integratedLufs: v.integratedLufs ?? null })), match && measured)); });
@@ -60,8 +61,8 @@
   onKey({ '1': () => select(0), '2': () => select(1), ' ': toggle });
 </script>
 
-<section class="comparison" aria-label="A/B-Vergleich">
-  <div class="heading"><h2>V{previous.versionNumber} ↔ V{version.versionNumber}</h2><Button size="sm" variant="ghost" onclick={() => onClose(position)}>Zurück</Button></div>
+<section class="comparison" aria-label={t().track.comparison.title}>
+  <div class="heading"><h2>V{previous.versionNumber} ↔ V{version.versionNumber}</h2><Button size="sm" variant="ghost" onclick={() => onClose(position)}>{t().common.back}</Button></div>
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="choices">
     {#each pair as v, i}
@@ -71,18 +72,18 @@
     {/each}
   </div>
   <div class="transport">
-    <Button onclick={toggle} disabled={!mixer || broken.has(active.id)}><Icon name={playing ? 'pause' : 'play'} size={20} />{playing ? 'Pause' : 'Abspielen'}</Button>
+    <Button onclick={toggle} disabled={!mixer || broken.has(active.id)}><Icon name={playing ? 'pause' : 'play'} size={20} />{playing ? t().track.player.pause : t().track.player.play}</Button>
     <div class="wave" aria-hidden="true">{#each waveforms[selected].filter((_, i) => i % Math.max(1, Math.floor(waveforms[selected].length / 80)) === 0).slice(0, 80) as peak}<i style="height: {Math.max(4, Math.abs(peak) * 100)}%"></i>{/each}</div>
   </div>
-  {#if broken.has(active.id)}<p role="alert">Diese Version lässt sich im Browser nicht abspielen.</p>{/if}
-  <label class="seek">Abspielposition
+  {#if broken.has(active.id)}<p role="alert">{t().track.comparison.cannotPlay}</p>{/if}
+  <label class="seek">{t().track.comparison.position}
     <input type="range" min="0" max={active.duration ?? 0} step="0.1" value={Math.min(position, active.duration ?? 0)} oninput={(e) => seek(Number(e.currentTarget.value))} />
   </label>
-  <p class="time" aria-live="off">Du hörst V{active.versionNumber} · {formatTime(position)} / {formatTime(active.duration ?? 0)}</p>
-  <label class="match"><input type="checkbox" bind:checked={match} disabled={!measured} /> Gleich laut{!measured ? ' · Lautheit noch nicht gemessen' : ' · auf die leisere Version angeglichen'}</label>
+  <p class="time" aria-live="off">{t().track.comparison.listening(active.versionNumber)} · {formatTime(position)} / {formatTime(active.duration ?? 0)}</p>
+  <label class="match"><input type="checkbox" bind:checked={match} disabled={!measured} /> {t().track.comparison.matchLoudness}{!measured ? t().track.comparison.notMeasured : t().track.comparison.matched}</label>
   {#if open.length}
-    <h3>{open.length} {open.length === 1 ? 'offener Punkt' : 'offene Punkte'} aus V{previous.versionNumber}: in V{version.versionNumber} gelöst?</h3>
-    <ul>{#each open as c}<li><p>{#if c.timestampSeconds !== null}<button class="timestamp" onclick={() => seek(c.timestampSeconds!)}>{formatTime(c.timestampSeconds)}</button>{/if} {c.body}</p>{#if canComment}<Button size="sm" variant="secondary" disabled={resolving !== null} onclick={() => resolve(c.id)}>Gelöst</Button>{/if}</li>{/each}</ul>
+    <h3>{t().track.comparison.openPoints(open.length, previous.versionNumber, version.versionNumber)}</h3>
+    <ul>{#each open as c}<li><p>{#if c.timestampSeconds !== null}<button class="timestamp" onclick={() => seek(c.timestampSeconds!)}>{formatTime(c.timestampSeconds)}</button>{/if} {c.body}</p>{#if canComment}<Button size="sm" variant="secondary" disabled={resolving !== null} onclick={() => resolve(c.id)}>{t().track.comparison.solved}</Button>{/if}</li>{/each}</ul>
   {/if}
 </section>
 

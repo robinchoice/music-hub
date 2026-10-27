@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -14,10 +15,10 @@
 
   const fresh = $derived(freshVersions(ix, groups));
   const hero = $derived(fresh[0]);
-  const uploader = (id: string) => firstName(ix.users.get(id)?.name ?? 'Jemand');
+  const uploader = (id: string) => firstName(ix.users.get(id)?.name ?? t().common.someone);
 </script>
 
-<DashCard icon="headphones" title="Neu zum Anhören" sub="neueste Versionen der anderen" {span}>
+<DashCard icon="headphones" title={t().overview.newVersions.title} sub={t().overview.newVersions.sub} {span}>
   {#if hero.latest}
     {@const v = hero.latest}
     <div class="hero">
@@ -31,11 +32,11 @@
         <div class="meta">
           <span class="vchip">V{v.versionNumber}</span>
           {#if versionName(v)}<b>{versionName(v)}</b>{/if}
-          <span>von {uploader(v.createdById)}, {formatWhen(v.createdAt)}</span>
+          <span>{t().overview.newVersions.by('', uploader(v.createdById), formatWhen(v.createdAt))}</span>
           <StageLabel stage={hero.stage} small />
           {#if hero.versions.length > 1}
             <Button size="sm" variant="secondary" href={`${trackHref(hero.project.id, hero.track.id, v.id)}&view=compare`}>
-              <Icon name="sliders" size={14} /> Mit V{hero.versions[hero.versions.length - 2].versionNumber} vergleichen
+              <Icon name="sliders" size={14} /> {t().overview.newVersions.compare(hero.versions[hero.versions.length - 2].versionNumber)}
             </Button>
           {/if}
         </div>
@@ -50,7 +51,7 @@
             <CoverImage src={info.track.coverUrl ?? info.project.coverUrl} name={info.track.name} size="sm" rounded="md" />
             <div class="ttl">
               <b>{info.track.name} <span class="vchip">V{q.versionNumber}</span></b>
-              <small>{versionName(q) ? `${versionName(q)} ` : ''}von {uploader(q.createdById)}, {formatWhen(q.createdAt)}</small>
+              <small>{t().overview.newVersions.by(versionName(q), uploader(q.createdById), formatWhen(q.createdAt))}</small>
             </div>
             <MiniWave version={q} markers={markersFor(ix, ix.commentsOf.get(q.id) ?? [])} />
           </div>

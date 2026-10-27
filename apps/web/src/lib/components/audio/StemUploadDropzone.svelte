@@ -3,6 +3,7 @@
   import { checkFileSize, MAX_FILE_SIZE_LABEL, unreadableFiles } from '$lib/audio/upload.js';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -36,7 +37,7 @@
     if (!inFlight) return;
     cancelled = true;
     running.forEach((xhr) => xhr.abort());
-    toast('Upload abgebrochen');
+    toast(t().track.upload.aborted);
   }
   let globalError = $state('');
 
@@ -75,7 +76,7 @@
     if (globalError) return;
     const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(f.type || 'audio/wav'));
     if (notAudio.length > 0) {
-      globalError = `Kein Audio: ${notAudio.map((f) => f.name).join(', ')}`;
+      globalError = t().track.upload.notAudio(notAudio.map((f) => f.name).join(', '));
       return;
     }
 
@@ -83,7 +84,7 @@
     inFlight = true;
     const unreadable = await unreadableFiles(selected);
     if (unreadable.length > 0) {
-      globalError = `Der Browser konnte ${unreadable.length === 1 ? 'diese Datei' : 'diese Dateien'} nicht lesen: ${unreadable.map((f) => f.name).join(', ')}. Es wurde nichts hochgeladen.`;
+      globalError = t().track.drop.unreadable(unreadable.length, unreadable.map((f) => f.name).join(', '));
       uploading = false;
       inFlight = false;
       return;
@@ -136,7 +137,7 @@
 
       files[idx] = { ...files[idx], progress: 100 };
     } catch (err) {
-      files[idx] = { ...files[idx], error: `[${step}] ${err instanceof Error ? err.message : 'Fehler'}` };
+      files[idx] = { ...files[idx], error: `[${step}] ${err instanceof Error ? err.message : t().track.drop.error}` };
     }
   }
 
@@ -151,8 +152,8 @@
         if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
       };
       xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
-      xhr.onerror = () => reject(new Error('Upload fehlgeschlagen'));
-      xhr.onabort = () => reject(new Error('Upload abgebrochen'));
+      xhr.onerror = () => reject(new Error(t().track.drop.failed));
+      xhr.onabort = () => reject(new Error(t().track.upload.aborted));
       xhr.send(file);
     });
   }
@@ -183,8 +184,8 @@
     />
     <div class="dropzone-content">
       <span class="icon"><Icon name="upload" size={24} /></span>
-      <p><span class="mouse">Spuren hierher ziehen oder klicken</span><span class="touch">Tippen, um Spuren auszuwählen</span></p>
-      <span class="hint">Mehrere Dateien gleichzeitig möglich · WAV, MP3, FLAC, AIFF · max. {MAX_FILE_SIZE_LABEL}</span>
+      <p><span class="mouse">{t().track.drop.dragStems}</span><span class="touch">{t().track.drop.tapStems}</span></p>
+      <span class="hint">{t().track.drop.multiple} · WAV, MP3, FLAC, AIFF · max. {MAX_FILE_SIZE_LABEL}</span>
     </div>
   </div>
 

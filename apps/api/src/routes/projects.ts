@@ -20,6 +20,8 @@ import { sendInviteEmail } from '../services/email.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { locale, t } from '../lib/i18n.js';
+import { pickLocale } from '@music-hub/shared';
 
 async function withCoverUrl<T extends { coverImageUrl?: string | null }>(
   obj: T,
@@ -217,8 +219,8 @@ export const projectRoutes = new Hono<AppEnv>()
 
     // Each invitation is a mail and may create an account, so the limit comes first; a blocked account stays out
     if (!(await invitesPerUser.hit(db, userId))) return tooManyRequests(c);
-    const invitedUser = (await findUserByEmail(db, email)) ?? (await inviteeAccount(db, email));
-    if (invitedUser.blockedAt) return c.json({ error: 'Diese Person kann nicht eingeladen werden.' }, 403);
+    const invitedUser = (await findUserByEmail(db, email)) ?? (await inviteeAccount(db, email, locale(c)));
+    if (invitedUser.blockedAt) return c.json({ error: t(c).errors.cannotInvite }, 403);
 
     const [member] = await db
       .insert(projectMembers)
@@ -251,7 +253,7 @@ export const projectRoutes = new Hono<AppEnv>()
       db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId)).limit(1),
       db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1),
     ]);
-    runInBackground(sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name, loginToken).catch(
+    runInBackground(sendInviteEmail(invitedUser.email, projectId, project.name, inviter.name, loginToken, pickLocale(invitedUser.locale)).catch(
       (err) => console.error('[Email] Invite failed:', err),
     ));
 

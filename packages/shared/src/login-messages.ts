@@ -1,3 +1,5 @@
+import { pickLocale } from './i18n.js';
+
 export const loginMessages = {
   de: {
     code: 'Login-Code',
@@ -49,6 +51,6 @@ export const loginMessages = {
   },
 };
 
-export function loginTexts(language = 'de') {
-  return loginMessages[language.toLowerCase().startsWith('en') ? 'en' : 'de'];
+export function loginTexts(language?: string | null) {
+  return loginMessages[pickLocale(language)];
 }

@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { t, locale } from '$lib/i18n/index.js';
   import { getContext, onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api, isApiError } from '$lib/api/client.js';
   import { toast, toastError, toastSuccess } from '$lib/stores/toast.js';
-  import { ROLE_LABELS, PROJECT_ROLES } from '@music-hub/shared';
+  import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -71,7 +72,7 @@
   async function saveCover(key: string | null) {
     const res = await api.patch<{ project: Project }>(`/projects/${projectId}`, { coverImageUrl: key });
     project = res.project;
-    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
+    toastSuccess(key ? t().workspace.projectPage.coverSaved : t().workspace.projectPage.coverRemoved);
   }
 
   async function saveProject() {
@@ -82,7 +83,7 @@
         artist: artistToSave($overviewIndex ? artistNames($overviewIndex) : [], editArtist),
         description: editDesc,
       });
-      toastSuccess('Projekt gespeichert');
+      toastSuccess(t().workspace.settings.saved);
       reloadSidebar?.();
     } catch {
       // The API client already showed the error
@@ -100,7 +101,7 @@
         roles: inviteRoles,
       });
       inviteEmail = '';
-      toastSuccess('Person eingeladen');
+      toastSuccess(t().workspace.settings.invited);
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
     } catch {
@@ -118,12 +119,12 @@
   async function updateRoles(memberId: string, roles: string[]) {
     try {
       await api.patch(`/projects/${projectId}/members/${memberId}`, { roles });
-      toastSuccess('Rollen aktualisiert');
+      toastSuccess(t().workspace.settings.rolesUpdated);
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
     } catch (e) {
       if (!isApiError(e)) {
-        toastError(e instanceof Error ? e.message : 'Rolle konnte nicht geändert werden');
+        toastError(e instanceof Error ? e.message : t().workspace.settings.rolesFailed);
       }
     }
   }
@@ -131,11 +132,11 @@
   async function removeMember(memberId: string) {
     try {
       await api.delete(`/projects/${projectId}/members/${memberId}`);
-      toastSuccess('Person entfernt');
+      toastSuccess(t().workspace.settings.removed);
       members = members.filter((m) => m.id !== memberId);
     } catch (e) {
       if (!isApiError(e)) {
-        toastError(e instanceof Error ? e.message : 'Person konnte nicht entfernt werden');
+        toastError(e instanceof Error ? e.message : t().workspace.settings.removeFailed);
       }
     }
   }
@@ -143,12 +144,12 @@
   async function archiveProject() {
     try {
       await api.delete(`/projects/${projectId}`);
-      toast('Projekt archiviert', 'success', 6000, { label: 'Zum Archiv', run: () => goto('/archive') });
+      toast(t().workspace.settings.archived, 'success', 6000, { label: t().workspace.settings.toArchive, run: () => goto('/archive') });
       reloadSidebar?.();
       await goto('/dashboard');
     } catch (e) {
       if (!isApiError(e)) {
-        toastError(e instanceof Error ? e.message : 'Projekt konnte nicht archiviert werden');
+        toastError(e instanceof Error ? e.message : t().workspace.settings.archiveFailed);
       }
     }
   }
@@ -156,38 +157,38 @@
 
 <TopBar
   crumbs={[
-    { label: 'Projekte', href: '/dashboard' },
+    { label: t().workspace.nav.projects, href: '/dashboard' },
     { label: project?.name ?? '…', href: `/projects/${projectId}` },
-    { label: 'Einstellungen' },
+    { label: t().workspace.settings.title },
   ]}
 />
 
 <div class="settings-page">
   <header>
-    <h1>Einstellungen</h1>
+    <h1>{t().workspace.settings.title}</h1>
   </header>
 
   {#if !loading && project}
     <!-- Projekt-Details -->
     <section class="section">
-      <h2>Projekt-Details</h2>
+      <h2>{t().workspace.settings.details}</h2>
       <div class="cover-row">
         <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
         <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
           <ArtistInput bind:value={editArtist} />
-          <Input label="Name" bind:value={editName} />
+          <Input label={t().common.name} bind:value={editName} />
           <label class="textarea-group">
-            <span class="input-label">Beschreibung (optional)</span>
-            <textarea bind:value={editDesc} rows="3" placeholder="Worum geht's in diesem Projekt?"></textarea>
+            <span class="input-label">{t().workspace.settings.description}</span>
+            <textarea bind:value={editDesc} rows="3" placeholder={t().workspace.settings.descriptionPlaceholder}></textarea>
           </label>
-          <Button type="submit" loading={saving}>Speichern</Button>
+          <Button type="submit" loading={saving}>{t().common.save}</Button>
         </form>
       </div>
     </section>
 
     <!-- Mitwirkende -->
     <section class="section">
-      <h2>Mitwirkende</h2>
+      <h2>{t().workspace.settings.contributors}</h2>
 
       <div class="member-list">
         {#each members as member}
@@ -198,15 +199,15 @@
               <span class="member-email">{member.user.email}</span>
             </div>
             {#if member.role === 'owner'}
-              <Badge variant="accent">Besitzer</Badge>
+              <Badge variant="accent">{ROLE_LABELS[locale()].owner}</Badge>
             {:else if role === 'owner'}
               <Button variant="ghost" size="sm" onclick={() => removeMember(member.id)}>
-                <span style="color: var(--color-error)">Entfernen</span>
+                <span style="color: var(--color-error)">{t().common.remove}</span>
               </Button>
               {@render roleChips(member.roles, (r) => updateRoles(member.id, toggled(member.roles, r)))}
             {:else}
               {#each member.roles as r}
-                <Badge>{ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r}</Badge>
+                <Badge>{ROLE_LABELS[locale()][r as ProjectRole] || r}</Badge>
               {/each}
             {/if}
           </div>
@@ -216,8 +217,8 @@
       <!-- Invite -->
       {#if roles.includes('owner') || roles.includes('management')}
         <form class="invite-form" onsubmit={(e) => { e.preventDefault(); inviteMember(); }}>
-          <Input type="email" bind:value={inviteEmail} placeholder="name@email.de" />
-          <Button type="submit" loading={inviting} size="sm">Einladen</Button>
+          <Input type="email" bind:value={inviteEmail} placeholder={t().workspace.settings.emailPlaceholder} />
+          <Button type="submit" loading={inviting} size="sm">{t().common.invite}</Button>
           {@render roleChips(inviteRoles, (r) => (inviteRoles = toggled(inviteRoles, r)))}
         </form>
       {/if}
@@ -226,13 +227,13 @@
     <!-- Achtung-Zone -->
     {#if role === 'owner'}
       <section class="section danger-zone">
-        <h2>Vorsicht</h2>
+        <h2>{t().workspace.settings.danger}</h2>
         <div class="danger-content">
           <div>
-            <strong>Projekt archivieren</strong>
-            <p>Das Projekt verschwindet für alle Beteiligten und lässt sich im Archiv wiederherstellen.</p>
+            <strong>{t().workspace.settings.archiveTitle}</strong>
+            <p>{t().workspace.settings.archiveText}</p>
           </div>
-          <Button variant="danger" onclick={() => showArchiveModal = true}>Archivieren</Button>
+          <Button variant="danger" onclick={() => showArchiveModal = true}>{t().workspace.settings.archive}</Button>
         </div>
       </section>
     {/if}
@@ -240,7 +241,7 @@
 </div>
 
 {#snippet roleChips(selected: string[], toggle: (r: string) => void)}
-  <div class="role-chips" role="group" aria-label="Rollen">
+  <div class="role-chips" role="group" aria-label={t().workspace.settings.roles}>
     {#each assignableRoles as r}
       {@const on = selected.includes(r)}
       <button
@@ -250,16 +251,16 @@
         aria-pressed={on}
         disabled={on && selected.length === 1}
         onclick={() => toggle(r)}
-      >{ROLE_LABELS[r]}</button>
+      >{ROLE_LABELS[locale()][r]}</button>
     {/each}
   </div>
 {/snippet}
 
-<Modal bind:open={showArchiveModal} title="Projekt archivieren">
-  <p>Sicher dass du <strong>{project?.name}</strong> archivieren willst? Es verschwindet dann für alle Beteiligten. Im Archiv kannst du es jederzeit wiederherstellen.</p>
+<Modal bind:open={showArchiveModal} title={t().workspace.settings.archiveTitle}>
+  <p>{t().workspace.settings.archiveConfirmBefore}<strong>{project?.name}</strong>{t().workspace.settings.archiveConfirmAfter}</p>
   {#snippet actions()}
-    <Button variant="secondary" onclick={() => showArchiveModal = false}>Abbrechen</Button>
-    <Button variant="danger" onclick={archiveProject}>Archivieren</Button>
+    <Button variant="secondary" onclick={() => showArchiveModal = false}>{t().common.cancel}</Button>
+    <Button variant="danger" onclick={archiveProject}>{t().workspace.settings.archive}</Button>
   {/snippet}
 </Modal>
 

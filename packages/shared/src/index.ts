@@ -1,6 +1,7 @@
 import type { Band } from './band.js';
 
 export * from './band.js';
+export * from './i18n.js';
 export * from './constants/index.js';
 export * from './validation/index.js';
 

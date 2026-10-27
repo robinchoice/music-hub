@@ -1,15 +1,10 @@
 <script lang="ts">
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { timeAgo } from '$lib/utils/format.js';
   import type { FeedbackRow, ReviewVerdict } from '$lib/utils/track.js';
 
-  const VERDICT_LABEL: Record<ReviewVerdict, string> = {
-    approve: 'Freigegeben',
-    fine: 'Passt für mich',
-    changes: 'Änderungen nötig',
-    notes: 'Nur Anmerkungen',
-  };
   const VERDICT_VARIANT: Record<ReviewVerdict, 'default' | 'success' | 'warning'> = {
     approve: 'success',
     fine: 'success',
@@ -32,7 +27,7 @@
     onRemind?: (userId: string) => Promise<void>;
   } = $props();
 
-  const notes = (n: number) => (n === 1 ? 'eine Anmerkung' : `${n} Anmerkungen`);
+  const notes = (n: number) => t().track.feedback.notes(n);
 
   let reminded = $state<string[]>([]);
   async function remind(userId: string) {
@@ -47,32 +42,32 @@
 
 <!-- Who finished listening to the version and how, who is still at it, which approvers are missing -->
 <div class="feedback">
-  <h3>Rückmeldungen zu V{versionNumber}</h3>
+  <h3>{t().track.feedback.title(versionNumber)}</h3>
   {#each rows as row (row.key)}
     <div class="row">
       <Avatar name={row.name} src={row.avatarUrl} size="xs" />
-      <span class="who">{row.key === currentUserId ? 'Du' : row.name}</span>
+      <span class="who">{row.key === currentUserId ? t().common.you : row.name}</span>
       {#if row.open > 0}
-        <span class="what"><span class="pulse" aria-hidden="true"></span>{row.key === currentUserId ? 'noch nicht fertig' : 'noch dabei'} · {notes(row.open)} neu</span>
+        <span class="what"><span class="pulse" aria-hidden="true"></span>{row.key === currentUserId ? t().track.feedback.notDone : t().track.feedback.stillAtIt} · {t().track.feedback.newNotes(notes(row.open))}</span>
       {:else if row.review}
         {#if row.review.verdict}
-          <Badge variant={VERDICT_VARIANT[row.review.verdict]}>{VERDICT_LABEL[row.review.verdict]}</Badge>
+          <Badge variant={VERDICT_VARIANT[row.review.verdict]}>{t().track.feedback.verdict[row.review.verdict]}</Badge>
         {/if}
         <span class="what">
-          {[row.review.commentCount ? notes(row.review.commentCount) : null, row.review.verdict ? null : 'ohne Urteil'].filter(Boolean).join(', ')}
+          {[row.review.commentCount ? notes(row.review.commentCount) : null, row.review.verdict ? null : t().track.feedback.noVerdict].filter(Boolean).join(', ')}
         </span>
         <span class="when">{timeAgo(row.review.createdAt)}</span>
       {:else}
-        <span class="what">steht noch aus</span>
+        <span class="what">{t().track.feedback.pending}</span>
       {/if}
       {#if onRemind && remindable.includes(row.key) && row.key !== currentUserId}
         <button class="remind" disabled={reminded.includes(row.key)} onclick={() => remind(row.key)}>
-          {reminded.includes(row.key) ? 'Erinnert' : 'Erinnern'}
+          {reminded.includes(row.key) ? t().track.feedback.reminded : t().track.feedback.remind}
         </button>
       {/if}
     </div>
     {#if row.open === 0 && row.review?.note}
-      <p class="note">„{row.review.note}“</p>
+      <p class="note">{t().common.quote(row.review.note)}</p>
     {/if}
   {/each}
 </div>

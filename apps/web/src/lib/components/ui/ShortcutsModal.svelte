@@ -1,33 +1,34 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
+  import { t } from '$lib/i18n/index.js';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
-  const groups: { title: string; rows: [string, string][] }[] = [
+  const groups = $derived<{ title: string; rows: [string, string][] }[]>([
     {
-      title: 'Allgemein',
+      title: t().track.shortcuts.general,
       rows: [
-        ['/', 'Suche fokussieren'],
-        ['?', 'Diese Übersicht öffnen'],
-        ['Esc', 'Schließen / abbrechen'],
+        ['/', t().track.shortcuts.focusSearch],
+        ['?', t().track.shortcuts.openOverview],
+        ['Esc', t().track.shortcuts.closeCancel],
       ],
     },
     {
-      title: 'Player',
+      title: t().track.shortcuts.player,
       rows: [
-        ['Space', 'Play / Pause'],
-        ['K', 'Play / Pause'],
-        ['J', '−10 Sekunden'],
-        ['L', '+10 Sekunden'],
-        ['C', 'Kommentar an aktueller Stelle'],
-        ['←  →', 'Vorherige / nächste Version'],
+        ['Space', t().track.shortcuts.playPause],
+        ['K', t().track.shortcuts.playPause],
+        ['J', t().track.shortcuts.back10],
+        ['L', t().track.shortcuts.forward10],
+        ['C', t().track.shortcuts.commentHere],
+        ['←  →', t().track.shortcuts.prevNext],
       ],
     },
-  ];
+  ]);
 </script>
 
-<Modal bind:open title="Tastatur-Shortcuts">
+<Modal bind:open title={t().track.shortcuts.title}>
   <div class="shortcuts">
     {#each groups as group}
       <div class="group">
@@ -46,7 +47,7 @@
     {/each}
   </div>
   {#snippet actions()}
-    <Button onclick={() => (open = false)}>Schließen</Button>
+    <Button onclick={() => (open = false)}>{t().common.close}</Button>
   {/snippet}
 </Modal>
 

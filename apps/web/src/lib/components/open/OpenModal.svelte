@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -48,7 +49,7 @@
     saving = true;
     try {
       openState = (await request()).open;
-      if (openState.openedAt) toastSuccess(`${trackName} ist jetzt offen`);
+      if (openState.openedAt) toastSuccess(t().guest.openModal.nowOpen(trackName));
     } catch {
       // The API client already showed the error
     } finally {
@@ -60,9 +61,9 @@
   const consent = () => run(() => api.post(`/tracks/${trackId}/open/consent`));
 
   async function close() {
-    if (!confirm(openState.openedAt ? `${trackName} schließen? Wer die Spuren schon geladen hat, darf sie behalten.` : 'Anfrage zurückziehen?')) return;
+    if (!confirm(openState.openedAt ? t().guest.openModal.confirmCloseOpen(trackName) : t().guest.openModal.confirmWithdraw)) return;
     await run(() => api.delete(`/tracks/${trackId}/open`));
-    toastSuccess(openState.openedAt ? 'Geschlossen' : 'Zurückgezogen');
+    toastSuccess(openState.openedAt ? t().guest.openModal.closed : t().guest.openModal.withdrawn);
   }
 
   async function remind(id: string) {
@@ -72,79 +73,79 @@
 
   async function copyLink() {
     await navigator.clipboard.writeText(publicUrl);
-    toastSuccess('Link kopiert');
+    toastSuccess(t().guest.openModal.linkCopied);
   }
 </script>
 
-<Modal bind:open title={openState.openedAt ? `${trackName} ist offen` : `${trackName} offen stellen`}>
+<Modal bind:open title={openState.openedAt ? t().guest.openModal.titleOpen(trackName) : t().guest.openModal.titleOpenUp(trackName)}>
   {#if openState.openedAt}
     <div class="body">
       <p class="muted">
-        Seit {formatWhen(openState.openedAt)} dürfen alle den freigegebenen Mix und die Spuren laden und remixen,
-        unter <a href={OPEN_LICENSE_INFO[openState.license!].url} target="_blank" rel="noopener">{OPEN_LICENSE_INFO[openState.license!].label}</a>.
-        Neue Versionen und Spuren bleiben privat.
+        {t().guest.openModal.since(formatWhen(openState.openedAt))}
+        <a href={OPEN_LICENSE_INFO[locale()][openState.license!].url} target="_blank" rel="noopener">{OPEN_LICENSE_INFO[locale()][openState.license!].label}</a>.
+        {t().guest.openModal.newStaysPrivate}
       </p>
       <div class="link-row">
         <a class="url" href={openPath(trackId)} target="_blank" rel="noopener">{publicUrl}</a>
-        <Button size="sm" variant="secondary" onclick={copyLink}>Kopieren</Button>
+        <Button size="sm" variant="secondary" onclick={copyLink}>{t().common.copy}</Button>
       </div>
       {#if isOwner}
-        <p class="hint">Schließen nimmt die Seite offline. Wer die Spuren schon geladen hat, darf sie behalten, so will es die Lizenz.</p>
+        <p class="hint">{t().guest.openModal.closeHint}</p>
       {/if}
     </div>
   {:else if !openState.versionId}
-    <p class="muted">Offen stellen lässt sich der freigegebene Mix mit seinen Spuren. Gib zuerst eine Version frei.</p>
+    <p class="muted">{t().guest.openModal.approveFirst}</p>
   {:else}
     <div class="body">
       <p class="muted">
-        Die freigegebene Version und alle Spuren werden öffentlich und dürfen geremixt werden.
-        {#if pending && requester}<b>{requester.name}</b> hat das angefragt.{/if}
+        {t().guest.openModal.becomesPublic}
+        {#if pending && requester}<b>{requester.name}</b> {t().guest.openModal.requestedBy}{/if}
       </p>
 
       {#if isOwner}
         <div class="q">
-          <b>Muss ein Remix wieder offen sein?</b>
+          <b>{t().guest.openModal.remixOpenQuestion}</b>
           <div class="opts">
             <button class="opt" class:on={license === 'cc-by-sa'} onclick={() => (license = 'cc-by-sa')} disabled={!openState.allowedLicenses.includes('cc-by-sa')}>
-              Ja, weitergeben<small>Was daraus entsteht, bleibt offen</small>
+              {t().guest.openModal.yesPassOn}<small>{t().guest.openModal.yesPassOnHint}</small>
             </button>
             <button class="opt" class:on={license === 'cc-by'} onclick={() => (license = 'cc-by')} disabled={!openState.allowedLicenses.includes('cc-by')}>
-              Nein, frei<small>Auch geschlossene Releases erlaubt</small>
+              {t().guest.openModal.noFree}<small>{t().guest.openModal.noFreeHint}</small>
             </button>
           </div>
           {#if openState.allowedLicenses.includes('cc0')}
             <label class="check">
               <input type="checkbox" checked={license === 'cc0'} onchange={(e) => (license = e.currentTarget.checked ? 'cc0' : 'cc-by-sa')} />
-              Auf Namensnennung verzichten (gemeinfrei)
+              {t().guest.openModal.waiveCredit}
             </label>
           {/if}
           {#if openState.allowedLicenses.length < 3}
-            <p class="hint">Das Original dieses Remixes erlaubt nur diese Lizenzen.</p>
+            <p class="hint">{t().guest.openModal.originalLimits}</p>
           {/if}
         </div>
       {/if}
 
       <div class="lic">
-        <a class="badge" href={OPEN_LICENSE_INFO[license].url} target="_blank" rel="noopener">{OPEN_LICENSE_INFO[license].label}</a>
-        <span class="muted">{OPEN_LICENSE_INFO[license].summary}</span>
+        <a class="badge" href={OPEN_LICENSE_INFO[locale()][license].url} target="_blank" rel="noopener">{OPEN_LICENSE_INFO[locale()][license].label}</a>
+        <span class="muted">{OPEN_LICENSE_INFO[locale()][license].summary}</span>
       </div>
 
       {#if openState.contributors.length > 1 || pending}
         <div class="q">
-          <b>Alle Beteiligten stimmen zu</b>
+          <b>{t().guest.openModal.allAgree}</b>
           {#each openState.contributors as p (p.id)}
             <div class="person">
               <Avatar src={p.avatarUrl} name={p.name} size="sm" />
               <span class="grow">{p.name}</span>
-              <span class="hint">{p.stemCount === 1 ? '1 Spur' : `${p.stemCount} Spuren`}</span>
+              <span class="hint">{t().common.stems(p.stemCount)}</span>
               {#if pending && p.consented && !changed}
-                <span class="ok">✓ zugestimmt</span>
+                <span class="ok">{t().guest.openModal.consented}</span>
               {:else if pending && isOwner && !changed && p.id !== userId}
                 <Button size="sm" variant="secondary" disabled={reminded.has(p.id)} onclick={() => remind(p.id)}>
-                  {reminded.has(p.id) ? 'Erinnert' : 'Erinnern'}
+                  {reminded.has(p.id) ? t().guest.openModal.reminded : t().guest.openModal.remind}
                 </Button>
               {:else}
-                <span class="hint">{pending && !changed ? 'wartet' : ''}</span>
+                <span class="hint">{pending && !changed ? t().guest.openModal.waits : ''}</span>
               {/if}
             </div>
           {/each}
@@ -154,31 +155,31 @@
       {#if isOwner && (!pending || changed)}
         <label class="check">
           <input type="checkbox" bind:checked={confirmed} />
-          Alles in diesen Spuren stammt von uns oder steht selbst unter einer freien Lizenz. Keine fremden Samples.
+          {t().guest.openModal.confirmRights}
         </label>
       {:else if me && !me.consented}
-        <p class="hint">Mit deiner Zustimmung bestätigst du, dass deine Spuren keine fremden Samples enthalten.</p>
+        <p class="hint">{t().guest.openModal.consentHint}</p>
       {/if}
-      <p class="hint">Offen heißt dauerhaft: Wer die Spuren geladen hat, darf sie behalten, auch wenn ihr die Seite später schließt.</p>
+      <p class="hint">{t().guest.openModal.permanent}</p>
     </div>
   {/if}
 
   {#snippet actions()}
     {#if openState.openedAt}
-      {#if isOwner}<Button variant="ghost" onclick={close} loading={saving}>Seite schließen</Button>{/if}
-      <Button href={openPath(trackId)}>Seite ansehen</Button>
+      {#if isOwner}<Button variant="ghost" onclick={close} loading={saving}>{t().guest.openModal.closePage}</Button>{/if}
+      <Button href={openPath(trackId)}>{t().guest.openModal.viewPage}</Button>
     {:else if openState.versionId}
       {#if pending && isOwner && !changed}
-        <Button variant="ghost" onclick={close} loading={saving}>Zurückziehen</Button>
+        <Button variant="ghost" onclick={close} loading={saving}>{t().guest.openModal.withdraw}</Button>
       {/if}
       {#if isOwner && (!pending || changed)}
         <Button onclick={submit} loading={saving} disabled={!confirmed}>
-          {openState.contributors.length > 1 ? 'Zustimmung einholen' : 'Offen stellen'}
+          {openState.contributors.length > 1 ? t().guest.openModal.askConsent : t().guest.openModal.openUp}
         </Button>
       {:else if me && !me.consented}
-        <Button onclick={consent} loading={saving}>Zustimmen</Button>
+        <Button onclick={consent} loading={saving}>{t().guest.openModal.consent}</Button>
       {:else if pending}
-        <Button disabled>{waiting.length === 1 ? `Wartet auf ${waiting[0].name}` : `Wartet auf ${waiting.length} Personen`}</Button>
+        <Button disabled>{waiting.length === 1 ? t().guest.openModal.waitingFor(waiting[0].name) : t().guest.openModal.waitingForN(waiting.length)}</Button>
       {/if}
     {/if}
   {/snippet}

@@ -2,6 +2,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CommentItem from './CommentItem.svelte';
+  import { t } from '$lib/i18n/index.js';
   import { formatTime } from '$lib/utils/format.js';
   import { byPosition, activeCommentId, type TrackComment } from '$lib/utils/track.js';
 
@@ -106,29 +107,29 @@
           <button type="button" class="ts-seek" onclick={() => onSeek(commentTimestamp!)}>
             <Icon name="clock" size={12} /> {formatTime(commentTimestamp)}
           </button>
-          <button type="button" class="ts-remove" onclick={() => (commentTimestamp = null)} aria-label="Stelle entfernen">×</button>
+          <button type="button" class="ts-remove" onclick={() => (commentTimestamp = null)} aria-label={t().track.commentSection.removePosition}>×</button>
         </span>
       {/if}
-      <input bind:this={input} type="text" bind:value={body} placeholder={`Kommentar zu ${versionLabel} …`} />
-      <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>Senden</Button>
+      <input bind:this={input} type="text" bind:value={body} placeholder={t().track.commentSection.placeholder(versionLabel)} />
+      <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>{t().track.commentSection.send}</Button>
     </form>
-    <p class="hint"><span class="mouse">Klick in die Wellenform wählt die Stelle</span><span class="touch">Tipp auf die Wellenform wählt die Stelle</span><span class="mouse">{' '}· Taste C nimmt die aktuelle Position</span></p>
+    <p class="hint"><span class="mouse">{t().track.commentSection.hintClick}</span><span class="touch">{t().track.commentSection.hintTap}</span><span class="mouse">{' '}{t().track.commentSection.hintKey}</span></p>
   {/if}
 
   <div class="list-head">
-    <h2>Kommentare {@render versionChip(versionLabel, versionTitle)}</h2>
+    <h2>{t().track.commentSection.comments} {@render versionChip(versionLabel, versionTitle)}</h2>
     <div class="filter">
-      <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>Offen <i>{openCount}</i></button>
-      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>Erledigte <i>{doneCount}</i></button>
+      <button class:on={filter === 'open'} aria-pressed={filter === 'open'} onclick={() => (filter = 'open')}>{t().track.commentSection.open} <i>{openCount}</i></button>
+      <button class:on={filter === 'done'} aria-pressed={filter === 'done'} onclick={() => (filter = 'done')}>{t().track.commentSection.done} <i>{doneCount}</i></button>
     </div>
   </div>
 
   {#if shown.length === 0}
     <p class="empty">
       {#if filter === 'open'}
-        Keine offenen Kommentare. <span class="mouse">Klick in die Wellenform</span><span class="touch">Tipp auf die Wellenform</span>, um eine Stelle zu markieren.
+        {t().track.commentSection.noOpen} <span class="mouse">{t().track.commentSection.clickWave}</span><span class="touch">{t().track.commentSection.tapWave}</span>{t().track.commentSection.toMark}
       {:else}
-        Noch nichts erledigt.
+        {t().track.commentSection.nothingDone}
       {/if}
     </p>
   {:else}
@@ -172,10 +173,10 @@
     <div class="carry">
       <button class="carry-head" onclick={() => (carryOpen = !carryOpen)} aria-expanded={carryOpen}>
         <Icon name={carryOpen ? 'chevron-down' : 'chevron-right'} size={14} />
-        <b>Noch offen aus</b>
+        <b>{t().track.commentSection.stillOpenFrom}</b>
         {@render versionChip(carryLabel, carryTitle)}
         <i>{carryOpenItems.length}</i>
-        <span>In {versionLabel} gelöst?</span>
+        <span>{t().track.commentSection.solvedIn(versionLabel)}</span>
       </button>
       {#if carryOpen}
         {#each carryOpenItems as comment (comment.id)}

@@ -29,6 +29,7 @@ import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.j
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
+import { locale, statedLocale, t } from '../lib/i18n.js';
 
 const MINUTE = 60 * 1000;
 // Failed password logins per IP and per account. Each attempt counts before the
@@ -40,9 +41,6 @@ const mailsPerIp = rateLimit('mails-per-ip', 20, 60 * MINUTE);
 const linkChecksPerIp = rateLimit('link-checks-per-ip', 60, 15 * MINUTE);
 const codeChecksPerIp = rateLimit('code-checks-per-ip', 30, 15 * MINUTE);
 
-// New accounts beyond MAX_USERS only come from project invites
-const FULL = 'Music Hub ist gerade voll. Neue Konten gibt es nur noch per Einladung zu einem Projekt.';
-const BLOCKED = 'Dieses Konto ist gesperrt.';
 
 // The user as every auth route returns it
 const userColumns = {
@@ -52,8 +50,9 @@ const userColumns = {
   avatarUrl: users.avatarUrl,
   versionMails: users.versionMails,
   updatesConsentAt: users.updatesConsentAt,
+  locale: users.locale,
 };
-type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null };
+type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null; locale?: string };
 export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: UserRow) => ({
   id,
   email,
@@ -69,11 +68,14 @@ export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsen
 const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
 // Sets the cookie for the web; the CLI passes cookie = false and takes the returned token
-export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'insert'>, userId: string, client = 'web', cookie = true) {
+export async function createSession(c: Context<AppEnv>, db: Pick<Database, 'insert' | 'update'>, userId: string, client = 'web', cookie = true) {
   const sessionToken = generateToken();
   const tokenHash = await hashToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
   await db.insert(sessions).values({ userId, tokenHash, expiresAt, client });
+  // Mails and pushes follow the language of the last login
+  const locale = statedLocale(c);
+  if (locale) await db.update(users).set({ locale }).where(eq(users.id, userId));
   if (cookie) setSessionCookie(c, sessionToken);
   return sessionToken;
 }
@@ -83,17 +85,17 @@ async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'u
   let registration: { name: string; passwordHash: string } | null = null;
   if (link.passwordHash && password !== undefined) {
     if (!(await Bun.password.verify(password, link.passwordHash))) {
-      return c.json({ error: 'Passwort falsch' }, 401);
+      return c.json({ error: t(c).errors.wrongPassword }, 401);
     }
     registration = { name: link.name ?? defaultName, passwordHash: link.passwordHash };
   }
 
   let user = await findUserByEmail(tx, link.email);
-  if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
+  if (user?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
   if (!user) {
     // Music Hub may have filled up since the link went out
     const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration });
-    if (!created) return c.json({ error: FULL }, 403);
+    if (!created) return c.json({ error: t(c).errors.full }, 403);
     user = created;
     registration = null;
   }
@@ -127,10 +129,10 @@ export const authRoutes = new Hono<AppEnv>()
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const existing = await findUserByEmail(db, email);
-    if (!existing && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
-    if (existing?.blockedAt) return c.json({ error: BLOCKED }, 403);
+    if (!existing && !(await registrationOpen(db))) return c.json({ error: t(c).errors.full }, 403);
+    if (existing?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
     if (existing?.passwordHash) {
-      return c.json({ error: 'E-Mail bereits vergeben — melde dich per Magic Link an' }, 409);
+      return c.json({ error: t(c).errors.emailTaken }, 409);
     }
 
     // Only count towards the address once a mail goes out, so 409s can't
@@ -147,7 +149,7 @@ export const authRoutes = new Hono<AppEnv>()
       updatesOptIn: updates ?? false,
     });
 
-    await sendRegistrationEmail(email, token, updates);
+    await sendRegistrationEmail(email, token, updates ?? false, locale(c));
 
     return c.json({ user: null, verificationRequired: true }, 202);
   })
@@ -162,10 +164,10 @@ export const authRoutes = new Hono<AppEnv>()
 
     const user = await findUserByEmail(db, email);
     if (!user?.passwordHash || !(await Bun.password.verify(password, user.passwordHash))) {
-      return c.json({ error: 'E-Mail oder Passwort falsch' }, 401);
+      return c.json({ error: t(c).errors.wrongLogin }, 401);
     }
     await Promise.all(attempt.map((key) => failedLogins.undo(db, key)));
-    if (user.blockedAt) return c.json({ error: BLOCKED }, 403);
+    if (user.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
 
     await createSession(c, db, user.id);
     return c.json({ user: toUser(user) });
@@ -177,8 +179,8 @@ export const authRoutes = new Hono<AppEnv>()
 
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const user = await findUserByEmail(db, email);
-    if (!user && !(await registrationOpen(db))) return c.json({ error: FULL }, 403);
-    if (user?.blockedAt) return c.json({ error: BLOCKED }, 403);
+    if (!user && !(await registrationOpen(db))) return c.json({ error: t(c).errors.full }, 403);
+    if (user?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
     if (!(await mailsPerAddress.hit(db, email.toLowerCase()))) return tooManyRequests(c);
 
     const token = generateToken();
@@ -194,7 +196,7 @@ export const authRoutes = new Hono<AppEnv>()
       updatesOptIn: updates ?? false,
     });
 
-    await sendMagicLinkEmail(email, token, safeNextPath(next), updates, code, c.req.header('accept-language'));
+    await sendMagicLinkEmail(email, token, safeNextPath(next), updates ?? false, code, locale(c));
 
     return c.json({ message: 'Magic link sent' });
   })
@@ -214,7 +216,7 @@ export const authRoutes = new Hono<AppEnv>()
         .for('update');
 
       if (!link || link.expiresAt < new Date() || link.usedAt) {
-        return c.json({ error: 'Der Link ist abgelaufen oder wurde schon benutzt.' }, 400);
+        return c.json({ error: t(c).errors.linkUsed }, 400);
       }
 
       return completeLink(c, tx, link, password, cookie);
@@ -280,6 +282,9 @@ export const authRoutes = new Hono<AppEnv>()
 
     await renewSession(c, db, session, sessionToken);
     await markSeen(db, user.id);
+    // The web asks on every start and after the language switch, so sessions from before keep up too
+    const locale = statedLocale(c);
+    if (locale && locale !== user.locale) await db.update(users).set({ locale }).where(eq(users.id, user.id));
     return c.json({ user: toUser(user) });
   })
 

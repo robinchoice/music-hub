@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import DashCard from './DashCard.svelte';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
@@ -11,18 +12,18 @@
   const share = (seconds: number, duration: number | null) => (duration ? Math.min(1, seconds / duration) : 0);
 </script>
 
-<DashCard icon="headphones" title="Per Link gehört" sub="geteilte Versionen">
+<DashCard icon="headphones" title={t().overview.listens.title} sub={t().overview.listens.sub}>
   {#each rows as r (`${r.versionId}:${r.listenerName}`)}
     <div class="row">
       <Avatar name={r.name} size="sm" />
       <div class="main">
         <div><b>{r.name}</b> · {r.track.name} <span class="vchip">V{r.version.versionNumber}</span></div>
         <div class="meta">
-          {r.fullPlays ? `${r.plays}× gehört, ${r.fullPlays}× ganz` : `${r.plays}× gehört, bis ${formatTime(r.maxSeconds)}`}
+          {t().overview.listens.played(r.plays, r.fullPlays, formatTime(r.maxSeconds))}
         </div>
         <div
           class="bar"
-          data-tt="{r.name} hat {r.track.name} V{r.version.versionNumber} bis {formatTime(r.maxSeconds)}{r.version.duration ? ` von ${formatTime(r.version.duration)}` : ''} gehört"
+          data-tt={t().overview.listens.tip(r.name, r.track.name, r.version.versionNumber, formatTime(r.maxSeconds), r.version.duration ? formatTime(r.version.duration) : null)}
         >
           <i style="width: {Math.round(share(r.maxSeconds, r.version.duration) * 100)}%"></i>
         </div>

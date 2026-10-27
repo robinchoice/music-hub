@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from '$lib/i18n/index.js';
   import { TRACK_STATUS_LABELS } from '@music-hub/shared';
   import Icon from '$lib/components/ui/Icon.svelte';
   import StageLabel from './StageLabel.svelte';
@@ -61,24 +62,24 @@
       `${info.track.name} V${v.versionNumber}${versionName(v) ? ` · ${versionName(v)}` : ''}`,
       `${personName(ix, v.createdById)}, ${formatDate(v.createdAt)}`,
       decisionText(ix, v),
-      count ? `${count} ${count === 1 ? 'Kommentar' : 'Kommentare'}` : '',
-      'Klick spielt ab',
+      count ? t().common.comments(count) : '',
+      t().overview.timeline.clickToPlay,
     ]
       .filter(Boolean)
       .join('\n');
   }
 
-  const dotTip = (c: OverviewComment) => `${personName(ix, c.userId, c.guestName)}, ${formatDate(c.createdAt)}\n„${c.body}“`;
+  const dotTip = (c: OverviewComment) => `${personName(ix, c.userId, c.guestName)}, ${formatDate(c.createdAt)}\n${t().overview.shared.quote(c.body)}`;
 </script>
 
 <div class="trow" class:done={info.done}>
   <a class="name" href={trackHref(info.project.id, info.track.id)}>
-    <span class="dot" style="background: {STATUS_COLORS[info.track.status]}" title={TRACK_STATUS_LABELS[info.track.status]}></span>
+    <span class="dot" style="background: {STATUS_COLORS[info.track.status]}" title={TRACK_STATUS_LABELS[locale()][info.track.status]}></span>
     <span class="nm">{info.track.name}</span>
-    {#if info.isNew}<span class="newdot" title="Neu seit deinem letzten Besuch"></span>{/if}
+    {#if info.isNew}<span class="newdot" title={t().overview.shared.newSince}></span>{/if}
   </a>
   <div class="lane">
-    {#each range.ticks as t (t)}<i class="gl" style="left: {range.pct(t)}%"></i>{/each}
+    {#each range.ticks as mon (mon)}<i class="gl" style="left: {range.pct(mon)}%"></i>{/each}
     <i class="today" style="left: {range.pct(now)}%"></i>
     {#if line}<i class="line" style="left: {line.from}%; width: {line.to - line.from}%"></i>{/if}
     {#if live}<i class="line live" style="left: {live.from}%; width: {live.to - live.from}%"></i>{/if}
@@ -99,7 +100,7 @@
         class:playing={dockedId === v.id}
         style="left: {at(v.createdAt)}%"
         data-tt={clipTip(v)}
-        aria-label="{info.track.name} V{v.versionNumber} abspielen"
+        aria-label={t().overview.timeline.playAria(info.track.name, v.versionNumber)}
         onclick={() => onplay(v)}
       >
         V{v.versionNumber}
@@ -111,8 +112,8 @@
         class="new"
         href={trackHref(info.project.id, info.track.id)}
         style="left: {created}%"
-        data-tt={`${info.track.name}\nangelegt ${formatDate(info.track.createdAt)}, noch keine Version`}
-        aria-label="{info.track.name}: angelegt {formatDate(info.track.createdAt)}, noch keine Version"
+        data-tt={`${info.track.name}\n${t().overview.timeline.created(formatDate(info.track.createdAt))}`}
+        aria-label="{info.track.name}: {t().overview.timeline.created(formatDate(info.track.createdAt))}"
       ><i></i></a>
     {/if}
   </div>

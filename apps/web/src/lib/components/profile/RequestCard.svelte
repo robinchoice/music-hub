@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { getContext } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import { dropRequest, type ContactRequest } from '$lib/stores/requests.js';
@@ -27,7 +28,7 @@
       const res = await api.post<{ projectId: string }>(`/requests/${request.id}/accept`, projectId ? { projectId } : {});
       dropRequest(request.id);
       reloadSidebar?.();
-      toastSuccess(`${request.from.name} ist jetzt im Projekt`);
+      toastSuccess(t().guest.requestCard.nowInProject(request.from.name));
       await goto(`/projects/${res.projectId}`);
     } catch {
       // The API client already showed the error
@@ -49,7 +50,7 @@
       await (block ? api.post(`/requests/${request.id}/block`, { report }) : api.post(`/requests/${request.id}/decline`));
       dropRequest(request.id);
       blockOpen = false;
-      toastSuccess(block ? `${request.from.name} kann dir keine Anfragen mehr schicken` : 'Abgelehnt');
+      toastSuccess(block ? t().guest.requestCard.cannotRequest(request.from.name) : t().guest.requestCard.declined);
     } catch {
       // The API client already showed the error
     } finally {
@@ -67,44 +68,44 @@
         {#if request.from.bio}<span class="faint"> · {request.from.bio}</span>{/if}
       </p>
       <p class="faint">
-        Anfrage{#if request.track}{' zu '}<a href="/offen/{request.track.id}">„{request.track.name}“</a>{/if} · {formatWhen(request.createdAt)}
+        {t().guest.requestCard.request}{#if request.track}{t().guest.requestCard.about}<a href="/offen/{request.track.id}">{t().common.quote(request.track.name)}</a>{/if} · {formatWhen(request.createdAt)}
       </p>
     </div>
   </header>
   <blockquote>{request.message}</blockquote>
   <div class="actions">
-    <Button onclick={() => accept()} loading={busy === 'accept'}>Annehmen: gemeinsames Projekt</Button>
-    <Button variant="secondary" onclick={chooseProject}>In Projekt einladen…</Button>
-    <Button variant="ghost" onclick={() => decline(false)} loading={busy === 'decline'}>Ablehnen</Button>
-    <Button variant="ghost" onclick={() => (blockOpen = true)}>Blockieren</Button>
+    <Button onclick={() => accept()} loading={busy === 'accept'}>{t().guest.requestCard.acceptShared}</Button>
+    <Button variant="secondary" onclick={chooseProject}>{t().guest.requestCard.inviteToProject}</Button>
+    <Button variant="ghost" onclick={() => decline(false)} loading={busy === 'decline'}>{t().guest.requestCard.decline}</Button>
+    <Button variant="ghost" onclick={() => (blockOpen = true)}>{t().guest.requestCard.block}</Button>
   </div>
 </article>
 
-<Modal bind:open={inviteOpen} title="In Projekt einladen">
+<Modal bind:open={inviteOpen} title={t().guest.requestCard.inviteTitle}>
   <div class="form">
     {#if projects.length}
-      <p class="faint">{request.from.name} kommt als Artist dazu, kann hochladen und kommentieren.</p>
+      <p class="faint">{t().guest.requestCard.joinsAs(request.from.name)}</p>
       {#each projects as p (p.project.id)}
         <label class="choice"><input type="radio" bind:group={target} value={p.project.id} /> {p.project.name}</label>
       {/each}
     {:else}
-      <p class="faint">Du hast kein Projekt, in das du {request.from.name} noch einladen kannst. „Annehmen“ legt eins für euch beide an.</p>
+      <p class="faint">{t().guest.requestCard.noProject(request.from.name)}</p>
     {/if}
   </div>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (inviteOpen = false)}>Abbrechen</Button>
-    <Button onclick={() => accept(target)} loading={busy === 'accept'} disabled={!target}>Einladen</Button>
+    <Button variant="ghost" onclick={() => (inviteOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={() => accept(target)} loading={busy === 'accept'} disabled={!target}>{t().common.invite}</Button>
   {/snippet}
 </Modal>
 
-<Modal bind:open={blockOpen} title="{request.from.name} blockieren?">
+<Modal bind:open={blockOpen} title={t().guest.requestCard.blockTitle(request.from.name)}>
   <div class="form">
-    <p class="faint">Die Anfrage verschwindet, und {request.from.name} kann dir keine neuen mehr schicken. {request.from.name} erfährt davon nichts.</p>
-    <label class="choice"><input type="checkbox" bind:checked={report} /> Auch an die Admins melden, z. B. bei Spam oder Belästigung</label>
+    <p class="faint">{t().guest.requestCard.blockInfo(request.from.name)}</p>
+    <label class="choice"><input type="checkbox" bind:checked={report} /> {t().guest.requestCard.alsoReport}</label>
   </div>
   {#snippet actions()}
-    <Button variant="ghost" onclick={() => (blockOpen = false)}>Abbrechen</Button>
-    <Button onclick={() => decline(true)} loading={busy === 'block'}>Blockieren</Button>
+    <Button variant="ghost" onclick={() => (blockOpen = false)}>{t().common.cancel}</Button>
+    <Button onclick={() => decline(true)} loading={busy === 'block'}>{t().guest.requestCard.block}</Button>
   {/snippet}
 </Modal>
 

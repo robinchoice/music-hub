@@ -2,6 +2,7 @@
   import { onMount, onDestroy, getContext } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -69,7 +70,7 @@
   let expanded = $state<Record<string, boolean>>({});
   let newTrackName = $state('');
   let showNewTrack = $state(false);
-  const newTrackLabel = $derived(showNewTrack ? 'Abbrechen' : 'Neuer Track');
+  const newTrackLabel = $derived(showNewTrack ? t().common.cancel : t().workspace.projectPage.newTrack);
   let loading = $state(true);
   let creating = $state(false);
   let coverEditOpen = $state(false);
@@ -129,7 +130,7 @@
       void loadOverview(true);
       newTrackName = '';
       showNewTrack = false;
-      toastSuccess('Track angelegt');
+      toastSuccess(t().workspace.projectPage.trackCreated);
     } catch {
       // The API client already showed the error
     } finally {
@@ -141,7 +142,7 @@
     const res = await api.patch<{ project: Project }>(`/projects/${projectId}`, { coverImageUrl: key });
     project = res.project;
     coverEditOpen = false;
-    toastSuccess(key ? 'Cover gespeichert' : 'Cover entfernt');
+    toastSuccess(key ? t().workspace.projectPage.coverSaved : t().workspace.projectPage.coverRemoved);
     reloadSidebar?.();
     void loadOverview(true);
   }
@@ -153,7 +154,7 @@
       project = { ...project!, isArchived: false };
       reloadSidebar?.();
       void loadOverview(true);
-      toastSuccess('Projekt wiederhergestellt');
+      toastSuccess(t().workspace.projectPage.restored);
     } catch {
       // The API client already showed the error
     } finally {
@@ -180,29 +181,29 @@
 
 <TopBar
   crumbs={[
-    { label: 'Projekte', href: '/dashboard' },
+    { label: t().workspace.nav.projects, href: '/dashboard' },
     { label: project?.name ?? '…' },
   ]}
 >
   {#snippet actions()}
     {#if !loading && (roles.includes('owner') || roles.includes('management'))}
-      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title="Einstellungen">
-        <Icon name="settings" size={14} /> <span class="btn-label">Einstellungen</span>
+      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title={t().workspace.projectPage.settings}>
+        <Icon name="settings" size={14} /> <span class="btn-label">{t().workspace.projectPage.settings}</span>
       </Button>
     {/if}
     {#if canUpload}
-      <Button variant="ghost" size="sm" title="Upload-Link" onclick={() => (uploadLinkOpen = true)}>
-        <Icon name="link" size={14} /> <span class="btn-label">Upload-Link</span>
+      <Button variant="ghost" size="sm" title={t().workspace.projectPage.uploadLink} onclick={() => (uploadLinkOpen = true)}>
+        <Icon name="link" size={14} /> <span class="btn-label">{t().workspace.projectPage.uploadLink}</span>
       </Button>
       <Button variant="ghost" size="sm" title={newTrackLabel} onclick={() => showNewTrack = !showNewTrack}>
         <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{newTrackLabel}</span>
       </Button>
       {#if !empty}
-        <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> Mix hochladen</Button>
+        <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> {t().workspace.projectPage.uploadMix}</Button>
       {/if}
     {/if}
     {#if !loading && !empty}
-      <Button size="sm" title="Teilen" onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> <span class="btn-label">Teilen</span></Button>
+      <Button size="sm" title={t().workspace.projectPage.share} onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> <span class="btn-label">{t().workspace.projectPage.share}</span></Button>
     {/if}
   {/snippet}
 </TopBar>
@@ -218,7 +219,7 @@
       <Skeleton width="200px" height="2rem" />
     {:else if project}
       <div class="project-head">
-        <button class="cover-btn" onclick={() => (coverEditOpen = true)} disabled={role !== 'owner'} aria-label="Cover ändern">
+        <button class="cover-btn" onclick={() => (coverEditOpen = true)} disabled={role !== 'owner'} aria-label={t().workspace.projectPage.changeCover}>
           <CoverImage src={project.coverUrl} name={project.name} size="lg" rounded="lg" />
         </button>
         <div>
@@ -235,16 +236,14 @@
     <div class="archived" role="status">
       <span class="archived-icon"><Icon name="archive" size={16} /></span>
       <span class="archived-text">
-        <b>Dieses Projekt ist archiviert</b>
+        <b>{t().workspace.projectPage.archived}</b>
         <small>
-          {role === 'owner'
-            ? 'Es ist für alle Beteiligten ausgeblendet, bis du es wiederherstellst.'
-            : 'Es ist für alle Beteiligten ausgeblendet. Nur der Besitzer kann es wiederherstellen.'}
+          {role === 'owner' ? t().workspace.projectPage.archivedOwner : t().workspace.projectPage.archivedOther}
         </small>
       </span>
       {#if role === 'owner'}
         <Button variant="secondary" size="sm" loading={restoring} onclick={restore}>
-          <Icon name="restore" size={13} /> Wiederherstellen
+          <Icon name="restore" size={13} /> {t().workspace.projectPage.restore}
         </Button>
       {/if}
     </div>
@@ -253,7 +252,7 @@
   {#each requests as r (r.id)}
     <aside class="request">
       <p class="request-head">
-        Anfrage von {#if r.from.handle}<a href="/@{r.from.handle}">{r.from.name}</a>{:else}<b>{r.from.name}</b>{/if}{#if r.track}{' zu '}<a href="/offen/{r.track.id}">„{r.track.name}“</a>{/if}
+        {t().workspace.projectPage.requestFrom} {#if r.from.handle}<a href="/@{r.from.handle}">{r.from.name}</a>{:else}<b>{r.from.name}</b>{/if}{#if r.track}{t().workspace.projectPage.requestOn}<a href="/offen/{r.track.id}">{t().workspace.quoted(r.track.name)}</a>{/if}
       </p>
       <blockquote>{r.message}</blockquote>
     </aside>
@@ -261,8 +260,8 @@
 
   {#if showNewTrack}
     <form class="new-track-form" onsubmit={(e) => { e.preventDefault(); createTrack(); }}>
-      <Input bind:value={newTrackName} placeholder="Track-Name" autofocus />
-      <Button type="submit" loading={creating} disabled={!newTrackName.trim()}>Anlegen</Button>
+      <Input bind:value={newTrackName} placeholder={t().workspace.projectPage.trackName} autofocus />
+      <Button type="submit" loading={creating} disabled={!newTrackName.trim()}>{t().workspace.projectPage.create}</Button>
     </form>
   {/if}
 
@@ -280,9 +279,9 @@
   <div class="tabs">
     <TabBar
       tabs={[
-        { id: 'tracks', label: 'Tracks', count: loading ? undefined : tracks.length },
-        { id: 'timeline', label: 'Timeline' },
-        ...(roles.includes('owner') ? [{ id: 'auftrag', label: 'Auftrag' }] : []),
+        { id: 'tracks', label: t().workspace.projectPage.tabTracks, count: loading ? undefined : tracks.length },
+        { id: 'timeline', label: t().workspace.projectPage.tabTimeline },
+        ...(roles.includes('owner') ? [{ id: 'auftrag', label: t().workspace.projectPage.tabOrder }] : []),
       ]}
       active={view}
       onselect={setView}
@@ -300,12 +299,12 @@
     <LoadFailed />
   {:else if !group?.list.length}
     {#if !canUpload}
-      <EmptyState title="Noch keine Tracks" description="Sobald jemand einen Mix hochlädt, steht er hier." />
+      <EmptyState title={t().workspace.projectPage.emptyTitle} description={t().workspace.projectPage.emptyDescription} />
     {/if}
   {:else if view === 'timeline'}
     <ProjectTimeline {ix} list={group.list} />
   {:else}
-    <div class="cols" aria-hidden="true"><span>Track</span><span>Neueste Version</span><span>Stand</span><span>Zuletzt</span></div>
+    <div class="cols" aria-hidden="true"><span>{t().workspace.projectPage.colTrack}</span><span>{t().workspace.projectPage.colLatest}</span><span>{t().workspace.projectPage.colStage}</span><span>{t().workspace.projectPage.colLast}</span></div>
     {#each sections as section (section.name)}
       <section class="section">
         {#if sections.length > 1}
@@ -321,7 +320,7 @@
       <section class="section">
         <button type="button" class="more" aria-expanded={doneOpen} onclick={() => (doneOpen = !doneOpen)}>
           <Icon name={doneOpen ? 'chevron-down' : 'chevron-right'} size={14} />
-          {group.done.length === 1 ? '1 fertiger Track' : `${group.done.length} fertige Tracks`}
+          {t().workspace.projectPage.doneTracks(group.done.length)}
         </button>
         {#if doneOpen}{@render rows(group.done)}{/if}
       </section>
@@ -333,10 +332,9 @@
     <a href="/trash?project={projectId}" class="trash-link">
       <span class="trash-icon"><Icon name="trash" size={16} /></span>
       <span class="trash-text">
-        <b>Papierkorb</b>
+        <b>{t().workspace.projectPage.trashLinkTitle}</b>
         <small>
-          {trash.length === 1 ? '1 Eintrag · noch' : `${trash.length} Einträge · der älteste noch`}
-          {daysLeft} {daysLeft === 1 ? 'Tag' : 'Tage'}
+          {t().workspace.projectPage.trashLinkText(trash.length, daysLeft)}
         </small>
       </span>
       <Icon name="chevron-right" size={16} />
@@ -367,12 +365,12 @@
 {/if}
 
 {#if project}
-  <Modal bind:open={coverEditOpen} title="Projekt-Cover ändern">
+  <Modal bind:open={coverEditOpen} title={t().workspace.projectPage.coverModalTitle}>
     <div class="cover-modal">
       <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
     </div>
     {#snippet actions()}
-      <Button onclick={() => (coverEditOpen = false)}>Schließen</Button>
+      <Button onclick={() => (coverEditOpen = false)}>{t().common.close}</Button>
     {/snippet}
   </Modal>
 {/if}

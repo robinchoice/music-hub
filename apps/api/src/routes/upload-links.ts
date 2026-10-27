@@ -15,12 +15,12 @@ import { notifyProjectMembers } from '../services/push.js';
 import type { Context } from 'hono';
 import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
-const UNAVAILABLE = 'Dieser Upload-Link ist ausgeschaltet oder gilt nicht mehr.';
 
 // Guests don't get to see how full the storage of whoever shared the link is
 const ownerFull = (c: Context) =>
-  c.json({ error: 'Im Projekt ist gerade kein Platz mehr. Sag der Person Bescheid, die dir den Link geschickt hat.' }, 413);
+  c.json({ error: t(c).errors.projectFull }, 413);
 
 const MINUTE = 60 * 1000;
 const tracksPerLink = rateLimit('guest-tracks', 20, 24 * 60 * MINUTE);
@@ -140,7 +140,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
   .get('/public/:token', async (c) => {
     const db = c.get('db');
     const found = await liveLink(db, c.req.param('token'));
-    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    if (!found) return c.json({ error: t(c).errors.uploadLinkOff }, 404);
 
     const projectTracks = await db
       .select({ id: tracks.id, name: tracks.name })
@@ -158,7 +158,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
   .post('/public/:token/tracks', zValidator('json', guestTrackSchema), async (c) => {
     const db = c.get('db');
     const found = await liveLink(db, c.req.param('token'));
-    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    if (!found) return c.json({ error: t(c).errors.uploadLinkOff }, 404);
     if (!(await tracksPerLink.hit(db, found.link.id))) return tooManyRequests(c);
 
     const [track] = await db
@@ -171,7 +171,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
   .post('/public/:token/track/:trackId/note', zValidator('json', guestNoteSchema), async (c) => {
     const db = c.get('db');
     const found = await liveLink(db, c.req.param('token'));
-    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    if (!found) return c.json({ error: t(c).errors.uploadLinkOff }, 404);
     const track = await guestTrack(db, found.project.id, c.req.param('trackId'));
     if (!track) return c.json({ error: 'Not found' }, 404);
     if (!(await notesPerLink.hit(db, found.link.id))) return tooManyRequests(c);
@@ -185,7 +185,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const { fileName, mimeType, fileSize } = c.req.valid('json');
     const found = await liveLink(db, c.req.param('token'));
-    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    if (!found) return c.json({ error: t(c).errors.uploadLinkOff }, 404);
     const track = await guestTrack(db, found.project.id, c.req.param('trackId'));
     if (!track) return c.json({ error: 'Not found' }, 404);
     if (!(await filesPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
@@ -203,14 +203,14 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     const db = c.get('db');
     const input = c.req.valid('json');
     const found = await liveLink(db, c.req.param('token'));
-    if (!found) return c.json({ error: UNAVAILABLE }, 404);
+    if (!found) return c.json({ error: t(c).errors.uploadLinkOff }, 404);
     const track = await guestTrack(db, found.project.id, c.req.param('trackId'));
     if (!track) return c.json({ error: 'Not found' }, 404);
     if (!(await freshStemKey(db, track, input.fileKey))) return c.json({ error: 'Forbidden' }, 403);
 
     // The stored file decides the size, not what the client claims
     const fileSize = await getObjectSize(input.fileKey);
-    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
+    if (fileSize === null) return c.json({ error: t(c).errors.fileMissing }, 400);
 
     const ownerId = found.link.createdById;
     const stem = await db.transaction(async (tx) => {
@@ -237,12 +237,12 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
     if (!stem) return ownerFull(c);
 
     if (await uploadAlerts.hit(db, `${found.link.id}:${track.id}`)) {
-      runInBackground(notifyProjectMembers(db, track.projectId, '', {
+      runInBackground(notifyProjectMembers(db, track.projectId, '', (m) => ({
         projectId: track.projectId, trackId: track.id,
-        title: 'Neue Spuren',
-        body: `${input.guestName} hat Spuren zu ${track.name} hochgeladen`,
+        title: m.push.newStems,
+        body: m.push.stemsUploaded(input.guestName, track.name),
         url: `/projects/${track.projectId}/tracks/${track.id}`,
-      }).catch(() => {}));
+      })).catch(() => {}));
     }
 
     return c.json({ stem }, 201);

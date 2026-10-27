@@ -3,6 +3,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import SiteFooter from '$lib/components/landing/SiteFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
+  import { t } from '$lib/i18n/index.js';
 
   let { children } = $props();
 </script>
@@ -11,9 +12,9 @@
   <nav class="nav">
     <a href="/" class="wordmark"><Tile size={30} /> Music Hub</a>
     {#if $user}
-      <Button href="/dashboard" size="sm">Zum Dashboard</Button>
+      <Button href="/dashboard" size="sm">{t().landing.dashboard}</Button>
     {:else}
-      <Button href="/login" size="sm">Einloggen</Button>
+      <Button href="/login" size="sm">{t().common.logIn}</Button>
     {/if}
   </nav>
 

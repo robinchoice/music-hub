@@ -1,14 +1,17 @@
 // Renders the link preview that WhatsApp, Signal and co. show for shared links,
-// 1200×630 into static/og-image.png (see DESIGN.md in robinchoice/starter,
-// "Vorschaubild"). Music Hub is German only, so there is one picture. Rerun after
-// changing the claim, APP_BAND or the tile in static/favicon.svg, and commit it.
+// 1200×630 into static/og-image-<locale>.png (see DESIGN.md in robinchoice/starter,
+// "Vorschaubild"), one per language. Rerun after changing the claim, APP_BAND or
+// the tile in static/favicon.svg, and commit them.
 // Run: bun run og-image
 import { readFileSync } from 'node:fs';
-import { APP_BAND, GLOW, bandGradient } from '@music-hub/shared';
+import { APP_BAND, GLOW, LOCALES, bandGradient } from '@music-hub/shared';
 import { chromium } from '@playwright/test';
 
 const NAME = 'Music Hub';
-const CLAIM = 'Versionen für Musik. Ohne Chaos.';
+const TEXTS = {
+  de: { claim: 'Versionen für Musik. Ohne Chaos.', madeBy: 'ein Werkzeug von' },
+  en: { claim: 'Versions for music. Without the chaos.', madeBy: 'a tool by' },
+};
 const BAND_GRADIENT = bandGradient(APP_BAND, GLOW);
 
 const STATIC = new URL('static/', import.meta.url);
@@ -20,7 +23,7 @@ const WORDMARK = `data:image/svg+xml;base64,${Buffer.from(
   readFileSync(new URL('pleasance-wordmark.svg', STATIC), 'utf8').replace('viewBox="0 0 827 160"', 'viewBox="63 41 702 78"'),
 ).toString('base64')}`;
 
-const html = `<!doctype html>
+const html = ({ claim, madeBy }: { claim: string; madeBy: string }) => `<!doctype html>
 <style>
   @font-face {
     font-family: Display;
@@ -62,21 +65,23 @@ const html = `<!doctype html>
   <div>
     <h1>${NAME}</h1>
     <div class="line"></div>
-    <p>${CLAIM}</p>
+    <p>${claim}</p>
   </div>
 </main>
 <footer>
-  ein Werkzeug von
+  ${madeBy}
   <div class="signature"><div class="wordmark"></div><div class="band"><div class="marker"></div></div></div>
 </footer>`;
 
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-  await page.setContent(html);
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: new URL('og-image.png', STATIC).pathname });
-  console.log('og-image.png');
+  for (const locale of LOCALES) {
+    await page.setContent(html(TEXTS[locale]));
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: new URL(`og-image-${locale}.png`, STATIC).pathname });
+    console.log(`og-image-${locale}.png`);
+  }
 } finally {
   await browser.close();
 }

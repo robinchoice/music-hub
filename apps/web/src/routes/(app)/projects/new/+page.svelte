@@ -2,6 +2,7 @@
   import { getContext } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -33,7 +34,7 @@
         description: description || undefined,
         coverImageUrl: coverKey,
       });
-      toastSuccess('Projekt erstellt');
+      toastSuccess(t().workspace.newProject.created);
       reloadSidebar?.();
       goto(`/projects/${res.project.id}`);
     } catch {
@@ -52,32 +53,32 @@
 
 <TopBar
   crumbs={[
-    { label: 'Projekte', href: '/dashboard' },
-    { label: 'Neues Projekt' },
+    { label: t().workspace.nav.projects, href: '/dashboard' },
+    { label: t().workspace.newProject.title },
   ]}
 />
 
 <div class="page">
   <div class="card">
-    <h1>Neues Projekt</h1>
+    <h1>{t().workspace.newProject.title}</h1>
 
     <form onsubmit={handleSubmit}>
       <ArtistInput bind:value={artist} />
-      <Input label="Name" bind:value={name} placeholder="z. B. Debütalbum, Sommer-EP oder Single" />
+      <Input label={t().common.name} bind:value={name} placeholder={t().workspace.newProject.namePlaceholder} />
 
       <label class="textarea-group">
-        <span class="input-label">Beschreibung (optional)</span>
-        <textarea bind:value={description} placeholder="Worum geht's in diesem Projekt?" rows="3"></textarea>
+        <span class="input-label">{t().workspace.newProject.description}</span>
+        <textarea bind:value={description} placeholder={t().workspace.newProject.descriptionPlaceholder} rows="3"></textarea>
       </label>
 
       <div class="cover-group">
-        <span class="input-label">Cover (optional)</span>
+        <span class="input-label">{t().workspace.newProject.cover}</span>
         <CoverUpload currentUrl={coverPreview} {name} onChange={setCover} />
       </div>
 
       <div class="actions">
-        <Button variant="secondary" href="/dashboard">Abbrechen</Button>
-        <Button type="submit" {loading} disabled={!name.trim()}>Anlegen</Button>
+        <Button variant="secondary" href="/dashboard">{t().common.cancel}</Button>
+        <Button type="submit" {loading} disabled={!name.trim()}>{t().workspace.newProject.create}</Button>
       </div>
     </form>
   </div>

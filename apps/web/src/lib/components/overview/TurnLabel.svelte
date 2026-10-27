@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import { turnText, type OverviewIndex, type TrackInfo } from '$lib/utils/overview.js';
 
@@ -6,8 +7,8 @@
 
   const text = $derived(turnText(ix, info));
   const people = $derived([
-    ...info.turn.map((id) => ({ key: id, name: ix.users.get(id)?.name ?? 'Jemand', src: ix.users.get(id)?.avatarUrl ?? null })),
-    ...info.guests.map((g) => ({ key: `guest:${g}`, name: g || 'Gäste', src: null })),
+    ...info.turn.map((id) => ({ key: id, name: ix.users.get(id)?.name ?? t().common.someone, src: ix.users.get(id)?.avatarUrl ?? null })),
+    ...info.guests.map((g) => ({ key: `guest:${g}`, name: g || t().overview.shared.guests, src: null })),
   ]);
 </script>
 

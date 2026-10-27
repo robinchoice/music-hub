@@ -7,12 +7,13 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
+  import { locale, t } from '$lib/i18n/index.js';
   import { formatTime } from '$lib/utils/format.js';
   import { formatEuro, type GuestPaymentResponse, type ProjectPublicDeliveryFields, type PublicDelivery, type PublicDeliveryTrack } from '@music-hub/shared';
   import DecisionDialog from '$lib/components/delivery/DecisionDialog.svelte';
   import PayDialog from '$lib/components/delivery/PayDialog.svelte';
   import { toastError } from '$lib/stores/toast.js';
-  import { CLIENT_STATE_LABELS, guestRequest, plural, roundDots, roundsText } from '$lib/utils/delivery.js';
+  import { CLIENT_STATE_LABELS, guestRequest, roundDots, roundsText } from '$lib/utils/delivery.js';
 
   type Album = ProjectPublicDeliveryFields & {
     project: { name: string; artist: string | null; coverUrl: string | null };
@@ -65,20 +66,20 @@
       });
       if (res.status === 401) {
         passwordRequired = true;
-        error = password ? 'Das Passwort ist nicht richtig. Bitte versuche es erneut.' : '';
+        error = password ? t().guest.listenTrack.wrongPassword : '';
         return;
       }
       if (!res.ok) {
-        error = res.status === 404 ? 'Dieser Link wurde nicht gefunden.'
-          : res.status === 410 ? 'Dieser Link ist gerade nicht verfügbar.'
-          : res.status === 429 ? 'Zu viele Versuche. Bitte warte etwas und versuche es erneut.'
-          : 'Der Link konnte nicht geladen werden. Bitte versuche es erneut.';
+        error = res.status === 404 ? t().guest.listenTrack.notFound
+          : res.status === 410 ? t().guest.listenTrack.unavailable
+          : res.status === 429 ? t().guest.listenTrack.tooManyAttempts
+          : t().guest.listenTrack.loadFailed;
         return;
       }
       album = await res.json();
       passwordRequired = false;
     } catch {
-      error = 'Keine Verbindung. Bitte prüfe dein Internet und versuche es erneut.';
+      error = t().guest.listenTrack.offline;
     } finally {
       loading = false;
     }
@@ -157,11 +158,11 @@
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
       a.href = url;
-      a.download = stems ? `${name} Spuren.zip` : `${name}.wav`;
+      a.download = stems ? t().guest.album.stemsZip(name) : `${name}.wav`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {
-      toastError('Der Download hat nicht geklappt. Bitte versuche es erneut.');
+      toastError(t().guest.album.downloadFailed);
     }
   }
   const downloadPath = (trackId: string, stems: boolean) =>
@@ -177,40 +178,40 @@
     <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
 
     {#if loading && !passwordRequired}
-      <p class="muted">Lädt…</p>
+      <p class="muted">{t().guest.listenTrack.loading}</p>
     {:else if passwordRequired}
       <form class="password-gate" onsubmit={(e) => { e.preventDefault(); load(); }}>
-        <h1>🔒 Geschützter Link</h1>
-        <p>Bitte Passwort eingeben:</p>
-        <input type="password" bind:value={password} placeholder="Passwort" aria-label="Passwort" autocomplete="current-password" required />
-        <Button type="submit" {loading}>Öffnen</Button>
+        <h1>{t().guest.album.protectedLink}</h1>
+        <p>{t().guest.album.enterPassword}</p>
+        <input type="password" bind:value={password} placeholder={t().common.password} aria-label={t().common.password} autocomplete="current-password" required />
+        <Button type="submit" {loading}>{t().common.open}</Button>
         {#if error}<p class="error" role="alert">{error}</p>{/if}
       </form>
     {:else if error}
       <p class="error" role="alert">{error}</p>
-      <Button onclick={load}>Erneut versuchen</Button>
+      <Button onclick={load}>{t().common.retry}</Button>
     {:else if album && delivery}
       <header class="order-head">
-        <p class="kicker">Ablieferung für {delivery.clientName}{delivery.reference ? ` · ${delivery.reference}` : ''}</p>
+        <p class="kicker">{t().guest.album.deliveryFor(delivery.clientName, delivery.reference)}</p>
         <h1>{album.project.name}</h1>
         <p class="meta">
-          von <b>{delivery.studioName}</b>{album.project.artist ? ` · ${album.project.artist}` : ''} · {plural(delivery.totals.trackCount, 'Song', 'Songs')}
+          {t().guest.album.by} <b>{delivery.studioName}</b>{album.project.artist ? ` · ${album.project.artist}` : ''} · {t().common.songs(delivery.totals.trackCount)}
         </p>
       </header>
 
       <div class="order">
         <aside class="songs">
           {#if album.tracks.length === 0}
-            <p class="muted">Hier ist noch nichts zu hören. Das Studio lädt die ersten Versionen bald hoch.</p>
+            <p class="muted">{t().guest.album.nothingYet}</p>
           {:else}
             <ol class="tracklist">
-              {#each album.tracks as t, i (t.id)}
-                {@const dt = dtOf(t.id)}
+              {#each album.tracks as tr, i (tr.id)}
+                {@const dt = dtOf(tr.id)}
                 <li>
                   <button class="row" class:active={i === current} aria-current={i === current} onclick={() => play(i)}>
                     <span class="name">
-                      <b>{t.name}</b>
-                      <small>V{t.version.versionNumber}{t.version.duration ? ` · ${formatTime(t.version.duration)}` : ''}</small>
+                      <b>{tr.name}</b>
+                      <small>V{tr.version.versionNumber}{tr.version.duration ? ` · ${formatTime(tr.version.duration)}` : ''}</small>
                     </span>
                     {#if dt}
                       <span class="state">
@@ -224,7 +225,7 @@
             </ol>
           {/if}
           {#if waiting > 0}
-            <p class="muted">{waiting === 1 ? 'Ein weiterer Song kommt noch.' : `${waiting} weitere Songs kommen noch.`}</p>
+            <p class="muted">{t().guest.album.moreSongsComing(waiting)}</p>
           {/if}
         </aside>
 
@@ -250,29 +251,29 @@
 
       <div class="paybar" class:paid={delivery.status === 'paid'}>
         <div class="sum">
-          <b>{delivery.status === 'paid' ? `Bezahlt · ${formatEuro(delivery.totals.totalCents)}` : formatEuro(delivery.totals.totalCents)}</b>
+          <b>{delivery.status === 'paid' ? t().guest.album.paidTotal(formatEuro(delivery.totals.totalCents, locale())) : formatEuro(delivery.totals.totalCents, locale())}</b>
           <small>
             {#if delivery.status === 'paid'}
-              Danke! WAVs{delivery.includeStems ? ' und Spuren' : ''} stehen bei jedem Song bereit.
+              {t().guest.album.paidThanks(delivery.includeStems)}
             {:else}
-              {plural(delivery.totals.trackCount, 'Song', 'Songs')}{delivery.totals.extraRounds ? ` + ${plural(delivery.totals.extraRounds, 'Zusatzrunde', 'Zusatzrunden')} (${formatEuro(delivery.totals.extraCents)})` : ''}
-              · {delivery.totals.approvedCount} von {delivery.totals.trackCount} freigegeben{delivery.totals.paidCents ? ` · ${formatEuro(delivery.totals.paidCents)} schon bezahlt` : ''}
+              {t().common.songs(delivery.totals.trackCount)}{delivery.totals.extraRounds ? t().guest.album.plusExtraRounds(t().delivery.utils.extraRounds(delivery.totals.extraRounds), formatEuro(delivery.totals.extraCents, locale())) : ''}
+              · {t().guest.album.approvedOf(delivery.totals.approvedCount, delivery.totals.trackCount)}{delivery.totals.paidCents ? t().guest.album.alreadyPaid(formatEuro(delivery.totals.paidCents, locale())) : ''}
             {/if}
           </small>
         </div>
         {#if delivery.status === 'open'}
           {#if delivery.openPayment?.status === 'announced'}
-            <Button variant="secondary" onclick={payClick}>Überweisung angekündigt · Details</Button>
+            <Button variant="secondary" onclick={payClick}>{t().guest.album.transferAnnounced}</Button>
           {:else if delivery.payable}
-            <Button onclick={payClick}>Bezahlen und herunterladen · {formatEuro(delivery.totals.dueCents)}</Button>
+            <Button onclick={payClick}>{t().guest.album.payAndDownloadAmount(formatEuro(delivery.totals.dueCents, locale()))}</Button>
           {:else}
-            <Button variant="secondary" onclick={payClick}><Icon name="lock" size={14} /> Bezahlen und herunterladen</Button>
+            <Button variant="secondary" onclick={payClick}><Icon name="lock" size={14} /> {t().guest.album.payAndDownload}</Button>
           {/if}
         {/if}
         {#if whyOpen && !delivery.payable && delivery.status === 'open'}
           <p class="why" role="status">
-            Bezahlen geht, sobald alle Songs freigegeben sind.
-            {#if openNames.length}Noch offen: {openNames.join(', ')}{waiting ? ` und ${plural(waiting, 'Song', 'Songs')}, die noch kommen` : ''}.{:else if waiting}Es {waiting === 1 ? 'kommt noch ein Song' : `kommen noch ${waiting} Songs`}.{/if}
+            {t().guest.album.whyLocked}
+            {#if openNames.length}{t().guest.album.stillOpen(openNames.join(', '), waiting)}{:else if waiting}{t().guest.album.stillComing(waiting)}{/if}
           </p>
         {/if}
       </div>
@@ -300,33 +301,33 @@
         <div class="hero-text">
           <h1>{album.project.name}</h1>
           <p class="meta">
-            {[album.project.artist, `${album.tracks.length} ${album.tracks.length === 1 ? 'Song' : 'Songs'}`, total ? formatTime(total) : null]
+            {[album.project.artist, t().common.songs(album.tracks.length), total ? formatTime(total) : null]
               .filter(Boolean)
               .join(' · ')}
           </p>
           {#if album.tracks.length > 0}
-            <Button onclick={() => play(0)}><Icon name="play" size={14} /> Alles abspielen</Button>
+            <Button onclick={() => play(0)}><Icon name="play" size={14} /> {t().guest.album.playAll}</Button>
           {/if}
         </div>
       </header>
 
       {#if album.tracks.length === 0}
-        <p class="muted">Hier ist noch nichts zu hören.</p>
+        <p class="muted">{t().guest.album.nothingToHear}</p>
       {:else}
         <ol class="tracklist">
-          {#each album.tracks as t, i (t.id)}
+          {#each album.tracks as tr, i (tr.id)}
             <li>
               <button class="row" class:active={i === current} aria-current={i === current} onclick={() => play(i)}>
                 <span class="n">{#if i === current}<Icon name="play" size={12} />{:else}{i + 1}{/if}</span>
-                <CoverImage src={t.coverUrl ?? album.project.coverUrl} name={t.name} size="sm" rounded="sm" />
+                <CoverImage src={tr.coverUrl ?? album.project.coverUrl} name={tr.name} size="sm" rounded="sm" />
                 <span class="name">
-                  <b>{t.name}</b>
-                  <small>V{t.version.versionNumber}{t.version.label ? ` · ${t.version.label}` : ''}</small>
+                  <b>{tr.name}</b>
+                  <small>V{tr.version.versionNumber}{tr.version.label ? ` · ${tr.version.label}` : ''}</small>
                 </span>
-                {#if album.allowComments && t.comments > 0}
-                  <span class="count" title="Kommentare"><Icon name="comment" size={12} /> {t.comments}</span>
+                {#if album.allowComments && tr.comments > 0}
+                  <span class="count" title={t().guest.album.comments}><Icon name="comment" size={12} /> {tr.comments}</span>
                 {/if}
-                <span class="dur">{t.version.duration ? formatTime(t.version.duration) : ''}</span>
+                <span class="dur">{tr.version.duration ? formatTime(tr.version.duration) : ''}</span>
               </button>
             </li>
           {/each}
@@ -347,7 +348,7 @@
         {/if}
       {/if}
     {/if}
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>
@@ -365,7 +366,7 @@
       <div class="rounds">
         {@render dots(dt)}
         <span>
-          {roundsText(dt)}{dt.nextRoundExtra && dt.state !== 'approved' && delivery.status === 'open' ? ` · jede weitere ${formatEuro(delivery.extraRoundCents)}` : ''}
+          {roundsText(dt)}{dt.nextRoundExtra && dt.state !== 'approved' && delivery.status === 'open' ? t().guest.album.eachFurther(formatEuro(delivery.extraRoundCents, locale())) : ''}
         </span>
       </div>
       {#if delivery.status === 'paid'}
@@ -376,32 +377,32 @@
             </Button>
             {#if dt.hasStems}
               <Button variant="secondary" href={downloadPath(dt.trackId, true)} onclick={(e) => download(e, dt.trackId, true, track.name)}>
-                <Icon name="download" size={14} /> Spuren (ZIP)
+                <Icon name="download" size={14} /> {t().guest.album.stems}
               </Button>
             {/if}
           </div>
         {/if}
       {:else if delivery.status === 'open'}
         {#if dt.state === 'review' && versionId !== dt.shownVersionId}
-          <p class="lockline">Inzwischen gibt es eine neuere Version. <button type="button" class="link" onclick={load}>Neu laden</button></p>
+          <p class="lockline">{t().guest.album.newerVersion} <button type="button" class="link" onclick={load}>{t().guest.album.reload}</button></p>
         {:else if dt.state === 'review'}
           <div class="buttons">
-            <Button onclick={() => decide('approve', versionId, guestName)}><Icon name="check" size={14} /> Freigeben</Button>
+            <Button onclick={() => decide('approve', versionId, guestName)}><Icon name="check" size={14} /> {t().delivery.decision.approve}</Button>
             <Button variant="secondary" onclick={() => decide('round', versionId, guestName)}>
-              {dt.nextRoundExtra ? `Zusatzrunde anfordern · ${formatEuro(delivery.extraRoundCents)}` : `Änderungen anfordern · Runde ${dt.roundsUsed + 1} von ${dt.roundsIncluded}`}
+              {dt.nextRoundExtra ? t().guest.album.requestExtraRound(formatEuro(delivery.extraRoundCents, locale())) : t().guest.album.requestChanges(dt.roundsUsed + 1, dt.roundsIncluded)}
             </Button>
           </div>
         {:else if dt.state === 'changes'}
-          <p class="lockline">Das Studio arbeitet an deinen Anmerkungen. Die nächste Version erscheint hier.</p>
+          <p class="lockline">{t().guest.album.studioWorking}</p>
         {:else}
           <p class="lockline">
-            <Icon name="check" size={14} /> Freigegeben{dt.approvedByName ? ` von ${dt.approvedByName}` : ''}. Der Download kommt nach der Zahlung.
+            <Icon name="check" size={14} /> {t().guest.album.approved}{dt.approvedByName ? t().guest.album.approvedBy(dt.approvedByName) : ''}. {t().guest.album.downloadAfterPayment}
             {#if versionId === dt.shownVersionId}
-              <button type="button" class="link" onclick={() => decide('round', versionId, guestName)}>Doch Änderungen anfordern</button>
+              <button type="button" class="link" onclick={() => decide('round', versionId, guestName)}>{t().guest.album.changesAfterAll}</button>
             {/if}
           </p>
         {/if}
-        <p class="lockline"><Icon name="lock" size={14} /> WAV{delivery.includeStems ? ' und Spuren gibt' : ' gibt'} es nach der Zahlung. Bis dahin hörst du eine MP3-Vorschau.</p>
+        <p class="lockline"><Icon name="lock" size={14} /> {t().guest.album.wavAfterPayment(delivery.includeStems)}</p>
       {/if}
     </div>
   {/if}

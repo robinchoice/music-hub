@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { safeNextPath } from '@music-hub/shared';
+  import { t } from '$lib/i18n/index.js';
   import { user, checkAuth, verifyToken } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -18,7 +19,7 @@
 
   onMount(async () => {
     if (!token) {
-      error = 'Kein Token angegeben';
+      error = t().guest.verify.noToken;
       return;
     }
     if (isRegistration) return;
@@ -33,7 +34,7 @@
         goto(next ?? '/dashboard');
         return;
       }
-      error = err instanceof Error ? err.message : 'Login fehlgeschlagen';
+      error = err instanceof Error ? err.message : t().guest.verify.loginFailed;
     }
   });
 
@@ -45,7 +46,7 @@
       await verifyToken(token!, password);
       goto('/dashboard');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Bestätigung fehlgeschlagen';
+      const message = err instanceof Error ? err.message : t().guest.verify.confirmFailed;
       // Only a wrong password can be fixed here
       if ((err as { status?: number }).status === 401) {
         passwordError = message;
@@ -71,25 +72,25 @@
     {#if error}
       <div class="error-card">
         {#if isRegistration}
-          <h2>Registrierung nicht abgeschlossen</h2>
+          <h2>{t().guest.verify.registrationIncomplete}</h2>
           <p>{error}</p>
-          <a href="/register">Noch einmal registrieren</a>
+          <a href="/register">{t().guest.verify.registerAgain}</a>
         {:else}
-          <h2>Login fehlgeschlagen</h2>
+          <h2>{t().guest.verify.loginFailed}</h2>
           <p>{error}</p>
-          <a href={`/login?tab=magic${next ? `&next=${encodeURIComponent(next)}` : ''}`}>Neuen Login-Link anfordern</a>
+          <a href={`/login?tab=magic${next ? `&next=${encodeURIComponent(next)}` : ''}`}>{t().guest.verify.requestNewLink}</a>
         {/if}
       </div>
     {:else if isRegistration}
       <form class="card" onsubmit={confirmRegistration}>
         <p class="brand"><Tile size={36} /> Music Hub</p>
-        <h1>Registrierung abschließen</h1>
-        <p class="hint">Letzter Schritt: Gib das Passwort ein, das du bei der Registrierung gewählt hast. So stellen wir sicher, dass niemand anderes ein Konto mit deiner Adresse anlegt.</p>
-        <Input type="password" bind:value={password} label="Passwort" placeholder="Dein Passwort" error={passwordError} />
-        <Button type="submit" size="lg" {loading} disabled={!password}>Bestätigen</Button>
+        <h1>{t().guest.verify.finishRegistration}</h1>
+        <p class="hint">{t().guest.verify.lastStep}</p>
+        <Input type="password" bind:value={password} label={t().common.password} placeholder={t().guest.verify.passwordPlaceholder} error={passwordError} />
+        <Button type="submit" size="lg" {loading} disabled={!password}>{t().guest.verify.confirm}</Button>
       </form>
     {:else}
-      <p>Login läuft…</p>
+      <p>{t().guest.verify.loggingIn}</p>
     {/if}
   </div>
   <PleasanceFooter />

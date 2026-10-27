@@ -24,7 +24,7 @@ export const projects: Command = {
       ({ project, roles, trackCount }) => ({ ...project, roles, trackCount }),
     );
     const line = (p: (typeof list)[number]) =>
-      [p.artist ? `${p.name} – ${p.artist}` : p.name, p.roles.map((role) => ROLE_LABELS[role]).join(', '), texts.tracks(p.trackCount)].join(' · ');
+      [p.artist ? `${p.name} – ${p.artist}` : p.name, p.roles.map((role) => ROLE_LABELS.de[role]).join(', '), texts.tracks(p.trackCount)].join(' · ');
     return { data: { projects: list }, text: list.length ? list.map(line).join('\n') : texts.noProjects };
   },
 };

@@ -10,6 +10,7 @@ import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolu
 import { Zip, ZipPassThrough } from 'fflate';
 import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 export const stemRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -78,7 +79,7 @@ export const stemRoutes = new Hono<AppEnv>()
 
     // The stored file decides the size, not what the client claims
     const fileSize = await getObjectSize(input.fileKey);
-    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
+    if (fileSize === null) return c.json({ error: t(c).errors.fileMissing }, 400);
 
     const stem = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
@@ -134,11 +135,11 @@ export const stemRoutes = new Hono<AppEnv>()
     const access = await stemAccess(db, c.req.param('id'), userId);
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
-    if (await isOpen(db, access.track.id)) return c.json({ error: OPEN_TRACK }, 409);
+    if (await isOpen(db, access.track.id)) return c.json({ error: t(c).errors.trackOpenReplace }, 409);
     if (!(await freshStemKey(db, access.track, input.fileKey))) return c.json({ error: 'Forbidden' }, 403);
 
     const fileSize = await getObjectSize(input.fileKey);
-    if (fileSize === null) return c.json({ error: 'Datei nicht gefunden — bitte erneut hochladen' }, 400);
+    if (fileSize === null) return c.json({ error: t(c).errors.fileMissing }, 400);
 
     const stem = await replaceStem(db, access.stem.id, userId, { ...input, fileSize });
     if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);
@@ -189,7 +190,7 @@ export const stemRoutes = new Hono<AppEnv>()
     const access = revision && (await stemAccess(db, revision.stemId, userId));
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
-    if (await isOpen(db, access.track.id)) return c.json({ error: OPEN_TRACK }, 409);
+    if (await isOpen(db, access.track.id)) return c.json({ error: t(c).errors.trackOpenReplace }, 409);
 
     const stem = await restoreRevision(db, revision.id);
     if (!stem) return c.json({ error: 'Not found' }, 404);
@@ -253,7 +254,7 @@ export const stemRoutes = new Hono<AppEnv>()
 
     if (trackStems.length === 0) return c.json({ error: 'No stems found' }, 404);
     if (trackStems.reduce((sum, stem) => sum + stem.fileSize, 0) > MAX_ZIP_SIZE) {
-      return c.json({ error: 'Zu groß für ein ZIP — bitte die Spuren einzeln laden' }, 413);
+      return c.json({ error: t(c).errors.zipTooLarge }, 413);
     }
 
     return zipResponse(track.name, trackStems);
@@ -267,8 +268,6 @@ async function stemAccess(db: Database, stemId: string, userId: string) {
   return found?.membership ? { stem, track: found.track, membership: found.membership } : null;
 }
 
-// The public stems of an open track keep their files; a new one needs everyone's consent again
-const OPEN_TRACK = 'Der Track ist offen. Schließe ihn, um Spuren zu ersetzen.';
 async function isOpen(db: Database, trackId: string) {
   const [row] = await db
     .select({ trackId: openTracks.trackId })

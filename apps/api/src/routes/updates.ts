@@ -10,6 +10,7 @@ import { imageType, redact, UUID } from '../lib/updates.js';
 import { TEST_ACCOUNT_EMAIL } from '../lib/users.js';
 import { sendUpdateMail, updateMail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 const HOUR = 60 * 60 * 1000;
 const testMailsPerUser = rateLimit('update-tests-per-user', 20, HOUR);
@@ -183,7 +184,7 @@ export const updateRoutes = new Hono<AppEnv>()
     } catch (err) {
       // Not to the global handler, SMTP errors may quote the address
       console.error(`[Updates] Test mail of update ${found.update.id} failed: ${redact(err)}`);
-      return c.json({ error: 'Die Testmail ging nicht raus.' }, 502);
+      return c.json({ error: t(c).errors.testMailFailed }, 502);
     }
     return c.json({ ok: true });
   })

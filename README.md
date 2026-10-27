@@ -112,7 +112,7 @@ Läuft auf [Coolify](https://coolify.pleasance.org), gebaut aus `robinchoice/mus
 
 Jeder Push auf `main` deployt automatisch: GitHub Actions prüft und baut die Images, dann deployt die CI API, Audio-Worker und Web über Coolify. Der Deploy ist erst erfolgreich, wenn `/api/v1/health` den Commit als `revision` meldet. Umgebungsvariablen werden in Coolify gepflegt, siehe `.env.production.example`.
 
-Danach fotografiert der CI-Job `screenshots` die öffentliche Startseite (Demo mit Beispieldaten) und `/login`, ohne Anmeldung oder Nutzerdaten. `apps/web/screenshots.ts` erzeugt Desktop- (1440×900) und Handy-Bilder (390×844, doppelte Dichte) als WebP unter `docs/screenshots`. Der Bot committet geänderte Bilder mit `[skip ci]` auf `main`, damit kein weiterer Deploy startet. Anschließend meldet der Job `prototype-deployed` mit Repo-Slug und Deploy-Commit an `robinchoice/pleasance` über den bestehenden Empfänger-Workflow. Dafür nutzt er das bestehende Actions-Secret `PLEASANCE_DISPATCH_TOKEN`; dessen Token darf nur auf das Empfänger-Repo zugreifen.
+Danach fotografiert der CI-Job `screenshots` die öffentliche Startseite (Demo mit Beispieldaten) und `/login`, ohne Anmeldung oder Nutzerdaten. `apps/web/screenshots.ts` erzeugt Desktop- (1440×900) und Handy-Bilder (390×844, doppelte Dichte) auf Deutsch und Englisch als WebP unter `docs/screenshots`. Der Bot committet geänderte Bilder mit `[skip ci]` auf `main`, damit kein weiterer Deploy startet. Anschließend meldet der Job `prototype-deployed` mit Repo-Slug und Deploy-Commit an `robinchoice/pleasance` über den bestehenden Empfänger-Workflow. Dafür nutzt er das bestehende Actions-Secret `PLEASANCE_DISPATCH_TOKEN`; dessen Token darf nur auf das Empfänger-Repo zugreifen.
 
 Lokal: `bun run screenshots [url]` in `apps/web`, ohne URL gegen `http://localhost:5173`. Nur feste öffentliche Seiten ohne echte Nutzerdaten in `PAGES` aufnehmen, keine Profile, offenen Tracks oder Token-URLs. Vor dem nächsten Push den Bot-Commit von `main` holen.
 
@@ -144,7 +144,7 @@ Fremde Agenten lesen die öffentlichen Inhalte ohne HTML, nach [llms.txt](https:
 - `/llms.txt`: Einstieg mit Name, Tagline und allen öffentlichen Seiten als Links auf ihr Markdown.
 - `/llms-full.txt`: alle Seiten in einer Datei.
 - `<seite>.md`: jede Seite als Markdown, die Startseite als `/index.md`. Fragt ein Agent mit `Accept: text/markdown` nach einer Seite, die es als Markdown gibt, bekommt er unter derselben URL gleich das Markdown, alle anderen das HTML.
-- Sprache: `?lang=de|en`, sonst `Accept-Language`, sonst Deutsch. Links behalten ein `?lang=`. Impressum und Datenschutz gibt es nur auf Deutsch, die englische Fassung sagt das vorneweg.
+- Sprache: `?lang=de|en`, sonst `Accept-Language`, sonst Deutsch. Links behalten ein `?lang=`.
 - Nur Startseite, Datenschutz und Impressum, nichts aus Projekten, offenen Tracks oder Profilen.
 - Ausprobieren: `curl localhost:5173/llms.txt` bei laufendem `bun run dev`.
 

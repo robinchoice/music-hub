@@ -7,7 +7,6 @@
     type DeliveryResponse,
     type PaymentAccountResponse,
     type PaymentAccount,
-    type PaymentStatus,
     type StudioDelivery,
     type StudioPayment,
     type StudioDeliveryTrack,
@@ -16,7 +15,8 @@
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
-  import { STUDIO_STATE_LABELS, euroInput, parseEuro, plural, roundDots, roundsText } from '$lib/utils/delivery.js';
+  import { dateLocale, locale, t } from '$lib/i18n/index.js';
+  import { STUDIO_STATE_LABELS, euroInput, parseEuro, roundDots, roundsText } from '$lib/utils/delivery.js';
 
   // The owner's view of the project's delivery: create it, follow the client's decisions, confirm payment
   let { projectId, tracks }: { projectId: string; tracks: { id: string; name: string }[] } = $props();
@@ -27,6 +27,10 @@
   let editing = $state(false);
   let saving = $state(false);
   let busy = $state<string | null>(null);
+  // Not t, the tracks in this file are called t
+  const tx = $derived(t().delivery.panel);
+  const common = $derived(t().common);
+  const euro = (cents: number) => formatEuro(cents, locale());
 
   const active = $derived(list?.deliveries.find((d) => d.status !== 'cancelled') ?? null);
 
@@ -105,7 +109,7 @@
         : await api.post<DeliveryResponse>(`/deliveries/project/${projectId}`, body);
       replace(res.delivery);
       editing = false;
-      toastSuccess(active ? 'Auftrag gespeichert' : 'Auftrag angelegt. Schick deinem Kunden jetzt den Link.');
+      toastSuccess(active ? tx.orderSaved : tx.orderCreated);
     } catch {
       // The API client already showed the error
     } finally {
@@ -127,18 +131,18 @@
   }
 
   const gift = (d: StudioDelivery, t: StudioDeliveryTrack) =>
-    act(`gift:${t.trackId}`, `/deliveries/${d.id}/tracks/${t.trackId}/gift`, {}, `${t.name}: eine Runde geschenkt`);
+    act(`gift:${t.trackId}`, `/deliveries/${d.id}/tracks/${t.trackId}/gift`, {}, tx.roundGifted(t.name));
 
   function confirmPayment(d: StudioDelivery, p: StudioPayment) {
-    const where = p.method === 'lightning' ? 'in deiner Wallet' : 'auf deinem Konto';
-    const then = d.status === 'open' ? ` Sobald alles bezahlt ist, kann ${d.clientName} herunterladen.` : ' Sie wird vermerkt, den Betrag zahlst du zurück.';
-    if (!confirm(`Sind ${formatEuro(p.amountCents)} ${where} eingegangen?${then}`)) return;
-    void act(`pay:${p.id}`, `/deliveries/${d.id}/payments/${p.id}/confirm`, {}, 'Zahlung bestätigt');
+    const where = p.method === 'lightning' ? tx.inYourWallet : tx.onYourAccount;
+    const then = d.status === 'open' ? tx.confirmThenOpen(d.clientName) : tx.confirmThenRefund;
+    if (!confirm(`${tx.confirmPaid(euro(p.amountCents), where)}${then}`)) return;
+    void act(`pay:${p.id}`, `/deliveries/${d.id}/payments/${p.id}/confirm`, {}, tx.paymentConfirmed);
   }
 
   function cancel(d: StudioDelivery) {
-    if (!confirm(`Auftrag für ${d.clientName} stornieren? Der Link zeigt dann wieder nur die Songs, Freigaben und Runden zählen nicht mehr.`)) return;
-    void act('cancel', `/deliveries/${d.id}/cancel`, {}, 'Auftrag storniert');
+    if (!confirm(tx.confirmCancel(d.clientName))) return;
+    void act('cancel', `/deliveries/${d.id}/cancel`, {}, tx.orderCanceled);
   }
 
   function startEdit() {
@@ -149,16 +153,15 @@
   async function copyLink(d: StudioDelivery) {
     try {
       await navigator.clipboard.writeText(linkOf(d));
-      toastSuccess('Link kopiert');
+      toastSuccess(tx.linkCopied);
     } catch {
-      toastError('Kopieren ging nicht. Markiere den Link und kopiere ihn selbst.');
+      toastError(tx.copyFailed);
     }
   }
 
   const linkOf = (d: StudioDelivery) => `${location.origin}/album/${d.linkToken}`;
-  const nameOf = (d: StudioDelivery, trackId: string) => d.tracks.find((t) => t.trackId === trackId)?.name ?? 'Song';
-  const day = (iso: string) => new Date(iso).toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
-  const PAYMENT_LABELS: Record<PaymentStatus, string> = { pending: 'offen', announced: 'angekündigt', paid: 'bezahlt', expired: 'abgelaufen' };
+  const nameOf = (d: StudioDelivery, trackId: string) => d.tracks.find((t) => t.trackId === trackId)?.name ?? tx.songFallback;
+  const day = (iso: string) => new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
   const openTransfer = (d: StudioDelivery) => d.payments.find((p) => p.method === 'transfer' && (p.status === 'pending' || p.status === 'announced'));
   // Money can arrive for any payment not marked paid: a transfer even after it expired, a Lightning
   // invoice the wallet got while nobody looked it up
@@ -168,20 +171,16 @@
   const noWayToPay = $derived(!!account && !account.transfer && !(account.lightning.connected && account.lightningAvailable));
 </script>
 
-<section class="panel" aria-label="Auftrag">
+<section class="panel" aria-label={tx.ariaLabel}>
   {#if failed}
-    <p class="muted">Der Auftrag ließ sich nicht laden. <button type="button" class="link" onclick={load}>Erneut versuchen</button></p>
+    <p class="muted">{tx.loadFailed} <button type="button" class="link" onclick={load}>{common.retry}</button></p>
   {:else if !list}
     <Skeleton height="6rem" variant="rect" />
   {:else if !active && !list.canCreate}
     <div class="box intro">
-      <h3>Aufträge mit Bezahlwand</h3>
-      <p>
-        Mit einem Auftrag hört dein Kunde die Songs über den Projekt-Link, gibt jeden frei oder fordert Änderungen an.
-        Korrekturrunden zählen mit, weitere kosten, was du festlegst. Sind alle Songs freigegeben, bezahlt er dich direkt,
-        per Lightning oder Überweisung, und lädt erst dann WAVs und Spuren herunter.
-      </p>
-      <p class="muted">Aufträge gibt es mit dem Tarif Solo für 19 € im Monat. Wir schalten ihn dir auf Anfrage frei.</p>
+      <h3>{tx.introTitle}</h3>
+      <p>{tx.intro}</p>
+      <p class="muted">{tx.introPlan}</p>
     </div>
   {:else if !active || editing}
     {@render form()}
@@ -191,8 +190,8 @@
     {@const gifting = d.tracks.some((t) => canGift(d, t))}
     {#if transfer?.status === 'announced' && d.status === 'open'}
       <div class="alert" role="status">
-        <span><b>{d.clientName} hat {formatEuro(transfer.amountCents)} per Überweisung angekündigt.</b> Bestätige, sobald das Geld auf deinem Konto ist.</span>
-        <Button size="sm" loading={busy === `pay:${transfer.id}`} onclick={() => confirmPayment(d, transfer)}>Zahlung eingegangen</Button>
+        <span><b>{tx.announcedBold(d.clientName, euro(transfer.amountCents))}</b> {tx.announcedRest}</span>
+        <Button size="sm" loading={busy === `pay:${transfer.id}`} onclick={() => confirmPayment(d, transfer)}>{tx.paymentReceived}</Button>
       </div>
     {/if}
     {#if noWayToPay && d.status === 'open'}
@@ -203,12 +202,12 @@
       <div class="main">
         <div class="box">
           <h3>
-            Songs und Runden
-            <span class="chip {d.status}">{d.status === 'paid' ? 'Bezahlt' : 'Offen'}</span>
+            {tx.songsAndRounds}
+            <span class="chip {d.status}">{d.status === 'paid' ? tx.paid : tx.open}</span>
           </h3>
           <table>
             <thead>
-              <tr><th>Song</th><th class="wide">Version</th><th>Runden</th><th>Status</th><th class="num">Preis</th>{#if gifting}<th></th>{/if}</tr>
+              <tr><th>{tx.colSong}</th><th class="wide">{tx.colVersion}</th><th>{tx.colRounds}</th><th>{tx.colStatus}</th><th class="num">{tx.colPrice}</th>{#if gifting}<th></th>{/if}</tr>
             </thead>
             <tbody>
               {#each d.tracks as t (t.trackId)}
@@ -219,14 +218,14 @@
                     <span class="dots" title={roundsText(t)}>
                       {#each roundDots(t) as dot, k (k)}<i class:used={dot.used} class:extra={dot.extra} class:gifted={dot.gifted}></i>{/each}
                     </span>
-                    <small>{t.roundsUsed - t.extraRounds}/{t.roundsIncluded}{t.extraRounds ? ` · +${formatEuro(t.extraCents)}` : ''}</small>
+                    <small>{t.roundsUsed - t.extraRounds}/{t.roundsIncluded}{t.extraRounds ? ` · +${euro(t.extraCents)}` : ''}</small>
                   </td>
                   <td class="status"><span class="chip {t.state}">{STUDIO_STATE_LABELS[t.state]}</span></td>
-                  <td class="num">{formatEuro(t.priceCents)}</td>
+                  <td class="num">{euro(t.priceCents)}</td>
                   {#if gifting}
                     <td class="act" class:idle={!canGift(d, t)}>
                       {#if canGift(d, t)}
-                        <Button variant="ghost" size="sm" loading={busy === `gift:${t.trackId}`} onclick={() => gift(d, t)}>Runde schenken</Button>
+                        <Button variant="ghost" size="sm" loading={busy === `gift:${t.trackId}`} onclick={() => gift(d, t)}>{tx.giftRound}</Button>
                       {/if}
                     </td>
                   {/if}
@@ -239,7 +238,7 @@
               {#each [...d.rounds].reverse().slice(0, 6) as r (r.id)}
                 <li>
                   <span>{day(r.createdAt)}</span>
-                  {r.guestName ?? 'Kunde'}: Änderungen zu {nameOf(d, r.trackId)} V{r.versionNumber}{r.extra ? ' (Zusatzrunde)' : ''}
+                  {tx.feedEntry(r.guestName ?? tx.clientFallback, nameOf(d, r.trackId), r.versionNumber)}{r.extra ? tx.feedExtra : ''}
                 </li>
               {/each}
             </ul>
@@ -247,79 +246,76 @@
         </div>
 
         <div class="box">
-          <h3>Kundenlink</h3>
+          <h3>{tx.clientLink}</h3>
           <div class="link-row">
-            <input readonly value={linkOf(d)} aria-label="Link für den Kunden" onfocus={(e) => e.currentTarget.select()} />
-            <Button variant="secondary" size="sm" onclick={() => copyLink(d)}>Kopieren</Button>
+            <input readonly value={linkOf(d)} aria-label={tx.clientLinkLabel} onfocus={(e) => e.currentTarget.select()} />
+            <Button variant="secondary" size="sm" onclick={() => copyLink(d)}>{common.copy}</Button>
           </div>
-          <p class="fine">
-            Dein Kunde braucht kein Konto. Er hört eine MP3-Vorschau, WAVs{d.includeStems ? ' und Spuren' : ''} gibt es erst nach der Zahlung.
-            Mitglieder des Projekts behalten ihre Rechte.
-          </p>
+          <p class="fine">{tx.clientLinkInfo(d.includeStems)}</p>
         </div>
       </div>
 
       <div class="side">
         <div class="box">
-          <h3>Auftrag</h3>
+          <h3>{tx.order}</h3>
           <dl class="facts">
-            <dt>Kunde</dt>
+            <dt>{tx.client}</dt>
             <dd>{d.clientName}{#if d.clientEmail}<small>{d.clientEmail}</small>{/if}</dd>
-            {#if d.reference}<dt>Referenz</dt><dd>{d.reference}</dd>{/if}
-            <dt>Runden inklusive</dt>
-            <dd>{d.includedRounds} pro Song</dd>
-            <dt>Jede weitere</dt>
-            <dd>{formatEuro(d.extraRoundCents)}, auf der Schlussrechnung</dd>
-            <dt>Download</dt>
-            <dd>WAV{d.includeStems ? ' und Spuren' : ''} nach Zahlung</dd>
+            {#if d.reference}<dt>{tx.reference}</dt><dd>{d.reference}</dd>{/if}
+            <dt>{tx.roundsIncluded}</dt>
+            <dd>{tx.perSong(d.includedRounds)}</dd>
+            <dt>{tx.eachFurther}</dt>
+            <dd>{tx.onFinalInvoice(euro(d.extraRoundCents))}</dd>
+            <dt>{tx.download}</dt>
+            <dd>{tx.downloadAfterPayment(d.includeStems)}</dd>
           </dl>
           {#if d.status === 'open'}
             <div class="row">
-              <Button variant="secondary" size="sm" onclick={startEdit}>Bearbeiten</Button>
-              <Button variant="danger" size="sm" loading={busy === 'cancel'} onclick={() => cancel(d)}>Stornieren</Button>
+              <Button variant="secondary" size="sm" onclick={startEdit}>{tx.edit}</Button>
+              <Button variant="danger" size="sm" loading={busy === 'cancel'} onclick={() => cancel(d)}>{tx.cancelOrder}</Button>
             </div>
           {/if}
         </div>
 
         <div class="box">
-          <h3>Abrechnung</h3>
+          <h3>{tx.billing}</h3>
           <dl class="bill">
-            <dt>{plural(d.totals.trackCount, 'Song', 'Songs')}</dt>
-            <dd>{formatEuro(d.totals.songsCents)}</dd>
-            <dt>{plural(d.totals.extraRounds, 'Zusatzrunde', 'Zusatzrunden')}</dt>
-            <dd>{formatEuro(d.totals.extraCents)}</dd>
-            <dt class="total">Summe</dt>
-            <dd class="total">{formatEuro(d.totals.totalCents)}</dd>
+            <dt>{common.songs(d.totals.trackCount)}</dt>
+            <dd>{euro(d.totals.songsCents)}</dd>
+            <dt>{t().delivery.utils.extraRounds(d.totals.extraRounds)}</dt>
+            <dd>{euro(d.totals.extraCents)}</dd>
+            <dt class="total">{tx.total}</dt>
+            <dd class="total">{euro(d.totals.totalCents)}</dd>
             {#if d.totals.paidCents}
-              <dt>Eingegangen</dt>
-              <dd>{formatEuro(d.totals.paidCents)}</dd>
+              <dt>{tx.received}</dt>
+              <dd>{euro(d.totals.paidCents)}</dd>
               {#if d.status === 'open'}
-                <dt>Offen</dt>
-                <dd>{formatEuro(d.totals.dueCents)}</dd>
+                <dt>{tx.due}</dt>
+                <dd>{euro(d.totals.dueCents)}</dd>
               {:else if d.totals.paidCents > d.totals.totalCents}
-                <dt>Zu viel bezahlt</dt>
-                <dd>{formatEuro(d.totals.paidCents - d.totals.totalCents)}</dd>
+                <dt>{tx.overpaid}</dt>
+                <dd>{euro(d.totals.paidCents - d.totals.totalCents)}</dd>
               {/if}
             {/if}
           </dl>
           <p class="fine">
             {#if d.status === 'paid'}
-              Bezahlt{d.paidAt ? ` am ${day(d.paidAt)}` : ''}. Der Download ist frei.
+              {tx.paidOn(d.paidAt ? day(d.paidAt) : null)}
             {:else if d.payable}
-              Alles freigegeben, wartet auf die Zahlung.
+              {tx.allApproved}
             {:else}
-              {d.totals.approvedCount} von {d.totals.trackCount} freigegeben. Bezahlen kann der Kunde, sobald alles freigegeben ist.
+              {tx.approvedOf(d.totals.approvedCount, d.totals.trackCount)}
             {/if}
           </p>
           {#if d.payments.length}
             <ul class="payments">
               {#each d.payments as p (p.id)}
                 <li>
-                  <span>{p.method === 'lightning' ? 'Lightning' : 'Überweisung'} · {PAYMENT_LABELS[p.status]}</span>
-                  <span class="num">{formatEuro(p.amountCents)}</span>
+                  <span>{p.method === 'lightning' ? tx.lightning : tx.transfer} · {tx.paymentStatus[p.status]}</span>
+                  <span class="num">{euro(p.amountCents)}</span>
                   {#if confirmable(d, p) && !(p.id === transfer?.id && p.status === 'announced')}
                     <Button variant="ghost" size="sm" loading={busy === `pay:${p.id}`} onclick={() => confirmPayment(d, p)}>
-                      {p.method === 'lightning' ? 'Als bezahlt markieren' : 'Zahlung eingegangen'}
+                      {p.method === 'lightning' ? tx.markPaid : tx.paymentReceived}
                     </Button>
                   {/if}
                 </li>
@@ -329,12 +325,12 @@
         </div>
 
         <div class="box">
-          <h3>Deine Zahlungswege</h3>
+          <h3>{tx.yourWays}</h3>
           <ul class="ways">
-            <li><span>Lightning</span><span class:ok={account?.lightning.connected}>{account?.lightning.connected ? `verbunden${account.lightning.alias ? ` · ${account.lightning.alias}` : ''}` : 'nicht verbunden'}</span></li>
-            <li><span>Überweisung</span><span class:ok={!!account?.transfer}>{account?.transfer ? account.transfer.ibanMasked : 'keine IBAN'}</span></li>
+            <li><span>{tx.lightning}</span><span class:ok={account?.lightning.connected}>{account?.lightning.connected ? `${tx.connected}${account.lightning.alias ? ` · ${account.lightning.alias}` : ''}` : tx.notConnected}</span></li>
+            <li><span>{tx.transfer}</span><span class:ok={!!account?.transfer}>{account?.transfer ? account.transfer.ibanMasked : tx.noIban}</span></li>
           </ul>
-          <p class="fine">Das Geld geht direkt an dich, Music Hub nimmt keine Provision. <a href="/account#zahlungswege">Zahlungswege einrichten</a></p>
+          <p class="fine">{tx.waysInfo} <a href="/account#zahlungswege">{tx.setUpWays}</a></p>
         </div>
       </div>
     </div>
@@ -343,37 +339,34 @@
 
 {#snippet noWay(client: string)}
   <div class="alert" role="status">
-    <span><b>Noch kein Zahlungsweg eingerichtet.</b> Ohne IBAN oder Wallet kann {client} am Ende nicht bezahlen.</span>
-    <a href="/account#zahlungswege">Zahlungsweg einrichten</a>
+    <span><b>{tx.noWayBold}</b> {tx.noWayRest(client)}</span>
+    <a href="/account#zahlungswege">{tx.setUpWay}</a>
   </div>
 {/snippet}
 
 {#snippet form()}
   <form class="box form" onsubmit={save}>
-    <h3>{active ? 'Auftrag bearbeiten' : 'Neuer Auftrag'}</h3>
+    <h3>{active ? tx.editOrder : tx.newOrder}</h3>
     {#if !active}
-      <p class="fine">
-        Der Auftrag hängt am Projekt-Link. Dein Kunde gibt dort jeden Song frei oder fordert Änderungen an und bezahlt dich,
-        wenn alles freigegeben ist. Erst dann gibt es die WAVs.
-      </p>
+      <p class="fine">{tx.newOrderInfo}</p>
     {/if}
     {#if noWayToPay}
-      {@render noWay(clientName.trim() || 'dein Kunde')}
+      {@render noWay(clientName.trim() || tx.yourClient)}
     {/if}
     <div class="grid">
-      <label><span>Kunde</span><input bind:value={clientName} maxlength={255} required placeholder="Name oder Band" /></label>
-      <label><span>Mail (optional)</span><input type="email" bind:value={clientEmail} maxlength={255} placeholder="Bekommt nach der Zahlung den Link" /></label>
-      <label><span>Referenz (optional)</span><input bind:value={reference} maxlength={64} placeholder="z. B. KL-2026-014, auch Verwendungszweck" /></label>
-      <label><span>Preis pro Song (€)</span><input bind:value={price} inputmode="decimal" placeholder="120" /></label>
-      <label><span>Korrekturrunden inklusive</span><input type="number" min="0" max="20" bind:value={includedRounds} /></label>
-      <label><span>Jede weitere Runde (€)</span><input bind:value={extraRound} inputmode="decimal" placeholder="40" /></label>
+      <label><span>{tx.fieldClient}</span><input bind:value={clientName} maxlength={255} required placeholder={tx.fieldClientPlaceholder} /></label>
+      <label><span>{tx.fieldMail}</span><input type="email" bind:value={clientEmail} maxlength={255} placeholder={tx.fieldMailPlaceholder} /></label>
+      <label><span>{tx.fieldReference}</span><input bind:value={reference} maxlength={64} placeholder={tx.fieldReferencePlaceholder} /></label>
+      <label><span>{tx.fieldPrice}</span><input bind:value={price} inputmode="decimal" placeholder="120" /></label>
+      <label><span>{tx.fieldRounds}</span><input type="number" min="0" max="20" bind:value={includedRounds} /></label>
+      <label><span>{tx.fieldExtraRound}</span><input bind:value={extraRound} inputmode="decimal" placeholder="40" /></label>
     </div>
-    <label class="check"><input type="checkbox" bind:checked={includeStems} /> Spuren als ZIP mitliefern</label>
+    <label class="check"><input type="checkbox" bind:checked={includeStems} /> {tx.includeStems}</label>
 
     <fieldset>
-      <legend>Songs</legend>
+      <legend>{tx.songs}</legend>
       {#if tracks.length === 0}
-        <p class="muted">Das Projekt hat noch keine Songs.</p>
+        <p class="muted">{tx.noSongs}</p>
       {/if}
       {#each tracks as t (t.id)}
         <div class="song">
@@ -382,8 +375,8 @@
             <input
               class="override"
               inputmode="decimal"
-              aria-label="Preis für {t.name}"
-              placeholder={priceCents !== null ? euroInput(priceCents) : 'Preis'}
+              aria-label={tx.priceFor(t.name)}
+              placeholder={priceCents !== null ? euroInput(priceCents) : tx.pricePlaceholder}
               bind:value={override[t.id]}
             />
           {/if}
@@ -392,11 +385,11 @@
     </fieldset>
 
     <div class="row end">
-      <span class="sumline">{plural(lines.length, 'Song', 'Songs')} · {formatEuro(formTotal)}</span>
+      <span class="sumline">{common.songs(lines.length)} · {euro(formTotal)}</span>
       {#if active}
-        <Button variant="ghost" onclick={() => (editing = false)}>Abbrechen</Button>
+        <Button variant="ghost" onclick={() => (editing = false)}>{common.cancel}</Button>
       {/if}
-      <Button type="submit" loading={saving} disabled={!formValid}>{active ? 'Speichern' : 'Auftrag anlegen'}</Button>
+      <Button type="submit" loading={saving} disabled={!formValid}>{active ? common.save : tx.createOrder}</Button>
     </div>
   </form>
 {/snippet}

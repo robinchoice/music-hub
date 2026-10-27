@@ -1,5 +1,5 @@
 // Pure helpers for the overview pages: Übersicht, Für dich, Tracks, Timeline and Mixer.
-// No $lib imports, so they can be checked with Bun like track.ts.
+import { t } from '$lib/i18n/index.js';
 import { formatDate, formatTime, initials, isoWeek } from './format.js';
 
 import { hasPermission, PROJECT_ROLES, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
@@ -151,27 +151,25 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** "Du" for yourself, first names for members, "Name (Gast)" for guests */
 export function personName(ix: OverviewIndex, userId: string | null, guestName: string | null = null): string {
-  if (userId === ix.me) return 'Du';
-  if (userId) return firstName(ix.users.get(userId)?.name ?? 'Jemand');
-  return guestName ? `${guestName} (Gast)` : 'Gast';
+  if (userId === ix.me) return t().common.you;
+  if (userId) return firstName(ix.users.get(userId)?.name ?? t().common.someone);
+  return guestName ? t().overview.names.guestNamed(guestName) : t().common.guest;
 }
 
 /** Full name for avatars and tooltips */
 export function fullName(ix: OverviewIndex, userId: string | null, guestName: string | null = null): string {
-  if (userId) return ix.users.get(userId)?.name ?? 'Jemand';
-  return guestName || 'Gast';
+  if (userId) return ix.users.get(userId)?.name ?? t().common.someone;
+  return guestName || t().common.guest;
 }
 
 export const avatarOf = (ix: OverviewIndex, userId: string | null) =>
   userId ? (ix.users.get(userId)?.avatarUrl ?? null) : null;
 
 /** "A", "A und B", "A, B und C" */
-export function joinNames(names: string[]): string {
-  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
-}
+export const joinNames = (names: string[]): string => t().overview.names.joinNames(names);
 
 /** Guests reached by a share link; '' stands for guests without a name */
-export const guestLabel = (name: string) => (name ? `${name} (per Link)` : 'Gäste per Link');
+export const guestLabel = (name: string) => t().overview.names.guestViaLink(name);
 
 export const versionName = (v: { label: string | null; branchLabel: string | null }) => v.label || v.branchLabel || '';
 
@@ -225,19 +223,20 @@ export function eventsOf(ix: OverviewIndex, tracks: OverviewTrack[] = ix.data.tr
 export function lastText(e: OverviewEvent, me: string): string {
   const mine = e.actorId === me;
   const v = e.version ? `V${e.version.versionNumber}` : '';
+  const last = t().overview.last;
   switch (e.kind) {
     case 'version':
-      return mine ? `hast ${v} hochgeladen` : `lud ${v} hoch`;
+      return last.version(mine, v);
     case 'comment':
-      return mine ? 'hast kommentiert' : 'kommentierte';
+      return last.comment(mine);
     case 'reply':
-      return mine ? 'hast geantwortet' : 'antwortete';
+      return last.reply(mine);
     case 'approved':
-      return mine ? `hast ${v} freigegeben` : `gab ${v} frei`;
+      return last.approved(mine, v);
     case 'rejected':
-      return mine ? `hast ${v} abgelehnt` : `lehnte ${v} ab`;
+      return last.rejected(mine, v);
     case 'created':
-      return mine ? 'hast den Track angelegt' : 'legte den Track an';
+      return last.created(mine);
   }
 }
 
@@ -285,24 +284,25 @@ export function trackInfo(ix: OverviewIndex, track: OverviewTrack): TrackInfo {
   const latest = versions[versions.length - 1] ?? null;
   const comments = latest ? (ix.commentsOf.get(latest.id) ?? []) : [];
   const open = comments.filter((c) => !c.parentId && !c.resolvedAt);
+  const text = t().overview.stage;
   let stage: Stage;
   let turn: string[] = [];
   let guests: string[] = [];
   if (!latest) {
-    stage = { key: 'none', text: 'Noch keine Version' };
+    stage = { key: 'none', text: text.none };
     turn = project.members.filter((m) => m.role === 'owner').map((m) => m.userId);
   } else if (isProcessing(latest)) {
-    stage = { key: 'processing', text: 'Wird verarbeitet' };
+    stage = { key: 'processing', text: text.processing };
   } else if (latest.status === 'approved') {
-    stage = { key: 'approved', text: 'Freigegeben' };
+    stage = { key: 'approved', text: text.approved };
   } else if (latest.status === 'rejected') {
-    stage = { key: 'rejected', text: 'Abgelehnt' };
+    stage = { key: 'rejected', text: text.rejected };
     turn = [latest.createdById];
   } else if (open.length) {
-    stage = { key: 'open', text: open.length === 1 ? '1 offener Kommentar' : `${open.length} offene Kommentare` };
+    stage = { key: 'open', text: text.open(open.length) };
     turn = [latest.createdById];
   } else {
-    stage = { key: 'feedback', text: 'Wartet auf Feedback' };
+    stage = { key: 'feedback', text: text.feedback };
     turn = project.members
       .filter((m) => m.roles.some((r) => FEEDBACK_ROLES.includes(r)) && m.userId !== latest.createdById)
       .map((m) => m.userId);
@@ -378,13 +378,14 @@ export function projectGroups(ix: OverviewIndex): ProjectGroup[] {
 /** "Du bist dran", "Lena ist dran", "Du, Lena und Tom seid dran"; empty when nobody is */
 export function turnText(ix: OverviewIndex, info: TrackInfo): string {
   if (info.done) return '';
+  const text = t().overview.turn;
   const others = info.turn
     .filter((id) => id !== ix.me)
-    .map((id) => firstName(ix.users.get(id)?.name ?? 'Jemand'))
+    .map((id) => firstName(ix.users.get(id)?.name ?? t().common.someone))
     .concat(info.guests.map(guestLabel));
-  if (info.mine) return others.length ? `Du, ${joinNames(others)} seid dran` : 'Du bist dran';
+  if (info.mine) return others.length ? text.mineAndOthers(joinNames(others)) : text.mine;
   if (!others.length) return '';
-  return others.length === 1 ? `${others[0]} ist dran` : `${joinNames(others)} sind dran`;
+  return text.others(others, joinNames(others));
 }
 
 export type TurnRow = { key: string; label: string; avatarName: string; avatarUrl: string | null; infos: TrackInfo[] };
@@ -401,9 +402,10 @@ export function turnRows(ix: OverviewIndex, infos: TrackInfo[]): TurnRow[] {
     if (info.done) continue;
     for (const id of info.turn) {
       const user = ix.users.get(id);
-      add(id, id === ix.me ? 'Du' : firstName(user?.name ?? 'Jemand'), user?.name ?? 'Jemand', user?.avatarUrl ?? null, info);
+      const someone = t().common.someone;
+      add(id, id === ix.me ? t().common.you : firstName(user?.name ?? someone), user?.name ?? someone, user?.avatarUrl ?? null, info);
     }
-    for (const guest of info.guests) add(`guest:${guest}`, guestLabel(guest), guest || 'Gäste', null, info);
+    for (const guest of info.guests) add(`guest:${guest}`, guestLabel(guest), guest || t().overview.shared.guests, null, info);
   }
   return [...rows.values()].sort(
     (a, b) => Number(b.key === ix.me) - Number(a.key === ix.me) || b.infos.length - a.infos.length,
@@ -512,7 +514,7 @@ export function listenRows(ix: OverviewIndex) {
     .flatMap((l) => {
       const version = ix.versions.get(l.versionId);
       const track = version ? ix.tracks.get(version.trackId) : undefined;
-      return version && track ? [{ ...l, version, track, name: l.listenerName ?? 'Gast' }] : [];
+      return version && track ? [{ ...l, version, track, name: l.listenerName ?? t().common.guest }] : [];
     })
     .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
     .slice(0, 4);
@@ -557,19 +559,21 @@ export function ledCount(amplitude: number, segments = 16): number {
 
 /** The lamp of a channel strip */
 export function versionLamp(v: { status: string }, isLatest: boolean, topLevel: { resolvedAt: string | null }[]): Stage {
-  if (v.status === 'approved') return { key: 'approved', text: 'Frei' };
-  if (v.status === 'rejected') return { key: 'rejected', text: 'Abgelehnt' };
+  const text = t().overview.lamp;
+  if (v.status === 'approved') return { key: 'approved', text: text.approved };
+  if (v.status === 'rejected') return { key: 'rejected', text: text.rejected };
   const open = topLevel.filter((c) => !c.resolvedAt).length;
-  if (open) return { key: 'open', text: `${open} offen` };
-  if (isLatest) return { key: 'feedback', text: 'Wartet auf Feedback' };
-  return { key: 'none', text: topLevel.length ? 'erledigt' : 'ohne Feedback' };
+  if (open) return { key: 'open', text: text.open(open) };
+  if (isLatest) return { key: 'feedback', text: text.feedback };
+  return { key: 'none', text: topLevel.length ? text.resolved : text.none };
 }
 
 /** "Freigegeben von Robin, Sa., 3. Okt." or "Abgelehnt von Robin: „…“"; old decisions have no person */
 export function decisionText(ix: OverviewIndex, v: OverviewVersion): string {
-  const who = v.decidedById ? ` von ${firstName(ix.users.get(v.decidedById)?.name ?? 'Jemand')}` : '';
-  if (v.status === 'approved') return `Freigegeben${who}${v.decidedAt ? `, ${formatDate(v.decidedAt)}` : ''}`;
-  if (v.status === 'rejected') return `Abgelehnt${who}${v.rejectionReason ? `: „${v.rejectionReason}“` : ''}`;
+  const who = v.decidedById ? firstName(ix.users.get(v.decidedById)?.name ?? t().common.someone) : null;
+  const text = t().overview.decision;
+  if (v.status === 'approved') return text.approved(who, v.decidedAt ? formatDate(v.decidedAt) : null);
+  if (v.status === 'rejected') return text.rejected(who, v.rejectionReason || null);
   return '';
 }
 
@@ -602,7 +606,7 @@ export function markersFor(ix: OverviewIndex, comments: OverviewComment[], withI
       return {
         id: c.id,
         seconds,
-        tip: `${personName(ix, c.userId, c.guestName)} bei ${formatTime(seconds)}: ${body}`,
+        tip: t().overview.marker(personName(ix, c.userId, c.guestName), formatTime(seconds), body),
         done: c.resolvedAt !== null,
         initials: withInitials ? initials(fullName(ix, c.userId, c.guestName)) : undefined,
       };

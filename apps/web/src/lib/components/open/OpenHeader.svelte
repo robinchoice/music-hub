@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { t } from '$lib/i18n/index.js';
   import { user } from '$lib/stores/auth.js';
   import Tile from '$lib/components/ui/Tile.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -10,16 +11,16 @@
   <a class="wordmark" href="/"><Tile size={32} /> Music Hub</a>
   <div class="nav-right">
     {#if $page.url.pathname === '/offen'}
-      <a class="nav-link" href="/">Was ist Music Hub?</a>
+      <a class="nav-link" href="/">{t().guest.openHeader.whatIs}</a>
     {:else}
-      <a class="nav-link" href="/offen">Offene Musik</a>
+      <a class="nav-link" href="/offen">{t().guest.openHeader.openMusic}</a>
     {/if}
     {#if $user}
-      <Button size="sm" href="/dashboard">Zum Dashboard</Button>
+      <Button size="sm" href="/dashboard">{t().guest.openList.toDashboard}</Button>
     {:else}
       <div class="nav-auth">
-        <Button size="sm" variant="secondary" href="/login?next={encodeURIComponent($page.url.pathname)}">Einloggen</Button>
-        <Button size="sm" href="/register">Konto anlegen</Button>
+        <Button size="sm" variant="secondary" href="/login?next={encodeURIComponent($page.url.pathname)}">{t().common.logIn}</Button>
+        <Button size="sm" href="/register">{t().common.signUp}</Button>
       </div>
     {/if}
   </div>

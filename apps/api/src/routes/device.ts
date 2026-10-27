@@ -6,6 +6,7 @@ import { deviceCodes, sessions, users } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken, SESSION_DAYS } from '../middleware/auth.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import type { AppEnv } from '../types.js';
+import { t } from '../lib/i18n.js';
 
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
@@ -78,7 +79,7 @@ export const deviceRoutes = new Hono<AppEnv>()
       .from(deviceCodes)
       .where(pendingCode(normalizeUserCode(c.req.param('userCode'))))
       .limit(1);
-    if (!code) return c.json({ error: 'Code ungültig oder abgelaufen' }, 404);
+    if (!code) return c.json({ error: t(c).errors.codeInvalid }, 404);
 
     return c.json(code);
   })
@@ -94,7 +95,7 @@ export const deviceRoutes = new Hono<AppEnv>()
       .set({ userId, approvedAt: new Date() })
       .where(pendingCode(normalizeUserCode(c.req.valid('json').userCode)))
       .returning({ client: deviceCodes.client });
-    if (!approved) return c.json({ error: 'Code ungültig oder abgelaufen' }, 404);
+    if (!approved) return c.json({ error: t(c).errors.codeInvalid }, 404);
 
     return c.json({ client: approved.client });
   })
@@ -110,7 +111,7 @@ export const deviceRoutes = new Hono<AppEnv>()
       .where(eq(deviceCodes.deviceCodeHash, await hashToken(c.req.valid('json').deviceCode)))
       .limit(1);
     if (!code || code.expiresAt < new Date()) {
-      return c.json({ error: 'Code abgelaufen — bitte im Plugin neu anmelden' }, 400);
+      return c.json({ error: t(c).errors.codeExpired }, 400);
     }
     if (!code.approvedAt || !code.userId) return c.json({ status: 'pending' }, 202);
 
@@ -119,11 +120,11 @@ export const deviceRoutes = new Hono<AppEnv>()
       .from(users)
       .where(and(eq(users.id, code.userId), isNull(users.blockedAt)))
       .limit(1);
-    if (!user) return c.json({ error: 'Dieses Konto ist gesperrt.' }, 403);
+    if (!user) return c.json({ error: t(c).errors.accountBlocked }, 403);
 
     // A code yields exactly one session
     const [redeemed] = await db.delete(deviceCodes).where(eq(deviceCodes.id, code.id)).returning({ id: deviceCodes.id });
-    if (!redeemed) return c.json({ error: 'Code abgelaufen — bitte im Plugin neu anmelden' }, 400);
+    if (!redeemed) return c.json({ error: t(c).errors.codeExpired }, 400);
 
     const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY);

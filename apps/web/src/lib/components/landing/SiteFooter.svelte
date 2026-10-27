@@ -1,6 +1,7 @@
 <script lang="ts">
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
+  import { t } from '$lib/i18n/index.js';
 
   const REPO = 'https://github.com/robinchoice/music-hub';
 </script>
@@ -9,22 +10,22 @@
   <div class="footer-grid">
     <div class="footer-brand">
       <a href="/" class="wordmark"><Tile size={28} /> Music Hub</a>
-      <p class="footer-tag">Versionen für Musik. Ohne Chaos.</p>
+      <p class="footer-tag">{t().common.claim}</p>
       <p class="copy">© 2026 Music Hub</p>
     </div>
     <div>
-      <h4>Produkt</h4>
-      <a href="/login">Einloggen</a>
+      <h4>{t().landing.siteFooter.product}</h4>
+      <a href="/login">{t().common.logIn}</a>
     </div>
     <div>
-      <h4>Open Source</h4>
-      <a href={REPO} target="_blank" rel="noopener">Repository</a>
-      <a href="{REPO}#self-hosting" target="_blank" rel="noopener">Selbst hosten</a>
+      <h4>{t().landing.siteFooter.openSource}</h4>
+      <a href={REPO} target="_blank" rel="noopener">{t().landing.siteFooter.repository}</a>
+      <a href="{REPO}#self-hosting" target="_blank" rel="noopener">{t().landing.siteFooter.selfHost}</a>
     </div>
     <div>
-      <h4>Rechtliches</h4>
-      <a href="/impressum">Impressum</a>
-      <a href="/datenschutz">Datenschutz</a>
+      <h4>{t().landing.siteFooter.legal}</h4>
+      <a href="/impressum">{t().common.imprint}</a>
+      <a href="/datenschutz">{t().common.privacy}</a>
     </div>
   </div>
 </footer>

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { toastError } from '$lib/stores/toast.js';
 import { demoMode } from '$lib/demo/mode.js';
+import { t } from '$lib/i18n/index.js';
 
 const errorAnswer = z.object({ error: z.string(), code: z.string().exactOptional() });
 
@@ -10,22 +11,6 @@ type FetchOptions = {
   body?: unknown;
   headers?: Record<string, string>;
   silent?: boolean;
-};
-
-const ENGLISH_ERRORS: Record<string, string> = {
-  'Not found': 'Nicht gefunden. Vielleicht wurde es gelöscht.',
-  Forbidden: 'Dafür fehlen dir die Rechte.',
-  Unauthorized: 'Bitte melde dich neu an.',
-  'Internal server error': 'Auf dem Server ging etwas schief. Versuch es bitte noch einmal.',
-  Expired: 'Der Link ist abgelaufen.',
-  'Password required': 'Dafür braucht es das Passwort.',
-  'Name is required': 'Bitte gib einen Namen ein.',
-  'User already a member': 'Die Person ist schon im Projekt.',
-  'Cannot remove own owner membership': 'Als Besitzer kannst du dich nicht selbst entfernen.',
-  'Cannot change own owner role': 'Deine eigene Besitzer-Rolle lässt sich nicht ändern.',
-  'No stems found': 'Keine Spuren gefunden.',
-  'Comments disabled': 'Kommentare sind hier ausgeschaltet.',
-  'Push not configured': 'Benachrichtigungen sind auf diesem Server nicht eingerichtet.',
 };
 
 export function isApiError(error: unknown) {
@@ -57,9 +42,9 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
 
   if (!res.ok) {
     const error = errorAnswer.safeParse(await res.json().catch(() => null)).data;
-    // Invalid input comes back as a validation object, a few API messages are still English
+    // Invalid input comes back as a validation object, a few API messages are still English codes
     const text = typeof error?.error === 'string' ? error.error : null;
-    const message = (text && ENGLISH_ERRORS[text]) ?? text ?? (res.status === 400 ? 'Bitte prüfe deine Eingaben.' : 'Das hat nicht geklappt. Versuch es bitte noch einmal.');
+    const message = (text && t().common.apiErrors[text]) ?? text ?? (res.status === 400 ? t().common.checkInput : t().common.failed);
     if (!silent) toastError(message);
     throw Object.assign(new Error(message), { status: res.status, code: error?.code });
   }

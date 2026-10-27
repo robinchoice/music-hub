@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { dateLocale, t } from '$lib/i18n/index.js';
   import Icon from '$lib/components/ui/Icon.svelte';
   import DashCard from './DashCard.svelte';
   import PlayerDock from './PlayerDock.svelte';
@@ -11,11 +12,11 @@
   let { ix, list }: { ix: OverviewIndex; list: TrackInfo[] } = $props();
 
   const DAY = 86_400_000;
-  const RANGES = [
-    [4, '4 Wochen'],
-    [8, '8 Wochen'],
-    [13, '3 Monate'],
-  ] as const;
+  const RANGES = $derived([
+    [4, t().overview.timeline.weeks4],
+    [8, t().overview.timeline.weeks8],
+    [13, t().overview.timeline.months3],
+  ] as const);
 
   let weeks = $state(8);
   let docked = $state<OverviewVersion | null>(null);
@@ -27,7 +28,7 @@
   const lanes = $derived(list.filter((i) => !i.done || eventsOf(ix, [i.track]).some((e) => Date.parse(e.at) >= range.start)));
   const hidden = $derived(list.length - lanes.length);
   // Date marks on the Mondays, none right next to "heute"
-  const marks = $derived(range.ticks.filter((t) => t < now - 3 * DAY));
+  const marks = $derived(range.ticks.filter((mon) => mon < now - 3 * DAY));
 
   // The view starts at "heute", also after switching the range
   const scrolled = { weeks: 0 };
@@ -53,32 +54,32 @@
   }
 </script>
 
-<DashCard icon="timeline" title="Verlauf" sub="Klick auf einen Clip spielt ihn unten ab" flush>
+<DashCard icon="timeline" title={t().overview.timeline.title} sub={t().overview.timeline.sub} flush>
   {#snippet actions()}
-    <div class="seg" role="group" aria-label="Zeitraum">
+    <div class="seg" role="group" aria-label={t().overview.timeline.range}>
       {#each RANGES as [w, label] (w)}
         <button type="button" class:on={weeks === w} aria-pressed={weeks === w} onclick={() => (weeks = w)}>{label}</button>
       {/each}
     </div>
   {/snippet}
   <div class="legend keys">
-    <span><i class="clip-key" style="background: var(--color-accent)"></i>neueste Version</span>
-    <span><i class="clip-key" style="background: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent)"></i>Version</span>
-    <span><Icon name="check" size={12} stroke={3} />freigegeben</span>
-    <span><Icon name="x" size={12} stroke={3} />abgelehnt</span>
-    <span><i class="dot-key"></i>Kommentar</span>
+    <span><i class="clip-key" style="background: var(--color-accent)"></i>{t().overview.timeline.latest}</span>
+    <span><i class="clip-key" style="background: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent)"></i>{t().overview.timeline.version}</span>
+    <span><Icon name="check" size={12} stroke={3} />{t().overview.timeline.approved}</span>
+    <span><Icon name="x" size={12} stroke={3} />{t().overview.timeline.rejected}</span>
+    <span><i class="dot-key"></i>{t().overview.timeline.comment}</span>
   </div>
   <div class="scroll" bind:this={scroller}>
     <div class="inner">
       <div class="trow head-row">
-        <div class="name">Track</div>
+        <div class="name">{t().overview.timeline.track}</div>
         <div class="lane">
-          {#each marks as t (t)}
-            <span class="wk" style="left: {range.pct(t)}%">{new Date(t).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}</span>
+          {#each marks as mark (mark)}
+            <span class="wk" style="left: {range.pct(mark)}%">{new Date(mark).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'numeric' })}</span>
           {/each}
-          <span class="todaylbl" style="left: {range.pct(now)}%">heute</span>
+          <span class="todaylbl" style="left: {range.pct(now)}%">{t().overview.timeline.today}</span>
         </div>
-        <div class="stagecol">Stand</div>
+        <div class="stagecol">{t().overview.timeline.stage}</div>
       </div>
       {#each lanes as info (info.track.id)}
         <TimelineLane {ix} {info} {range} {now} dockedId={docked?.id ?? null} onplay={play} />
@@ -86,7 +87,7 @@
     </div>
   </div>
   {#if hidden}
-    <p class="note">{hidden === 1 ? 'Ein fertiger Track' : `${hidden} fertige Tracks`} ohne Aktivität im Zeitraum ausgeblendet.</p>
+    <p class="note">{t().overview.timeline.hidden(hidden)}</p>
   {/if}
 </DashCard>
 

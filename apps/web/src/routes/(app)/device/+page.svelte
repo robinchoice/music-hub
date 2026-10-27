@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from '$lib/i18n/index.js';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -25,7 +26,7 @@
       client = res.client;
       found = true;
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Code ungültig';
+      error = err instanceof Error ? err.message : t().overview.device.invalidCode;
     } finally {
       loading = false;
     }
@@ -38,7 +39,7 @@
       await api.post('/auth/device/approve', { userCode: code.trim() }, true);
       approved = true;
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Freigabe fehlgeschlagen';
+      error = err instanceof Error ? err.message : t().overview.device.approveFailed;
     } finally {
       loading = false;
     }
@@ -56,28 +57,28 @@
   });
 </script>
 
-<TopBar crumbs={[{ label: 'Gerät verbinden' }]} />
+<TopBar crumbs={[{ label: t().overview.device.title }]} />
 
 <div class="page">
   <section class="card">
-    <h1>Gerät verbinden</h1>
+    <h1>{t().overview.device.title}</h1>
     {#if approved}
-      <p class="done">Verbunden. Du kannst zurück zu {client ?? 'deinem Plugin'} wechseln.</p>
+      <p class="done">{t().overview.device.connected(client)}</p>
     {:else if found}
-      <p class="hint">{client ?? 'Ein Plugin'} möchte sich mit deinem Konto verbinden.</p>
+      <p class="hint">{t().overview.device.wants(client)}</p>
       <p class="code">{code}</p>
       {#if error}
         <p class="error">{error}</p>
       {/if}
       <div class="actions">
-        <Button size="lg" onclick={approve} {loading}>Verbinden</Button>
-        <Button variant="ghost" onclick={reset}>Anderer Code</Button>
+        <Button size="lg" onclick={approve} {loading}>{t().overview.device.connect}</Button>
+        <Button variant="ghost" onclick={reset}>{t().overview.device.otherCode}</Button>
       </div>
     {:else}
       <form onsubmit={(e) => { e.preventDefault(); lookup(); }}>
-        <p class="hint">Gib den Code ein, den dir das Plugin oder Music Hub Sync anzeigt.</p>
-        <Input bind:value={code} placeholder="XXXX-XXXX" label="Code" {error} autofocus />
-        <Button type="submit" size="lg" {loading} disabled={!code.trim()}>Weiter</Button>
+        <p class="hint">{t().overview.device.enterCode}</p>
+        <Input bind:value={code} placeholder="XXXX-XXXX" label={t().overview.device.code} {error} autofocus />
+        <Button type="submit" size="lg" {loading} disabled={!code.trim()}>{t().overview.device.next}</Button>
       </form>
     {/if}
   </section>

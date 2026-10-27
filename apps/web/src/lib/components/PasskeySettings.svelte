@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browserSupportsWebAuthn, WebAuthnError } from '@simplewebauthn/browser';
-  import { loginTexts, type Passkey } from '@music-hub/shared';
+  import { loginMessages, type Passkey } from '@music-hub/shared';
   import { isApiError } from '$lib/api/client.js';
+  import { dateLocale, locale } from '$lib/i18n/index.js';
   import { addPasskey, isPasskeyCancelled, listPasskeys, removePasskey } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import { toastError } from '$lib/stores/toast.js';
@@ -12,11 +13,9 @@
   let loaded = $state(false);
   let busy = $state(false);
   let error = $state('');
-  let language = $state('de');
-  const texts = $derived(loginTexts(language));
+  const texts = $derived(loginMessages[locale()]);
 
   onMount(async () => {
-    language = navigator.language;
     supported = browserSupportsWebAuthn();
     try {
       passkeys = await listPasskeys();
@@ -67,8 +66,8 @@
     <div class="row">
       <div>
         <strong>{passkey.backedUp ? texts.synced : texts.device}</strong>
-        <p>{texts.created}: {new Date(passkey.createdAt).toLocaleDateString(language)}
-          {#if passkey.lastUsedAt} · {texts.lastUsed}: {new Date(passkey.lastUsedAt).toLocaleDateString(language)}{/if}
+        <p>{texts.created}: {new Date(passkey.createdAt).toLocaleDateString(dateLocale())}
+          {#if passkey.lastUsedAt} · {texts.lastUsed}: {new Date(passkey.lastUsedAt).toLocaleDateString(dateLocale())}{/if}
         </p>
       </div>
       <Button variant="ghost" size="sm" disabled={busy} onclick={() => remove(passkey.id)}>{texts.remove}</Button>

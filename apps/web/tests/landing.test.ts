@@ -137,3 +137,15 @@ test('the demo version shows its file details', async ({ page }) => {
   await file.scrollIntoViewIfNeeded();
   await expect(file).toHaveText(/WAV.*48 kHz.*24 Bit.*−15,3 LUFS.*−0,4 dBTP.*LRA 8,7 LU/);
 });
+
+test.describe('in English', () => {
+  test.use({ locale: 'en-GB' });
+
+  test('the start page and its demo follow the browser language', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Versions for music. Without the chaos.');
+    const feedback = page.locator('.frag-stack').first();
+    await feedback.scrollIntoViewIfNeeded();
+    await expect(feedback.getByText('Snare in the verse is a bit too loud')).toBeVisible();
+  });
+});

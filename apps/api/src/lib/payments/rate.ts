@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PaymentServiceError, RATE_UNAVAILABLE } from './errors.js';
+import { PaymentServiceError } from './errors.js';
 
 // Euro to sats for Lightning invoices, from https://mempool.space/api/v1/prices (field EUR, euro per
 // bitcoin), cached for 60 seconds. Failures throw a PaymentServiceError (502).
@@ -30,13 +30,13 @@ async function fetchEurPrice(): Promise<number> {
   let body: unknown;
   try {
     const res = await fetch(PRICES_URL, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!res.ok) throw new PaymentServiceError(RATE_UNAVAILABLE);
+    if (!res.ok) throw new PaymentServiceError('rate_unavailable');
     body = await res.json();
   } catch {
-    throw new PaymentServiceError(RATE_UNAVAILABLE);
+    throw new PaymentServiceError('rate_unavailable');
   }
   const parsed = pricesSchema.safeParse(body);
-  if (!parsed.success) throw new PaymentServiceError(RATE_UNAVAILABLE);
+  if (!parsed.success) throw new PaymentServiceError('rate_unavailable');
   return parsed.data.EUR;
 }
 
@@ -47,9 +47,9 @@ async function eurPerBtc(): Promise<number> {
   try {
     price = await priceSource()();
   } catch (err) {
-    throw err instanceof PaymentServiceError ? err : new PaymentServiceError(RATE_UNAVAILABLE);
+    throw err instanceof PaymentServiceError ? err : new PaymentServiceError('rate_unavailable');
   }
-  if (!Number.isFinite(price) || price <= 0) throw new PaymentServiceError(RATE_UNAVAILABLE);
+  if (!Number.isFinite(price) || price <= 0) throw new PaymentServiceError('rate_unavailable');
   cached = { price, at: now };
   return price;
 }

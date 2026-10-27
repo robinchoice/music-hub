@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n/index.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import { formatDay, formatDb, formatLufs } from '$lib/utils/format.js';
   import type { TrackComment } from '$lib/utils/track.js';
@@ -46,16 +47,16 @@
   const TICKS = [100, 66.67, 33.33, 0];
 
   const lamp = $derived(versionLamp(version, latest, comments));
-  const uploader = $derived(ix.users.get(version.createdById)?.name ?? 'Jemand');
+  const uploader = $derived(ix.users.get(version.createdById)?.name ?? t().common.someone);
   const lit = $derived(levels.map((level) => ledCount(level)));
   // Fader scale from −12 to +6 dB
   const cap = $derived(Math.max(0, Math.min(100, ((gain + 12) / 18) * 100)));
   // Variants show their variant name
   const name = $derived(version.branchLabel ?? versionName(version));
   const meterTip = $derived(
-    `Pegel live, links und rechts${version.integratedLufs !== null ? `\nGemessene Lautheit: ${formatLufs(version.integratedLufs)} LUFS` : ''}`,
+    `${t().overview.strip.meter}${version.integratedLufs !== null ? `\n${t().overview.strip.measured(formatLufs(version.integratedLufs))}` : ''}`,
   );
-  const faderTip = $derived(match && reference !== null ? `Angeglichen auf ${formatLufs(reference)} LUFS: ${formatDb(gain)}` : 'Kein Ausgleich');
+  const faderTip = $derived(match && reference !== null ? t().overview.strip.matched(formatLufs(reference), formatDb(gain)) : t().overview.strip.noMatch);
 </script>
 
 <div class="strip" class:solo>
@@ -68,7 +69,7 @@
     <span class="who-text"><span title={uploader}>{firstName(uploader)}</span><time datetime={version.createdAt}>{formatDay(version.createdAt)}</time></span>
   </div>
   {#if broken}
-    <div class="lamp s-rejected" data-tt="Diese Version lässt sich gerade nicht abspielen."><span class="bulb"></span>nicht abspielbar</div>
+    <div class="lamp s-rejected" data-tt={t().overview.strip.broken}><span class="bulb"></span>{t().overview.strip.brokenShort}</div>
   {:else}
     <div class="lamp s-{lamp.key}" data-tt={decisionText(ix, version) || lamp.text}><span class="bulb"></span><span>{lamp.text}</span></div>
   {/if}
@@ -79,7 +80,7 @@
       </div>
     {/each}
   </div>
-  <div class="lufs">{version.integratedLufs !== null ? `${formatLufs(version.integratedLufs)} LUFS` : 'nicht gemessen'}</div>
+  <div class="lufs">{version.integratedLufs !== null ? `${formatLufs(version.integratedLufs)} LUFS` : t().overview.strip.notMeasured}</div>
   <div class="fader" data-tt={faderTip}>
     <div class="ft">
       {#each TICKS as p (p)}<i class="tick" style="bottom: {p}%"></i>{/each}
@@ -88,9 +89,9 @@
   </div>
   <div class="db">{formatDb(gain)}</div>
   <button type="button" class="solo-btn" aria-pressed={solo} disabled={broken} onclick={onsolo}>
-    Solo{#if index < 9}<kbd>{index + 1}</kbd>{/if}
+    {t().overview.strip.solo}{#if index < 9}<kbd>{index + 1}</kbd>{/if}
   </button>
-  <div class="foot">{comments.length === 1 ? '1 Kommentar' : `${comments.length} Kommentare`}</div>
+  <div class="foot">{t().common.comments(comments.length)}</div>
 </div>
 
 <style>

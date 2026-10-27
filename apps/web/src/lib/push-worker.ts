@@ -1,8 +1,14 @@
+import { pickLocale } from '@music-hub/shared';
 import { openDB } from 'idb';
 
 type Notice = { id: string; title: string; body: string; url: string };
 type Cursor = { userId: string; cursor: string };
-const neutral = { title: 'Music Hub', body: 'Öffne Music Hub, um Neuigkeiten zu sehen.', url: '/for-you' };
+// The service worker has no page and no cookie, it follows the browser's language
+const neutral = {
+  title: 'Music Hub',
+  body: pickLocale(self.navigator.language) === 'de' ? 'Öffne Music Hub, um Neuigkeiten zu sehen.' : 'Open Music Hub to see what is new.',
+  url: '/for-you',
+};
 
 async function openPushDb() {
   const db = await openDB('musichub-push', 1, { upgrade(db) {

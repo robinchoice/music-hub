@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import ListenTrack from '$lib/components/listen/ListenTrack.svelte';
+  import { t } from '$lib/i18n/index.js';
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import Tile from '$lib/components/ui/Tile.svelte';
 
@@ -16,7 +17,7 @@
   <div class="listen-page">
     <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
     <ListenTrack {token} onLoad={(d) => (title = `${d.track.name} — ${d.project.name}`)} />
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>

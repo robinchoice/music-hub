@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
+  import { t } from '$lib/i18n/index.js';
   import { user, register } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -26,11 +27,11 @@
     error = '';
 
     if (password !== passwordConfirm) {
-      error = 'Passwörter stimmen nicht überein';
+      error = t().guest.register.mismatch;
       return;
     }
     if (password.length < 8) {
-      error = 'Passwort muss mindestens 8 Zeichen haben';
+      error = t().guest.register.tooShort;
       return;
     }
 
@@ -40,7 +41,7 @@
       if (registered) goto('/dashboard');
       else sent = true;
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Registrierung fehlgeschlagen';
+      error = err instanceof Error ? err.message : t().guest.register.failed;
     } finally {
       loading = false;
     }
@@ -50,9 +51,9 @@
     resending = true;
     try {
       await register(name, email, password, updates);
-      toastSuccess('Link erneut gesendet');
+      toastSuccess(t().guest.register.resent);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Senden fehlgeschlagen';
+      error = err instanceof Error ? err.message : t().guest.register.sendFailed;
     } finally {
       resending = false;
     }
@@ -63,37 +64,36 @@
 
 <div class="shell">
   <div class="register-page">
-    <a href="/" class="back">← Zurück</a>
+    <a href="/" class="back">← {t().common.back}</a>
 
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
-      <h1>Konto anlegen</h1>
-      <p class="card-sub">Kostenlos mit {SIGNUP_STORAGE_PER_USER / 1024 ** 3} GB Speicher, solange Plätze frei sind. Eingeladen? Dann legst du hier dein Passwort fest.</p>
+      <h1>{t().common.signUp}</h1>
+      <p class="card-sub">{t().guest.register.sub(SIGNUP_STORAGE_PER_USER / 1024 ** 3)}</p>
 
       {#if sent}
         <div class="sent">
           <p class="success">
-            Fast geschafft! Wir haben dir einen Link an <strong>{email}</strong> geschickt. Klick darauf und
-            bestätige mit deinem Passwort.
+            {t().guest.register.almostBefore} <strong>{email}</strong>{t().guest.register.almostAfter}
           </p>
-          <p class="hint">Der Link gilt 24 Stunden. Keine Mail da? Schau im Spam-Ordner nach.</p>
+          <p class="hint">{t().guest.register.linkValid}</p>
           {#if error}
             <p class="error">{error}</p>
           {/if}
           <div class="sent-actions">
-            <Button variant="secondary" onclick={resend} loading={resending}>Link erneut senden</Button>
-            <Button variant="ghost" onclick={() => (sent = false)}>Adresse ändern</Button>
+            <Button variant="secondary" onclick={resend} loading={resending}>{t().guest.register.resend}</Button>
+            <Button variant="ghost" onclick={() => (sent = false)}>{t().guest.register.changeAddress}</Button>
           </div>
         </div>
       {:else}
         <form onsubmit={handleSubmit}>
-          <Input label="Name" bind:value={name} placeholder="Dein Name" />
-          <Input label="E-Mail" type="email" bind:value={email} placeholder="deine@email.de" />
-          <Input label="Passwort" type="password" bind:value={password} placeholder="Mindestens 8 Zeichen" />
-          <Input label="Passwort wiederholen" type="password" bind:value={passwordConfirm} placeholder="Nochmal eingeben" />
+          <Input label={t().common.name} bind:value={name} placeholder={t().guest.register.namePlaceholder} />
+          <Input label={t().common.email} type="email" bind:value={email} placeholder={t().guest.register.emailPlaceholder} />
+          <Input label={t().common.password} type="password" bind:value={password} placeholder={t().guest.register.passwordPlaceholder} />
+          <Input label={t().guest.register.repeatPassword} type="password" bind:value={passwordConfirm} placeholder={t().guest.register.repeatPlaceholder} />
           <label class="check">
             <input type="checkbox" bind:checked={updates} />
-            <span>Schick mir Updates zu neuen Funktionen per Mail. Abbestellen geht jederzeit.</span>
+            <span>{t().guest.register.updatesOptIn}</span>
           </label>
 
           {#if error}
@@ -101,15 +101,15 @@
           {/if}
 
           <Button type="submit" size="lg" {loading} disabled={!name || !email || !password}>
-            Konto anlegen
+            {t().common.signUp}
           </Button>
         </form>
       {/if}
 
-      <p class="switch">Schon ein Konto? <a href="/login">Einloggen</a></p>
+      <p class="switch">{t().guest.register.haveAccount} <a href="/login">{t().common.logIn}</a></p>
     </div>
 
-    <p class="legal"><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></p>
+    <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
 </div>
