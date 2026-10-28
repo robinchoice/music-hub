@@ -90,6 +90,13 @@ export const versions = pgTable('versions', {
   // EBU R128 loudness range in LU and true peak in dBTP; null for versions measured before they were stored
   loudnessRange: real('loudness_range'),
   truePeak: real('true_peak'),
+  // Tempo and key detected by the worker with Essentia; null where it found none or hasn't got to it yet.
+  // keyRoot as Essentia spells it (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B), keyScale major or minor.
+  bpm: real('bpm'),
+  keyRoot: varchar('key_root', { length: 2 }),
+  keyScale: varchar('key_scale', { length: 5 }),
+  // When the worker took the version for that analysis
+  analyzedAt: timestamp('analyzed_at'),
 
   originalFileKey: text('original_file_key').notNull(),
   streamFileKey: text('stream_file_key'),

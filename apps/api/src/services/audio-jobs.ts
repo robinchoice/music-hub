@@ -29,17 +29,21 @@ export async function waitForAudioJobs(db: Database, versionIds: string[], timeo
   }
 }
 
+// A job no worker holds that hasn't been given up
+const claimable = () =>
+  and(or(isNull(audioJobs.lockedUntil), lt(audioJobs.lockedUntil, sql`now()`)), lt(audioJobs.attempts, MAX_ATTEMPTS));
+
+export async function hasWaitingAudioJob(db: Database) {
+  const [job] = await db.select({ versionId: audioJobs.versionId }).from(audioJobs).where(claimable()).limit(1);
+  return !!job;
+}
+
 // Takes the oldest job no worker holds. SKIP LOCKED lets parallel workers pass each other.
 export async function claimAudioJob(db: Database): Promise<string | null> {
   const next = db
     .select({ versionId: audioJobs.versionId })
     .from(audioJobs)
-    .where(
-      and(
-        or(isNull(audioJobs.lockedUntil), lt(audioJobs.lockedUntil, sql`now()`)),
-        lt(audioJobs.attempts, MAX_ATTEMPTS),
-      ),
-    )
+    .where(claimable())
     .orderBy(asc(audioJobs.createdAt))
     .limit(1)
     .for('update', { skipLocked: true });

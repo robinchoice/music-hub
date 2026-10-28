@@ -103,11 +103,11 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   test(`worker waits for cancellation before releasing its job on ${signal}`, async () => {
     const run = start('worker', `
       mock.module(${modulePath('services/audio-jobs')}, () => ({
-        giveUpAudioJobs: async () => {}, claimAudioJob: async () => 'test-version',
+        giveUpAudioJobs: async () => {}, claimAudioJob: async () => 'test-version', hasWaitingAudioJob: async () => false,
         releaseAudioJob: async () => console.log('job-released'),
         renewAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
       }));
-      mock.module(${modulePath('services/audio-processor')}, () => ({ processVersion: async (db, id, signal) => {
+      mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, processVersion: async (db, id, signal) => {
         console.log('processing-started');
         await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
         await db.execute('select pg_sleep(0.1)');
@@ -160,7 +160,7 @@ test('worker kills the audio subprocess before releasing a cancelled job', async
       return audio;
     };
     mock.module(${modulePath('services/audio-jobs')}, () => ({
-      giveUpAudioJobs: async () => {}, claimAudioJob: async () => version.id,
+      giveUpAudioJobs: async () => {}, claimAudioJob: async () => version.id, hasWaitingAudioJob: async () => false,
       releaseAudioJob: async () => {
         if (audio.exitCode === null && audio.signalCode === null) throw new Error('Audio process is still running');
         const { eq } = await import('drizzle-orm');

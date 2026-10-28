@@ -6,6 +6,13 @@ export const de = {
     integratedLoudness: 'Integrierte Lautheit (EBU R128)',
     truePeak: 'True Peak',
     loudnessRange: 'Lautheitsumfang (Loudness Range)',
+    tempo: 'Tempo, automatisch erkannt',
+    keyDetected: 'Tonart, automatisch erkannt',
+    // German note names: B is B flat, H is B; minor keys are written in lower case
+    key: (root: string, scale: 'major' | 'minor') => {
+      const name = ({ 'C#': 'Cis', Eb: 'Es', 'F#': 'Fis', Ab: 'As', Bb: 'B', B: 'H' } as Record<string, string>)[root] ?? root;
+      return scale === 'major' ? `${name}-Dur` : `${name.toLowerCase()}-Moll`;
+    },
   },
   shortcuts: {
     title: 'Tastatur-Shortcuts',
@@ -365,6 +372,9 @@ export const en: typeof de = {
     integratedLoudness: 'Integrated loudness (EBU R128)',
     truePeak: 'True peak',
     loudnessRange: 'Loudness range (LRA)',
+    tempo: 'Tempo, detected automatically',
+    keyDetected: 'Key, detected automatically',
+    key: (root: string, scale: 'major' | 'minor') => `${root.replace('#', '♯').replace('b', '♭')} ${scale}`,
   },
   shortcuts: {
     title: 'Keyboard shortcuts',

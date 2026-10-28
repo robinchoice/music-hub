@@ -260,6 +260,13 @@
       "when": 1793121907985,
       "tag": "0036_user_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793147929448,
+      "tag": "0037_music_analysis",
+      "breakpoints": true
     }
   ]
 }

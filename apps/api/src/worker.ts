@@ -4,7 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
-import { processVersion } from './services/audio-processor.js';
+import { analyzeNextVersion, processVersion } from './services/audio-processor.js';
 import {
   claimAudioJob,
   finishAudioJob,
@@ -51,7 +51,7 @@ while (!stop.signal.aborted) {
       break;
     }
     if (!current) {
-      await sleep(2000, undefined, { signal: stop.signal }).catch(() => {});
+      if (!await analyzeNextVersion(db, stop.signal)) await sleep(2000, undefined, { signal: stop.signal }).catch(() => {});
       continue;
     }
     const versionId = current;

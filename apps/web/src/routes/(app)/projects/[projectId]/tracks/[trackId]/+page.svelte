@@ -275,6 +275,9 @@
         if (data.status === 'ready' && !data.undone && selectedVersion && data.versionId === selectedVersion.id) {
           await selectVersion(selectedVersion, true);
         }
+      } else if (type === 'version:details') {
+        // Tempo and key arrived
+        await refreshVersions();
       } else if (type === 'review:new') {
         if (data.versionId === selectedVersion?.id) await trackComments.reload();
       } else if (type === 'comment:new') {

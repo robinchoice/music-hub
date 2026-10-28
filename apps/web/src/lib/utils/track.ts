@@ -19,6 +19,9 @@ export type Version = {
   sampleFormat?: string | null;
   truePeak?: number | null;
   loudnessRange?: number | null;
+  bpm?: number | null;
+  keyRoot?: string | null;
+  keyScale?: string | null;
   createdAt: string;
   parentVersionId: string | null;
   branchLabel: string | null;
@@ -33,6 +36,8 @@ export function fileDetails(v: Version) {
   const d = t().track.details;
   const ext = v.originalFileName.match(/\.(\w+)$/)?.[1]?.toUpperCase();
   return [
+    v.bpm != null && { text: `${Math.round(v.bpm)} BPM`, title: d.tempo },
+    v.keyRoot && (v.keyScale === 'major' || v.keyScale === 'minor') && { text: d.key(v.keyRoot, v.keyScale), title: d.keyDetected },
     ext && { text: ext },
     v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString(dateLocale())} kHz`, title: d.sampleRate },
     v.bitDepth && ext && LOSSLESS.has(ext) && {

@@ -56,6 +56,9 @@ type DemoVersion = Omit<Version, 'openCommentCount' | 'rejectionReason'> & {
   integratedLufs: number;
   truePeak: number;
   loudnessRange: number;
+  bpm: number;
+  keyRoot: string;
+  keyScale: string;
 };
 type DemoComment = TrackComment & { versionId: string };
 type DemoReview = Review & { versionId: string };
@@ -112,6 +115,10 @@ function seed() {
     audio: `/demo/nachtbus-v${versionNumber}.mp3`,
     // Measured from the files in static/demo with ffmpeg's ebur128 filter
     ...loudness,
+    // What the worker's Essentia analysis finds in them
+    bpm: 96,
+    keyRoot: 'A',
+    keyScale: 'minor',
   });
   const versions: DemoVersion[] = [
     version(104, 4, d.v4Label, 'ready', 2 * HOUR, d.v4Notes, `${d.fileName}_Mix2.wav`, { integratedLufs: -15.3, truePeak: -0.49, loudnessRange: 8.7 }),
@@ -407,14 +414,14 @@ const ROUTES: [string, RegExp, Handler][] = [
   })],
   ['POST', /^\/versions\/(?:project|track)\/([\w-]+)\/upload-url$/, ([id], body) => ({ uploadUrl: '', fileKey: `demo/${id}/${String(body?.fileName)}` })],
   ['POST', /^\/versions\/track\/([\w-]+)$/, ([trackId], body) => {
-    const { audio, integratedLufs, truePeak, loudnessRange } = find(db.versions, uuid(101));
+    const { audio, integratedLufs, truePeak, loudnessRange, bpm, keyRoot, keyScale } = find(db.versions, uuid(101));
     const version: DemoVersion = {
       id: uuid(2000 + db.versions.length), trackId,
       versionNumber: Math.max(0, ...db.versions.filter((v) => v.trackId === trackId).map((v) => v.versionNumber)) + 1,
       label: (body?.label as string) || null, notes: null, status: 'ready', originalFileName: String(body?.originalFileName),
       mimeType: String(body?.mimeType), fileSize: Number(body?.fileSize), duration: DEMO.duration,
       createdAt: new Date().toISOString(), createdById: MARA.id, parentVersionId: (body?.parentVersionId as string) ?? null,
-      branchLabel: (body?.branchLabel as string) ?? null, audio, integratedLufs, truePeak, loudnessRange,
+      branchLabel: (body?.branchLabel as string) ?? null, audio, integratedLufs, truePeak, loudnessRange, bpm, keyRoot, keyScale,
     };
     db.versions.push(version);
     return { version: withCounts(version) };

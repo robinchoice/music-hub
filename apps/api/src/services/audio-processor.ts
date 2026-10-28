@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
+import { hasWaitingAudioJob } from './audio-jobs.js';
 import { publish } from './sse.js';
 import type { Database } from '@music-hub/db';
 
@@ -75,6 +76,46 @@ export async function processVersion(db: Database, versionId: string, signal: Ab
   publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready' } });
 }
 
+// Tempo and key take longest, so the worker only works on them when no version waits for its MP3:
+// the newest playable version without an analysis, which also catches up on versions from before it.
+// A version is marked when taken, so one that keeps failing doesn't come back.
+export async function analyzeNextVersion(db: Database, stop: AbortSignal): Promise<boolean> {
+  const next = db
+    .select({ id: versions.id })
+    .from(versions)
+    .where(and(isNull(versions.analyzedAt), isNull(versions.deletedAt), notInArray(versions.status, ['uploaded', 'processing'])))
+    .orderBy(desc(versions.createdAt))
+    .limit(1)
+    .for('update', { skipLocked: true });
+  const [version] = await db
+    .update(versions)
+    .set({ analyzedAt: new Date() })
+    .where(inArray(versions.id, next))
+    .returning({ id: versions.id, trackId: versions.trackId, originalFileKey: versions.originalFileKey });
+  if (!version) return false;
+
+  // A new upload goes first: the analysis stops, and the version comes back once the worker is idle again
+  const upload = new AbortController();
+  const signal = AbortSignal.any([stop, upload.signal]);
+  const watch = setInterval(() => {
+    hasWaitingAudioJob(db).then((waiting) => waiting && upload.abort(), () => {});
+  }, 2000);
+  try {
+    const music = await analyzeMusic(await createDownloadUrl(version.originalFileKey, 3600), signal);
+    if (music) {
+      await db.update(versions).set(music).where(eq(versions.id, version.id));
+      publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+    await db.update(versions).set({ analyzedAt: null }).where(eq(versions.id, version.id));
+    if (stop.aborted) throw error;
+  } finally {
+    clearInterval(watch);
+  }
+  return true;
+}
+
 async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   duration: number;
   sampleRate: number;
@@ -139,6 +180,48 @@ export function parseLoudness(log: string, frames: string): { integratedLufs: nu
     integratedLufs: parseFloat(integrated),
     loudnessRange: range === undefined ? null : parseFloat(range),
     truePeak: peak > 0 ? Math.round(2000 * Math.log10(peak)) / 100 : null,
+  };
+}
+
+const ANALYSIS_SCRIPT = `${import.meta.dir}/music-analysis.ts`;
+
+// The first ten minutes are plenty and keep a long DJ mix from filling the memory. Runs with low
+// priority, so it gives way to everything else on VPS 1.
+async function analyzeMusic(url: string, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const decode = Bun.spawn(['ffmpeg', '-v', 'quiet', '-i', url, '-t', '600', '-ac', '1', '-ar', '44100', '-f', 'f32le', 'pipe:1'], { ...FFMPEG_LIMITS, signal });
+  const analyze = Bun.spawn(['nice', '-n', '10', process.execPath, ANALYSIS_SCRIPT], { stdin: decode.stdout, stderr: 'pipe', ...FFMPEG_LIMITS, signal });
+  const [output, log] = await Promise.all([new Response(analyze.stdout).text(), new Response(analyze.stderr).text()]);
+  const [decoded, analyzed] = await Promise.all([decode.exited, analyze.exited]);
+  signal.throwIfAborted();
+  if (decoded !== 0 || analyzed !== 0) {
+    console.error(`[Worker] Music analysis failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
+    return null;
+  }
+  return parseMusicAnalysis(output);
+}
+
+const KEY_ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+
+// Keeps what Essentia is sure enough about. Its tempo confidence runs from 0 to 5.32, below 1 the beat
+// is a guess; silence comes out as a confident 738 BPM, hence the range. A key strength below 0.5 means
+// no key stood out.
+export function parseMusicAnalysis(output: string): { bpm: number | null; keyRoot: string | null; keyScale: string | null } | null {
+  const parsed = z.object({
+    bpm: z.number(),
+    bpmConfidence: z.number(),
+    key: z.enum(KEY_ROOTS),
+    scale: z.enum(['major', 'minor']),
+    keyStrength: z.number(),
+  }).safeParse(JSON.parse(output));
+  if (!parsed.success) return null;
+  const result = parsed.data;
+  const sureOfTempo = result.bpmConfidence >= 1 && result.bpm >= 40 && result.bpm <= 250;
+  const sureOfKey = result.keyStrength >= 0.5;
+  return {
+    bpm: sureOfTempo ? Math.round(result.bpm * 10) / 10 : null,
+    keyRoot: sureOfKey ? result.key : null,
+    keyScale: sureOfKey ? result.scale : null,
   };
 }
 

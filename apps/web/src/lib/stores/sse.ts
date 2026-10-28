@@ -23,7 +23,7 @@ export function connectTrackSse(trackId: string, onEvent: SseHandler): () => voi
 
   es = new EventSource(`/api/v1/sse/track/${trackId}`, { withCredentials: true });
 
-  const types = ['version:new', 'version:status', 'comment:new', 'comment:reaction', 'review:new'];
+  const types = ['version:new', 'version:status', 'version:details', 'comment:new', 'comment:reaction', 'review:new'];
   for (const type of types) {
     es.addEventListener(type, (e: MessageEvent) => {
       try {
