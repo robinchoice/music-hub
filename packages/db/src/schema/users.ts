@@ -25,9 +25,13 @@ export const users = pgTable('users', {
   guestStorageLimit: bigint('guest_storage_limit', { mode: 'number' }),
   // Language of mails and pushes: set at login and by every /auth/me of the web, see apps/api/src/lib/i18n.ts
   locale: varchar('locale', { length: 5 }).default('de').notNull(),
-  // null is the free plan, 'solo' the paid one; set by an admin. A paid plan runs until planUntil, null means open-ended
+  // null is the free plan, 'pro' or 'solo' (Studio) a paid one, see PLANS in shared. Set by an admin or a payment
+  // (lib/billing.ts). A paid plan runs until planUntil, null means open-ended
   plan: varchar('plan', { length: 16 }),
   planUntil: timestamp('plan_until'),
+  // The Stripe customer, for the billing portal, and the subscription that renews the plan while it runs
+  stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+  stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

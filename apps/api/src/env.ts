@@ -19,6 +19,16 @@ const envSchema = z.object({
     .refine((value) => Buffer.from(value, 'base64').length === 32)
     .or(unset)
     .exactOptional(),
+  // Plans paid by card: the secret API key and the signing secret of the webhook to /api/v1/billing/stripe.
+  // Unset: no Stripe checkout.
+  STRIPE_SECRET_KEY: z.string().startsWith('sk_').or(unset).exactOptional(),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').or(unset).exactOptional(),
+  // Plans paid by Lightning: BTCPay Server with a Greenfield API key (invoices of one store) and the
+  // secret of the webhook to /api/v1/billing/btcpay. Unset: no Lightning checkout.
+  BTCPAY_URL: z.url().or(unset).exactOptional(),
+  BTCPAY_STORE_ID: z.string().or(unset).exactOptional(),
+  BTCPAY_API_KEY: z.string().or(unset).exactOptional(),
+  BTCPAY_WEBHOOK_SECRET: z.string().or(unset).exactOptional(),
 });
 
 declare module 'bun' {
