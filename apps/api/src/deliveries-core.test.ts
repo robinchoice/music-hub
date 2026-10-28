@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { activePlan } from '@music-hub/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import {
   createDb,
@@ -31,7 +32,6 @@ import {
   markPaid,
   mayCreateDeliveries,
   paidDownload,
-  planActive,
   publicDeliveryOf,
   publicPaymentOf,
   requestRound,
@@ -112,13 +112,14 @@ afterAll(async () => {
 
 test('a plan allows deliveries while it runs', async () => {
   const now = new Date();
-  expect(planActive({ plan: null, planUntil: null }, now)).toBe(false);
-  expect(planActive({ plan: 'solo', planUntil: null }, now)).toBe(true);
-  expect(planActive({ plan: 'solo', planUntil: new Date(now.getTime() + 60_000) }, now)).toBe(true);
-  expect(planActive({ plan: 'solo', planUntil: new Date(now.getTime() - 60_000) }, now)).toBe(false);
+  expect(activePlan({ plan: null, planUntil: null }, now)).toBe(null);
+  expect(activePlan({ plan: 'solo', planUntil: null }, now)).toBe('solo');
+  expect(activePlan({ plan: 'pro', planUntil: new Date(now.getTime() + 60_000) }, now)).toBe('pro');
+  expect(activePlan({ plan: 'solo', planUntil: new Date(now.getTime() - 60_000) }, now)).toBe(null);
 
   expect(await mayCreateDeliveries(db, await person('Gratis'))).toBe(false);
   expect(await mayCreateDeliveries(db, await person('Solo', { plan: 'solo' }))).toBe(true);
+  expect(await mayCreateDeliveries(db, await person('Pro', { plan: 'pro' }))).toBe(false);
   expect(await mayCreateDeliveries(db, await person('Abgelaufen', { plan: 'solo', planUntil: new Date(Date.now() - 1000) }))).toBe(false);
 });
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ask } from '$lib/stores/confirm.js';
-  import { PLAN_LABELS, ROLE_LABELS, type AdminPlanResponse, type Plan } from '@music-hub/shared';
+  import { PLAN_LABELS, PLANS, ROLE_LABELS, type AdminPlanResponse, type Plan } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -203,10 +203,12 @@
                 aria-label="Tarif"
                 disabled={planBusy}
                 value={p.plan ?? ''}
-                onchange={(e) => setPlan(e.currentTarget.value === 'solo' ? 'solo' : null, untilDay(p!.planUntil))}
+                onchange={(e) => setPlan(PLANS.find((plan) => plan === e.currentTarget.value) ?? null, untilDay(p!.planUntil))}
               >
                 <option value="">{PLAN_LABELS.free}</option>
-                <option value="solo">{PLAN_LABELS.solo}</option>
+                {#each PLANS as plan (plan)}
+                  <option value={plan}>{PLAN_LABELS[plan]}</option>
+                {/each}
               </select>
               {#if p.plan}
                 <label>

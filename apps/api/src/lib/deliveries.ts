@@ -39,7 +39,7 @@ import { epcPayload } from './payments/girocode.js';
 import { connectNwc } from './payments/nwc.js';
 import { decryptSecret, paymentsConfigured } from './payments/secrets.js';
 import { sendDeliveryPaidEmail } from '../services/email.js';
-import { type Locale, pickLocale } from '@music-hub/shared';
+import { activePlan, type Locale, pickLocale } from '@music-hub/shared';
 
 // The order logic of a delivery (Auftrag) on a project link: rounds, approvals, totals and payment
 // state. Routes check the link (token, password, expiry) and rate limits; everything that decides
@@ -72,11 +72,6 @@ export const lockDelivery = (tx: Tx, deliveryId: string) =>
 
 // ---------- Plans ----------
 
-// 'solo' with no end or an end in the future
-export function planActive(user: { plan: string | null; planUntil: Date | null }, now = new Date()) {
-  return user.plan === 'solo' && (user.planUntil === null || user.planUntil > now);
-}
-
 // Only paying studios and admins (ADMIN_EMAILS) create deliveries
 export async function mayCreateDeliveries(db: Reader, userId: string) {
   const [user] = await db
@@ -84,7 +79,7 @@ export async function mayCreateDeliveries(db: Reader, userId: string) {
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  return !!user && (planActive(user) || isAdminEmail(user.email));
+  return !!user && (activePlan(user) === 'solo' || isAdminEmail(user.email));
 }
 
 // ---------- Loading ----------

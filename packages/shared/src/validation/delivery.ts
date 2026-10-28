@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dateLocales, type Locale } from '../i18n.js';
+import { PLANS, type Plan } from '../constants/plans.js';
 
 // Deliveries (Aufträge): a studio attaches an order to its own project link. The client approves each
 // song or asks for a correction round, pays the total to the studio once every song is approved, and
@@ -43,11 +44,6 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 // What the client sees per song: their turn, the studio's turn after a round, or approved
 export const DELIVERY_TRACK_STATES = ['review', 'changes', 'approved'] as const;
 export type DeliveryTrackState = (typeof DELIVERY_TRACK_STATES)[number];
-
-// users.plan: null is the free plan. Only 'solo' (19 €/month) may create deliveries.
-export const PLANS = ['solo'] as const;
-export type Plan = (typeof PLANS)[number];
-export const PLAN_LABELS: Record<Plan | 'free', string> = { free: 'Gratis', solo: 'Solo · 19 € im Monat' };
 
 export const DEFAULT_INCLUDED_ROUNDS = 2;
 // A Lightning invoice from the studio's wallet stays valid this long

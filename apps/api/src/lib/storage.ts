@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { sql } from 'drizzle-orm';
-import { dateLocales, GUEST_STORAGE_DEFAULT, MAX_STORAGE_PER_USER } from '@music-hub/shared';
+import { dateLocales, GUEST_STORAGE_DEFAULT, MAX_STORAGE_PER_USER, PLAN_STORAGE, activePlan } from '@music-hub/shared';
 import type { Database } from '@music-hub/db';
 import { rateLimit } from './rate-limit.js';
 import { keptSql } from './trash.js';
@@ -44,7 +44,19 @@ const uploadedFiles = sql`
     FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id WHERE NOT r.forked
 `;
 
-const limitSql = (userId: string) => sql`(SELECT coalesce(storage_limit, ${MAX_STORAGE_PER_USER}) FROM users WHERE id = ${userId})`;
+// The account's own limit, raised while a plan runs (activePlan in shared). greatest() skips the null of no plan.
+const limitSql = (userId: string) => sql`(
+  SELECT greatest(coalesce(storage_limit, ${MAX_STORAGE_PER_USER}),
+                  CASE WHEN plan_until IS NULL OR plan_until > now() THEN
+                    CASE plan WHEN 'pro' THEN ${PLAN_STORAGE.pro}::bigint WHEN 'solo' THEN ${PLAN_STORAGE.solo}::bigint END
+                  END)
+  FROM users WHERE id = ${userId})`;
+
+// The same rule for rows already loaded
+export const storageLimitOf = (user: { storageLimit: number | null; plan: string | null; planUntil: Date | null }) => {
+  const plan = activePlan(user);
+  return Math.max(user.storageLimit ?? MAX_STORAGE_PER_USER, plan ? PLAN_STORAGE[plan] : 0);
+};
 
 export async function storageOf(db: Executor, userId: string): Promise<Storage> {
   const [{ used, limit }] = await db.execute<{ used: string; limit: string }>(sql`

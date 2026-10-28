@@ -3,7 +3,7 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import { SIGNUP_STORAGE_PER_USER, type Locale, pickLocale } from '@music-hub/shared';
 import { pushSubscriptions, users, type Database } from '@music-hub/db';
 
-// Accounts in total, blocked ones included. Signing up stops here, invites still create accounts.
+// Accounts in total, blocked ones included, paying ones left out. Signing up stops here, invites still create accounts.
 export const MAX_USERS = 10;
 
 // Admins reset this account to try Music Hub as a new person (lib/test-account.ts). It doesn't count towards MAX_USERS.
@@ -20,7 +20,10 @@ export async function findUserByEmail(db: Pick<Database, 'select'>, email: strin
 }
 
 export async function registrationOpen(db: Pick<Database, 'execute'>) {
-  const [{ count }] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users WHERE email <> ${TEST_ACCOUNT_EMAIL}`);
+  const [{ count }] = await db.execute<{ count: number }>(sql`
+    SELECT count(*)::int AS count FROM users
+    WHERE email <> ${TEST_ACCOUNT_EMAIL} AND NOT (plan IS NOT NULL AND (plan_until IS NULL OR plan_until > now()))
+  `);
   return count < MAX_USERS;
 }
 

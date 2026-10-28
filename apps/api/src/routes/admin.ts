@@ -23,7 +23,7 @@ import {
 } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin, isAdminEmail, deviceLabel } from '../lib/admin.js';
-import { storageByUser } from '../lib/storage.js';
+import { storageByUser, storageLimitOf } from '../lib/storage.js';
 import { resetTestAccount } from '../lib/test-account.js';
 import type { AppEnv } from '../types.js';
 
@@ -173,7 +173,7 @@ async function loadPeople(db: Database, from: Date) {
       lastActiveAt,
       projectCount: own.length,
       storageBytes: storage.get(u.id) ?? 0,
-      storageLimitBytes: u.storageLimit ?? MAX_STORAGE_PER_USER,
+      storageLimitBytes: storageLimitOf(u),
       counts: counts.get(u.id) ?? NO_COUNTS,
       plan: u.plan,
       planUntil: u.planUntil?.toISOString() ?? null,
