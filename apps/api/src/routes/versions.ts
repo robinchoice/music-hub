@@ -223,7 +223,7 @@ export const versionRoutes = new Hono<AppEnv>()
     return c.json({ version }, 201);
   })
 
-  // Update label/notes/branchLabel: the uploader of the version or the owner
+  // Update label/notes/branchLabel, tempo and key: the uploader of the version or the owner
   .patch('/:id', zValidator('json', updateVersionSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
@@ -238,12 +238,15 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
+    // Tempo or key set by hand count as analysed, so the worker leaves them alone
+    const corrected = input.bpm !== undefined || input.keyRoot !== undefined;
     const [updated] = await db
       .update(versions)
-      .set(input)
+      .set(corrected ? { ...input, analyzedAt: new Date() } : input)
       .where(eq(versions.id, versionId))
       .returning();
 
+    if (corrected) publish(db, track.id, { type: 'version:details', data: { versionId } });
     return c.json({ version: updated });
   })
 

@@ -6,8 +6,8 @@ export const de = {
     integratedLoudness: 'Integrierte Lautheit (EBU R128)',
     truePeak: 'True Peak',
     loudnessRange: 'Lautheitsumfang (Loudness Range)',
-    tempo: 'Tempo, automatisch erkannt',
-    keyDetected: 'Tonart, automatisch erkannt',
+    tempo: 'Tempo',
+    keyName: 'Tonart',
     // German note names: B is B flat, H is B; minor keys are written in lower case
     key: (root: string, scale: 'major' | 'minor') => {
       const name = ({ 'C#': 'Cis', Eb: 'Es', 'F#': 'Fis', Ab: 'As', Bb: 'B', B: 'H' } as Record<string, string>)[root] ?? root;
@@ -264,7 +264,7 @@ export const de = {
     doneWith: (n: number) => `Fertig mit V${n}`,
     compareAll: 'Alle Versionen vergleichen',
     moreActions: 'Weitere Aktionen',
-    labelAndNotes: 'Bezeichnung und Notizen',
+    labelAndNotes: 'Version bearbeiten',
     downloadOriginal: 'Original herunterladen',
     removeOffline: 'Offline-Kopie entfernen',
     offlineDownload: (percent: number) => `Offline-Download ${percent}%`,
@@ -362,6 +362,9 @@ export const de = {
     labelPlaceholder: 'z. B. „Mehr Bass“',
     notes: 'Notizen',
     notesPlaceholder: 'Was hat sich geändert?',
+    bpm: 'BPM',
+    key: 'Tonart',
+    bpmKeyHint: 'Music Hub erkennt Tempo und Tonart selbst. Hier korrigierst du sie.',
   },
 };
 
@@ -373,8 +376,8 @@ export const en: typeof de = {
     integratedLoudness: 'Integrated loudness (EBU R128)',
     truePeak: 'True peak',
     loudnessRange: 'Loudness range (LRA)',
-    tempo: 'Tempo, detected automatically',
-    keyDetected: 'Key, detected automatically',
+    tempo: 'Tempo',
+    keyName: 'Key',
     key: (root: string, scale: 'major' | 'minor') => `${root.replace('#', '♯').replace('b', '♭')} ${scale}`,
   },
   shortcuts: {
@@ -625,7 +628,7 @@ export const en: typeof de = {
     doneWith: (n) => `Done with V${n}`,
     compareAll: 'Compare all versions',
     moreActions: 'More actions',
-    labelAndNotes: 'Label and notes',
+    labelAndNotes: 'Edit version',
     downloadOriginal: 'Download original',
     removeOffline: 'Remove offline copy',
     offlineDownload: (percent) => `Offline download ${percent}%`,
@@ -723,5 +726,8 @@ export const en: typeof de = {
     labelPlaceholder: 'e.g. “More bass”',
     notes: 'Notes',
     notesPlaceholder: 'What changed?',
+    bpm: 'BPM',
+    key: 'Key',
+    bpmKeyHint: 'Music Hub detects tempo and key by itself. Correct them here.',
   },
 };

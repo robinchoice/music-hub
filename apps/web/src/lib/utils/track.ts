@@ -37,7 +37,7 @@ export function fileDetails(v: Version) {
   const ext = v.originalFileName.match(/\.(\w+)$/)?.[1]?.toUpperCase();
   return [
     v.bpm != null && { text: `${Math.round(v.bpm)} BPM`, title: d.tempo },
-    v.keyRoot && (v.keyScale === 'major' || v.keyScale === 'minor') && { text: d.key(v.keyRoot, v.keyScale), title: d.keyDetected },
+    v.keyRoot && (v.keyScale === 'major' || v.keyScale === 'minor') && { text: d.key(v.keyRoot, v.keyScale), title: d.keyName },
     ext && { text: ext },
     v.sampleRate && { text: `${(v.sampleRate / 1000).toLocaleString(dateLocale())} kHz`, title: d.sampleRate },
     v.bitDepth && ext && LOSSLESS.has(ext) && {

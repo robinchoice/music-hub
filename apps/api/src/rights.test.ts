@@ -109,6 +109,17 @@ test('a version is renamed by its uploader or the owner, not by another uploader
   expect((await rename(owner, 'Mix 3')).status).toBe(200);
 });
 
+test('tempo and key corrected by hand count as analysed, a key needs its scale', async () => {
+  const correct = (body: object) => call(`/versions/${versionId}`, { method: 'PATCH', body, headers: producer.headers });
+  expect((await correct({ keyRoot: 'D' })).status).toBe(400);
+  expect((await correct({ keyRoot: 'H', keyScale: 'minor' })).status).toBe(400);
+  expect((await correct({ bpm: 84, keyRoot: 'D', keyScale: 'minor' })).status).toBe(200);
+  const [corrected] = await db.select().from(versions).where(eq(versions.id, versionId));
+  expect(corrected).toMatchObject({ bpm: 84, keyRoot: 'D', keyScale: 'minor' });
+  expect(corrected.analyzedAt).not.toBeNull();
+  expect((await correct({ bpm: null, keyRoot: null, keyScale: null })).status).toBe(200);
+});
+
 test('a parent version must be a live version of the same track', async () => {
   const [other] = await db.insert(tracks).values({ projectId, name: 'Anderswo', createdById: owner.id }).returning();
   const foreign = await version(other.id, 1, owner.id);

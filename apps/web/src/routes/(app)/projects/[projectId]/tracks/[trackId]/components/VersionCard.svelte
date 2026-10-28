@@ -46,7 +46,7 @@
     grow?: boolean;
     canApprove?: boolean;
     canUpload?: boolean;
-    /** Label and notes: the uploader of this version or the owner */
+    /** Label, notes, tempo and key: the uploader of this version or the owner */
     canEdit?: boolean;
     /** Originals are for roles with the download right; the MP3 for offline listening is for everyone */
     canDownload?: boolean;

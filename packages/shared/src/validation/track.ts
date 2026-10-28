@@ -71,11 +71,19 @@ export const createVersionSchema = z.object({
   branchLabel: z.string().max(100).optional(),
 });
 
+// Key roots as Essentia spells them; the worker stores them in versions.key_root
+export const KEY_ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+export const KEY_SCALES = ['major', 'minor'] as const;
+
 export const updateVersionSchema = z.object({
   label: z.string().max(100).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   branchLabel: z.string().max(100).nullable().optional(),
-});
+  // Tempo and key corrected by hand, null clears them; root and scale come together
+  bpm: z.number().min(20).max(400).nullable().optional(),
+  keyRoot: z.enum(KEY_ROOTS).nullable().optional(),
+  keyScale: z.enum(KEY_SCALES).nullable().optional(),
+}).refine((v) => (v.keyRoot == null) === (v.keyScale == null), { path: ['keyScale'] });
 
 export const rejectVersionSchema = z.object({
   reason: z.string().min(1, 'Begründung erforderlich').max(2000),

@@ -56,9 +56,9 @@ type DemoVersion = Omit<Version, 'openCommentCount' | 'rejectionReason'> & {
   integratedLufs: number;
   truePeak: number;
   loudnessRange: number;
-  bpm: number;
-  keyRoot: string;
-  keyScale: string;
+  bpm: number | null;
+  keyRoot: string | null;
+  keyScale: string | null;
 };
 type DemoComment = TrackComment & { versionId: string };
 type DemoReview = Review & { versionId: string };
@@ -458,6 +458,9 @@ const ROUTES: [string, RegExp, Handler][] = [
     const v = find(db.versions, id);
     if (body && 'label' in body) v.label = (body.label as string | null) ?? null;
     if (body && 'notes' in body) v.notes = (body.notes as string | null) ?? null;
+    if (body && 'bpm' in body) v.bpm = (body.bpm as number | null) ?? null;
+    if (body && 'keyRoot' in body) v.keyRoot = (body.keyRoot as string | null) ?? null;
+    if (body && 'keyScale' in body) v.keyScale = (body.keyScale as string | null) ?? null;
     return { version: withCounts(v) };
   }],
   ['GET', /^\/comments\/version\/([\w-]+)$/, ([id]) => {

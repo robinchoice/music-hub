@@ -34,7 +34,7 @@
     isOffline,
     type OfflineQuality,
   } from '$lib/stores/offline.svelte.js';
-  import { REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
+  import { KEY_ROOTS, KEY_SCALES, REVIEW_QUIET_MINUTES, SUPPORTED_EXTENSIONS, TRACK_STAGES, TRACK_STATUS_LABELS, type TrackStatus } from '@music-hub/shared';
   import {
     feedbackRows,
     hasWaveform,
@@ -129,6 +129,10 @@
   let editVersionOpen = $state(false);
   let editVersionLabel = $state('');
   let editVersionNotes = $state('');
+  let editVersionBpm = $state<number | null>(null);
+  // "D minor", empty without a key
+  let editVersionKey = $state('');
+  const keyChoices = $derived(KEY_SCALES.flatMap((scale) => KEY_ROOTS.map((root) => ({ value: `${root} ${scale}`, text: t().track.details.key(root, scale) }))));
   let savingVersion = $state(false);
   let offlineDownloading = $state(false);
   let offlineProgress = $state(0);
@@ -169,7 +173,7 @@
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
   // The uploader or the owner may remind approvers whose verdict is missing
-  // Label and notes of a version change its uploader or the owner, as the API allows
+  // Label, notes, tempo and key of a version change its uploader or the owner, as the API allows
   const canEdit = $derived(!!selectedVersion && canUpload && (selectedVersion.createdById === $user?.id || role === 'owner'));
   const canRemind = $derived(!!selectedVersion && !decided && canUpload && (selectedVersion.createdById === $user?.id || role === 'owner'));
   const feedbackRowsShown = $derived(feedbackRows(trackComments.comments, trackComments.reviews, decided ? [] : trackComments.waiting, selectedVersion?.createdById ?? null));
@@ -536,16 +540,27 @@
     if (!selectedVersion) return;
     editVersionLabel = selectedVersion.label ?? '';
     editVersionNotes = selectedVersion.notes ?? '';
+    editVersionBpm = selectedVersion.bpm ?? null;
+    editVersionKey = versionKey(selectedVersion);
     editVersionOpen = true;
+  }
+
+  function versionKey(v: Version) {
+    return v.keyRoot && v.keyScale ? `${v.keyRoot} ${v.keyScale}` : '';
   }
 
   async function saveVersion() {
     if (!selectedVersion) return;
     savingVersion = true;
+    // Tempo and key only go along when changed: a value set by hand stops the automatic detection
+    const bpm = editVersionBpm || null;
+    const [keyRoot = null, keyScale = null] = editVersionKey ? editVersionKey.split(' ') : [];
     try {
       await api.patch(`/versions/${selectedVersion.id}`, {
         label: editVersionLabel.trim() || null,
         notes: editVersionNotes.trim() || null,
+        ...(bpm !== (selectedVersion.bpm ?? null) && { bpm }),
+        ...(editVersionKey !== versionKey(selectedVersion) && { keyRoot, keyScale }),
       });
       toastSuccess(t().track.page.versionUpdated);
       editVersionOpen = false;
@@ -1109,6 +1124,22 @@
       <span class="lbl">{t().track.page.notes}</span>
       <textarea bind:value={editVersionNotes} rows="4" placeholder={t().track.page.notesPlaceholder}></textarea>
     </label>
+    <div class="edit-row">
+      <label>
+        <span class="lbl">{t().track.page.bpm}</span>
+        <input type="number" min="20" max="400" step="0.1" inputmode="decimal" bind:value={editVersionBpm} placeholder="–" />
+      </label>
+      <label>
+        <span class="lbl">{t().track.page.key}</span>
+        <select bind:value={editVersionKey}>
+          <option value="">–</option>
+          {#each keyChoices as choice (choice.value)}
+            <option value={choice.value}>{choice.text}</option>
+          {/each}
+        </select>
+      </label>
+    </div>
+    <p class="edit-hint">{t().track.page.bpmKeyHint}</p>
   </div>
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (editVersionOpen = false)}>{t().common.cancel}</Button>
@@ -1387,6 +1418,16 @@
     flex-direction: column;
     gap: var(--space-2);
   }
+  .edit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+  .edit-hint {
+    margin: calc(-1 * var(--space-2)) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+  }
   .edit-form .lbl {
     color: var(--color-text-secondary);
     font-size: var(--text-xs);
@@ -1395,6 +1436,7 @@
     letter-spacing: 0.06em;
   }
   .edit-form input,
+  .edit-form select,
   .edit-form textarea {
     padding: 0.7rem 0.9rem;
     border-radius: var(--radius-md);
@@ -1405,6 +1447,7 @@
     font-family: inherit;
   }
   .edit-form input:focus,
+  .edit-form select:focus,
   .edit-form textarea:focus {
     outline: none;
     border-color: var(--color-accent);

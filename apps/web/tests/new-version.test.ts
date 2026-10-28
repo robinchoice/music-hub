@@ -121,3 +121,27 @@ test('ready versions keep compact actions and the comparison metadata fits each 
     expect(await strip.locator('.lamp').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   }
 });
+
+test('tempo and key are corrected in the edit dialog of the version', async ({ page, baseURL }, testInfo) => {
+  const { projectId, trackId } = await newTrack(page);
+  const versionId = addVersion(trackId, userId, 'ready');
+  await page.request.patch(`/api/v1/versions/${versionId}`, { data: { bpm: 168.4, keyRoot: 'D', keyScale: 'minor' } });
+  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/demo/nachtbus-v1.mp3` } }));
+  await page.route('**/waveform-data', (route) => route.fulfill({ json: [0.2, 0.4, 0.1] }));
+  await page.goto(`/projects/${projectId}/tracks/${trackId}`);
+  const card = page.locator('.version-card');
+  await expect(card.getByText('168 BPM')).toBeVisible();
+  await expect(card.getByText('d-Moll')).toBeVisible();
+
+  await card.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('menuitem', { name: 'Version bearbeiten' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('BPM')).toHaveValue('168.4');
+  await expect(dialog.getByLabel('Tonart')).toHaveValue('D minor');
+  await page.screenshot({ path: testInfo.outputPath('edit-dialog.png') });
+  await dialog.getByLabel('BPM').fill('84');
+  await dialog.getByLabel('Tonart').selectOption({ label: 'F-Dur' });
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(card.getByText('84 BPM')).toBeVisible();
+  await expect(card.getByText('F-Dur')).toBeVisible();
+});

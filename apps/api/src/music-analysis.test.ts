@@ -104,3 +104,14 @@ test('gives way to a new upload and comes back to the version later', async () =
     await db.delete(audioJobs).where(eq(audioJobs.versionId, upload.id));
   }
 }, 10_000);
+
+test('a correction by hand during the analysis wins', async () => {
+  const corrected = await version({}, 4000);
+  fakeAnalysis(`setTimeout(() => console.log('${line(168.4, 2.8, 'D', 'minor', 0.86)}'), 1000)`);
+  const analysis = analyzeNextVersion(db, new AbortController().signal);
+  await Bun.sleep(300);
+  // As PATCH /versions/:id stores it
+  await db.update(versions).set({ bpm: 84, analyzedAt: new Date() }).where(eq(versions.id, corrected.id));
+  expect(await analysis).toBe(true);
+  expect(await stored(corrected.id)).toMatchObject({ bpm: 84, keyRoot: null });
+}, 10_000);

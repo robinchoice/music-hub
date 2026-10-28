@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
+import { KEY_ROOTS, KEY_SCALES } from '@music-hub/shared';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { hasWaitingAudioJob } from './audio-jobs.js';
 import { publish } from './sse.js';
@@ -87,12 +88,15 @@ export async function analyzeNextVersion(db: Database, stop: AbortSignal): Promi
     .orderBy(desc(versions.createdAt))
     .limit(1)
     .for('update', { skipLocked: true });
+  const claimedAt = new Date();
   const [version] = await db
     .update(versions)
-    .set({ analyzedAt: new Date() })
+    .set({ analyzedAt: claimedAt })
     .where(inArray(versions.id, next))
     .returning({ id: versions.id, trackId: versions.trackId, originalFileKey: versions.originalFileKey });
   if (!version) return false;
+  // A correction by hand sets analyzed_at anew while the analysis runs, and then wins
+  const stillOurs = and(eq(versions.id, version.id), eq(versions.analyzedAt, claimedAt));
 
   // A new upload goes first: the analysis stops, and the version comes back once the worker is idle again
   const upload = new AbortController();
@@ -103,12 +107,12 @@ export async function analyzeNextVersion(db: Database, stop: AbortSignal): Promi
   try {
     const music = await analyzeMusic(await createDownloadUrl(version.originalFileKey, 3600), signal);
     if (music) {
-      await db.update(versions).set(music).where(eq(versions.id, version.id));
-      publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
+      const [stored] = await db.update(versions).set(music).where(stillOurs).returning({ id: versions.id });
+      if (stored) publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
     }
   } catch (error) {
     if (!signal.aborted) throw error;
-    await db.update(versions).set({ analyzedAt: null }).where(eq(versions.id, version.id));
+    await db.update(versions).set({ analyzedAt: null }).where(stillOurs);
     if (stop.aborted) throw error;
   } finally {
     clearInterval(watch);
@@ -201,8 +205,6 @@ async function analyzeMusic(url: string, signal: AbortSignal) {
   return parseMusicAnalysis(output);
 }
 
-const KEY_ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
-
 // Keeps what Essentia is sure enough about. Its tempo confidence runs from 0 to 5.32, below 1 the beat
 // is a guess; silence comes out as a confident 738 BPM, hence the range. A key strength below 0.5 means
 // no key stood out.
@@ -211,7 +213,7 @@ export function parseMusicAnalysis(output: string): { bpm: number | null; keyRoo
     bpm: z.number(),
     bpmConfidence: z.number(),
     key: z.enum(KEY_ROOTS),
-    scale: z.enum(['major', 'minor']),
+    scale: z.enum(KEY_SCALES),
     keyStrength: z.number(),
   }).safeParse(JSON.parse(output));
   if (!parsed.success) return null;
