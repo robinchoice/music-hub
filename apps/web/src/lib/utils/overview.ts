@@ -26,6 +26,8 @@ export type OverviewProject = {
   myRole: string;
   myRoles: string[];
   members: { userId: string; role: string; roles: string[] }[];
+  /** Last visit of the project page; before the first one the old visit of any project counts */
+  seenAt?: string | null;
 };
 export type OverviewUser = { id: string; name: string; avatarUrl: string | null };
 export type OverviewTrack = {
@@ -315,7 +317,7 @@ export function trackInfo(ix: OverviewIndex, track: OverviewTrack): TrackInfo {
   }
   const done = track.status === 'final' || track.status === 'released' || latest?.status === 'approved';
   const events = eventsOf(ix, [track]);
-  const seen = ix.data.tracksSeenAt;
+  const seen = project.seenAt ?? ix.data.tracksSeenAt;
   return {
     track,
     project,

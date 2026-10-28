@@ -136,6 +136,7 @@
     <input
       type="text"
       bind:value={label}
+      maxlength={100}
       aria-label={t().track.drop.versionLabel}
       placeholder={t().track.drop.versionLabelPlaceholder}
       disabled={uploading}

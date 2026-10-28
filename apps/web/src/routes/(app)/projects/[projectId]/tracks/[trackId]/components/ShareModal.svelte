@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import Modal from '$lib/components/ui/Modal.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -91,7 +92,7 @@
   }
 
   async function revoke(linkId: string) {
-    if (!confirm(t().track.share.confirmRevoke)) return;
+    if (!(await ask(t().track.share.confirmRevoke))) return;
     await api.delete(`/share/${linkId}`);
     toastSuccess(t().track.share.revoked);
     await loadLinks();

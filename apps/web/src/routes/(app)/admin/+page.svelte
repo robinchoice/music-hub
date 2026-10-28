@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { env } from '$env/dynamic/public';
   import { api } from '$lib/api/client.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -130,7 +131,7 @@
   });
 
   async function resolveReport(report: Report, close: boolean) {
-    if (close && !confirm(`Die öffentliche Seite von „${report.trackName}“ schließen?`)) return;
+    if (close && !(await ask(`Die öffentliche Seite von „${report.trackName}“ schließen?`))) return;
     await api.post(`/admin/open-reports/${report.id}/resolve${close ? '?close=1' : ''}`);
     await loadReports();
   }

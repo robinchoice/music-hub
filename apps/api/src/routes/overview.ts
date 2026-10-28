@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { memberRoles, taskKeySchema, REJECTION_PREFIX } from '@music-hub/shared';
@@ -24,6 +25,9 @@ const LISTEN_WINDOW_DAYS = 90;
 const BODY_LIMIT = 200;
 const DAY_MS = 86_400_000;
 
+// Older web versions post without a body
+const seenSchema = z.object({ projectId: z.string().uuid().optional() });
+
 const iso = (value: Date | string | null | undefined) => (value ? new Date(value).toISOString() : null);
 
 export const overviewRoutes = new Hono<AppEnv>()
@@ -39,7 +43,7 @@ export const overviewRoutes = new Hono<AppEnv>()
       db.select({ taskKey: taskDismissals.taskKey }).from(taskDismissals).where(eq(taskDismissals.userId, userId)),
       storageSummary(db, userId),
       db
-        .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
+        .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles, seenAt: projectMembers.seenAt })
         .from(projectMembers)
         .innerJoin(projects, eq(projects.id, projectMembers.projectId))
         .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)))
@@ -200,13 +204,14 @@ export const overviewRoutes = new Hono<AppEnv>()
 
     return c.json({
       projects: await Promise.all(
-        memberships.map(async ({ project, role, extraRoles }) => ({
+        memberships.map(async ({ project, role, extraRoles, seenAt }) => ({
           id: project.id,
           name: project.name,
           artist: project.artist,
           coverUrl: project.coverImageUrl ? await createDownloadUrl(project.coverImageUrl) : null,
           myRole: role,
           myRoles: memberRoles({ role, extraRoles }),
+          seenAt: iso(seenAt),
           members: members
             .filter((m) => m.projectId === project.id)
             .map((m) => ({ userId: m.userId, role: m.role, roles: memberRoles(m) })),
@@ -258,11 +263,22 @@ export const overviewRoutes = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
 
-  // The user just left the "Tracks" page; newer activity counts as new from here on
+  // The user just left a project page; newer activity there counts as new from here on.
+  // Older web versions send no project and mark all of them.
   .post('/seen', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
+    const input = seenSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!input.success) return c.json({ error: 'Invalid request' }, 400);
+    const { projectId } = input.data;
     const now = new Date();
+    if (projectId) {
+      await db
+        .update(projectMembers)
+        .set({ seenAt: now })
+        .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+      return c.json({ projectId, seenAt: now.toISOString() });
+    }
     await db.update(users).set({ tracksSeenAt: now }).where(eq(users.id, userId));
     return c.json({ tracksSeenAt: now.toISOString() });
   });

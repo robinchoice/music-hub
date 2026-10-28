@@ -44,6 +44,7 @@
     canDownload,
     currentUserId,
     role,
+    locked = false,
     onUpload,
   }: {
     trackId: string;
@@ -55,6 +56,8 @@
     canDownload: boolean;
     currentUserId: string | null;
     role: string;
+    /** An open track keeps its stems; the API would refuse the new file only after the upload */
+    locked?: boolean;
     onUpload: () => void;
   } = $props();
 
@@ -101,6 +104,7 @@
 
   function pickReplacement(stem: Stem) {
     if (demoMode) return toastError(t().track.stems.demoUnavailable);
+    if (locked) return toastError(t().track.stems.openLocked);
     replaceTarget = stem;
     fileInput.click();
   }

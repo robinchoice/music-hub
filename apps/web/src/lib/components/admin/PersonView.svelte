@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { PLAN_LABELS, ROLE_LABELS, type AdminPlanResponse, type Plan } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
@@ -86,7 +87,7 @@
   async function toggleBlock() {
     if (!p) return;
     const block = !p.blocked;
-    if (block && !confirm(`${p.name} sperren? Alle Sessions enden, Login und Share-Links gehen nicht mehr.`)) return;
+    if (block && !(await ask(`${p.name} sperren? Alle Sessions enden, Login und Share-Links gehen nicht mehr.`))) return;
     blocking = true;
     try {
       const path = `/admin/users/${p.id}/block`;

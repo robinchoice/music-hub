@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { checkAuth, authLoading, user } from '$lib/stores/auth.js';
   import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+  import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
   import { locale, t } from '$lib/i18n/index.js';
   // @ts-ignore — no types shipped for fontsource
   import '@fontsource-variable/inter';
@@ -20,6 +21,10 @@
       $page.url.pathname.startsWith('/listen/') ||
       $page.url.pathname === '/offen' ||
       $page.url.pathname.startsWith('/offen/') ||
+      $page.url.pathname.startsWith('/album/') ||
+      $page.url.pathname.startsWith('/upload/') ||
+      $page.url.pathname.startsWith('/@') ||
+      $page.url.pathname === '/abbestellen' ||
       $page.url.pathname.startsWith('/auth/'),
   );
 
@@ -87,6 +92,7 @@
   {/if}
 
   <ToastContainer />
+  <ConfirmDialog />
 </div>
 
 <style>

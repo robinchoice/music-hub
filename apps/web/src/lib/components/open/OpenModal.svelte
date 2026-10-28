@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { locale, t } from '$lib/i18n/index.js';
   import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
@@ -61,7 +62,7 @@
   const consent = () => run(() => api.post(`/tracks/${trackId}/open/consent`));
 
   async function close() {
-    if (!confirm(openState.openedAt ? t().guest.openModal.confirmCloseOpen(trackName) : t().guest.openModal.confirmWithdraw)) return;
+    if (!(await ask(openState.openedAt ? t().guest.openModal.confirmCloseOpen(trackName) : t().guest.openModal.confirmWithdraw))) return;
     await run(() => api.delete(`/tracks/${trackId}/open`));
     toastSuccess(openState.openedAt ? t().guest.openModal.closed : t().guest.openModal.withdrawn);
   }

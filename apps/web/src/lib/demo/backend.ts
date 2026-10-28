@@ -209,8 +209,8 @@ function ensureLanguage() {
   seededIn = locale();
 }
 
-// "Erledigt" and the last visit of "Tracks"; like every change in the demo they stay in this window
-const overviewState = { dismissed: new Set<string>(), tracksSeenAt: null as string | null };
+// "Erledigt" and the last visit of each project; like every change in the demo they stay in this window
+const overviewState = { dismissed: new Set<string>(), seenAt: new Map<string, string>() };
 
 // Roles in the demo projects: Jonas owns them, Kai mixes and masters, Mara and Lisa are the band
 const MEMBERS = [
@@ -223,7 +223,7 @@ const MEMBERS = [
 function overview() {
   const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
   return {
-    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], members: MEMBERS })),
+    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], members: MEMBERS, seenAt: overviewState.seenAt.get(p.id) ?? null })),
     users: [MARA, KAI, LISA, JONAS],
     tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, sortOrder: t.sortOrder, createdAt: t.createdAt, createdById: JONAS.id })),
     versions: db.versions.map((v) => ({
@@ -263,7 +263,7 @@ function overview() {
     ],
     storage: { usedBytes: 0, versionBytes: 0, stemBytes: 0, limitBytes: 20 * 1024 ** 3, topTracks: [] },
     dismissedTaskKeys: [...overviewState.dismissed],
-    tracksSeenAt: overviewState.tracksSeenAt,
+    tracksSeenAt: null,
   };
 }
 
@@ -567,7 +567,12 @@ const ROUTES: [string, RegExp, Handler][] = [
     overviewState.dismissed.delete(String(body?.taskKey));
     return { ok: true };
   }],
-  ['POST', /^\/overview\/seen$/, () => ({ tracksSeenAt: (overviewState.tracksSeenAt = new Date().toISOString()) })],
+  ['POST', /^\/overview\/seen$/, (_, body) => {
+    const projectId = String(body?.projectId);
+    const seenAt = new Date().toISOString();
+    overviewState.seenAt.set(projectId, seenAt);
+    return { projectId, seenAt };
+  }],
 ];
 
 /** The example on /offen: Nachtbus as GET /open/:trackId would return it once opened. */

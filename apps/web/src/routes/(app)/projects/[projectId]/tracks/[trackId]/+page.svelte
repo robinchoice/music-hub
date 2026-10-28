@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client.js';
   import { user } from '$lib/stores/auth.js';
-  import { toast, toasts, toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { toast, toasts, toastError, toastSuccess, toastTrash } from '$lib/stores/toast.js';
   import { loadOverview, overviewIndex } from '$lib/stores/overview.js';
   import { trackInfo } from '$lib/utils/overview.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
@@ -443,6 +443,7 @@
 
   async function undoApprove(id: string) {
     await api.post(`/versions/${id}/unapprove`).catch(() => {});
+    await refreshVersions();
     await trackComments.reload();
     await reloadOpenState();
   }
@@ -486,11 +487,11 @@
     void loadOverview();
   }
 
-  function handleDownload() {
+  // The URL answers as an attachment, so the page stays; a window opened after the await would be a blocked popup
+  async function handleDownload() {
     if (!selectedVersion) return;
-    api.get<{ url: string }>(`/versions/${selectedVersion.id}/download-url`).then((res) => {
-      window.open(res.url, '_blank');
-    });
+    const res = await api.get<{ url: string }>(`/versions/${selectedVersion.id}/download-url`);
+    window.location.href = res.url;
   }
 
   // The tab and the version stay in the URL, so a reload lands on the same view
@@ -606,7 +607,7 @@
       toastSuccess(t().track.page.offlineReady);
     } catch (e) {
       const msg = e instanceof Error ? e.message : t().track.drop.error;
-      toastSuccess(t().track.page.downloadFailed(msg));
+      toastError(t().track.page.downloadFailed(msg));
     } finally {
       offlineDownloading = false;
     }
@@ -1015,7 +1016,7 @@
             onUpload={openUpload}
           />
         {:else}
-          <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+          <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} locked={!!openState?.openedAt} onUpload={openStemUpload} />
         {/if}
       </div>
     </aside>
@@ -1045,7 +1046,7 @@
         onUpload={openUpload}
       />
     {:else}
-      <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} onUpload={openStemUpload} />
+      <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} locked={!!openState?.openedAt} onUpload={openStemUpload} />
     {/if}
   </Sheet>
 {/if}

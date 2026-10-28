@@ -406,7 +406,7 @@ export const versionRoutes = new Hono<AppEnv>()
     publish(db, version.trackId, { type: 'review:new', data: { versionId } });
 
     // undone: the audio stays the same, the player needn't reload
-    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready', undone: true } });
+    publish(db, version.trackId, { type: 'version:status', data: { versionId, status: updated.status, undone: true } });
 
     return c.json({ version: updated });
   })

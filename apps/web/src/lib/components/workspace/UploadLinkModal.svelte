@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -35,13 +36,13 @@
   }
 
   async function renew() {
-    if (!confirm(t().workspace.uploadLink.confirmRenew)) return;
+    if (!(await ask(t().workspace.uploadLink.confirmRenew))) return;
     await create();
     toastSuccess(t().workspace.uploadLink.renewed);
   }
 
   async function switchOff() {
-    if (!confirm(t().workspace.uploadLink.confirmSwitchOff)) return;
+    if (!(await ask(t().workspace.uploadLink.confirmSwitchOff))) return;
     await api.delete(`/upload-links/project/${projectId}`);
     link = null;
     toastSuccess(t().workspace.uploadLink.switchedOff);

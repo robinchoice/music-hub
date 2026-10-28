@@ -168,6 +168,7 @@ export const de = {
   },
   stems: {
     demoUnavailable: 'In der Demo nicht verfügbar',
+    openLocked: 'Der Track ist offen. Schließe ihn, um Spuren zu ersetzen.',
     zipTooBig: 'Zu groß für ein ZIP — bitte die Spuren einzeln laden',
     newTakeUploaded: (name: string) => `Neue Fassung von „${name}“ hochgeladen`,
     takeRestored: (file: string) => `„${file}“ ist wieder die aktuelle Fassung`,
@@ -528,6 +529,7 @@ export const en: typeof de = {
   },
   stems: {
     demoUnavailable: 'Not available in the demo',
+    openLocked: 'The track is open. Close it to replace stems.',
     zipTooBig: 'Too large for a ZIP — please download the stems one by one',
     newTakeUploaded: (name) => `New take of “${name}” uploaded`,
     takeRestored: (file) => `“${file}” is the current take again`,

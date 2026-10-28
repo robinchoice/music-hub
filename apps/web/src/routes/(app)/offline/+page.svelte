@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { onMount } from 'svelte';
   import { t, dateLocale } from '$lib/i18n/index.js';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
@@ -35,7 +36,7 @@
   }
 
   async function handleRemoveAll() {
-    if (!confirm(t().workspace.offline.confirmRemoveAll)) return;
+    if (!(await ask(t().workspace.offline.confirmRemoveAll))) return;
     for (const v of offlineVersions.value) {
       await removeOffline(v.versionId);
     }

@@ -14,7 +14,7 @@ test('a guest without an account sends stems for a new song through the upload l
   await page.goto(`/projects/${project.id}`);
   await page.getByRole('button', { name: 'Upload-Link' }).click();
   await page.getByRole('button', { name: 'Link erstellen' }).click();
-  const url = await page.getByLabel('Upload-Link').inputValue();
+  const url = await page.getByRole('textbox', { name: 'Upload-Link' }).inputValue();
   expect(url).toMatch(new RegExp(`^${baseURL}/upload/\\w+$`));
 
   const guest = await browser.newContext(baseURL ? { baseURL } : {});

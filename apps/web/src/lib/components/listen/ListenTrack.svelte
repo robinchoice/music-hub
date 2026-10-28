@@ -364,6 +364,7 @@
             <input
               type="text"
               bind:value={nameInput}
+              maxlength={100}
               placeholder={t().guest.listenTrack.yourName}
               onkeydown={(e) => e.key === 'Enter' && submitName()}
               autofocus
@@ -390,7 +391,7 @@
         <form class="comment-form" onsubmit={submitComment}>
           <h2>{t().guest.listenTrack.leaveFeedback}</h2>
           <p class="hint">{t().guest.listenTrack.feedbackHint}</p>
-          <input type="text" bind:value={guestName} placeholder={t().guest.listenTrack.yourName} required />
+          <input type="text" bind:value={guestName} maxlength={100} placeholder={t().guest.listenTrack.yourName} required />
           {#if commentTimestamp !== null}
             <span class="ts-badge">
               {t().guest.listenTrack.atTime(formatTime(commentTimestamp))}
@@ -399,6 +400,7 @@
           {/if}
           <textarea
             bind:value={body}
+            maxlength={5000}
             placeholder={t().guest.listenTrack.commentPlaceholder}
             rows="3"
             required

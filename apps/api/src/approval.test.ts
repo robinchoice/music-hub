@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { eq, inArray } from 'drizzle-orm';
-import { createDb, migrateDb, openTracks, projects, tracks, users, versions } from '@music-hub/db';
+import { createDb, migrateDb, openTracks, projectMembers, projects, reviews, tracks, users, versions } from '@music-hub/db';
 import { undoApproval } from './lib/approval.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
@@ -39,6 +39,10 @@ beforeAll(async () => {
   [owner, artist] = [await user('Robin'), await user('Lea')];
   const [project] = await db.insert(projects).values({ name: 'Fernlicht', createdById: owner }).returning();
   [{ id: trackId }] = await db.insert(tracks).values({ projectId: project.id, name: 'Nachtbus', createdById: owner }).returning();
+  await db.insert(projectMembers).values([
+    { projectId: project.id, userId: owner, role: 'owner', canApprove: true },
+    { projectId: project.id, userId: artist, role: 'artist', canApprove: true },
+  ]);
 });
 
 afterAll(async () => {
@@ -66,4 +70,17 @@ test('an approval stays once a request to open the track builds on it', async ()
   const id = await approvedBy(owner);
   await db.insert(openTracks).values({ trackId, versionId: id, license: 'cc-by', requestedById: owner });
   expect(await undoApproval(db, id, owner)).toBeNull();
+});
+
+test('undoing the approval of a rejected version leaves it rejected', async () => {
+  const rejectedAt = new Date(Date.now() - 60_000);
+  const approvedAt = new Date();
+  const id = await approvedBy(artist);
+  await db.update(versions).set({ decidedAt: approvedAt }).where(eq(versions.id, id));
+  await db.insert(reviews).values([
+    { versionId: id, userId: owner, verdict: 'changes', note: 'Gesang lauter', createdAt: rejectedAt },
+    { versionId: id, userId: artist, verdict: 'approve', createdAt: approvedAt },
+  ]);
+  const undone = await undoApproval(db, id, artist);
+  expect(undone).toMatchObject({ status: 'rejected', decidedById: owner, decidedAt: rejectedAt });
 });

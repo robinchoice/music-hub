@@ -53,6 +53,8 @@ export const projectMembers = pgTable(
     canComment: boolean('can_comment').default(true).notNull(),
     canApprove: boolean('can_approve').default(false).notNull(),
     invitedAt: timestamp('invited_at').defaultNow().notNull(),
+    // Leaving the project page; newer activity there shows as new. Null: users.tracks_seen_at counts
+    seenAt: timestamp('seen_at'),
   },
   (table) => [unique().on(table.projectId, table.userId)],
 );

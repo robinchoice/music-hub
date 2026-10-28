@@ -110,7 +110,7 @@
           <button type="button" class="ts-remove" onclick={() => (commentTimestamp = null)} aria-label={t().track.commentSection.removePosition}>×</button>
         </span>
       {/if}
-      <input bind:this={input} type="text" bind:value={body} placeholder={t().track.commentSection.placeholder(versionLabel)} />
+      <input bind:this={input} type="text" bind:value={body} maxlength={5000} placeholder={t().track.commentSection.placeholder(versionLabel)} />
       <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>{t().track.commentSection.send}</Button>
     </form>
     <p class="hint"><span class="mouse">{t().track.commentSection.hintClick}</span><span class="touch">{t().track.commentSection.hintTap}</span><span class="mouse">{' '}{t().track.commentSection.hintKey}</span></p>

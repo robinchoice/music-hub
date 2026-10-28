@@ -171,6 +171,7 @@
 
 <svelte:head>
   <title>{album ? album.project.name : 'Music Hub'}</title>
+  <meta name="robots" content="noindex" />
 </svelte:head>
 
 <div class="shell">

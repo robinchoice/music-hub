@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { t } from '$lib/i18n/index.js';
   import Icon from './Icon.svelte';
+  import { trapFocus } from '$lib/utils/focus-trap.js';
 
   let {
     open = $bindable(false),
@@ -19,18 +20,14 @@
     if (e.target === e.currentTarget) open = false;
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') open = false;
-  }
+  const titleId = `modal-${crypto.randomUUID()}`;
 </script>
 
-<svelte:window onkeydown={open ? handleKeydown : undefined} />
-
 {#if open}
-  <div class="backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true">
-    <div class="modal">
+  <div class="backdrop" onclick={handleBackdrop} role="presentation">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabindex="-1" use:trapFocus={() => (open = false)}>
       <div class="modal-header">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button class="close-btn" onclick={() => open = false} aria-label={t().common.close}>
           <Icon name="x" size={18} />
         </button>
@@ -72,6 +69,7 @@
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
     animation: pop-in 280ms var(--ease-spring);
+    outline: none;
   }
 
   @keyframes fade-in {

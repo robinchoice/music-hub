@@ -109,8 +109,8 @@ test('a client approves every song, pays by transfer, and downloads once the stu
   await context.addCookies(studio);
   await page.goto(`/projects/${projectId}?view=auftrag`);
   await expect(page.getByText('Lena Berger hat 280 € per Überweisung angekündigt.')).toBeVisible();
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Zahlung eingegangen' }).first().click();
+  await page.getByRole('dialog', { name: 'Bist du sicher?' }).getByRole('button', { name: 'Ja, weiter' }).click();
   await expect(page.getByText('Bezahlt', { exact: true })).toBeVisible();
 
   // Now the originals are there

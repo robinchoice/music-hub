@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { trapFocus } from '$lib/utils/focus-trap.js';
 
   let {
     open = $bindable(false),
@@ -14,17 +15,11 @@
   function handleBackdrop(e: MouseEvent) {
     if (e.target === e.currentTarget) open = false;
   }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') open = false;
-  }
 </script>
 
-<svelte:window onkeydown={open ? handleKeydown : undefined} />
-
 {#if open}
-  <div class="backdrop" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label={title}>
-    <div class="sheet">
+  <div class="backdrop" onclick={handleBackdrop} role="presentation">
+    <div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" use:trapFocus={() => (open = false)}>
       <div class="grabber" aria-hidden="true"></div>
       {@render children()}
     </div>
@@ -50,6 +45,7 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding: var(--space-2) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom));
     box-shadow: var(--shadow-lg);
+    outline: none;
   }
 
   .grabber {

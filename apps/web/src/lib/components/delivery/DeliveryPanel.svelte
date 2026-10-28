@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { onMount } from 'svelte';
   import {
     DEFAULT_INCLUDED_ROUNDS,
@@ -133,15 +134,15 @@
   const gift = (d: StudioDelivery, t: StudioDeliveryTrack) =>
     act(`gift:${t.trackId}`, `/deliveries/${d.id}/tracks/${t.trackId}/gift`, {}, tx.roundGifted(t.name));
 
-  function confirmPayment(d: StudioDelivery, p: StudioPayment) {
+  async function confirmPayment(d: StudioDelivery, p: StudioPayment) {
     const where = p.method === 'lightning' ? tx.inYourWallet : tx.onYourAccount;
     const then = d.status === 'open' ? tx.confirmThenOpen(d.clientName) : tx.confirmThenRefund;
-    if (!confirm(`${tx.confirmPaid(euro(p.amountCents), where)}${then}`)) return;
+    if (!(await ask(`${tx.confirmPaid(euro(p.amountCents), where)}${then}`))) return;
     void act(`pay:${p.id}`, `/deliveries/${d.id}/payments/${p.id}/confirm`, {}, tx.paymentConfirmed);
   }
 
-  function cancel(d: StudioDelivery) {
-    if (!confirm(tx.confirmCancel(d.clientName))) return;
+  async function cancel(d: StudioDelivery) {
+    if (!(await ask(tx.confirmCancel(d.clientName)))) return;
     void act('cancel', `/deliveries/${d.id}/cancel`, {}, tx.orderCanceled);
   }
 

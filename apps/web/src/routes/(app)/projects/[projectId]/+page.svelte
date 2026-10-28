@@ -23,7 +23,7 @@
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
   import DeliveryPanel from '$lib/components/delivery/DeliveryPanel.svelte';
-  import { overviewIndex, overviewFailed, loadOverview, markTracksSeen } from '$lib/stores/overview.js';
+  import { overviewIndex, overviewFailed, loadOverview, markProjectSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
 
@@ -99,7 +99,7 @@
 
   // New markers count from the last visit; leaving the project ends this one
   onDestroy(() => {
-    void markTracksSeen();
+    if (projectId) void markProjectSeen(projectId);
   });
 
   onMount(async () => {

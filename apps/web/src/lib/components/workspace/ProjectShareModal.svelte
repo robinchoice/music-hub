@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ask } from '$lib/stores/confirm.js';
   import { t, locale } from '$lib/i18n/index.js';
   import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
@@ -97,7 +98,7 @@
 
   async function switchOff() {
     if (!link) return;
-    if (!confirm(t().workspace.share.confirmSwitchOff)) return;
+    if (!(await ask(t().workspace.share.confirmSwitchOff))) return;
     try {
       await api.delete(`/share/project-link/${link.id}`);
     } catch {
