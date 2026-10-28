@@ -17,7 +17,7 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import { dateLocale, locale, t } from '$lib/i18n/index.js';
-  import { STUDIO_STATE_LABELS, euroInput, parseEuro, roundDots, roundsText } from '$lib/utils/delivery.js';
+  import { euroInput, parseEuro, roundDots, roundsText } from '$lib/utils/delivery.js';
 
   // The owner's view of the project's delivery: create it, follow the client's decisions, confirm payment
   let { projectId, tracks }: { projectId: string; tracks: { id: string; name: string }[] } = $props();
@@ -31,6 +31,7 @@
   // Not t, the tracks in this file are called t
   const tx = $derived(t().delivery.panel);
   const common = $derived(t().common);
+  const studioState = $derived(t().delivery.utils.studioState);
   const euro = (cents: number) => formatEuro(cents, locale());
 
   const active = $derived(list?.deliveries.find((d) => d.status !== 'cancelled') ?? null);
@@ -221,7 +222,7 @@
                     </span>
                     <small>{t.roundsUsed - t.extraRounds}/{t.roundsIncluded}{t.extraRounds ? ` · +${euro(t.extraCents)}` : ''}</small>
                   </td>
-                  <td class="status"><span class="chip {t.state}">{STUDIO_STATE_LABELS[t.state]}</span></td>
+                  <td class="status"><span class="chip {t.state}">{studioState[t.state]}</span></td>
                   <td class="num">{euro(t.priceCents)}</td>
                   {#if gifting}
                     <td class="act" class:idle={!canGift(d, t)}>

@@ -5,7 +5,7 @@ import { messages } from './messages.js';
 
 // The language of a request: the web's choice from its footer (cookie), else
 // Accept-Language. Plugin and CLI send neither and get German.
-export const locale = (c: Context) => pickLocale(getCookie(c, 'locale') ?? c.req.header('accept-language'));
+export const locale = (c: Context) => statedLocale(c) ?? 'de';
 
 // Texts in that language
 export const t = (c: Context) => messages[locale(c)];

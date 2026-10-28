@@ -1,4 +1,6 @@
 // Overview, "Für dich", account, device, and the helpers and components behind them.
+import { de as workspaceDe, en as workspaceEn } from './workspace.js';
+
 export const de = {
   // Used by several pages of this area
   shared: {
@@ -12,8 +14,7 @@ export const de = {
 
   // utils/overview.ts
   names: {
-    joinNames: (names: string[]) =>
-      names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`,
+    joinNames: workspaceDe.joinList,
     guestNamed: (name: string) => `${name} (Gast)`,
     guestViaLink: (name: string) => (name ? `${name} (per Link)` : 'Gäste per Link'),
   },
@@ -324,12 +325,7 @@ export const en: typeof de = {
   },
 
   names: {
-    joinNames: (names) =>
-      names.length < 2
-        ? names.join('')
-        : names.length === 2
-          ? `${names[0]} and ${names[1]}`
-          : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`,
+    joinNames: workspaceEn.joinList,
     guestNamed: (name) => `${name} (guest)`,
     guestViaLink: (name) => (name ? `${name} (via link)` : 'Guests via link'),
   },

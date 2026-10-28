@@ -13,7 +13,7 @@
   import DecisionDialog from '$lib/components/delivery/DecisionDialog.svelte';
   import PayDialog from '$lib/components/delivery/PayDialog.svelte';
   import { toastError } from '$lib/stores/toast.js';
-  import { CLIENT_STATE_LABELS, guestRequest, roundDots, roundsText } from '$lib/utils/delivery.js';
+  import { guestRequest, roundDots, roundsText } from '$lib/utils/delivery.js';
 
   type Album = ProjectPublicDeliveryFields & {
     project: { name: string; artist: string | null; coverUrl: string | null };
@@ -216,7 +216,7 @@
                     </span>
                     {#if dt}
                       <span class="state">
-                        <span class="chip {dt.state}">{CLIENT_STATE_LABELS[dt.state]}</span>
+                        <span class="chip {dt.state}">{t().delivery.utils.clientState[dt.state]}</span>
                         {@render dots(dt)}
                       </span>
                     {/if}

@@ -1,18 +1,6 @@
 import { locale, t } from '$lib/i18n/index.js';
 import { z } from 'zod';
-import { DELIVERY_ERROR_CODES, DELIVERY_ERRORS, formatEuro, type DeliveryErrorCode, type DeliveryTrackState } from '@music-hub/shared';
-
-// What the client and the studio read for the state of a song. Getters, so they follow the language.
-export const CLIENT_STATE_LABELS: Record<DeliveryTrackState, string> = {
-  get review() { return t().delivery.utils.clientState.review; },
-  get changes() { return t().delivery.utils.clientState.changes; },
-  get approved() { return t().delivery.utils.clientState.approved; },
-};
-export const STUDIO_STATE_LABELS: Record<DeliveryTrackState, string> = {
-  get review() { return t().delivery.utils.studioState.review; },
-  get changes() { return t().delivery.utils.studioState.changes; },
-  get approved() { return t().delivery.utils.studioState.approved; },
-};
+import { DELIVERY_ERROR_CODES, DELIVERY_ERRORS, formatEuro, type DeliveryErrorCode } from '@music-hub/shared';
 
 /** "120", "120,50" or "1.234,5" in euros as cents; null when it is no amount */
 export function parseEuro(text: string): number | null {
@@ -57,8 +45,6 @@ export function roundsText(r: Rounds) {
   if (freeUsed > 0) return `${u.roundsUsedNoneIncluded(u.rounds(freeUsed))}${extra ? ` + ${extra}` : ''}`;
   return `${u.noRoundsIncluded}${extra ? ` · ${extra}` : ''}`;
 }
-
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 const errorAnswer = z.object({
   error: z.string(),

@@ -66,11 +66,12 @@ export function formatWhen(iso: string, now = Date.now()): string {
   if (diff < MINUTE) return text.justNow;
   if (diff < HOUR) return text.minutesAgo(Math.floor(diff / MINUTE));
   if (diff < 6 * HOUR) return text.hoursAgo(Math.floor(diff / HOUR));
-  const hm = d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
+  const language = dateLocale();
+  const hm = d.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' });
   if (time >= dayStart(now)) return text.todayAt(hm);
   if (time >= dayStart(now, 1)) return text.yesterdayAt(hm);
-  if (time >= dayStart(now, 6)) return `${d.toLocaleDateString(dateLocale(), { weekday: 'short' })}, ${hm}`;
-  return d.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' });
+  if (time >= dayStart(now, 6)) return `${d.toLocaleDateString(language, { weekday: 'short' })}, ${hm}`;
+  return d.toLocaleDateString(language, { day: 'numeric', month: 'short' });
 }
 
 /** "heute", "gestern" or "3.10." */

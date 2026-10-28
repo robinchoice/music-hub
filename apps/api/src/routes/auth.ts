@@ -25,11 +25,11 @@ import {
   setSessionCookie,
 } from '../middleware/auth.js';
 import { isAdminEmail } from '../lib/admin.js';
+import { locale, statedLocale, t } from '../lib/i18n.js';
 import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
-import { locale, statedLocale, t } from '../lib/i18n.js';
 
 const MINUTE = 60 * 1000;
 // Failed password logins per IP and per account. Each attempt counts before the
@@ -52,7 +52,7 @@ const userColumns = {
   updatesConsentAt: users.updatesConsentAt,
   locale: users.locale,
 };
-type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null; locale?: string };
+type UserRow = { id: string; email: string; name: string; avatarUrl: string | null; versionMails: boolean; updatesConsentAt: Date | null; locale: string };
 export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsentAt }: UserRow) => ({
   id,
   email,
