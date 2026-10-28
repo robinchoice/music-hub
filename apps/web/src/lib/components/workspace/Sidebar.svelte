@@ -18,6 +18,7 @@
   const NAV = $derived([
     { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview },
     { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou },
+    { href: '/board', icon: 'kanban', label: t().workspace.nav.board },
     { href: '/offen', icon: 'git-branch', label: t().workspace.nav.openMusic },
     { href: '/trash', icon: 'trash', label: t().workspace.nav.trash },
     { href: '/archive', icon: 'archive', label: t().workspace.nav.archive },

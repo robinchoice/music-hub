@@ -270,7 +270,7 @@ test('the entry point passes the exit code to the shell', async () => {
 // A project of its owner with songs, in this order
 async function projectWithTracks(owner: { id: string }, name: string, songs: string[]) {
   const [project] = await db.insert(projects).values({ name, createdById: owner.id }).returning();
-  await db.insert(projectMembers).values({ projectId: project!.id, userId: owner.id, role: 'owner' });
+  await db.insert(projectMembers).values({ projectId: project!.id, userId: owner.id, role: 'owner', canUpload: true });
   const rows = await db
     .insert(tracks)
     .values(songs.map((song, i) => ({ projectId: project!.id, name: song, sortOrder: i, createdById: owner.id })))
@@ -384,6 +384,40 @@ test('deliveries: cancelling frees the link for a new one, others in the project
   expect((await studio.cli(['deliveries', 'show'])).code).toBe(2);
   expect((await studio.cli(['deliveries', 'frobnicate'])).code).toBe(2);
   expect((await studio.cli(['--help'])).out).toContain('deliveries confirm-payment <ID>');
+});
+
+test('board lists the tracks by stage and moves one, as far as the role allows', async () => {
+  const ada = await person();
+  const bob = await person('Bob');
+  const studio = await device();
+  const listener = await device();
+  await studio.cli(['login'], { approveAs: ada.browser });
+  await listener.cli(['login'], { approveAs: bob.browser });
+  const { project, tracks: songs } = await projectWithTracks(ada, 'Nachtfahrt', ['Morgenrot', 'Abendrot']);
+  await db.insert(projectMembers).values({ projectId: project.id, userId: bob.id, role: 'viewer' });
+
+  expect((await studio.cli(['board'])).out).toBe('Demo (2)\n  Morgenrot · Nachtfahrt\n  Abendrot · Nachtfahrt');
+
+  const move = ['board', 'move', 'mixing', '--project', 'nachtfahrt', '--track', 'abendrot'];
+  expect(await studio.cli(move)).toMatchObject({ code: 0, out: 'Abendrot is now in Mix.' });
+  expect((await db.select({ status: tracks.status }).from(tracks).where(eq(tracks.id, songs[1]!.id)))[0]).toEqual({ status: 'mixing' });
+  expect((await studio.cli(['board', '--project', project.id])).out).toBe('Demo (1)\n  Morgenrot\n\nMix (1)\n  Abendrot');
+  expect((await studio.cli(['board', '--json'])).json()).toEqual({
+    tracks: [
+      { id: songs[0]!.id, name: 'Morgenrot', status: 'sketch', projectId: project.id, project: 'Nachtfahrt' },
+      { id: songs[1]!.id, name: 'Abendrot', status: 'mixing', projectId: project.id, project: 'Nachtfahrt' },
+    ],
+  });
+
+  // Listening only: the API refuses, the stage stays
+  expect((await listener.cli(['board', 'move', 'final', '--project', 'Nachtfahrt', '--track', 'Morgenrot'])).code).toBe(1);
+  expect((await db.select({ status: tracks.status }).from(tracks).where(eq(tracks.id, songs[0]!.id)))[0]).toEqual({ status: 'sketch' });
+
+  // in_progress only stays for tracks that have it, nothing moves there
+  expect((await studio.cli([...move.slice(0, 2), 'in_progress', ...move.slice(3)])).code).toBe(2);
+  expect(await studio.cli(['board', 'move', 'final', '--project', 'Nachtfahrt', '--track', 'Mittag'])).toMatchObject({ code: 1, err: texts.noSuchTrack('Mittag') });
+  expect((await studio.cli(['board', 'move', 'final', '--project', 'Nachtfahrt'])).code).toBe(2);
+  expect((await studio.cli(['board', 'frobnicate'])).code).toBe(2);
 });
 
 // Last, since it fills Music Hub up

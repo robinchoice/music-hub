@@ -9,6 +9,7 @@ export const de = {
   nav: {
     overview: 'Übersicht',
     forYou: 'Für dich',
+    board: 'Board',
     openMusic: 'Offene Musik',
     trash: 'Papierkorb',
     archive: 'Archiv',
@@ -143,6 +144,7 @@ export const de = {
     trackName: 'Track-Name',
     create: 'Anlegen',
     tabTracks: 'Tracks',
+    tabBoard: 'Board',
     tabTimeline: 'Timeline',
     tabOrder: 'Auftrag',
     emptyTitle: 'Noch keine Tracks',
@@ -299,6 +301,7 @@ export const en: typeof de = {
   nav: {
     overview: 'Overview',
     forYou: 'For you',
+    board: 'Board',
     openMusic: 'Open music',
     trash: 'Trash',
     archive: 'Archive',
@@ -433,6 +436,7 @@ export const en: typeof de = {
     trackName: 'Track name',
     create: 'Create',
     tabTracks: 'Tracks',
+    tabBoard: 'Board',
     tabTimeline: 'Timeline',
     tabOrder: 'Order',
     emptyTitle: 'No tracks yet',

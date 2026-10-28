@@ -12,7 +12,7 @@
     | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
     | 'users' | 'activity' | 'layers' | 'reply' | 'restore' | 'archive'
     | 'mail' | 'log-in' | 'bell' | 'plug' | 'smartphone' | 'monitor' | 'external'
-    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile';
+    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile' | 'kanban';
 
   let {
     name,
@@ -200,6 +200,11 @@
     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   {:else if name === 'activity'}
     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  {:else if name === 'kanban'}
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M8 7v7" />
+    <path d="M12 7v4" />
+    <path d="M16 7v9" />
   {:else if name === 'layers'}
     <polygon points="12 2 2 7 12 12 22 7 12 2" />
     <polyline points="2 17 12 22 22 17" />

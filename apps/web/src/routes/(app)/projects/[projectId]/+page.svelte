@@ -18,6 +18,7 @@
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import ProjectTimeline from '$lib/components/overview/ProjectTimeline.svelte';
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
+  import TrackBoard from '$lib/components/overview/TrackBoard.svelte';
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
@@ -88,7 +89,9 @@
   const sections = $derived(group ? groupBySection(group.active) : []);
   const wanted = $derived($page.url.searchParams.get('view'));
   // The delivery (Auftrag) is the owner's business
-  const view = $derived(wanted === 'timeline' ? 'timeline' : wanted === 'auftrag' && roles.includes('owner') ? 'auftrag' : 'tracks');
+  const view = $derived(
+    wanted === 'timeline' || wanted === 'board' ? wanted : wanted === 'auftrag' && roles.includes('owner') ? 'auftrag' : 'tracks',
+  );
 
   function setView(id: string) {
     void goto(id === 'tracks' ? $page.url.pathname : `?view=${id}`, { replaceState: true, noScroll: true, keepFocus: true });
@@ -280,6 +283,7 @@
     <TabBar
       tabs={[
         { id: 'tracks', label: t().workspace.projectPage.tabTracks, count: loading ? undefined : tracks.length },
+        { id: 'board', label: t().workspace.projectPage.tabBoard },
         { id: 'timeline', label: t().workspace.projectPage.tabTimeline },
         ...(roles.includes('owner') ? [{ id: 'auftrag', label: t().workspace.projectPage.tabOrder }] : []),
       ]}
@@ -303,6 +307,8 @@
     {/if}
   {:else if view === 'timeline'}
     <ProjectTimeline {ix} list={group.list} />
+  {:else if view === 'board'}
+    <TrackBoard {ix} infos={group.list} />
   {:else}
     <div class="cols" aria-hidden="true"><span>{t().workspace.projectPage.colTrack}</span><span>{t().workspace.projectPage.colLatest}</span><span>{t().workspace.projectPage.colStage}</span><span>{t().workspace.projectPage.colLast}</span></div>
     {#each sections as section (section.name)}

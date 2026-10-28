@@ -139,3 +139,12 @@ export function setPlan(userId: string, plan: 'solo' | null) {
     await db.update(users).set({ plan: ${JSON.stringify(plan)} }).where(eq(users.id, ${JSON.stringify(userId)}));
   `);
 }
+
+// Leaves someone only listening in a project, as an owner could set it in the settings
+export function makeViewer(projectId: string, userId: string) {
+  bun(`
+    import { and, eq } from 'drizzle-orm';
+    import { projectMembers } from '@music-hub/db';
+    await db.update(projectMembers).set({ role: 'viewer', extraRoles: [], canUpload: false }).where(and(eq(projectMembers.projectId, ${JSON.stringify(projectId)}), eq(projectMembers.userId, ${JSON.stringify(userId)})));
+  `);
+}

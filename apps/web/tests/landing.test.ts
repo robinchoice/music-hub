@@ -46,7 +46,7 @@ test('all bottom nav labels sit on one line', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'The bottom nav only shows on phones');
   await page.goto('/');
   const labels = page.frameLocator('.phone-demo iframe').locator('.bottom-nav .nav-item > span:last-child');
-  await expect(labels).toHaveCount(3);
+  await expect(labels).toHaveCount(4);
   const ys = await labels.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
   expect(new Set(ys).size).toBe(1);
 });

@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { createClient } from './client';
 import { type Command, EXIT, Failure, type Io, type Result } from './command';
 import { auth } from './commands/auth';
+import { board } from './commands/board';
 import { deliveries } from './commands/deliveries';
 import { projects } from './commands/projects';
 import { share } from './commands/share';
@@ -9,7 +10,7 @@ import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects, share, deliveries };
+export const commands: Record<string, Command> = { ...auth, projects, board, share, deliveries };
 
 const globalOptions = {
   json: { type: 'boolean' },
