@@ -44,10 +44,14 @@ const methodsConfigured = (): BillingMethod[] => [
 let stripeClient: Stripe | null = null;
 const stripe = () => (stripeClient ??= new Stripe(process.env.STRIPE_SECRET_KEY!));
 
+// A calendar month or year later; 31 January plus a month is the end of February, not 3 March
 export function addPeriod(date: Date, period: PlanPeriod) {
   const next = new Date(date);
+  next.setUTCDate(1);
   if (period === 'month') next.setUTCMonth(next.getUTCMonth() + 1);
   else next.setUTCFullYear(next.getUTCFullYear() + 1);
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+  next.setUTCDate(Math.min(date.getUTCDate(), lastDay));
   return next;
 }
 
@@ -55,9 +59,11 @@ export function addPeriod(date: Date, period: PlanPeriod) {
 // of the same plan by Lightning; a subscription, a plan without end (set by an admin) or a switch waits.
 export function buyable(user: Pick<User, 'plan' | 'planUntil' | 'stripeSubscriptionId'>, now = new Date()) {
   const methods = methodsConfigured();
+  // A subscription that Stripe still retries counts even after its paid time ran out
+  if (user.stripeSubscriptionId) return [];
   const running = activePlan(user, now);
   if (!running) return PLANS.map((plan) => ({ plan, methods }));
-  if (user.stripeSubscriptionId || user.planUntil === null || !methods.includes('lightning')) return [];
+  if (user.planUntil === null || !methods.includes('lightning')) return [];
   return [{ plan: running, methods: ['lightning'] as BillingMethod[] }];
 }
 
@@ -175,12 +181,12 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event) {
     if (!payment) return;
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) return;
-    const paidUntil = laterEnd(user, plan, until);
+    const booked = book(user, plan, until);
+    const paidUntil = booked.planUntil;
     await tx
       .update(users)
       .set({
-        plan,
-        planUntil: paidUntil,
+        ...booked,
         stripeSubscriptionId: subscriptionId,
         ...(typeof invoice.customer === 'string' ? { stripeCustomerId: invoice.customer } : {}),
       })
@@ -293,8 +299,8 @@ export async function checkLightningPayment(db: Database, externalId: string) {
   if (!payment || payment.status === 'paid') return;
   const { status } = await btcpay().invoice(externalId);
   if (status === 'Settled') await markLightningPaid(db, payment.id);
-  else if ((status === 'Expired' || status === 'Invalid') && payment.status === 'pending')
-    await db.update(planPayments).set({ status: 'expired' }).where(eq(planPayments.id, payment.id));
+  else if (status === 'Expired' || status === 'Invalid')
+    await db.update(planPayments).set({ status: 'expired' }).where(and(eq(planPayments.id, payment.id), eq(planPayments.status, 'pending')));
 }
 
 export async function markLightningPaid(db: Database, paymentId: string) {
@@ -308,10 +314,11 @@ export async function markLightningPaid(db: Database, paymentId: string) {
     const plan = PLANS.find((p) => p === payment.plan)!;
     const period = PLAN_PERIODS.find((p) => p === payment.period)!;
     const now = new Date();
-    // One more period of the running plan starts where it ends, anything else starts now
-    const running = activePlan(user, now) === plan;
-    const paidUntil = running && user.planUntil === null ? null : addPeriod(running ? user.planUntil! : now, period);
-    await tx.update(users).set({ plan, planUntil: paidUntil }).where(eq(users.id, user.id));
+    // The period starts where a running plan ends
+    const running = activePlan(user, now) && user.planUntil;
+    const booked = book(user, plan, addPeriod(running || now, period));
+    const paidUntil = booked.planUntil;
+    await tx.update(users).set(booked).where(eq(users.id, user.id));
     await tx.update(planPayments).set({ status: 'paid', paidAt: now, paidUntil }).where(eq(planPayments.id, payment.id));
   });
 }
@@ -320,11 +327,14 @@ export async function markLightningPaid(db: Database, paymentId: string) {
 
 const lockUser = (tx: Tx, userId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`plan:${userId}`}))`);
 
-// A payment never shortens what the same plan already runs to
-function laterEnd(user: User, plan: Plan, until: Date) {
-  if (activePlan(user) !== plan) return until;
-  if (user.planUntil === null) return null;
-  return user.planUntil > until ? user.planUntil : until;
+// A payment never takes anything away from a running plan, also when two checkouts for different
+// plans both got paid: the bigger plan of the two runs to the later end.
+function book(user: User, plan: Plan, until: Date): { plan: Plan; planUntil: Date | null } {
+  const running = activePlan(user);
+  if (!running) return { plan, planUntil: until };
+  const bigger = PLANS.indexOf(running) > PLANS.indexOf(plan) ? running : plan;
+  if (user.planUntil === null) return { plan: bigger, planUntil: null };
+  return { plan: bigger, planUntil: user.planUntil > until ? user.planUntil : until };
 }
 
 // The account page. Open Lightning invoices of the last day are looked up first, in case a webhook
@@ -345,7 +355,7 @@ export async function billingView(db: Database, userId: string): Promise<Billing
   return {
     plan,
     planUntil: plan && user!.planUntil ? user!.planUntil.toISOString() : null,
-    renews: !!plan && !!user!.stripeSubscriptionId,
+    renews: !!user!.stripeSubscriptionId,
     canBuy: buyable(user!).filter((b) => b.methods.length),
     storage: { usedBytes: storage.used, limitBytes: storage.limit },
     payments: payments.map((p) => ({

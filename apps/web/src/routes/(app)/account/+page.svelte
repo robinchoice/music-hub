@@ -12,6 +12,7 @@
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
   import PaymentAccountSettings from '$lib/components/delivery/PaymentAccountSettings.svelte';
+  import PlanSettings from '$lib/components/account/PlanSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
   import { titleHidden, setTitleHidden } from '$lib/media-session.js';
 
@@ -128,6 +129,7 @@
         </div>
       </div>
     </section>
+    <PlanSettings />
     <PasskeySettings />
     <ProfileSettings />
     <GuestUploadSettings />

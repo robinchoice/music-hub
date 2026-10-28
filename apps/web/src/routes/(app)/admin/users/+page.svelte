@@ -258,7 +258,7 @@
                       <PersonAvatar person={p} />
                       <div class="who-text">
                         <button type="button" class="nm" class:pend={p.pending} onclick={(e) => { e.stopPropagation(); open(p.id); }}>
-                          {p.name}{#if p.isAdmin}<span class="admin">Admin</span>{/if}{#if p.plan}<span class="admin" title="Tarif">Solo</span>{/if}
+                          {p.name}{#if p.isAdmin}<span class="admin">Admin</span>{/if}{#if p.plan}<span class="admin" title="Tarif">{p.plan === 'solo' ? 'Studio' : 'Pro'}</span>{/if}
                         </button>
                         <span class="em">{p.email}</span>
                       </div>
@@ -307,7 +307,7 @@
               <button type="button" class="pcard" onclick={() => open(p.id)}>
                 <PersonAvatar person={p} />
                 <span class="pc-main">
-                  <span class="pc-name">{p.name}{#if p.isAdmin}<span class="admin">Admin</span>{/if}{#if p.plan}<span class="admin" title="Tarif">Solo</span>{/if}</span>
+                  <span class="pc-name">{p.name}{#if p.isAdmin}<span class="admin">Admin</span>{/if}{#if p.plan}<span class="admin" title="Tarif">{p.plan === 'solo' ? 'Studio' : 'Pro'}</span>{/if}</span>
                   <span class="pc-state">
                     {#if p.pending}
                       Nie angemeldet{#if inviteState(p, loadedAt)}{' · '}{inviteState(p, loadedAt)?.short}{/if}

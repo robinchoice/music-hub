@@ -38,6 +38,9 @@ export default defineConfig({
         S3_BUCKET: 'test',
         S3_ACCESS_KEY: 'test',
         S3_SECRET_KEY: 'test',
+        // Shows the plans in the account; plan.test.ts never starts a checkout, so Stripe is never called
+        STRIPE_SECRET_KEY: 'sk_test_e2e',
+        STRIPE_WEBHOOK_SECRET: 'whsec_e2e',
       },
       url: `http://127.0.0.1:${API_PORT}/api/v1/health`,
       reuseExistingServer: false,

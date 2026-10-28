@@ -1,5 +1,6 @@
 // users.plan: null is the free plan. 'solo' is called Studio in the UI and is the only plan that may
 // create deliveries; the stored value stays 'solo' because deployed code and data know it by that name.
+// Ordered from small to big: of two paid plans the later one wins (lib/billing.ts)
 export const PLANS = ['pro', 'solo'] as const;
 export type Plan = (typeof PLANS)[number];
 

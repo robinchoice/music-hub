@@ -1,3 +1,4 @@
+import * as billing from './billing.js';
 import * as common from './common.js';
 import * as delivery from './delivery.js';
 import * as guest from './guest.js';
@@ -10,6 +11,7 @@ import * as workspace from './workspace.js';
 // object. `en: typeof de` makes TypeScript report any text English lacks.
 export const messages = {
   de: {
+    billing: billing.de,
     common: common.de,
     delivery: delivery.de,
     guest: guest.de,
@@ -19,6 +21,7 @@ export const messages = {
     workspace: workspace.de,
   },
   en: {
+    billing: billing.en,
     common: common.en,
     delivery: delivery.en,
     guest: guest.en,

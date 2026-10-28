@@ -189,4 +189,23 @@ test('a plan set by an admin without end leaves nothing to buy', async () => {
   expect(view).toMatchObject({ plan: 'solo', planUntil: null, canBuy: [] });
   expect((await userRow(p.id)).planUntil).toBeNull();
   expect(addPeriod(new Date('2026-01-15T00:00:00Z'), 'year').toISOString()).toBe('2027-01-15T00:00:00.000Z');
+  expect(addPeriod(new Date('2027-01-31T10:00:00Z'), 'month').toISOString()).toBe('2027-02-28T10:00:00.000Z');
+  expect(addPeriod(new Date('2028-02-29T10:00:00Z'), 'year').toISOString()).toBe('2029-02-28T10:00:00.000Z');
+});
+
+test('two open invoices for different plans, both paid: the bigger plan runs to the later end', async () => {
+  const p = await person();
+  const buy = async (plan: string, period: string) => {
+    const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period, method: 'lightning' }) });
+    const { url } = (await res.json()) as { url: string };
+    return [...invoices.values()].find((i) => i.checkoutLink === url)!;
+  };
+  const studio = await buy('solo', 'year');
+  const pro = await buy('pro', 'month');
+  studio.status = 'Settled';
+  await btcpayWebhook(studio.id);
+  const yearEnd = (await userRow(p.id)).planUntil!;
+  pro.status = 'Settled';
+  await btcpayWebhook(pro.id);
+  expect(await userRow(p.id)).toMatchObject({ plan: 'solo', planUntil: addPeriod(yearEnd, 'month') });
 });

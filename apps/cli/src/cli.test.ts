@@ -13,6 +13,7 @@ import { authRoutes } from '../../api/src/routes/auth';
 import { deliveryRoutes } from '../../api/src/routes/deliveries';
 import { deviceRoutes } from '../../api/src/routes/device';
 import { projectRoutes } from '../../api/src/routes/projects';
+import { billingRoutes } from '../../api/src/routes/billing';
 import { shareRoutes } from '../../api/src/routes/share';
 import { trackRoutes } from '../../api/src/routes/tracks';
 import type { AppEnv } from '../../api/src/types';
@@ -33,7 +34,8 @@ const app = new Hono<AppEnv>()
   .route('/projects', projectRoutes)
   .route('/tracks', trackRoutes)
   .route('/share', shareRoutes)
-  .route('/deliveries', deliveryRoutes);
+  .route('/deliveries', deliveryRoutes)
+  .route('/billing', billingRoutes);
 let server: ReturnType<typeof Bun.serve>;
 let url = '';
 
@@ -431,4 +433,16 @@ test('the CLI creates no account once Music Hub is full', async () => {
   expect(login.code).toBe(1);
   expect(login.json()).toEqual({ error: expect.stringContaining('Music Hub is full right now') });
   expect(await db.select({ id: users.id }).from(users).where(eq(users.email, email))).toHaveLength(0);
+});
+
+test('plan shows the plan, the storage and where to buy', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  expect(await cli(['plan'])).toMatchObject({ code: 3, err: texts.notLoggedIn(SLUG) });
+  await cli(['login'], { approveAs: ada.browser });
+  expect((await cli(['plan'])).out).toBe(['Free', texts.storageUsed('0.0 GB', '20.0 GB'), texts.planBuy(`${url}/account#tarif`)].join('\n'));
+
+  await db.update(users).set({ plan: 'pro', planUntil: new Date('2099-01-31T12:00:00Z') }).where(eq(users.id, ada.id));
+  expect((await cli(['plan'])).out.split('\n')[0]).toBe(texts.planUntil('Pro', '2099-01-31'));
+  expect((await cli(['plan', '--json'])).json()).toMatchObject({ plan: 'pro', renews: false, payments: [] });
 });

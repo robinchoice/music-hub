@@ -23,7 +23,7 @@ export const de = {
     introTitle: 'Aufträge mit Bezahlwand',
     intro:
       'Mit einem Auftrag hört dein Kunde die Songs über den Projekt-Link, gibt jeden frei oder fordert Änderungen an. Korrekturrunden zählen mit, weitere kosten, was du festlegst. Sind alle Songs freigegeben, bezahlt er dich direkt, per Lightning oder Überweisung, und lädt erst dann WAVs und Spuren herunter.',
-    introPlan: 'Aufträge gibt es mit dem Tarif Solo für 19 € im Monat. Wir schalten ihn dir auf Anfrage frei.',
+    introPlan: 'Aufträge gibt es mit dem Tarif Studio für 24 € im Monat.',
     announcedBold: (client: string, amount: string) => `${client} hat ${amount} per Überweisung angekündigt.`,
     announcedRest: 'Bestätige, sobald das Geld auf deinem Konto ist.',
     paymentReceived: 'Zahlung eingegangen',
@@ -218,7 +218,7 @@ export const en: typeof de = {
     introTitle: 'Orders with a paywall',
     intro:
       'With an order, your client listens to the songs through the project link, approves each one or requests changes. Correction rounds are counted, additional ones cost what you set. Once all songs are approved, they pay you directly, by Lightning or bank transfer, and only then download WAVs and stems.',
-    introPlan: 'Orders come with the Solo plan for €19 a month. We unlock it for you on request.',
+    introPlan: 'Orders come with the Studio plan for €24 a month.',
     announcedBold: (client, amount) => `${client} announced ${amount} by bank transfer.`,
     announcedRest: 'Confirm as soon as the money is in your account.',
     paymentReceived: 'Payment received',

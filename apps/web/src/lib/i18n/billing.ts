@@ -1,0 +1,66 @@
+import type { Plan, PlanPeriod } from '@music-hub/shared';
+
+// PlanSettings.svelte in the account: the running plan and buying Pro or Studio
+export const de = {
+  title: 'Tarif',
+  intro: 'Mehr Speicher und Aufträge mit Bezahlwand. Alle Mitglieder deiner Projekte bleiben kostenlos.',
+  names: { pro: 'Pro', solo: 'Studio' } as Record<Plan, string>,
+  free: 'Gratis',
+  used: (used: string, limit: string) => `${used} von ${limit} belegt`,
+  runsUntil: (plan: string, day: string) => `${plan} bis ${day}`,
+  noEnd: (plan: string) => `${plan}, ohne Enddatum`,
+  renews: 'Verlängert sich automatisch.',
+  ends: 'Endet ohne Verlängerung. Danach bleiben alle Dateien, nur Neues passt nicht mehr über die alte Grenze.',
+  manage: 'Abo kündigen oder verwalten',
+  month: 'Monatlich',
+  year: 'Jährlich',
+  perPeriod: { month: 'im Monat', year: 'im Jahr' } as Record<PlanPeriod, string>,
+  yearHint: 'zwei Monate geschenkt',
+  storage: (gb: string) => `${gb} Speicher`,
+  features: {
+    pro: ['Alles aus Gratis', 'Für Bands und Produzenten mit vielen Spuren'],
+    solo: ['Aufträge mit Korrekturrunden und Bezahlwand', 'Kunden zahlen dich direkt, ohne Provision'],
+  } as Record<Plan, string[]>,
+  payStripe: 'Mit Karte oder PayPal',
+  payLightning: 'Mit Lightning',
+  extend: (period: string) => `Mit Lightning ${period} verlängern`,
+  extendPeriod: { month: 'um einen Monat', year: 'um ein Jahr' } as Record<PlanPeriod, string>,
+  terms:
+    'Endpreise. Karte und PayPal laufen als Abo, das sich verlängert, bis du es kündigst; gekündigt läuft es bis zum Ende der bezahlten Zeit. Lightning zahlt einen Monat oder ein Jahr im Voraus, ohne Abo.',
+  payments: 'Zahlungen',
+  status: { pending: 'offen', paid: 'bezahlt', expired: 'abgelaufen' },
+  openInvoice: 'Rechnung öffnen',
+  thanks: 'Danke! Sobald die Zahlung bestätigt ist, läuft dein Tarif.',
+};
+
+export const en: typeof de = {
+  title: 'Plan',
+  intro: 'More storage and orders with a paywall. Everyone in your projects stays free.',
+  names: { pro: 'Pro', solo: 'Studio' },
+  free: 'Free',
+  used: (used, limit) => `${used} of ${limit} used`,
+  runsUntil: (plan, day) => `${plan} until ${day}`,
+  noEnd: (plan) => `${plan}, no end date`,
+  renews: 'Renews automatically.',
+  ends: 'Ends without renewal. All files stay, only new ones beyond the old limit no longer fit.',
+  manage: 'Cancel or manage subscription',
+  month: 'Monthly',
+  year: 'Yearly',
+  perPeriod: { month: 'a month', year: 'a year' },
+  yearHint: 'two months free',
+  storage: (gb) => `${gb} storage`,
+  features: {
+    pro: ['Everything in Free', 'For bands and producers with lots of stems'],
+    solo: ['Orders with correction rounds and a paywall', 'Clients pay you directly, no commission'],
+  },
+  payStripe: 'By card or PayPal',
+  payLightning: 'With Lightning',
+  extend: (period) => `Extend ${period} with Lightning`,
+  extendPeriod: { month: 'by a month', year: 'by a year' },
+  terms:
+    'Final prices. Card and PayPal run as a subscription that renews until you cancel; once cancelled it runs to the end of the paid time. Lightning pays a month or a year ahead, no subscription.',
+  payments: 'Payments',
+  status: { pending: 'open', paid: 'paid', expired: 'expired' },
+  openInvoice: 'Open invoice',
+  thanks: 'Thank you! Your plan starts as soon as the payment is confirmed.',
+};
