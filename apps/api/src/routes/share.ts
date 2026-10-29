@@ -144,7 +144,7 @@ const deliveryPayments = rateLimit('delivery-payments', 10, 60 * MINUTE);
 const deliveryPaymentPolls = rateLimit('delivery-payment-polls', 600, 60 * MINUTE);
 const deliveryDownloads = rateLimit('delivery-downloads', 100, 60 * MINUTE);
 
-// Salted with a server secret, so the hashes of IPv4 addresses can't be listed
+// Salted with a server secret, so the hashes of IPv4 addresses can't be listed. MAGIC_LINK_SECRET salts nothing else.
 const IP_SALT = process.env.MAGIC_LINK_SECRET || 'musichub-salt';
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip + IP_SALT));

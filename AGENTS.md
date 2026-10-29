@@ -84,4 +84,4 @@ Gilt für Daten, API und URLs. Interner Code darf weiterhin direkt umgebaut werd
 - API: Endpunkte und Felder nur hinzufügen, nichts entfernen oder umbenennen. Neue Request-Felder sind optional und haben einen Default.
 - Hochgeladene Dateien (S3): Bestehende Keys bleiben gültig. Ein Update löscht oder verschiebt keine Objekte.
 - Bestehende URLs (Share-Links, Projekt- und Track-Seiten) bleiben erreichbar.
-- Secrets, an denen Daten hängen, bleiben unverändert: `MAGIC_LINK_SECRET` (Sessions), VAPID-Keys (Push-Abos), S3-Bucket.
+- Secrets, an denen Daten hängen, bleiben unverändert: `MAGIC_LINK_SECRET` (trotz des Namens nur das Salt der IP-Hashes in `listen_events`, ein neuer Wert zählt dieselben Hörer doppelt), VAPID-Keys (Push-Abos), S3-Bucket.

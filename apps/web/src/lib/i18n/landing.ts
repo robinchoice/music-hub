@@ -121,7 +121,7 @@ export const de = {
       [
         '2. Hosting',
         [
-          'Music Hub läuft auf meinem eigenen Server bei der Hetzner Online GmbH (Industriestr. 25, 91710 Gunzenhausen), Serverstandort ist Nürnberg. Auch die hochgeladenen Dateien liegen bei Hetzner in Nürnberg. Beim Aufruf überträgt dein Browser technisch notwendige Daten wie deine IP-Adresse, den Zeitpunkt und den Browser-Typ. Der Server braucht sie, um die Seiten auszuliefern und Missbrauch zu begrenzen. Für die Begrenzung von Anfragen hält er deine IP-Adresse kurzzeitig im Arbeitsspeicher. Auch die Schriftarten werden von diesem Server geladen, es besteht keine Verbindung zu Google. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem sicheren und zuverlässigen Betrieb).',
+          'Music Hub läuft auf meinem eigenen Server bei der Hetzner Online GmbH (Industriestr. 25, 91710 Gunzenhausen), Serverstandort ist Nürnberg. Auch die hochgeladenen Dateien liegen bei Hetzner in Nürnberg. Beim Aufruf überträgt dein Browser technisch notwendige Daten wie deine IP-Adresse, den Zeitpunkt und den Browser-Typ. Der Server braucht sie, um die Seiten auszuliefern und Missbrauch zu begrenzen. Für die Begrenzung von Anfragen speichert er deine IP-Adresse in seiner Datenbank und löscht sie spätestens zwei Stunden nach deiner letzten Anfrage. Auch die Schriftarten werden von diesem Server geladen, es besteht keine Verbindung zu Google. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem sicheren und zuverlässigen Betrieb).',
         ],
       ],
       [
@@ -360,7 +360,7 @@ export const en: typeof de = {
       [
         '2. Hosting',
         [
-          'Music Hub runs on my own server at Hetzner Online GmbH (Industriestr. 25, 91710 Gunzenhausen, Germany), the server is located in Nuremberg. The uploaded files are also stored at Hetzner in Nuremberg. When you visit, your browser transmits technically necessary data such as your IP address, the time and the browser type. The server needs it to deliver the pages and to limit abuse. To rate-limit requests, it keeps your IP address in memory for a short time. The fonts are also loaded from this server, there is no connection to Google. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in secure and reliable operation).',
+          'Music Hub runs on my own server at Hetzner Online GmbH (Industriestr. 25, 91710 Gunzenhausen, Germany), the server is located in Nuremberg. The uploaded files are also stored at Hetzner in Nuremberg. When you visit, your browser transmits technically necessary data such as your IP address, the time and the browser type. The server needs it to deliver the pages and to limit abuse. To rate-limit requests, it stores your IP address in its database and deletes it two hours after your last request at the latest. The fonts are also loaded from this server, there is no connection to Google. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in secure and reliable operation).',
         ],
       ],
       [

@@ -54,6 +54,7 @@ Pflicht-Variablen in `.env`:
 
 ```env
 DATABASE_URL=postgresql://musichub:musichub@localhost:5435/musichub
+# Salt der IP-Hashes in der Hör-Statistik (trotz des Namens), nicht wechseln
 MAGIC_LINK_SECRET=<openssl rand -hex 32>
 APP_URL=http://localhost:5173
 ```
