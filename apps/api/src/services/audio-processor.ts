@@ -25,48 +25,44 @@ export async function processVersion(db: Database, versionId: string, signal: Ab
     return;
   }
 
-  try {
-    const originalUrl = await createDownloadUrl(version.originalFileKey, 3600);
+  // Errors go to the worker, which tries again (services/audio-jobs.ts)
+  const originalUrl = await createDownloadUrl(version.originalFileKey, 3600);
 
-    // Extract metadata with ffprobe
-    const metadata = await extractMetadata(originalUrl, signal);
+  // Extract metadata with ffprobe
+  const metadata = await extractMetadata(originalUrl, signal);
 
-    // Integrated loudness, so the DAW plugin can level-match versions, plus true peak and range for the file details
-    const loudness = await measureLoudness(originalUrl, signal);
+  // Integrated loudness, so the DAW plugin can level-match versions, plus true peak and range for the file details
+  const loudness = await measureLoudness(originalUrl, signal);
 
-    // Generate waveform peaks
-    const peaks = await generateWaveformPeaks(originalUrl, metadata.duration, signal);
-    const waveformKey = peaks
-      ? version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json')
-      : null;
+  // Generate waveform peaks
+  const peaks = await generateWaveformPeaks(originalUrl, metadata.duration, signal);
+  const waveformKey = peaks
+    ? version.originalFileKey.replace(/\/original\/.*$/, '/waveform/peaks.json')
+    : null;
 
-    // Upload waveform data to S3
-    if (waveformKey) await putObject(waveformKey, JSON.stringify(peaks), 'application/json');
+  // Upload waveform data to S3
+  if (waveformKey) await putObject(waveformKey, JSON.stringify(peaks), 'application/json');
 
-    // Transcode to MP3 for streaming
-    const streamKey = version.originalFileKey.replace(/\/original\/.*$/, '/stream/audio.mp3');
-    await transcodeToMp3(originalUrl, streamKey, signal);
+  // Transcode to MP3 for streaming
+  const streamKey = version.originalFileKey.replace(/\/original\/.*$/, '/stream/audio.mp3');
+  await transcodeToMp3(originalUrl, streamKey, signal);
 
-    // Update version with metadata
-    await db
-      .update(versions)
-      .set({
-        duration: metadata.duration,
-        sampleRate: metadata.sampleRate,
-        bitDepth: metadata.bitDepth,
-        sampleFormat: metadata.sampleFormat,
-        ...loudness,
-        streamFileKey: streamKey,
-        waveformDataKey: waveformKey,
-      })
-      .where(eq(versions.id, versionId));
+  // Update version with metadata
+  await db
+    .update(versions)
+    .set({
+      duration: metadata.duration,
+      sampleRate: metadata.sampleRate,
+      bitDepth: metadata.bitDepth,
+      sampleFormat: metadata.sampleFormat,
+      ...loudness,
+      streamFileKey: streamKey,
+      waveformDataKey: waveformKey,
+    })
+    .where(eq(versions.id, versionId));
 
-    console.log(`[Worker] Version ${versionId} ready`);
-    signal.throwIfAborted();
-  } catch (error) {
-    signal.throwIfAborted();
-    console.error(`[Worker] Failed to process version ${versionId}:`, error);
-  }
+  signal.throwIfAborted();
+  console.log(`[Worker] Version ${versionId} ready`);
 
   await db
     .update(versions)

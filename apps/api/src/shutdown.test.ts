@@ -105,7 +105,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
       mock.module(${modulePath('services/audio-jobs')}, () => ({
         giveUpAudioJobs: async () => {}, claimAudioJob: async () => 'test-version', hasWaitingAudioJob: async () => false,
         releaseAudioJob: async () => console.log('job-released'),
-        renewAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
+        renewAudioJob: async () => {}, retryAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
       }));
       mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, processVersion: async (db, id, signal) => {
         console.log('processing-started');
@@ -171,7 +171,7 @@ test('worker kills the audio subprocess before releasing a cancelled job', async
         await db.delete(users).where(eq(users.id, user.id));
         await db.$client.end();
       },
-      renewAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
+      renewAudioJob: async () => {}, retryAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
     }));
   `);
   try {
@@ -179,5 +179,24 @@ test('worker kills the audio subprocess before releasing a cancelled job', async
     run.child.kill('SIGTERM');
     await run.until('audio-stopped-before-release');
     expect(await run.child.exited).toBe(0);
+  } finally { await run.close(); }
+}, 30_000);
+
+test('worker hands a failed job back for a later attempt', async () => {
+  const run = start('worker', `
+    let claimed = false;
+    mock.module(${modulePath('services/audio-jobs')}, () => ({
+      giveUpAudioJobs: async () => {}, hasWaitingAudioJob: async () => false,
+      claimAudioJob: async () => (claimed ? null : ((claimed = true), 'test-version')),
+      releaseAudioJob: async () => {}, renewAudioJob: async () => {}, LEASE_MS: 300000,
+      retryAudioJob: async (db, id) => console.log('job-retried ' + id),
+      finishAudioJob: async () => { throw new Error('Must not finish'); },
+    }));
+    mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, processVersion: async () => {
+      throw new Error('ffmpeg failed');
+    } }));
+  `);
+  try {
+    await run.until('job-retried test-version');
   } finally { await run.close(); }
 }, 30_000);

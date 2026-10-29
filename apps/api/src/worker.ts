@@ -12,6 +12,7 @@ import {
   LEASE_MS,
   releaseAudioJob,
   renewAudioJob,
+  retryAudioJob,
 } from './services/audio-jobs.js';
 
 // Audio worker: same image as the API, started with `bun run apps/api/src/worker.ts`.
@@ -68,9 +69,10 @@ while (!stop.signal.aborted) {
       if (current) await releaseAudioJob(db, current);
       break;
     }
-    // The job stays claimed and comes back once its lease runs out
-    console.error('[Worker] Job failed:', err);
-    captureException(err);
+    // A failed attempt comes back a minute later, see retryAudioJob
+    console.error(`[Worker] Job ${current} failed:`, err);
+    captureException(err, { extra: { versionId: current } });
+    if (current) await retryAudioJob(db, current).catch(() => {});
     await sleep(5000, undefined, { signal: stop.signal }).catch(() => {});
   }
 }

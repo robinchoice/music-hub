@@ -8,6 +8,7 @@ import {
   giveUpAudioJobs,
   MAX_ATTEMPTS,
   releaseAudioJob,
+  retryAudioJob,
 } from './services/audio-jobs.js';
 
 // Runs against DATABASE_URL. The test jobs are dated far back, so workers take
@@ -114,6 +115,16 @@ test('a released job is free again without counting the attempt', async () => {
   await releaseAudioJob(a, id);
   expect(await job(id)).toMatchObject({ attempts: 0, lockedUntil: null });
   expect(await claimAudioJob(b)).toBe(id);
+});
+
+test('a failed job waits before the next attempt, which counts', async () => {
+  const id = await queuedVersion();
+  expect(await claimAudioJob(a)).toBe(id);
+  await retryAudioJob(a, id);
+  expect(await claimOther()).not.toBe(id);
+  await expireLease(id);
+  expect(await claimAudioJob(b)).toBe(id);
+  expect((await job(id)).attempts).toBe(2);
 });
 
 test('after the last attempt the version is given up and plays from the original', async () => {

@@ -65,6 +65,17 @@ export async function finishAudioJob(db: Database, versionId: string) {
   await db.delete(audioJobs).where(eq(audioJobs.versionId, versionId));
 }
 
+// How long a failed job waits before the next attempt
+export const RETRY_MS = 60_000;
+
+// A failed attempt counts; the job comes back after RETRY_MS, or is given up after the last one
+export async function retryAudioJob(db: Database, versionId: string) {
+  await db
+    .update(audioJobs)
+    .set({ lockedUntil: sql`now() + make_interval(secs => ${RETRY_MS / 1000})` })
+    .where(eq(audioJobs.versionId, versionId));
+}
+
 // Hands a job back on shutdown, without counting the interrupted attempt
 export async function releaseAudioJob(db: Database, versionId: string) {
   await db
@@ -73,8 +84,8 @@ export async function releaseAudioJob(db: Database, versionId: string) {
     .where(eq(audioJobs.versionId, versionId));
 }
 
-// Jobs whose attempts all ended with a dead worker. Like a failed conversion,
-// the version becomes ready and plays from the original.
+// Jobs whose attempts all failed or ended with a dead worker.
+// The version becomes ready without MP3 and waveform and plays from the original.
 export async function giveUpAudioJobs(db: Database) {
   const dropped = await db
     .delete(audioJobs)
