@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
@@ -56,5 +57,5 @@ export const projectMembers = pgTable(
     // Leaving the project page; newer activity there shows as new. Null: users.tracks_seen_at counts
     seenAt: timestamp('seen_at'),
   },
-  (table) => [unique().on(table.projectId, table.userId)],
+  (table) => [unique().on(table.projectId, table.userId), index().on(table.userId)],
 );

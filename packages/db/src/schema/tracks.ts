@@ -9,6 +9,7 @@ import {
   boolean,
   real,
   timestamp,
+  index,
 } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
@@ -58,7 +59,7 @@ export const tracks = pgTable('tracks', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-});
+}, (t) => [index().on(t.projectId)]);
 
 export const versions = pgTable('versions', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -111,7 +112,7 @@ export const versions = pgTable('versions', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-});
+}, (t) => [index().on(t.trackId)]);
 
 export const stems = pgTable('stems', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -139,7 +140,7 @@ export const stems = pgTable('stems', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-});
+}, (t) => [index().on(t.trackId)]);
 
 // Earlier files of a stem. The stem row always holds the current one.
 export const stemRevisions = pgTable('stem_revisions', {
@@ -163,4 +164,4 @@ export const stemRevisions = pgTable('stem_revisions', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-});
+}, (t) => [index().on(t.stemId)]);

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, boolean, timestamp, integer, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, boolean, timestamp, integer, unique, index } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { projects } from './projects.js';
 import { tracks, versions } from './tracks.js';
@@ -44,7 +44,7 @@ export const shareLinks = pgTable('share_links', {
   projectLinkId: uuid('project_link_id').references(() => projectShareLinks.id, { onDelete: 'cascade' }),
   trackId: uuid('track_id').references(() => tracks.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [unique('share_links_project_link_track').on(t.projectLinkId, t.trackId)]);
+}, (t) => [unique('share_links_project_link_track').on(t.projectLinkId, t.trackId), index().on(t.versionId)]);
 
 export const listenEvents = pgTable('listen_events', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -58,4 +58,4 @@ export const listenEvents = pgTable('listen_events', {
   firstPlayAt: timestamp('first_play_at'),
   listenSeconds: integer('listen_seconds').default(0).notNull(),
   completed: boolean('completed').default(false).notNull(),
-});
+}, (t) => [index().on(t.shareLinkId)]);

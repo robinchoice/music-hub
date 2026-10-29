@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, bigint, jsonb, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, bigint, jsonb, customType, index } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 
 export const magicLinks = pgTable('magic_links', {
@@ -25,7 +25,7 @@ export const sessions = pgTable('sessions', {
   tokenHash: varchar('token_hash', { length: 128 }).notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [index().on(t.userId)]);
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' });
 

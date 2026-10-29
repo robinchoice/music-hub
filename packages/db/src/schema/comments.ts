@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, real, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, real, timestamp, index } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { versions } from './tracks.js';
 
@@ -19,4 +19,4 @@ export const comments = pgTable('comments', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-});
+}, (t) => [index().on(t.versionId), index().on(t.parentId)]);
