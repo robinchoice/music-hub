@@ -978,7 +978,8 @@ export const shareRoutes = new Hono<AppEnv>()
     const totalOpens = events.length;
     const played = events.filter((e) => e.firstPlayAt !== null);
     const totalPlays = played.length;
-    const uniqueListeners = new Set(events.map((e) => e.ipHash)).size;
+    // After LISTEN_DETAILS_DAYS (lib/cleanup.ts) an event has no IP hash and counts on its own
+    const uniqueListeners = new Set(events.map((e) => e.ipHash ?? e.id)).size;
     const avgListenSeconds = played.length > 0
       ? Math.round(played.reduce((s, e) => s + e.listenSeconds, 0) / played.length)
       : 0;

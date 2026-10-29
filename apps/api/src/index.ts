@@ -28,6 +28,7 @@ import { syncRoutes } from './routes/sync.js';
 import { noticeRoutes } from './routes/notices.js';
 import { uploadLinkRoutes } from './routes/upload-links.js';
 import { pruneNotifications } from './lib/push-notifications.js';
+import { pruneExpired } from './lib/cleanup.js';
 import { sendDueNotices } from './lib/notices.js';
 import { sendDueFeedback } from './lib/reviews.js';
 import { checkLightningPayments } from './lib/deliveries.js';
@@ -50,8 +51,9 @@ const stop = new AbortController();
 async function shutdown() {
   if (stop.signal.aborted) return;
   stop.abort();
-  const { server, interval, updates } = await startup;
+  const { server, interval, cleanup, updates } = await startup;
   clearInterval(interval);
+  clearInterval(cleanup);
   const drained = server.stop();
   closeEventStreams();
   await drained;
@@ -157,12 +159,20 @@ const startup = (async () => {
     }));
   }, 30_000);
 
+  // Expired sessions and login links, old listen details and rate limits: at boot, then hourly
+  const prune = () => runInBackground(pruneExpired(db).catch((err) => {
+    console.error('[Cleanup] Failed:', err);
+    captureException(err);
+  }));
+  prune();
+  const cleanup = setInterval(prune, 60 * 60_000);
+
   // Update mails go out one by one in the background, see lib/updates.ts
   const updates = deliverUpdates(db, captureException, stop.signal);
 
   const server = Bun.serve({ port: Number(process.env.PORT || 3000), fetch: app.fetch });
   console.log(`Music Hub API running on port ${server.port}`);
-  return { server, interval, updates };
+  return { server, interval, cleanup, updates };
 })();
 
 await startup;
