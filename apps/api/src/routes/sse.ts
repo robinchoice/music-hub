@@ -6,6 +6,8 @@ import { subscribe } from '../services/sse.js';
 import { membershipOf } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 
+export const HEARTBEAT_MS = 5_000;
+
 export const sseRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
 
@@ -25,12 +27,18 @@ export const sseRoutes = new Hono<AppEnv>()
     const encoder = new TextEncoder();
 
     const send = (data: string) => writer.write(encoder.encode(data)).catch(() => {});
-    const unsubscribe = subscribe(trackId, send, () => { void writer.close().catch(() => {}); });
+    // Bun closes a connection that sent nothing for 10 seconds, the web server in front of the API too
+    const heartbeat = setInterval(() => send(': ping\n\n'), HEARTBEAT_MS);
+    const unsubscribe = subscribe(trackId, send, () => {
+      clearInterval(heartbeat);
+      void writer.close().catch(() => {});
+    });
 
     // Initial ping
     send(': connected\n\n');
 
     c.req.raw.signal.addEventListener('abort', () => {
+      clearInterval(heartbeat);
       unsubscribe();
       writer.close().catch(() => {});
     });
