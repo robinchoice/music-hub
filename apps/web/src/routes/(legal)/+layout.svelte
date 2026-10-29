@@ -78,6 +78,18 @@
     font-size: 20px;
     letter-spacing: -0.02em;
   }
+  .legal :global(h3) {
+    margin: var(--space-6) 0 var(--space-2);
+    font-size: 17px;
+  }
+  .legal :global(ol),
+  .legal :global(ul) {
+    margin: 0 0 var(--space-4);
+    padding-left: var(--space-5);
+  }
+  .legal :global(li) {
+    margin: 0 0 var(--space-2);
+  }
   .legal :global(p),
   .legal :global(address) {
     margin: 0 0 var(--space-4);

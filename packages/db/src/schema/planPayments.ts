@@ -20,6 +20,17 @@ export const planPayments = pgTable(
     // 'pending', 'paid' or 'expired'
     status: varchar('status', { length: 16 }).default('pending').notNull(),
     checkoutUrl: text('checkout_url'),
+    // Stripe: the subscription the invoice belongs to; its first invoice starts the contract
+    stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+    // When the buyer asked for the plan to start right away (PLAN_CONSENT in shared)
+    consentedAt: timestamp('consented_at'),
+    // Where the paid period starts: the invoice period at Stripe, for Lightning the end of a running plan or the payment
+    periodStart: timestamp('period_start'),
+    // When the confirmation mail with terms and cancellation notice went out (§ 312f BGB); null retries
+    confirmedAt: timestamp('confirmed_at'),
+    // A withdrawal within 14 days and what we owe back, refunded by hand
+    withdrawnAt: timestamp('withdrawn_at'),
+    refundCents: integer('refund_cents'),
     // plan_until after this payment
     paidUntil: timestamp('paid_until'),
     paidAt: timestamp('paid_at'),

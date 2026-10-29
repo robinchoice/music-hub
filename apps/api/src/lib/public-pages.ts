@@ -1,3 +1,6 @@
+import { legalMarkdown, PRIVACY_PAYMENTS, TERMS, WITHDRAWAL } from '@music-hub/shared';
+import { plansForSale } from './billing.js';
+
 export type Locale = 'de' | 'en';
 
 // A page anyone sees without logging in. Agents get it as <path>.md, listed in
@@ -10,8 +13,10 @@ export type PublicPage = { path: string; title: string; description: string; bod
 // behind the login, nothing from projects, tracks or profiles, no admin pages.
 // The legal pages repeat the text of their Svelte page: change both together,
 // the browser test compares their headings.
+// The terms and the privacy section about payments only while plans can be bought.
 export function publicPages(locale: Locale): PublicPage[] {
-  return locale === 'en' ? [landingEn, privacy('en'), imprint('en')] : [landingDe, privacy('de'), imprint('de')];
+  const pages = locale === 'en' ? [landingEn, privacy('en'), imprint('en')] : [landingDe, privacy('de'), imprint('de')];
+  return plansForSale() ? [...pages, terms(locale)] : pages;
 }
 
 export const SITE = {
@@ -162,7 +167,19 @@ function privacy(locale: Locale): PublicPage {
       locale === 'de'
         ? 'Welche Daten Music Hub erhebt, wofür und wo sie liegen. Keine Werbung, kein Tracking.'
         : 'Which data Music Hub collects, what for and where it is stored. No ads, no tracking.',
-    body: locale === 'de' ? PRIVACY_DE : PRIVACY_EN,
+    body: [locale === 'de' ? PRIVACY_DE : PRIVACY_EN, ...(plansForSale() ? [legalMarkdown({ title: '', meta: '', sections: [PRIVACY_PAYMENTS[locale]] })] : [])].join('\n\n'),
+  };
+}
+
+function terms(locale: Locale): PublicPage {
+  return {
+    path: '/agb',
+    title: TERMS[locale].title.replace('\u00AD', ''),
+    description:
+      locale === 'de'
+        ? 'Bedingungen für Music Hub und die Tarife Pro und Studio, mit Widerrufsbelehrung.'
+        : 'Terms for Music Hub and the Pro and Studio plans, with the cancellation notice.',
+    body: [TERMS[locale].meta, legalMarkdown(TERMS[locale]), `## ${WITHDRAWAL[locale].title}`, legalMarkdown(WITHDRAWAL[locale], 3)].join('\n\n'),
   };
 }
 
@@ -180,7 +197,7 @@ Music Hub läuft auf meinem eigenen Server bei der Hetzner Online GmbH (Industri
 
 ## 3. Konto und Anmeldung
 
-Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse, die Sprache für Mails und Benachrichtigungen und, falls du eines festlegst, dein Passwort als Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten je nach Zweck zwischen 15 Minuten und sieben Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich 30 Tage lang angemeldet hält. Apps wie das DAW-Plugin melden sich über einen Gerätecode an, ihre Anmeldung gilt 180 Tage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die Löschung bittest.
+Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse, die Sprache für Mails und Benachrichtigungen und, falls du eines festlegst, dein Passwort als Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten je nach Zweck zwischen 15 Minuten und sieben Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich angemeldet hält. Die Anmeldung gilt 365 Tage und verlängert sich, solange du Music Hub benutzt. Apps wie das DAW-Plugin und die Kommandozeile melden sich über einen Gerätecode an, für sie gilt dasselbe. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die Löschung bittest.
 
 Außerdem speichere ich, wann du Music Hub zuletzt benutzt hast, auf wenige Minuten genau. Jede Nutzung überschreibt diesen Zeitpunkt, ein Verlauf entsteht dabei nicht. Zusammen mit deinen Logins, Uploads und Kommentaren zeigt er mir als Betreiber, wer gerade online ist und wer schon länger nicht mehr da war. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem Überblick über den Betrieb).
 
@@ -236,7 +253,7 @@ Music Hub runs on my own server at Hetzner Online GmbH (Industriestr. 25, 91710 
 
 ## 3. Account and login
 
-For your account I store your name, your email address, the language for mails and notifications and, if you set one, your password as a hash. Accounts are created by signing up or by invitation, and you confirm both with a link sent by email. Links sent by email are valid between 15 minutes and seven days, depending on their purpose. After you log in, Music Hub sets a cookie that keeps you logged in for 30 days. Apps such as the DAW plugin log in with a device code, their login is valid for 180 days. The legal basis is Art. 6(1)(b) GDPR (use of Music Hub). Your account stays until you ask for it to be deleted.
+For your account I store your name, your email address, the language for mails and notifications and, if you set one, your password as a hash. Accounts are created by signing up or by invitation, and you confirm both with a link sent by email. Links sent by email are valid between 15 minutes and seven days, depending on their purpose. After you log in, Music Hub sets a cookie that keeps you logged in. The login is valid for 365 days and extends as long as you use Music Hub. Apps such as the DAW plugin and the command line log in with a device code, the same applies to them. The legal basis is Art. 6(1)(b) GDPR (use of Music Hub). Your account stays until you ask for it to be deleted.
 
 I also store when you last used Music Hub, accurate to a few minutes. Every use overwrites this time, no history builds up. Together with your logins, uploads and comments, it shows me as the operator who is online right now and who has not been around for a while. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in an overview of operations).
 

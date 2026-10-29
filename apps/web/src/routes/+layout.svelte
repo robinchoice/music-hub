@@ -18,6 +18,7 @@
       $page.url.pathname === '/register' ||
       $page.url.pathname === '/impressum' ||
       $page.url.pathname === '/datenschutz' ||
+      $page.url.pathname === '/agb' ||
       $page.url.pathname.startsWith('/listen/') ||
       $page.url.pathname === '/offen' ||
       $page.url.pathname.startsWith('/offen/') ||

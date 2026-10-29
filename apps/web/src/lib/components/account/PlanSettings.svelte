@@ -2,7 +2,19 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { formatEuro, PLAN_PRICES, PLAN_STORAGE, PLANS, type BillingMethod, type BillingView, type Plan, type PlanPeriod } from '@music-hub/shared';
+  import {
+    formatEuro,
+    PLAN_CONSENT,
+    PLAN_PRICES,
+    PLAN_STORAGE,
+    PLANS,
+    type BillingCancelResponse,
+    type BillingMethod,
+    type BillingView,
+    type BillingWithdrawResponse,
+    type Plan,
+    type PlanPeriod,
+  } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { dateLocale, locale, t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -13,6 +25,11 @@
   let view = $state<BillingView | null>(null);
   let period = $state<PlanPeriod>('year');
   let busy = $state<string | null>(null);
+  // The express request to start right away; buying waits for it
+  let consent = $state(false);
+  // Two steps for ending a contract: the button, then "now"
+  let confirming = $state<'cancel' | string | null>(null);
+  let done = $state<string | null>(null);
   const tx = $derived(t().billing);
   const day = (iso: string) => new Date(iso).toLocaleDateString(dateLocale());
 
@@ -35,7 +52,27 @@
     }
   }
 
-  const buy = (plan: Plan, method: BillingMethod) => open('/billing/checkout', { plan, period, method }, `${plan}-${method}`);
+  const buy = (plan: Plan, method: BillingMethod) => open('/billing/checkout', { plan, period, method, consent }, `${plan}-${method}`);
+  const euro = (cents: number) => formatEuro(cents, locale());
+
+  async function end(kind: 'cancel' | 'withdraw', paymentId?: string) {
+    busy = kind;
+    try {
+      if (kind === 'cancel') {
+        const r = await api.post<BillingCancelResponse>('/billing/cancel');
+        done = `${tx.cancelled(day(r.endsAt))}${r.refundCents ? ` ${tx.refund(euro(r.refundCents))}` : ''}`;
+      } else {
+        const r = await api.post<BillingWithdrawResponse>('/billing/withdraw', { paymentId });
+        done = tx.withdrawn(euro(r.refundCents));
+      }
+      confirming = null;
+      view = await api.get<BillingView>('/billing', true).catch(() => view);
+    } catch {
+      // The API client already showed the error
+    } finally {
+      busy = null;
+    }
+  }
   const methodsFor = (plan: Plan) => view?.canBuy.find((b) => b.plan === plan)?.methods ?? [];
 </script>
 
@@ -53,8 +90,22 @@
     {#if view.plan && view.planUntil}
       <p class="sub">{view.renews ? tx.renews : tx.ends}</p>
     {/if}
+    {#if done}<p class="done" role="status">{done}</p>{/if}
     {#if view.renews}
-      <Button variant="secondary" size="sm" loading={busy === 'portal'} onclick={() => open('/billing/portal', undefined, 'portal')}>{tx.manage}</Button>
+      {#if confirming === 'cancel'}
+        <div class="confirm">
+          <p>{tx.cancelConfirm(view.plan ? tx.names[view.plan] : tx.title)}</p>
+          <span class="btns">
+            <Button variant="danger" size="sm" loading={busy === 'cancel'} onclick={() => end('cancel')}>{tx.cancelNow}</Button>
+            <Button variant="ghost" size="sm" onclick={() => (confirming = null)}>{tx.cancel}</Button>
+          </span>
+        </div>
+      {:else}
+        <span class="btns">
+          <Button variant="secondary" size="sm" onclick={() => (confirming = 'cancel')}>{tx.cancelHere}</Button>
+          <Button variant="ghost" size="sm" loading={busy === 'portal'} onclick={() => open('/billing/portal', undefined, 'portal')}>{tx.manage}</Button>
+        </span>
+      {/if}
     {/if}
 
     {#if view.canBuy.length}
@@ -66,6 +117,10 @@
           </button>
         {/each}
       </div>
+      <label class="consent">
+        <input type="checkbox" bind:checked={consent} />
+        <span>{PLAN_CONSENT[locale()]} (<a href="/agb" target="_blank">{tx.terms}</a>, <a href="/datenschutz" target="_blank">{tx.privacy}</a>)</span>
+      </label>
       <div class="plans">
         {#each PLANS.filter((p) => methodsFor(p).length) as plan (plan)}
           <div class="plan">
@@ -77,10 +132,10 @@
             </ul>
             <span class="btns">
               {#if view.plan}
-                <Button size="sm" loading={busy === `${plan}-lightning`} onclick={() => buy(plan, 'lightning')}>{tx.extend(tx.extendPeriod[period])}</Button>
+                <Button size="sm" disabled={!consent} loading={busy === `${plan}-lightning`} onclick={() => buy(plan, 'lightning')}>{tx.extend(tx.extendPeriod[period])}</Button>
               {:else}
                 {#each methodsFor(plan) as method (method)}
-                  <Button size="sm" variant={method === 'stripe' ? 'primary' : 'secondary'} loading={busy === `${plan}-${method}`} onclick={() => buy(plan, method)}>
+                  <Button size="sm" disabled={!consent} variant={method === 'stripe' ? 'primary' : 'secondary'} loading={busy === `${plan}-${method}`} onclick={() => buy(plan, method)}>
                     {method === 'stripe' ? tx.payStripe : tx.payLightning}
                   </Button>
                 {/each}
@@ -89,7 +144,7 @@
           </div>
         {/each}
       </div>
-      <p class="hint">{tx.terms}</p>
+      <p class="hint">{tx.conditions}</p>
     {/if}
 
     {#if view.payments.length}
@@ -100,8 +155,19 @@
             <span>{day(p.createdAt)} · {tx.names[p.plan]} · {formatEuro(p.amountCents, locale())} · {p.method === 'stripe' ? tx.payStripe : tx.payLightning}</span>
             {#if p.checkoutUrl}
               <a href={p.checkoutUrl} rel="noopener">{tx.openInvoice}</a>
+            {:else if p.withdrawUntil && p.withdrawUntil > new Date().toISOString()}
+              <button type="button" class="link" onclick={() => (confirming = p.id)}>{tx.withdraw(day(p.withdrawUntil))}</button>
             {:else}
-              <span class="state">{tx.status[p.status]}</span>
+              <span class="state">{p.withdrawnAt ? tx.withdrawnState : tx.status[p.status]}</span>
+            {/if}
+            {#if confirming === p.id}
+              <div class="confirm">
+                <p>{tx.withdrawConfirm}</p>
+                <span class="btns">
+                  <Button variant="danger" size="sm" loading={busy === 'withdraw'} onclick={() => end('withdraw', p.id)}>{tx.withdrawNow}</Button>
+                  <Button variant="ghost" size="sm" onclick={() => (confirming = null)}>{tx.cancel}</Button>
+                </span>
+              </div>
             {/if}
           </li>
         {/each}
@@ -174,6 +240,35 @@
     border-top: 1px solid var(--color-border);
   }
   .state { color: var(--color-text-tertiary); }
+  .done { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--color-success); }
+  .confirm {
+    flex-basis: 100%;
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .confirm p { margin: 0 0 var(--space-3); }
+  .consent {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .consent input { margin-top: 3px; }
+  .link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--color-accent, inherit);
+    text-decoration: underline;
+    cursor: pointer;
+  }
   @media (max-width: 640px) {
     .card { padding: var(--space-4); }
   }

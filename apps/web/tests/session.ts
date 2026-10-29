@@ -140,6 +140,14 @@ export function setPlan(userId: string, plan: 'solo' | null) {
   `);
 }
 
+// A running Stripe subscription, as after a paid first invoice (lib/billing.ts)
+export function setSubscription(userId: string, subscriptionId: string) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    await db.update(users).set({ plan: 'pro', planUntil: new Date(Date.now() + 30 * 86400000), stripeSubscriptionId: ${JSON.stringify(subscriptionId)} }).where(eq(users.id, ${JSON.stringify(userId)}));
+  `);
+}
+
 // Leaves someone only listening in a project, as an owner could set it in the settings
 export function makeViewer(projectId: string, userId: string) {
   bun(`

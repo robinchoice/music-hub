@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { t } from '$lib/i18n/index.js';
+  import { PRIVACY_PAYMENTS } from '@music-hub/shared';
+  import { locale, t } from '$lib/i18n/index.js';
+
+  let { data } = $props();
 </script>
 
 <svelte:head>
@@ -26,3 +29,10 @@
     <p>{paragraph}</p>
   {/each}
 {/each}
+
+{#if data.payments}
+  <h2>{PRIVACY_PAYMENTS[locale()].title}</h2>
+  {#each PRIVACY_PAYMENTS[locale()].paragraphs ?? [] as paragraph}
+    <p>{paragraph}</p>
+  {/each}
+{/if}

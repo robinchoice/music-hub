@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { APP_BAND, bandColor, dateLocales, GLOW, type Locale, type UpdateContent, loginMessages, updateIn } from '@music-hub/shared';
+import { APP_BAND, bandColor, dateLocales, formatEuro, GLOW, legalMarkdown, type LegalText, type Locale, TERMS, type UpdateContent, loginMessages, updateIn, WITHDRAWAL } from '@music-hub/shared';
 import { messages } from '../lib/messages.js';
 
 const smtpPort = Number(process.env.SMTP_PORT || 587);
@@ -190,6 +190,83 @@ export async function sendDeliveryPaidEmail(to: string, input: { studioName: str
     },
     `Delivery paid mail to ${to}: ${input.projectName}, ${input.amount}`,
   );
+}
+
+// ---------- Plans (lib/billing.ts) ----------
+
+type PlanMail = { plan: 'pro' | 'solo'; period: 'month' | 'year'; amountCents: number; method: 'stripe' | 'lightning'; paidAt: Date; consentedAt: Date | null };
+
+const day = (date: Date, locale: Locale) => date.toLocaleDateString(dateLocales[locale], { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' });
+
+// Terms and cancellation notice as mail HTML, from the same source as the page /agb
+function legalHtml(text: LegalText) {
+  return text.sections
+    .map((s) => {
+      const items = s.items?.length
+        ? `<${s.unordered ? 'ul' : 'ol'} style="color: ${MUTED}; line-height: 1.55; margin: 0 0 1rem; padding-left: 1.2rem;">${s.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</${s.unordered ? 'ul' : 'ol'}>`
+        : '';
+      return `<p style="color: ${TEXT}; font-weight: 600; margin: 1.25rem 0 0.5rem;">${escapeHtml(s.title)}</p>${(s.paragraphs ?? []).map((p) => paragraph(escapeHtml(p), '0 0 1rem')).join('')}${items}`;
+    })
+    .join('');
+}
+
+// The confirmation of a new plan contract on a durable medium (§ 312f BGB), terms and notice included
+export async function sendPlanConfirmationEmail(to: string, input: PlanMail, locale: Locale) {
+  const m = messages[locale].mail;
+  const plan = m.planNames[input.plan];
+  const intro = m.planConfirmIntro(plan, m.planPeriods[input.period], formatEuro(input.amountCents, locale), day(input.paidAt, locale), m.planMethods[input.method]);
+  const start = input.consentedAt ? m.planConfirmStart(day(input.consentedAt, locale)) : null;
+  const terms = TERMS[locale];
+  const notice = WITHDRAWAL[locale];
+  await sendMail(
+    {
+      to,
+      subject: m.planConfirmSubject(plan),
+      html: layout(
+        `${paragraph(`${escapeHtml(m.hello)} ${escapeHtml(intro)}`)}${start ? paragraph(escapeHtml(start)) : ''}${paragraph(escapeHtml(m.planConfirmTerms))}` +
+          `<h2 style="color: ${TEXT}; font-size: 1.2rem; margin: 2rem 0 0.5rem;">${escapeHtml(terms.title.replace('\u00AD', ''))}</h2>${legalHtml(terms)}` +
+          `<h2 style="color: ${TEXT}; font-size: 1.2rem; margin: 2rem 0 0.5rem;">${escapeHtml(notice.title)}</h2>${legalHtml(notice)}`,
+        locale,
+      ),
+      text: [`${m.hello} ${intro}`, start, m.planConfirmTerms, `# ${terms.title.replace('\u00AD', '')}`, legalMarkdown(terms), `# ${notice.title}`, legalMarkdown(notice)]
+        .filter(Boolean)
+        .join('\n\n'),
+    },
+    `Plan confirmation mail to ${to}: ${plan}, ${input.period}`,
+  );
+}
+
+export async function sendPlanCancelledEmail(to: string, input: { plan: 'pro' | 'solo'; endsAt: Date; refundCents: number }, locale: Locale) {
+  const m = messages[locale].mail;
+  const lines = [m.planCancelIntro(m.planNames[input.plan], day(input.endsAt, locale)), ...(input.refundCents ? [m.planRefund(formatEuro(input.refundCents, locale))] : [])];
+  await sendMail(
+    { to, subject: m.planCancelSubject, html: layout(`${paragraph(escapeHtml(m.hello))}${lines.map((l) => paragraph(escapeHtml(l))).join('')}`, locale) },
+    `Plan cancelled mail to ${to}: ends ${input.endsAt.toISOString()}`,
+  );
+}
+
+export async function sendPlanWithdrawnEmail(to: string, input: { plan: 'pro' | 'solo'; refundCents: number; method: 'stripe' | 'lightning' }, locale: Locale) {
+  const m = messages[locale].mail;
+  const amount = formatEuro(input.refundCents, locale);
+  const lines = [
+    m.planWithdrawIntro(m.planNames[input.plan]),
+    ...(input.refundCents ? [input.method === 'lightning' ? m.planWithdrawLightning(amount) : m.planWithdrawRefund(amount)] : []),
+  ];
+  await sendMail(
+    {
+      to,
+      subject: m.planWithdrawSubject,
+      html: layout(`${paragraph(escapeHtml(m.hello))}${lines.map((l) => paragraph(escapeHtml(l))).join('')}`, locale),
+      replyTo: { name: 'Music Hub', address: 'hello@pleasance.org' },
+    },
+    `Plan withdrawn mail to ${to}: refund ${input.refundCents}`,
+  );
+}
+
+// To the admins (ADMIN_EMAILS), in German like every admin mail: a refund to make by hand
+export async function sendPlanAdminNotice(to: string[], text: string) {
+  if (!to.length) return;
+  await sendMail({ to, subject: 'Music Hub: Erstattung offen', html: layout(paragraph(escapeHtml(text))) }, `Plan admin notice: ${text}`);
 }
 
 const unsubscribeHeaders = (url: string) => ({

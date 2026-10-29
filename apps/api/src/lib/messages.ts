@@ -13,6 +13,8 @@ const de = {
     billingUnavailable: 'Diese Zahlungsart ist gerade nicht eingerichtet.',
     planRunning: 'Dein Tarif läuft noch. Ein Abo verwaltest du unter „Abo verwalten“, sonst wechselst du nach seinem Ende.',
     billingFailed: 'Der Zahlungsdienst antwortet gerade nicht. Bitte versuch es gleich noch einmal.',
+    consentRequired: 'Bitte bestätige zuerst, dass dein Tarif sofort beginnen soll.',
+    nothingToEnd: 'Hier gibt es nichts mehr zu kündigen oder zu widerrufen.',
     linkUsed: 'Der Link ist abgelaufen oder wurde schon benutzt.',
     trackOpen: 'Der Track ist offen. Schließe ihn, um Spuren wiederherzustellen.',
     codeInvalid: 'Code ungültig oder abgelaufen',
@@ -91,6 +93,25 @@ const de = {
     paidIntro: (studio: string, amount: string, project: string) =>
       `${studio} hat deine Zahlung über ${amount} für ${project} erhalten. Die Dateien stehen zum Download bereit.`,
     toDownloads: 'Zu den Downloads',
+    planNames: { pro: 'Pro', solo: 'Studio' } as Record<'pro' | 'solo', string>,
+    planPeriods: { month: 'monatlich', year: 'jährlich' } as Record<'month' | 'year', string>,
+    planMethods: { stripe: 'Karte, PayPal oder SEPA über Stripe', lightning: 'Lightning' } as Record<'stripe' | 'lightning', string>,
+    planConfirmSubject: (plan: string) => `Dein Tarif ${plan} bei Music Hub`,
+    planConfirmIntro: (plan: string, period: string, amount: string, day: string, method: string) =>
+      `danke für deine Bestellung: ${plan}, ${period}, ${amount}, bezahlt am ${day} per ${method}. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.`,
+    planConfirmStart: (day: string) =>
+      `Du hast am ${day} ausdrücklich verlangt, dass dein Tarif sofort beginnt. Widerrufst du, zahlst du anteilig für die Zeit bis dahin.`,
+    planConfirmTerms: 'Darunter stehen die AGB und die Widerrufsbelehrung, die für deinen Vertrag gelten.',
+    planCancelSubject: 'Deine Kündigung bei Music Hub',
+    planCancelIntro: (plan: string, day: string) =>
+      `wir haben deine Kündigung von ${plan} erhalten. Dein Tarif läuft bis ${day} und endet dann ohne weitere Zahlung. Deine Dateien bleiben.`,
+    planRefund: (amount: string) => `Den Rest von ${amount} erstatten wir dir in den nächsten Tagen über dasselbe Zahlungsmittel.`,
+    planWithdrawSubject: 'Dein Widerruf bei Music Hub',
+    planWithdrawIntro: (plan: string) => `wir haben deinen Widerruf für ${plan} erhalten. Der Tarif endet damit, deine Dateien bleiben.`,
+    planWithdrawRefund: (amount: string) => `Wir erstatten dir ${amount} binnen 14 Tagen über dasselbe Zahlungsmittel.`,
+    planWithdrawLightning: (amount: string) =>
+      `Wir erstatten dir ${amount} binnen 14 Tagen per Lightning. Schick uns dafür als Antwort auf diese Mail eine Lightning-Rechnung über den Betrag.`,
+    hello: 'Hallo,',
     versionSubject: (project: string, track: string, n: number, actor: string) => `${project}: ${track} V${n} von ${actor}`,
     versionsSubject: (project: string, n: number, actor: string) => `${project}: ${n} neue Versionen von ${actor}`,
     versionsIntro: (actor: string, project: string, n: number) =>
@@ -126,6 +147,8 @@ const en: typeof de = {
     billingUnavailable: 'This payment method is not set up right now.',
     planRunning: 'Your plan is still running. Manage a subscription under “Manage subscription”, otherwise switch once it ends.',
     billingFailed: 'The payment service is not answering right now. Please try again in a moment.',
+    consentRequired: 'Please first confirm that your plan should start right away.',
+    nothingToEnd: 'There is nothing left to cancel or withdraw from here.',
     linkUsed: 'The link has expired or has already been used.',
     trackOpen: 'The track is open. Close it to restore stems.',
     codeInvalid: 'Code invalid or expired',
@@ -202,6 +225,24 @@ const en: typeof de = {
     paidSubject: (project) => `Payment received: ${project}`,
     paidIntro: (studio, amount, project) => `${studio} received your payment of ${amount} for ${project}. The files are ready to download.`,
     toDownloads: 'Go to downloads',
+    planNames: { pro: 'Pro', solo: 'Studio' },
+    planPeriods: { month: 'monthly', year: 'yearly' },
+    planMethods: { stripe: 'card, PayPal or SEPA via Stripe', lightning: 'Lightning' },
+    planConfirmSubject: (plan) => `Your ${plan} plan at Music Hub`,
+    planConfirmIntro: (plan, period, amount, day, method) =>
+      `thank you for your order: ${plan}, ${period}, ${amount}, paid on ${day} by ${method}. No VAT is charged under § 19 UStG.`,
+    planConfirmStart: (day) =>
+      `On ${day} you expressly requested that your plan starts right away. If you withdraw, you pay pro rata for the time until then.`,
+    planConfirmTerms: 'Below are the terms and the cancellation notice that apply to your contract.',
+    planCancelSubject: 'Your cancellation at Music Hub',
+    planCancelIntro: (plan, day) => `we have received your cancellation of ${plan}. Your plan runs until ${day} and then ends without further payment. Your files stay.`,
+    planRefund: (amount) => `We will refund the remaining ${amount} in the next few days using the same means of payment.`,
+    planWithdrawSubject: 'Your withdrawal at Music Hub',
+    planWithdrawIntro: (plan) => `we have received your withdrawal for ${plan}. Your plan ends with it, your files stay.`,
+    planWithdrawRefund: (amount) => `We will refund ${amount} within 14 days using the same means of payment.`,
+    planWithdrawLightning: (amount) =>
+      `We will refund ${amount} within 14 days by Lightning. Please reply to this email with a Lightning invoice for the amount.`,
+    hello: 'Hello,',
     versionSubject: (project, track, n, actor) => `${project}: ${track} V${n} by ${actor}`,
     versionsSubject: (project, n, actor) => `${project}: ${n} new versions by ${actor}`,
     versionsIntro: (actor, project, n) => `${actor} uploaded ${n === 1 ? 'a new version' : `${n} new versions`} in ${project}:`,

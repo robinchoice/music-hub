@@ -25,6 +25,7 @@ export const de = {
   you: 'Du',
   imprint: 'Impressum',
   privacy: 'Datenschutz',
+  terms: 'AGB',
   loading: 'Lädt …',
   quote: (text: string) => `„${text}“`,
   // "3 Songs", "1 Version"
@@ -96,6 +97,7 @@ export const en: typeof de = {
   you: 'You',
   imprint: 'Imprint',
   privacy: 'Privacy',
+  terms: 'Terms',
   loading: 'Loading …',
   quote: (text) => `“${text}”`,
   songs: (n) => (n === 1 ? '1 song' : `${n} songs`),

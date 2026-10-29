@@ -9,3 +9,4 @@ export * from './validation/index.js';
 export const APP_BAND: Band = { from: 1.35, to: 2.2 };
 
 export * from './login-messages.js';
+export * from './terms.js';
