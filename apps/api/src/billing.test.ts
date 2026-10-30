@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import { Hono } from 'hono';
 import Stripe from 'stripe';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql, type Column } from 'drizzle-orm';
 import { createDb, migrateDb, planPayments, sessions, users } from '@music-hub/db';
 import { PLAN_PRICES, type BillingView } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
@@ -375,4 +375,86 @@ test('withdrawing from a subscription keeps a Lightning month bought on top, and
   const left = (await userRow(p.id)).planUntil!.getTime() - Date.now();
   expect(left).toBeGreaterThan(extended.getTime() - end.getTime() - DAY);
   expect((await db.select().from(planPayments).where(eq(planPayments.externalId, invoice.id)))[0].confirmedAt).not.toBeNull();
+});
+
+// Moves everything about the account's plan the given days into the past, as if that time went by
+const daysPass = async (userId: string, days: number) => {
+  const back = (column: Column) => sql`${column} - make_interval(days => ${days})`;
+  await db
+    .update(planPayments)
+    .set({ periodStart: back(planPayments.periodStart), paidUntil: back(planPayments.paidUntil), paidAt: back(planPayments.paidAt), createdAt: back(planPayments.createdAt), withdrawnAt: back(planPayments.withdrawnAt) })
+    .where(eq(planPayments.userId, userId));
+  await db.update(users).set({ planUntil: sql`${users.planUntil} - make_interval(days => ${days})` }).where(eq(users.id, userId));
+};
+const payLightning = async (p: Awaited<ReturnType<typeof person>>, plan: 'pro' | 'solo', period: 'month' | 'year' = 'month') => {
+  const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period, method: 'lightning', consent: true }) });
+  const { url } = (await res.json()) as { url: string };
+  const invoice = [...invoices.values()].find((i) => i.checkoutLink === url)!;
+  invoice.status = 'Settled';
+  await btcpayWebhook(invoice.id);
+  return (await db.select().from(planPayments).where(eq(planPayments.externalId, invoice.id)))[0];
+};
+const withdraw = async (p: Awaited<ReturnType<typeof person>>, paymentId: string) => {
+  const res = await app.request('/billing/withdraw', { method: 'POST', headers: p.headers, body: JSON.stringify({ paymentId }) });
+  expect(res.status).toBe(200);
+  return ((await res.json()) as { refundCents: number }).refundCents;
+};
+
+test('withdrawing from prepaid Lightning months moves the later ones up, so a later withdrawal costs none of their time', async () => {
+  const p = await person();
+  const [a, b, c] = [await payLightning(p, 'pro'), await payLightning(p, 'pro'), await payLightning(p, 'pro')];
+  await withdraw(p, a.id);
+  // b runs now, nine days of it get used
+  await daysPass(p.id, 9);
+  const refund = await withdraw(p, b.id);
+  // b keeps the length it was bought with, nine days of it are paid for
+  const bought = b.paidUntil!.getTime() - b.periodStart!.getTime();
+  expect(Math.abs(refund - (PLAN_PRICES.pro.month * (bought - 9 * DAY)) / bought)).toBeLessThan(1);
+  // c keeps its whole month, from now
+  const [last] = await db.select().from(planPayments).where(eq(planPayments.id, c.id));
+  const length = addPeriod(c.periodStart!, 'month').getTime() - c.periodStart!.getTime();
+  expect(Math.abs(last.periodStart!.getTime() - Date.now())).toBeLessThan(60_000);
+  expect(Math.abs((await userRow(p.id)).planUntil!.getTime() - (Date.now() + length))).toBeLessThan(DAY);
+  expect((await userRow(p.id)).planUntil).toEqual(last.paidUntil);
+});
+
+test('withdrawing the Studio payment of Studio and Pro paid together leaves Pro', async () => {
+  const p = await person();
+  const buy = async (plan: string) => {
+    const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period: 'month', method: 'lightning', consent: true }) });
+    const { url } = (await res.json()) as { url: string };
+    return [...invoices.values()].find((i) => i.checkoutLink === url)!;
+  };
+  const studio = await buy('solo');
+  const pro = await buy('pro');
+  for (const invoice of [studio, pro]) {
+    invoice.status = 'Settled';
+    await btcpayWebhook(invoice.id);
+  }
+  expect((await userRow(p.id)).plan).toBe('solo');
+  const [paid] = await db.select().from(planPayments).where(eq(planPayments.externalId, studio.id));
+  await withdraw(p, paid.id);
+  const [proPayment] = await db.select().from(planPayments).where(eq(planPayments.externalId, pro.id));
+  expect(await userRow(p.id)).toMatchObject({ plan: 'pro', planUntil: proPayment.paidUntil });
+  expect(Math.abs(proPayment.periodStart!.getTime() - Date.now())).toBeLessThan(60_000);
+});
+
+test('cancelling while Stripe retries a failed renewal ends the plan now, without the unpaid period or a refund', async () => {
+  for (const period of ['month', 'year'] as const) {
+    const p = await person();
+    const sub = `sub_f_${p.id}`;
+    // The paid period ended yesterday, Stripe's current one is the renewal it couldn't collect
+    await stripeWebhook(subscriptionInvoice(p.id, `in_f1_${p.id}`, sub, period, new Date(Date.now() - 400 * DAY), 'subscription_create'));
+    await stripeWebhook(subscriptionInvoice(p.id, `in_f2_${p.id}`, sub, period, new Date(Date.now() - DAY), 'subscription_cycle'));
+    const days = period === 'year' ? 366 : 31;
+    await db.update(planPayments).set({ periodStart: new Date(Date.now() - 2 * days * DAY) }).where(eq(planPayments.externalId, `in_f1_${p.id}`));
+    await db.update(planPayments).set({ periodStart: new Date(Date.now() - days * DAY) }).where(eq(planPayments.externalId, `in_f2_${p.id}`));
+    stripePeriodEnd = addPeriod(new Date(Date.now() - DAY), period);
+    const res = await app.request('/billing/cancel', { method: 'POST', headers: p.headers });
+    const { endsAt, refundCents } = (await res.json()) as { endsAt: string; refundCents: number };
+    expect(refundCents).toBe(0);
+    expect(new Date(endsAt).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(stripeCalls).toContain(`cancelNow ${sub}`);
+    expect((await userRow(p.id)).planUntil!.getTime()).toBeLessThanOrEqual(Date.now());
+  }
 });

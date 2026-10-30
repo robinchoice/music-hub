@@ -432,7 +432,8 @@ async function confirmContract(db: Database, externalId: string) {
 
 // "Verträge hier kündigen" (§ 312k BGB) for the running subscription. A monthly one and a yearly one
 // in its first year end with the paid period. After the first renewal a yearly one ends a month from
-// now at the latest, and the rest of the year is refunded by hand.
+// now at the latest, and the rest of the year is refunded by hand. A renewal Stripe still retries has
+// already moved Stripe's period on without being paid: such a subscription ends now, nothing refunded.
 export async function cancelPlan(db: Database, userId: string) {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   const subscriptionId = user?.stripeSubscriptionId;
@@ -445,11 +446,13 @@ export async function cancelPlan(db: Database, userId: string) {
   const [first, last] = [payments[0], payments.at(-1)];
   const periodEnd = await stripeCall(() => stripeOps().periodEnd(subscriptionId));
   const now = new Date();
+  // The invoice for Stripe's current period runs the plan at least to its end
+  const paid = !!last?.paidUntil && last.paidUntil >= periodEnd;
   const renewedYear = last?.period === 'year' && !!first && now >= addPeriod(startOf(first), 'year');
   const monthAhead = addPeriod(now, 'month');
-  const endsAt = renewedYear && monthAhead < periodEnd ? monthAhead : periodEnd;
-  await stripeCall(() => stripeOps().cancelAt(subscriptionId, endsAt < periodEnd ? endsAt : 'period_end'));
-  const refundCents = last && endsAt < periodEnd ? proRata(last.amountCents, periodEnd.getTime() - endsAt.getTime(), periodEnd.getTime() - startOf(last).getTime()) : 0;
+  const endsAt = !paid ? now : renewedYear && monthAhead < periodEnd ? monthAhead : periodEnd;
+  await stripeCall(() => (paid ? stripeOps().cancelAt(subscriptionId, endsAt < periodEnd ? endsAt : 'period_end') : stripeOps().cancelNow(subscriptionId)));
+  const refundCents = paid && last && endsAt < periodEnd ? proRata(last.amountCents, periodEnd.getTime() - endsAt.getTime(), periodEnd.getTime() - startOf(last).getTime()) : 0;
   await db.transaction(async (tx) => {
     await lockUser(tx, userId);
     await tx.update(users).set({ planUntil: endsAt, stripeSubscriptionId: null }).where(eq(users.id, userId));
@@ -477,26 +480,46 @@ export async function withdrawPayment(db: Database, userId: string, paymentId: s
     await stripeCall(() => stripeOps().cancelNow(id));
   }
   const now = new Date();
-  // The time this payment bought: one more Lightning period only starts where the plan ran to before
-  const start = startOf(payment);
-  const whole = periodMs(start, payment.period === 'year' ? 'year' : 'month');
-  const refundCents = proRata(payment.amountCents, whole - (now.getTime() - start.getTime()), whole);
-  // What is left of it comes off the plan, other payments keep theirs
-  const unused = Math.max(0, (payment.paidUntil?.getTime() ?? now.getTime()) - Math.max(now.getTime(), start.getTime()));
-  const withdrawn = await db.transaction(async (tx) => {
+  const refundCents = await db.transaction(async (tx) => {
     await lockUser(tx, userId);
-    const [again] = await tx.select({ withdrawnAt: planPayments.withdrawnAt }).from(planPayments).where(eq(planPayments.id, payment.id));
-    if (again?.withdrawnAt) return false;
+    // Read again under the lock: a withdrawal at the same time may have moved this payment's period
+    const rows = await tx.select().from(planPayments).where(eq(planPayments.userId, userId));
+    const withdrawing = rows.find((p) => p.id === payment.id);
+    if (!withdrawing || withdrawing.withdrawnAt) return null;
+    // The time this payment bought: one more Lightning period only starts where the plan ran to before,
+    // and keeps its length when an earlier withdrawal moved it up
+    const start = startOf(withdrawing);
+    const paidUntil = withdrawing.paidUntil;
+    const whole =
+      withdrawing.provider === 'btcpay' && paidUntil ? paidUntil.getTime() - start.getTime() : periodMs(start, withdrawing.period === 'year' ? 'year' : 'month');
+    const refund = proRata(withdrawing.amountCents, whole - (now.getTime() - start.getTime()), whole);
+    // What is left of it comes off the plan. Periods bought on top of it move up into that gap, so
+    // withdrawing one of them later counts its time from where it runs now.
+    const unused = Math.max(0, (paidUntil?.getTime() ?? now.getTime()) - Math.max(now.getTime(), start.getTime()));
+    const kept = rows.filter((p) => p.id !== withdrawing.id && p.status === 'paid' && !p.withdrawnAt);
+    for (const p of kept) {
+      if (!unused || !paidUntil || !p.periodStart || !p.paidUntil || p.periodStart < paidUntil) continue;
+      p.periodStart = new Date(p.periodStart.getTime() - unused);
+      p.paidUntil = new Date(p.paidUntil.getTime() - unused);
+      await tx.update(planPayments).set({ periodStart: p.periodStart, paidUntil: p.paidUntil }).where(eq(planPayments.id, p.id));
+    }
     const [current] = await tx.select().from(users).where(eq(users.id, userId));
     const until = current?.planUntil ? new Date(Math.max(now.getTime(), current.planUntil.getTime() - unused)) : null;
+    // Payments for two plans run under the bigger one (book). Withdrawing the one that bought it falls
+    // back to the biggest plan still paid for; a plan set by an admin stays.
+    const paidPlans = kept.filter((p) => p.paidUntil && p.paidUntil > now).map((p) => p.plan);
+    const plan =
+      current && withdrawing.plan === current.plan && paidPlans.length && !paidPlans.includes(current.plan)
+        ? PLANS.filter((p) => paidPlans.includes(p)).at(-1)
+        : undefined;
     await tx
       .update(users)
-      .set({ planUntil: until, ...(payment.provider === 'stripe' ? { stripeSubscriptionId: null } : {}) })
+      .set({ planUntil: until, ...(plan ? { plan } : {}), ...(withdrawing.provider === 'stripe' ? { stripeSubscriptionId: null } : {}) })
       .where(eq(users.id, userId));
-    await tx.update(planPayments).set({ withdrawnAt: now, refundCents }).where(eq(planPayments.id, payment.id));
-    return true;
+    await tx.update(planPayments).set({ withdrawnAt: now, refundCents: refund }).where(eq(planPayments.id, withdrawing.id));
+    return refund;
   });
-  if (!withdrawn) return null;
+  if (refundCents === null) return null;
   const plan = PLANS.find((p) => p === payment.plan) ?? 'pro';
   const method = payment.provider === 'stripe' ? 'stripe' : 'lightning';
   await sendPlanWithdrawnEmail(user.email, { plan, refundCents, method }, pickLocale(user.locale)).catch((err) =>
