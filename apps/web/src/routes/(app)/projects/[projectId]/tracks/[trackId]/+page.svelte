@@ -168,8 +168,9 @@
   const showNewVersion = $derived(selectedVersion?.id === versions[0]?.id && !!predecessor && !processing && hasWaveform(selectedVersion!) && hasWaveform(predecessor) && !dismissedVersions.includes(selectedVersion!.id));
   // Your comments since your last "Fertig", and everyone's feedback on the selected version
   const myPass = $derived($user ? trackComments.passOf($user.id) : []);
-  const freshIds = $derived(new Set(myPass.map((c) => c.id)));
   const canFinish = $derived((canComment || canApprove) && !!selectedVersion && hasWaveform(selectedVersion) && !!$user && selectedVersion.createdById !== $user.id);
+  // Only marked where a "Fertig" can send them; the uploader has none
+  const freshIds = $derived(new Set(canFinish ? myPass.map((c) => c.id) : []));
   // Once the version is decided, nobody is "still missing" anymore
   const decided = $derived(!!selectedVersion && isDecided(selectedVersion));
   // The uploader or the owner may remind approvers whose verdict is missing
