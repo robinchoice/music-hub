@@ -367,6 +367,17 @@
     color: var(--color-text-primary);
   }
 
+  /* Big enough for a finger */
+  @media (hover: none) {
+    .filter button {
+      height: 32px;
+    }
+
+    .ts-remove {
+      padding: 0 8px;
+    }
+  }
+
   .filter i {
     font-style: normal;
     color: var(--color-text-tertiary);

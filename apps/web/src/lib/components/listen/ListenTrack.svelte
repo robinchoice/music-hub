@@ -637,6 +637,10 @@
     font-family: inherit;
   }
   .comment p { margin: 0; font-size: var(--text-sm); }
+  /* Big enough for a finger, like the comments on the track page */
+  @media (hover: none) {
+    .ts { line-height: 28px; }
+  }
   .reply {
     margin-top: var(--space-3);
     padding-left: var(--space-3);

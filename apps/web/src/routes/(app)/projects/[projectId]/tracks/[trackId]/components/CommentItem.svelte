@@ -551,4 +551,27 @@
     opacity: 0.4;
     cursor: default;
   }
+
+  /* Big enough for a finger, so a tap on "Antworten" doesn't hit "Abhaken" */
+  @media (hover: none) {
+    .actions {
+      gap: 4px;
+    }
+
+    .actions button,
+    .form-actions .link {
+      min-height: 36px;
+      padding: 0 10px;
+    }
+
+    .ts {
+      line-height: 30px;
+    }
+
+    .picker button {
+      width: 40px;
+      height: 36px;
+      font-size: 18px;
+    }
+  }
 </style>
