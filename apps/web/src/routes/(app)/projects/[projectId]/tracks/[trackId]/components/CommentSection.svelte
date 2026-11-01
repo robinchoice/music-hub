@@ -382,7 +382,7 @@
   }
 
   .replies {
-    margin-left: 44px;
+    margin-left: 32px;
   }
 
   .empty {

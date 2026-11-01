@@ -228,8 +228,9 @@
     border-radius: var(--radius-md);
   }
 
+  /* Same inset on the right as the comment above it; on the left room for the "neu" stripe */
   .comment.reply {
-    padding: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3) 0;
   }
 
   .ghost {
