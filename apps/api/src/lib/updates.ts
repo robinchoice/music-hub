@@ -90,8 +90,12 @@ export function redact(err: unknown) {
 // Sends the oldest due delivery, at most one per intervalMs across all API
 // instances: an advisory lock lets one instance at a time in, and the last
 // attempt of any instance sets the pace. The row stays locked until it is
-// marked, so no mail goes out twice. 'wait' means another instance or the pace
-// holds it back.
+// marked, so two instances never send the same delivery at once. The mark
+// commits only after SMTP answered: if the instance dies or the commit fails
+// after the server accepted the mail, or the server reports an error for a
+// mail it delivered, the delivery is sent again. So a mail may rarely arrive
+// twice, but no delivery counts as sent unless SMTP accepted it. 'wait' means
+// another instance or the pace holds it back.
 export function deliverNext(db: Database, intervalMs: number): Promise<'idle' | 'wait' | 'sent' | 'skipped' | 'failed'> {
   return db.transaction(async (tx) => {
     const [lock] = await tx.execute<{ ok: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext('update-mails')) as ok`);

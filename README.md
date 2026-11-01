@@ -125,7 +125,7 @@ Mails zu neuen Funktionen an alle, die sie bestellt haben. Ohne Opt-in geht nich
 - Abbestellen: Link in jeder Update-Mail (`/abbestellen?liste=updates`) und One-Click im Mailprogramm (`List-Unsubscribe`), beides mit `users.mail_token` wie bei den Versions-Mails, aber unabhängig von deren Schalter.
 - Entwürfe: Agenten legen sie als `updates/<slug>.md` an, je Sprache `# de: Titel` bzw. `# en: Title`, darunter `- Feature` je Zeile, optional `![](bild.png)` aus demselben Ordner. Die API übernimmt jede Datei beim Start einmal als Entwurf, spätere Änderungen an der Datei nicht mehr. Der API-Test prüft, dass alle Dateien lesbar sind.
 - Senden: nur Admins aus `ADMIN_EMAILS` unter `/admin/updates`, mit Vorschau und Testmail an sich selbst je Sprache. Gesendet wird erst mit Titel und Feature auf Deutsch und Englisch, jede Person bekommt die Sprache ihres Kontos (`users.locale`). Updates von vor Englisch (ohne `content.en`) lesen alle auf Deutsch. Danach lässt sich das Update nicht mehr ändern.
-- Versand: die API, eine Mail alle `UPDATE_MAIL_INTERVAL_MS` (Standard 6000) über alle Instanzen, mit drei Versuchen pro Empfänger. Die Logs nennen keine Adressen.
+- Versand: die API, eine Mail alle `UPDATE_MAIL_INTERVAL_MS` (Standard 6000) über alle Instanzen, mit drei Versuchen pro Empfänger. Zwei Instanzen schicken nie dieselbe Zeile gleichzeitig, als gesendet gilt sie aber erst nach dem Commit: Stirbt die API zwischen SMTP-Annahme und Commit oder meldet der Server einen Fehler für eine zugestellte Mail, geht sie erneut raus. Eine doppelte Mail ist also selten möglich, eine nie angenommene gilt nie als gesendet. Die Logs nennen keine Adressen.
 
 ## Ablieferung mit Bezahlwand
 
