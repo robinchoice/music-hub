@@ -481,6 +481,11 @@
     toastSuccess(t().track.page.commentSaved);
   }
 
+  async function handleResolveComment(id: string) {
+    await trackComments.resolve(id);
+    toast(t().track.page.commentResolved, 'success', 8000, { label: t().common.undo, run: () => trackComments.reopen(id) });
+  }
+
   async function handleDeleteComment(id: string) {
     await trackComments.remove(id);
     toastTrash(t().track.page.commentTrashed, () => handleRestoreComment(id));
@@ -1006,7 +1011,7 @@
           bind:commentTimestamp
           onSubmit={handleComment}
           onReply={trackComments.reply}
-          onResolve={trackComments.resolve}
+          onResolve={handleResolveComment}
           onReopen={trackComments.reopen}
           onReact={trackComments.react}
           onEdit={trackComments.edit}
