@@ -87,6 +87,12 @@
     if (whoShown) whoTimer = setTimeout(() => (whoShown = null), 3000);
   }
 
+  // An opened reply or edit takes the keyboard right away, also on phones; the cursor goes behind the text
+  const focus = (el: HTMLTextAreaElement) => {
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  };
+
   function startEdit() {
     editBody = comment.body;
     editing = true;
@@ -146,7 +152,7 @@
 
     {#if editing}
       <form class="inline-form" onsubmit={(e) => { e.preventDefault(); saveEdit(); }}>
-        <textarea bind:value={editBody} rows="2"></textarea>
+        <textarea bind:value={editBody} rows="2" {@attach focus}></textarea>
         <div class="form-actions">
           <button type="button" class="link" onclick={() => (editing = false)}>{t().common.cancel}</button>
           <button type="submit" class="link primary" disabled={!editBody.trim() || busy}>{t().common.save}</button>
@@ -202,7 +208,7 @@
 
     {#if replying}
       <form class="inline-form" onsubmit={(e) => { e.preventDefault(); sendReply(); }}>
-        <textarea bind:value={replyBody} rows="2" placeholder={t().track.comment.writeReply}></textarea>
+        <textarea bind:value={replyBody} rows="2" placeholder={t().track.comment.writeReply} {@attach focus}></textarea>
         <div class="form-actions">
           <button type="button" class="link" onclick={() => (replying = false)}>{t().common.cancel}</button>
           <button type="submit" class="link primary" disabled={!replyBody.trim() || busy}>{t().track.comment.reply}</button>
