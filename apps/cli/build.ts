@@ -5,4 +5,4 @@ import { $ } from 'bun';
 import { LIVE_URL, SLUG } from './src/config';
 
 const url = process.env.CLI_URL || LIVE_URL;
-await $`bun build src/main.ts --compile --minify --outfile build/${SLUG} --define process.env.CLI_URL=${JSON.stringify(url)} ${process.argv.slice(2)}`;
+await $`bun build src/main.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --minify --outfile build/${SLUG} --define process.env.CLI_URL=${JSON.stringify(url)} ${process.argv.slice(2)}`;
