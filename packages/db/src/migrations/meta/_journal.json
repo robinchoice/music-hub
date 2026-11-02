@@ -295,6 +295,13 @@
       "when": 1793262752258,
       "tag": "0041_fk_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793617521575,
+      "tag": "0042_update_delivery_checks",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/web-push": "^3.6.4"
+    "@types/web-push": "^3.6.4",
+    "fast-check": "^4.10.2"
   }
 }
