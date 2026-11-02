@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { Hono } from 'hono';
 import { eq, inArray } from 'drizzle-orm';
-import { createDb, migrateDb, projectMembers, projects, sessions, tracks, users } from '@music-hub/db';
+import { createDb, migrateDb, projectMembers, projects, sessions, stemMixJobs, tracks, users } from '@music-hub/db';
 import { generateToken, hashToken } from './middleware/auth.js';
 import type { AppEnv } from './types.js';
 
@@ -67,9 +67,11 @@ test('a project upload registers once in that project and uses its stored size',
   expect(fileKey).toStartWith(`projects/${projectId}/uploads/`);
   expect((await register(otherTrackId, fileKey)).status).toBe(403);
   expect((await register(trackId, fileKey.replace('/original/', '/original/../'))).status).toBe(403);
+  await db.insert(stemMixJobs).values({ trackId, createdById: userIds[0], attempts: 3, lockedUntil: new Date(0) });
   const saved = await register(trackId, fileKey);
   expect(saved.status).toBe(201);
   expect((await saved.json()).version).toMatchObject({ trackId, fileSize: 1234, versionNumber: 1 });
+  expect(await db.select().from(stemMixJobs).where(eq(stemMixJobs.trackId, trackId))).toHaveLength(0);
   expect((await register(trackId, fileKey)).status).toBe(403);
 });
 

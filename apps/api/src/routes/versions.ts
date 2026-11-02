@@ -11,7 +11,7 @@ import {
   REJECTION_PREFIX,
 } from '@music-hub/shared';
 import { versions, comments, tracks } from '@music-hub/db';
-import { stemMixState } from '../services/stem-mixes.js';
+import { clearFailedStemMix, stemMixState } from '../services/stem-mixes.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
@@ -212,6 +212,7 @@ export const versionRoutes = new Hono<AppEnv>()
         })
         .returning();
       await enqueueAudioJob(tx, version.id);
+      await clearFailedStemMix(tx, trackId);
       return version;
     });
     if (version === 'taken') return c.json({ error: 'Forbidden' }, 403);

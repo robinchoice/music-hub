@@ -1,10 +1,10 @@
-import { queueStemMix } from '../services/stem-mixes.js';
+import { holdStemMix, queueStemMix } from '../services/stem-mixes.js';
 import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { guestNoteSchema, guestSettingsSchema, guestStemSchema, guestTrackSchema, requestStemUploadUrlSchema } from '@music-hub/shared';
-import { guestNotes, projects, stems, tracks, uploadLinks, users, type Database } from '@music-hub/db';
+import { guestNotes, projects, stems, stemMixUploads, tracks, uploadLinks, users, type Database } from '@music-hub/db';
 import { requireAuth, generateToken } from '../middleware/auth.js';
 import { createUploadUrl, getObjectSize } from '../storage/s3.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -197,6 +197,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
 
     const fileKey = `projects/${track.projectId}/tracks/${track.id}/stems/${crypto.randomUUID()}/${fileName}`;
     const uploadUrl = await createUploadUrl(fileKey, mimeType, fileSize);
+    await holdStemMix(db, track.id, fileKey);
     return c.json({ uploadUrl, fileKey });
   })
 
@@ -232,6 +233,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
           createdById: ownerId,
         })
         .returning({ id: stems.id });
+      await tx.delete(stemMixUploads).where(eq(stemMixUploads.fileKey, input.fileKey));
       await queueStemMix(tx, track.id, ownerId);
       return stem;
     });

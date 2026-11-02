@@ -1,4 +1,3 @@
-import { queueStemMix } from '../services/stem-mixes.js';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { OPEN_LICENSES, OPEN_LICENSE_INFO, type Locale, type OpenLicense } from '@music-hub/shared';
 import {
@@ -212,7 +211,6 @@ export async function forkTrack(db: Database, sourceId: string, userId: string, 
           createdById: userId,
         })),
       );
-      await queueStemMix(tx, track.id, userId);
     }
     return track;
   });

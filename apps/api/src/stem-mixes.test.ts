@@ -3,8 +3,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, inArray } from 'drizzle-orm';
-import { audioJobs, createDb, migrateDb, projectMembers, projects, stemMixJobs, stems, tracks, users, versions } from '@music-hub/db';
-import { processNextStemMix, queueMissingStemMixes, queueStemMix, renderStemMix, stemMixState } from './services/stem-mixes.js';
+import { audioJobs, createDb, migrateDb, projectMembers, projects, sessions, stemMixJobs, stemMixUploads, stems, tracks, users, versions } from '@music-hub/db';
+import { holdStemMix, processNextStemMix, queueMissingStemMixes, queueStemMix, renderStemMix, stemMixState } from './services/stem-mixes.js';
+import { Hono } from 'hono';
+import { generateToken, hashToken } from './middleware/auth.js';
+import { trashRoutes } from './routes/trash.js';
+import type { AppEnv } from './types.js';
 import { processVersion } from './services/audio-processor.js';
 import { replaceStem, restoreRevision } from './lib/stems.js';
 import { stemRevisions } from '@music-hub/db';
@@ -27,7 +31,7 @@ beforeAll(async () => {
   mock.module('./storage/s3.js', () => ({
     ...storage,
     createDownloadUrl: async (key: string, expiresIn?: number, downloadName?: string) =>
-      key.startsWith(prefix) ? tone : outputs.get(key) ?? storage.createDownloadUrl(key, expiresIn, downloadName),
+      key.startsWith(prefix) ? (key.includes('non-audio') ? '/missing-non-audio' : tone) : outputs.get(key) ?? storage.createDownloadUrl(key, expiresIn, downloadName),
     putObjectFile: async (key: string, path: string) => {
       const saved = join(directory, crypto.randomUUID());
       await Bun.write(saved, Bun.file(path));
@@ -127,18 +131,78 @@ test('an edit during rendering discards the obsolete result and keeps the new jo
   expect(await mixes()).toHaveLength(1);
 });
 
-test('empty stems and deleted or archived tracks do not create a version', async () => {
-  for (const unavailable of ['empty', 'deleted', 'archived']) {
+test('empty stems discard the job; deleted and archived tracks keep it for their return', async () => {
+  await queueStemMix(db, trackId, owner);
+  await due();
+  await db.update(stems).set({ deletedAt: new Date() }).where(eq(stems.id, stemId));
+  await processNextStemMix(db, signal());
+  expect(await stemMixState(db, trackId)).toBeNull();
+  await db.update(stems).set({ deletedAt: null }).where(eq(stems.id, stemId));
+  for (const unavailable of ['deleted', 'archived']) {
     await queueStemMix(db, trackId, owner);
     await due();
-    if (unavailable === 'empty') await db.update(stems).set({ deletedAt: new Date() }).where(eq(stems.id, stemId));
     if (unavailable === 'deleted') await db.update(tracks).set({ deletedAt: new Date() }).where(eq(tracks.id, trackId));
     if (unavailable === 'archived') await db.update(projects).set({ isArchived: true }).where(eq(projects.id, projectId));
-    await processNextStemMix(db, signal());
+    expect(await processNextStemMix(db, signal())).toBe(false);
     expect(await mixes()).toHaveLength(0);
-    expect(await stemMixState(db, trackId)).toBeNull();
+    expect(await stemMixState(db, trackId)).toBe('pending');
+    await db.update(tracks).set({ deletedAt: null }).where(eq(tracks.id, trackId));
+    await db.update(projects).set({ isArchived: false }).where(eq(projects.id, projectId));
   }
-  await db.update(projects).set({ isArchived: false }).where(eq(projects.id, projectId));
+  await processNextStemMix(db, signal());
+  expect(await mixes()).toHaveLength(1);
+});
+
+test('restoring a track with an existing mix queues no extra version', async () => {
+  await queueStemMix(db, trackId, owner);
+  await due();
+  await processNextStemMix(db, signal());
+  await db.update(tracks).set({ deletedAt: new Date(), deletedById: owner }).where(eq(tracks.id, trackId));
+  const token = generateToken();
+  await db.insert(sessions).values({ userId: owner, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + 60_000) });
+  const app = new Hono<AppEnv>().use('*', async (c, next) => { c.set('db', db); await next(); }).route('/trash', trashRoutes);
+  const res = await app.request(`/trash/track/${trackId}/restore`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+  expect(res.status).toBe(200);
+  expect(await stemMixState(db, trackId)).toBeNull();
+  expect(await processNextStemMix(db, signal())).toBe(false);
+  expect(await mixes()).toHaveLength(1);
+});
+
+test('MIDI, project and video attachments do not block real audio, including generic WAV uploads', async () => {
+  await db.insert(stems).values([
+    ...['audio/midi', 'video/mp4', 'application/octet-stream', 'audio/wav'].map((mimeType) => ({
+      trackId, name: 'Attachment', originalFileName: 'project.logicx', mimeType, fileSize: 1,
+      fileKey: prefix + 'non-audio-' + crypto.randomUUID(), createdById: owner,
+    })),
+    { trackId, name: 'Audio', originalFileName: 'take.wav', mimeType: 'application/octet-stream', fileSize: 100, fileKey: prefix + crypto.randomUUID(), createdById: owner },
+    { trackId, name: 'Other audio', originalFileName: 'take.ogg', mimeType: 'application/octet-stream', fileSize: 100, fileKey: prefix + crypto.randomUUID(), createdById: owner },
+  ]);
+  await queueStemMix(db, trackId, owner);
+  await due();
+  await processNextStemMix(db, signal());
+  expect(await mixes()).toHaveLength(1);
+});
+
+test('parallel transfers hold the batch until all finish; abandoned upload URLs expire', async () => {
+  const first = prefix + crypto.randomUUID(), second = prefix + crypto.randomUUID();
+  await holdStemMix(db, trackId, first);
+  await holdStemMix(db, trackId, second);
+  await replaceStem(db, stemId, owner, { originalFileName: 'take.wav', mimeType: 'audio/wav', fileSize: 100, fileKey: first });
+  await due();
+  expect(await processNextStemMix(db, signal())).toBe(false);
+  expect(await mixes()).toHaveLength(0);
+  await replaceStem(db, stemId, owner, { originalFileName: 'take2.wav', mimeType: 'audio/wav', fileSize: 100, fileKey: second });
+  await due();
+  await processNextStemMix(db, signal());
+  expect(await mixes()).toHaveLength(1);
+
+  await holdStemMix(db, trackId, prefix + crypto.randomUUID());
+  await queueStemMix(db, trackId, owner);
+  await due();
+  expect(await processNextStemMix(db, signal())).toBe(false);
+  await db.update(stemMixUploads).set({ expiresAt: new Date(0) }).where(eq(stemMixUploads.trackId, trackId));
+  await processNextStemMix(db, signal());
+  expect(await mixes()).toHaveLength(2);
 });
 
 test('a full account leaves no broken version and the failed job stays visible', async () => {
@@ -153,9 +217,15 @@ test('a full account leaves no broken version and the failed job stays visible',
 });
 
 test('catch-up finds stem-only tracks without changing existing version histories', async () => {
+  const [fork] = await db.insert(tracks).values({ projectId, name: 'Free remix', createdById: owner, forkedFromId: trackId }).returning();
+  await db.insert(stems).values({ trackId: fork.id, name: 'Drums', originalFileName: 'drums.wav', mimeType: 'audio/wav', fileSize: 100, fileKey: prefix + crypto.randomUUID(), forked: true, createdById: owner });
   await queueMissingStemMixes(db);
   const mine = await db.select().from(stemMixJobs).where(eq(stemMixJobs.createdById, owner));
   expect(mine.some((job) => job.trackId === trackId)).toBe(true);
+  expect(mine.some((job) => job.trackId === fork.id)).toBe(false);
+  await db.insert(stems).values({ trackId: fork.id, name: 'New take', originalFileName: 'new.wav', mimeType: 'audio/wav', fileSize: 100, fileKey: prefix + crypto.randomUUID(), createdById: owner });
+  await queueMissingStemMixes(db);
+  expect(await db.select().from(stemMixJobs).where(eq(stemMixJobs.trackId, fork.id))).toHaveLength(1);
   const idsWithVersions = db.select({ id: versions.trackId }).from(versions).where(eq(versions.createdById, owner));
   expect(await db.select().from(stemMixJobs).where(and(eq(stemMixJobs.createdById, owner), inArray(stemMixJobs.trackId, idsWithVersions)))).toHaveLength(0);
 });

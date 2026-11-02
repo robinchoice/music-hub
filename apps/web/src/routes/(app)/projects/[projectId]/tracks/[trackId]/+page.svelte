@@ -298,8 +298,9 @@
     });
     // Mixes also arrive through guests and the CLI. Polling catches a lost SSE signal.
     let refreshing = false;
+    let nextMixPoll = 0;
     mixPoll = setInterval(async () => {
-      if (refreshing || document.hidden || !navigator.onLine) return;
+      if (refreshing || document.hidden || !navigator.onLine || Date.now() < nextMixPoll) return;
       refreshing = true;
       try {
         const latestId = versions[0]?.id;
@@ -312,7 +313,10 @@
           await selectVersion(selectedVersion, true);
         }
       } catch { /* The next poll retries after a connection failure. */ }
-      finally { refreshing = false; }
+      finally {
+        refreshing = false;
+        nextMixPoll = mixState === 'pending' || processing ? 0 : Date.now() + 60_000;
+      }
     }, 5000);
   });
 

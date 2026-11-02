@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { stemRevisions, stems, type Database } from '@music-hub/db';
+import { stemRevisions, stems, stemMixUploads, type Database } from '@music-hub/db';
 import { fits, lockStorage, storageOf } from './storage.js';
 import { queueStemMix } from '../services/stem-mixes.js';
 
@@ -57,6 +57,7 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
       .set({ ...file, sha256: file.sha256 ?? null, forked: false, guestName: null, createdById: userId, revisedAt: now })
       .where(eq(stems.id, stemId))
       .returning();
+    await tx.delete(stemMixUploads).where(eq(stemMixUploads.fileKey, file.fileKey));
     await queueStemMix(tx, stem.trackId, userId);
     return stem;
   });
@@ -64,7 +65,7 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
 
 // Makes an earlier file current again; the current one moves into the history.
 // The storage stays the same, both files were counted already. Returns null if the revision is gone or in the trash.
-export async function restoreRevision(db: Database, revisionId: string, actorId?: string) {
+export async function restoreRevision(db: Database, revisionId: string, actorId: string) {
   return db.transaction(async (tx) => {
     const [revision] = await tx
       .select()
@@ -92,7 +93,7 @@ export async function restoreRevision(db: Database, revisionId: string, actorId?
       })
       .where(eq(stems.id, current.id))
       .returning();
-    await queueStemMix(tx, stem.trackId, actorId ?? stem.createdById);
+    await queueStemMix(tx, stem.trackId, actorId);
     return stem;
   });
 }

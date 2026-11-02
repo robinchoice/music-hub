@@ -285,7 +285,7 @@ export const trashRoutes = new Hono<AppEnv>()
         if (open) return c.json({ error: t(c).errors.trackOpen }, 409);
       }
       await setState(tx, kind, [id], { deletedAt: null, deletedById: null, discardedAt: null });
-      if (kind === 'stem' || kind === 'track') await queueStemMix(tx, item.trackId, userId);
+      if (kind === 'stem') await queueStemMix(tx, item.trackId, userId);
       return c.json({ ok: true });
     });
   })

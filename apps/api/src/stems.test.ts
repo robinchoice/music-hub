@@ -64,11 +64,11 @@ test('restoring swaps the files back, and earlier files are not deleted as unuse
   const [revision] = await db.select().from(stemRevisions).where(eq(stemRevisions.stemId, stemId));
   const [cut] = await db.select().from(stems).where(eq(stems.id, stemId));
 
-  const stem = (await restoreRevision(db, revision.id))!;
+  const stem = (await restoreRevision(db, revision.id, owner))!;
   expect(stem).toMatchObject({ fileKey: revision.fileKey, fileSize: 1000, createdById: drummer });
   const history = await db.select().from(stemRevisions).where(eq(stemRevisions.stemId, stemId));
   expect(history.map((r) => r.fileKey)).toEqual([cut.fileKey]);
-  expect(await restoreRevision(db, revision.id)).toBeNull();
+  expect(await restoreRevision(db, revision.id, owner)).toBeNull();
   expect((await storageOf(db, owner)).used).toBe(400);
 
   // Still referenced by the history, so nothing to delete
@@ -79,7 +79,7 @@ test('an earlier file in the trash still counts, once out of the trash it no lon
   const [revision] = await db.select().from(stemRevisions).where(eq(stemRevisions.stemId, stemId));
   await db.update(stemRevisions).set({ deletedAt: new Date(), deletedById: owner }).where(eq(stemRevisions.id, revision.id));
   expect((await storageOf(db, owner)).used).toBe(400);
-  expect(await restoreRevision(db, revision.id)).toBeNull();
+  expect(await restoreRevision(db, revision.id, owner)).toBeNull();
 
   // The overview and the admin count the same way, only the biggest tracks leave the trash out
   const summary = await storageSummary(db, owner);

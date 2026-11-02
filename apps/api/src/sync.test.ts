@@ -73,7 +73,7 @@ test('a new file for a stem brings its hash along, and restoring brings the old 
   expect(stem.sha256).toBeNull();
 
   const [first] = await db.select().from(stemRevisions).where(eq(stemRevisions.sha256, hash('b')));
-  await restoreRevision(db, first.id);
+  await restoreRevision(db, first.id, robin);
   [stem] = (await syncState(db, robin)).projects[0].tracks[0].stems;
   expect(stem.sha256).toBe(hash('b'));
 });

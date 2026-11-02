@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, replaceStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
-import { stems, stemRevisions, guestNotes, openTracks, users, type Database } from '@music-hub/db';
+import { stems, stemRevisions, stemMixUploads, guestNotes, openTracks, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
@@ -11,7 +11,7 @@ import { Zip, ZipPassThrough } from 'fflate';
 import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 import { t } from '../lib/i18n.js';
-import { queueStemMix } from '../services/stem-mixes.js';
+import { holdStemMix, queueStemMix } from '../services/stem-mixes.js';
 
 export const stemRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -61,6 +61,7 @@ export const stemRoutes = new Hono<AppEnv>()
     const stemId = crypto.randomUUID();
     const fileKey = `projects/${track.projectId}/tracks/${trackId}/stems/${stemId}/${fileName}`;
     const uploadUrl = await createUploadUrl(fileKey, mimeType, fileSize);
+    await holdStemMix(db, trackId, fileKey);
 
     return c.json({ uploadUrl, fileKey, stemId });
   })
@@ -101,6 +102,7 @@ export const stemRoutes = new Hono<AppEnv>()
           createdById: userId,
         })
         .returning();
+      await tx.delete(stemMixUploads).where(eq(stemMixUploads.fileKey, input.fileKey));
       await queueStemMix(tx, trackId, userId);
       return stem;
     });

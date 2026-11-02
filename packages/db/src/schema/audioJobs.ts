@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, timestamp, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, timestamp, check, text, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users.js';
 import { tracks, versions } from './tracks.js';
@@ -25,3 +25,10 @@ export const stemMixJobs = pgTable('stem_mix_jobs', {
   lockedUntil: timestamp('locked_until'),
   attempts: integer('attempts').default(0).notNull(),
 }, (t) => [check('stem_mix_attempts_nonnegative', sql`${t.attempts} >= 0`)]);
+
+// Outstanding presigned uploads hold a batch open, including parallel transfers. Abandoned URLs expire.
+export const stemMixUploads = pgTable('stem_mix_uploads', {
+  fileKey: text('file_key').primaryKey(),
+  trackId: uuid('track_id').notNull().references(() => tracks.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at').notNull(),
+}, (t) => [index().on(t.expiresAt)]);

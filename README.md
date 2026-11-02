@@ -30,7 +30,7 @@ Monorepo mit Turborepo: `apps/web`, `apps/api`, `apps/cli`, `packages/db`, `pack
 
 ## Setup (lokal)
 
-**Voraussetzungen:** Bun, Docker
+**Voraussetzungen:** Bun, Docker und FFmpeg samt `ffprobe` für den Audio-Worker und die Audio-Integrationstests.
 
 ```bash
 # Dependencies
