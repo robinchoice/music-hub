@@ -219,6 +219,14 @@
     letter-spacing: 0.06em;
   }
 
+  @media (any-pointer: coarse) {
+    :global(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden'])),
+    :global(textarea),
+    :global(select) {
+      font-size: max(16px, 1rem) !important;
+    }
+  }
+
   :global(html) {
     background: var(--color-bg-base);
   }

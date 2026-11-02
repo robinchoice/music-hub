@@ -33,6 +33,27 @@ test('the comment box fits the phone and hides keyboard hints on touch', async (
   if (!isMobile) await expect(feedback.locator('.hint')).toHaveText('Klick in die Wellenform wählt die Stelle · Taste C nimmt die aktuelle Position', { useInnerText: true });
 });
 
+test('touch fields stay readable in login, comments and replies, including wide screens', async ({ page, isMobile }) => {
+  await page.goto('/login');
+  await expect(page.getByRole('textbox', { name: 'E-Mail' })).toHaveCSS('font-size', isMobile ? '16px' : '14px');
+  await page.goto('/');
+  const feedback = page.locator('.frag-stack').first();
+  const composer = feedback.locator('.composer input');
+  await expect(composer).toHaveCSS('font-size', isMobile ? '16px' : '14px');
+  await composer.fill('Bass hier etwas leiser');
+  await composer.press('Enter');
+  const comment = feedback.locator('.comment', { hasText: 'Bass hier etwas leiser' }).first();
+  await expect(comment).toBeVisible();
+  await comment.getByRole('button', { name: 'Antworten', exact: true }).click();
+  const reply = comment.locator('textarea');
+  await expect(reply).toHaveCSS('font-size', isMobile ? '16px' : '14px');
+  if (isMobile) {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await expect(composer).toHaveCSS('font-size', '16px');
+    await expect(reply).toHaveCSS('font-size', '16px');
+  }
+});
+
 test('the last file of the chaos box is fully visible', async ({ page }) => {
   await page.goto('/');
   const box = page.locator('.ba-col.before');
