@@ -8,7 +8,7 @@ import { reachOf } from './users.js';
 export const QUIET = '2 minutes';
 export const MAX_WAIT = '10 minutes';
 
-export async function queueVersionNotice(db: Pick<Database, 'insert'>, projectId: string, actorId: string, versionId: string) {
+export async function queueVersionNotice(db: Database, projectId: string, actorId: string, versionId: string) {
   await db.insert(versionNotices).values({ projectId, actorId, versionId });
 }
 

@@ -2,10 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, asc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
-import { projects, stemMixJobs, stemMixUploads, stems, tracks, versions, type Database } from '@music-hub/db';
+import { projects, stemMixJobs, stemMixUploads, stems, tracks, versionNotices, versions, type Database } from '@music-hub/db';
 import { MAX_FILE_SIZE, SUPPORTED_EXTENSIONS } from '@music-hub/shared';
 import { fits, lockStorage, storageOf } from '../lib/storage.js';
-import { queueVersionNotice } from '../lib/notices.js';
 import { captureException } from '../monitoring.js';
 import { createDownloadUrl, deleteObject, putObjectFile } from '../storage/s3.js';
 import { enqueueAudioJob, LEASE_MS, MAX_ATTEMPTS, RETRY_MS } from './audio-jobs.js';
@@ -161,7 +160,7 @@ export async function processNextStemMix(db: Database, signal: AbortSignal): Pro
         originalFileKey: key, createdById: job.createdById,
       }).returning();
       await enqueueAudioJob(tx, created.id);
-      await queueVersionNotice(tx, track.projectId, job.createdById, created.id);
+      await tx.insert(versionNotices).values({ projectId: track.projectId, actorId: job.createdById, versionId: created.id });
       await tx.delete(stemMixJobs).where(mine);
       return created;
     });

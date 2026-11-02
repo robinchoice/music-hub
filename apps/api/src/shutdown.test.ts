@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 const modulePath = (file: string) => JSON.stringify(`${import.meta.dir}/${file}.ts`);
 
 // OS signals and module mocks stay in their own processes.
-function start(entry: 'index' | 'worker', setup: string) {
+function start(entry: 'index' | 'worker', setup: string, nodeEnv = 'test') {
   const child = Bun.spawn([process.execPath, '--eval', `
     import { mock } from 'bun:test';
     const storage = await import(${modulePath('storage/s3')});
@@ -12,7 +12,7 @@ function start(entry: 'index' | 'worker', setup: string) {
     ${setup}
     await import(${modulePath(entry)});
   `], {
-    env: { ...process.env, PORT: '0', SMTP_HOST: '', SENTRY_DSN: '', NODE_ENV: 'test' },
+    env: { ...process.env, PORT: '0', SMTP_HOST: '', SENTRY_DSN: '', NODE_ENV: nodeEnv },
     stdout: 'pipe', stderr: 'pipe',
   });
   const lines = child.stdout.pipeThrough(new TextDecoderStream()).getReader();
@@ -31,6 +31,15 @@ function start(entry: 'index' | 'worker', setup: string) {
   }
   return { child, until, close };
 }
+
+test('worker starts in production without SMTP and shuts down cleanly', async () => {
+  const run = start('worker', '', 'production');
+  try {
+    await run.until('[Worker] Waiting for audio jobs');
+    run.child.kill('SIGTERM');
+    expect(await run.child.exited).toBe(0);
+  } finally { await run.close(); }
+}, 30_000);
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   test(`API drains a streaming request and closes SSE on ${signal}`, async () => {
