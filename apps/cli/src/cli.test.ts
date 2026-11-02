@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createDb, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, sessions, tracks, users, versions } from '@music-hub/db';
+import { comments, createDb, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
 import { DELIVERY_ERRORS, formatEuro } from '@music-hub/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -14,12 +14,39 @@ import { deliveryRoutes } from '../../api/src/routes/deliveries';
 import { deviceRoutes } from '../../api/src/routes/device';
 import { projectRoutes } from '../../api/src/routes/projects';
 import { billingRoutes } from '../../api/src/routes/billing';
+import { commentRoutes } from '../../api/src/routes/comments';
 import { shareRoutes } from '../../api/src/routes/share';
 import { trackRoutes } from '../../api/src/routes/tracks';
+import { versionRoutes } from '../../api/src/routes/versions';
 import type { AppEnv } from '../../api/src/types';
 import { run } from './cli';
 import { SLUG, sessionFile } from './config';
 import { texts } from './texts';
+
+// The bucket in memory: presigned URLs point at /bucket/<key> of the test server. It notes every
+// authorization header it sees, since the token of the CLI must never reach the bucket.
+const bucket = new Map<string, Uint8Array<ArrayBuffer>>();
+const bucketAuthorization: string[] = [];
+const s3 = await import('../../api/src/storage/s3');
+const bucketUrl = (key: string) => `${url}/bucket/${encodeURIComponent(key)}`;
+mock.module('../../api/src/storage/s3', () => ({
+  ...s3,
+  createUploadUrl: async (key: string) => bucketUrl(key),
+  createDownloadUrl: async (key: string) => bucketUrl(key),
+  getObjectSize: async (key: string) => bucket.get(key)?.byteLength ?? null,
+}));
+async function bucketFetch(req: Request) {
+  const key = decodeURIComponent(new URL(req.url).pathname.slice('/bucket/'.length));
+  const auth = req.headers.get('authorization');
+  if (auth) bucketAuthorization.push(auth);
+  if (req.method === 'PUT') {
+    if (!req.headers.get('content-type')?.startsWith('audio/')) return new Response(null, { status: 403 });
+    bucket.set(key, new Uint8Array(await req.arrayBuffer()));
+    return new Response(null, { status: 200 });
+  }
+  const bytes = bucket.get(key);
+  return bytes ? new Response(bytes) : new Response(null, { status: 404 });
+}
 
 // The CLI runs in-process against the API routes it uses on a free port, with the test database
 const db = createDb(process.env.DATABASE_URL!);
@@ -33,6 +60,8 @@ const app = new Hono<AppEnv>()
   .route('/auth/device', deviceRoutes)
   .route('/projects', projectRoutes)
   .route('/tracks', trackRoutes)
+  .route('/versions', versionRoutes)
+  .route('/comments', commentRoutes)
   .route('/share', shareRoutes)
   .route('/deliveries', deliveryRoutes)
   .route('/billing', billingRoutes);
@@ -41,7 +70,7 @@ let url = '';
 
 beforeAll(async () => {
   await migrateDb(process.env.DATABASE_URL!);
-  server = Bun.serve({ port: 0, fetch: app.fetch });
+  server = Bun.serve({ port: 0, fetch: (req) => (new URL(req.url).pathname.startsWith('/bucket/') ? bucketFetch(req) : app.fetch(req)) });
   url = server.url.origin;
 });
 afterAll(async () => {
@@ -420,6 +449,67 @@ test('board lists the tracks by stage and moves one, as far as the role allows',
   expect(await studio.cli(['board', 'move', 'final', '--project', 'Nachtfahrt', '--track', 'Mittag'])).toMatchObject({ code: 1, err: texts.noSuchTrack('Mittag') });
   expect((await studio.cli(['board', 'move', 'final', '--project', 'Nachtfahrt'])).code).toBe(2);
   expect((await studio.cli(['board', 'frobnicate'])).code).toBe(2);
+});
+
+test('tracks, versions, comments and reviews: a song from the upload to the verdict, as far as each role allows', async () => {
+  const ada = await person();
+  const bob = await person('Bob');
+  const studio = await device();
+  const label = await device();
+  await studio.cli(['login'], { approveAs: ada.browser });
+  await label.cli(['login'], { approveAs: bob.browser });
+  const { project } = await projectWithTracks(ada, 'Nachtfahrt', ['Morgenrot']);
+  // The label approves and comments, but gets no originals
+  await db.insert(projectMembers).values({ projectId: project.id, userId: bob.id, role: 'label', canApprove: true });
+  const at = ['--project', 'Nachtfahrt', '--track', 'Abendrot'];
+
+  expect(await studio.cli(['tracks', 'create', 'Abendrot', '--project', 'nachtfahrt'])).toMatchObject({ code: 0, out: 'Created Abendrot in Nachtfahrt.' });
+  expect((await label.cli(['tracks', 'create', 'Mittag', '--project', 'Nachtfahrt'])).code).toBe(1);
+  expect((await studio.cli(['tracks', '--project', project.id])).out).toBe('Morgenrot · Demo · 0 versions\nAbendrot · Demo · 0 versions');
+  expect(await studio.cli(['versions', ...at])).toMatchObject({ code: 0, out: texts.noVersions('Abendrot') });
+
+  // Upload: the file straight into the bucket, then the version at the API
+  const dir = await mkdtemp(join(tmpdir(), 'cli-audio-'));
+  const mix = join(dir, 'Abendrot Mix 1.wav');
+  await writeFile(mix, 'RIFF mix one');
+  expect(await studio.cli(['versions', 'upload', mix, ...at, '--label', 'Rough'])).toMatchObject({ code: 0, out: 'Uploaded Abendrot Mix 1.wav as V1 of Abendrot.' });
+  await writeFile(join(dir, 'notes.txt'), 'no audio');
+  expect((await studio.cli(['versions', 'upload', join(dir, 'notes.txt'), ...at])).code).toBe(1);
+  expect(await studio.cli(['versions', 'upload', join(dir, 'missing.wav'), ...at])).toMatchObject({ code: 1, err: texts.noSuchFile(join(dir, 'missing.wav')) });
+  expect((await label.cli(['versions', 'upload', mix, ...at])).code).toBe(1);
+  const [v1] = await db.select().from(versions).where(eq(versions.originalFileName, 'Abendrot Mix 1.wav'));
+  expect(v1).toMatchObject({ versionNumber: 1, label: 'Rough', mimeType: 'audio/wav', fileSize: 12 });
+  expect((await studio.cli(['versions', ...at])).out).toMatch(/^V1 Rough · uploaded · 0 open comments · \d{4}-\d{2}-\d{2}$/);
+  expect((await studio.cli(['versions', ...at, '--json'])).json()).toMatchObject({ versions: [{ id: v1!.id, versionNumber: 1 }] });
+
+  // Download: by default the newest under its file name, never over an existing file
+  const out = join(dir, 'back.wav');
+  expect(await studio.cli(['versions', 'download', ...at, '--version', 'V1', '--out', out])).toMatchObject({ code: 0, out: `Saved V1 of Abendrot to ${out} (0.0 MB).` });
+  expect(await readFile(out, 'utf8')).toBe('RIFF mix one');
+  expect(await studio.cli(['versions', 'download', ...at, '--out', out])).toMatchObject({ code: 1, err: texts.fileExists(out) });
+  expect((await label.cli(['versions', 'download', ...at, '--out', join(dir, 'label.wav')])).code).toBe(1);
+  expect(await studio.cli(['versions', 'download', ...at, '--version', '7', '--out', join(dir, 'v7.wav')])).toMatchObject({ code: 1, err: texts.noSuchVersion('7', 'Abendrot') });
+  expect(bucketAuthorization).toEqual([]);
+
+  // Comments, at a point in the song or for the whole version
+  expect(await label.cli(['comments', 'add', 'Kick', 'too', 'loud', ...at, '--at', '1:23'])).toMatchObject({ code: 0, out: 'Commented on V1 of Abendrot at 1:23.' });
+  expect((await label.cli(['comments', 'add', 'Lovely', ...at, '--json'])).json()).toMatchObject({ comment: { body: 'Lovely' } });
+  expect((await label.cli(['comments', 'add', 'Late', ...at, '--at', 'soon'])).code).toBe(2);
+  expect((await studio.cli(['comments', ...at])).out).toBe('Abendrot V1\n1:23 · Bob: Kick too loud\nBob: Lovely');
+  const [kick] = await db.select().from(comments).where(eq(comments.body, 'Kick too loud'));
+  expect(kick).toMatchObject({ versionId: v1!.id, timestampSeconds: 83 });
+
+  // Reviews: Bob finishes his pass, Ada can't on her own upload
+  expect((await studio.cli(['reviews', ...at])).out).toBe(['Abendrot V1', texts.noReviews, texts.waitingFor('Bob')].join('\n'));
+  expect((await label.cli(['reviews', 'send', 'maybe', ...at])).code).toBe(2);
+  expect(await label.cli(['reviews', 'send', 'changes', ...at, '--note', 'Less kick'])).toMatchObject({ code: 0, out: 'Done with V1 of Abendrot: Changes needed.' });
+  expect((await studio.cli(['reviews', 'send', 'approve', ...at])).code).toBe(1);
+  expect((await studio.cli(['reviews', ...at])).out).toBe('Abendrot V1\nBob · Changes needed · 2 comments · Less kick');
+  expect((await studio.cli(['reviews', ...at, '--json'])).json()).toMatchObject({ reviews: [{ verdict: 'changes', note: 'Less kick' }], waiting: [] });
+  expect(await db.select({ verdict: reviews.verdict }).from(reviews).where(eq(reviews.versionId, v1!.id))).toEqual([{ verdict: 'changes' }]);
+
+  expect((await studio.cli(['versions', 'frobnicate', ...at])).code).toBe(2);
+  expect((await studio.cli(['comments', ...at.slice(0, 2)])).code).toBe(2);
 });
 
 // Last, since it fills Music Hub up

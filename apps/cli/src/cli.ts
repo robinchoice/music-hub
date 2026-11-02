@@ -3,15 +3,19 @@ import { createClient } from './client';
 import { type Command, EXIT, Failure, type Io, type Result } from './command';
 import { auth } from './commands/auth';
 import { board } from './commands/board';
+import { comments } from './commands/comments';
 import { deliveries } from './commands/deliveries';
 import { plan } from './commands/plan';
 import { projects } from './commands/projects';
+import { reviews } from './commands/reviews';
 import { share } from './commands/share';
+import { tracks } from './commands/tracks';
+import { versions } from './commands/versions';
 import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects, board, share, deliveries, plan };
+export const commands: Record<string, Command> = { ...auth, projects, board, tracks, versions, comments, reviews, share, deliveries, plan };
 
 const globalOptions = {
   json: { type: 'boolean' },
