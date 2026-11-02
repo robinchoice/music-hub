@@ -236,6 +236,7 @@ export const de = {
   commentSection: {
     removePosition: 'Stelle entfernen',
     placeholder: (version: string) => `Kommentar zu ${version} …`,
+    placeholderAt: (time: string) => `Was fällt dir bei ${time} auf?`,
     send: 'Senden',
     hintClick: 'Klick in die Wellenform wählt die Stelle',
     hintTap: 'Tipp auf die Wellenform wählt die Stelle',
@@ -601,6 +602,7 @@ export const en: typeof de = {
   commentSection: {
     removePosition: 'Remove position',
     placeholder: (version) => `Comment on ${version} …`,
+    placeholderAt: (time) => `What do you notice at ${time}?`,
     send: 'Send',
     hintClick: 'Click the waveform to pick the position',
     hintTap: 'Tap the waveform to pick the position',

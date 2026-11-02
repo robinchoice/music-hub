@@ -934,6 +934,7 @@
                 initialTime={nextInitialTime}
                 autoPlay={nextAutoPlay}
                 markers={commentMarkers(trackComments.comments)}
+                selectedTimestamp={canComment ? commentTimestamp : null}
                 session={{
                   title: `${trackName} · V${selectedVersion!.versionNumber}`,
                   artist: projectName,
@@ -970,6 +971,14 @@
 
         {#if showNewVersion && !comparePair && selectedVersion && predecessor}
           <section class="new-version" aria-label={t().track.page.compareNew}>
+            <div class="new-version-mobile">
+              <div class="new-version-summary">
+                <strong>{t().track.page.versionHere(selectedVersion.versionNumber)}</strong>
+                <span>{t().track.page.openFrom(predecessor.versionNumber)}: {t().track.page.openPointsCount(trackComments.carry.filter((c) => !c.parentId && !c.resolvedAt && !c.deletedAt).length)}{#if selectedVersion.integratedLufs != null} · {selectedVersion.integratedLufs.toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} LUFS{/if}</span>
+              </div>
+              <button class="compact-compare" onclick={openComparison} aria-label={t().track.page.compareVersions(predecessor.versionNumber, selectedVersion.versionNumber)}>V{predecessor.versionNumber} ↔ V{selectedVersion.versionNumber}</button>
+              <button class="compact-dismiss" onclick={dismissComparison} aria-label={t().track.page.hide}><Icon name="x" size={16} /></button>
+            </div>
             <h2>{t().track.page.versionHere(selectedVersion.versionNumber)}</h2>
             <dl>
               <div><dt>{t().track.page.duration}</dt><dd>{formatTime(predecessor.duration ?? 0)} → {formatTime(selectedVersion.duration ?? 0)}</dd></div>
@@ -998,6 +1007,7 @@
         {#if !comparePair}
         <CommentSection
           bind:this={commentSection}
+          mobileComposer
           versionLabel={`V${selectedVersion.versionNumber}`}
           versionTitle={versionTitle(selectedVersion)}
           comments={trackComments.comments}
@@ -1161,6 +1171,17 @@
   .new-version dt { color: var(--color-text-secondary); }
   .new-version dd { margin: 0; }
   .new-version-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .new-version-mobile { display: none; }
+  @media (max-width: 640px) {
+    .new-version { display: block; padding: var(--space-3); }
+    .new-version > h2, .new-version > dl, .new-version-actions { display: none; }
+    .new-version-mobile { display: flex; align-items: center; gap: var(--space-2); }
+    .new-version-summary { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .new-version-summary strong { font-size: var(--text-sm); }
+    .new-version-summary span { font-size: var(--text-xs); color: var(--color-text-secondary); }
+    .compact-compare, .compact-dismiss { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; flex-shrink: 0; padding: 0 var(--space-2); border: 1px solid var(--color-border-hover); border-radius: var(--radius-sm); background: var(--color-bg-raised); color: var(--color-text-primary); font: inherit; font-size: var(--text-xs); cursor: pointer; }
+    .compact-dismiss { width: 32px; padding: 0; border: none; background: none; }
+  }
   .close-upload.cancel-version { width: auto; padding: 0 var(--space-2); font: inherit; font-size: var(--text-xs); }
   .track-workspace {
     display: flex;

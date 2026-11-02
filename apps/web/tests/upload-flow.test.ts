@@ -175,7 +175,7 @@ test('upload names the file, destination, bytes and queue before processing', as
   await expect(upload).toHaveCount(0);
 });
 
-test('new version offers A/B at the same position, resolves old points and remembers dismissal', async ({ page, baseURL }, testInfo) => {
+test('new version offers A/B at the same position, resolves old points and remembers dismissal', async ({ page, baseURL, isMobile }, testInfo) => {
   const { projectId, trackId } = await track(page);
   const first = addVersion(trackId, userId, 'ready');
   addVersion(trackId, userId, 'ready', 2);
@@ -191,10 +191,18 @@ test('new version offers A/B at the same position, resolves old points and remem
   const summary = page.getByRole('region', { name: 'Neue Version vergleichen' });
   await expect(summary).toContainText('V2 ist da');
   await expect(summary).toContainText('1 offener Punkt');
-  await expect(summary).toContainText('-18,0 → -15,0 LUFS');
+  if (isMobile) {
+    expect((await summary.boundingBox())!.height).toBeLessThan(110);
+    await expect(summary.locator('.new-version-summary')).toContainText('-15,0 LUFS');
+    await expect(summary.locator('dl')).toBeHidden();
+  } else {
+    await expect(summary.locator('dl')).toBeVisible();
+    await expect(summary.locator('dl')).toContainText('-18,0 → -15,0 LUFS');
+  }
   await page.screenshot({ path: `/tmp/musichub-upload-review/${testInfo.project.name}-summary.png`, fullPage: true });
   await summary.getByRole('button', { name: 'V1 ↔ V2 vergleichen' }).click();
   const ab = page.getByRole('region', { name: 'A/B-Vergleich' });
+  await expect(page.locator('.composer')).toHaveCount(0);
   await expect(ab.getByRole('checkbox', { name: /Gleich laut/ })).toBeChecked();
   await expect(ab.getByRole('button', { name: /Abspielen/ })).toBeEnabled();
   await expect(ab.locator('.wave i').first()).toBeVisible();

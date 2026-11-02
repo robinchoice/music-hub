@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addMember, addVersion, logIn, removeUser } from './session.js';
+import { addMember, addVersion, logIn, makeViewer, removeUser } from './session.js';
 
 // Details of the comment list on the track page, found by the UX review of 1 Nov 2026
 let userId: string;
@@ -13,12 +13,13 @@ test.afterEach(() => {
   lena = undefined;
 });
 
-async function openTrack(page: Page, baseURL: string, uploadedByMe: boolean) {
+async function openTrack(page: Page, baseURL: string, uploadedByMe: boolean, realAudio = false) {
   const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
   const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
   lena = addMember(project.id);
   const versionId = addVersion(track.id, uploadedByMe ? userId : lena, 'ready');
-  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/fake-s3/mix.wav` } }));
+  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/${realAudio ? 'demo/nachtbus-v1.mp3' : 'fake-s3/mix.wav'}` } }));
+  await page.route('**/waveform-data', (route) => route.fulfill({ json: [0.1, 0.4, 0.8, 0.5, 0.2] }));
   await page.route('**/fake-s3/**', (route) => route.fulfill({ body: Buffer.alloc(0), contentType: 'audio/wav' }));
   await page.goto(`/projects/${project.id}/tracks/${track.id}`);
   await expect(page.locator('.version-card .status')).toHaveText('Bereit');
@@ -89,4 +90,53 @@ test('comment actions are big enough for a finger on touch screens', async ({ pa
   }
   expect((await page.locator('.filter button').first().boundingBox())!.height).toBeGreaterThanOrEqual(32);
   expect((await page.locator('.comment .ts', { hasText: '0:27' }).boundingBox())!.height).toBeGreaterThanOrEqual(32);
+});
+
+test('a waveform position stays in the mobile composer while reading and is sent with the comment', async ({ page, baseURL, isMobile }, testInfo) => {
+  const versionId = await openTrack(page, baseURL!, false, true);
+  await expect(page.getByRole('button', { name: 'Abspielen', exact: true })).toBeEnabled();
+  const wave = page.locator('.waveform');
+  const box = (await wave.boundingBox())!;
+  await wave.click({ position: { x: box.width / 4, y: box.height / 2 } });
+  const composer = page.locator('.composer');
+  await expect(composer.locator('.ts-chip')).toBeVisible();
+  const position = await composer.locator('.ts-seek').innerText();
+  await expect(composer.locator('input')).toHaveAttribute('placeholder', `Was fällt dir bei ${position.trim()} auf?`);
+  if (isMobile) {
+    await expect(page.locator('.selected-position')).toBeVisible();
+    const nav = (await page.locator('.bottom-nav').boundingBox())!;
+    const before = (await composer.boundingBox())!;
+    expect(Math.abs(before.y + before.height - nav.y)).toBeLessThan(2);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    expect(Math.abs((await composer.boundingBox())!.y - before.y)).toBeLessThan(2);
+    await page.screenshot({ path: testInfo.outputPath('composer.png') });
+  } else {
+    await expect(page.locator('.selected-position')).toBeHidden();
+    expect(await composer.evaluate((el) => getComputedStyle(el).position)).not.toBe('fixed');
+  }
+  await composer.locator('input').fill('An dieser Stelle den Bass leiser');
+  await composer.getByRole('button', { name: 'Senden' }).click();
+  if (isMobile) {
+    const notice = page.getByRole('alert', { name: '' }).filter({ hasText: 'Kommentar gespeichert' });
+    await expect(notice).toBeVisible();
+    const toastBox = (await notice.boundingBox())!;
+    expect(toastBox.y + toastBox.height).toBeLessThan((await composer.boundingBox())!.y);
+  }
+  await expect(page.locator('.comment', { hasText: 'An dieser Stelle den Bass leiser' })).toBeVisible();
+  const { comments } = await (await page.request.get(`/api/v1/comments/version/${versionId}`)).json();
+  expect(comments.find((c: { body: string }) => c.body === 'An dieser Stelle den Bass leiser').timestampSeconds).toBeGreaterThan(0);
+  await expect(composer.locator('.ts-chip')).toHaveCount(0);
+  await expect(page.locator('.selected-position')).toHaveCount(0);
+  await wave.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  await composer.getByRole('button', { name: 'Stelle entfernen' }).click();
+  await expect(composer.locator('input')).toHaveAttribute('placeholder', 'Kommentar zu V1 …');
+});
+
+test('a listener without comment permission has no docked composer', async ({ page, baseURL }) => {
+  await openTrack(page, baseURL!, false, true);
+  const projectId = new URL(page.url()).pathname.split('/')[2]!;
+  makeViewer(projectId, userId);
+  await page.reload();
+  await expect(page.locator('.version-card')).toBeVisible();
+  await expect(page.locator('.composer')).toHaveCount(0);
 });

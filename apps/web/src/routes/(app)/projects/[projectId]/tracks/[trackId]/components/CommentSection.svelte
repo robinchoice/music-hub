@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CommentItem from './CommentItem.svelte';
@@ -15,6 +16,7 @@
     carryComments = [],
     freshIds = new Set<string>(),
     canComment = false,
+    mobileComposer = false,
     currentUserId = null,
     currentTime = 0,
     commentTimestamp = $bindable<number | null>(null),
@@ -37,6 +39,7 @@
     /** Your comments that the next "Fertig" sends */
     freshIds?: Set<string>;
     canComment?: boolean;
+    mobileComposer?: boolean;
     currentUserId?: string | null;
     currentTime?: number;
     commentTimestamp: number | null;
@@ -56,6 +59,23 @@
   let filter = $state<'open' | 'done'>('open');
   let carryOpen = $state(true);
   let input = $state<HTMLInputElement>();
+  let keyboardInset = $state(0);
+
+  onMount(() => {
+    if (!mobileComposer) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => {
+      keyboardInset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+    };
+  });
 
   const topLevel = $derived(comments.filter((c) => !c.parentId));
   const open = $derived(topLevel.filter((c) => !c.resolvedAt).sort(byPosition));
@@ -99,9 +119,9 @@
   <span class="vchip"><b>{label}</b>{#if title}<span>{title}</span>{/if}</span>
 {/snippet}
 
-<section class="comments">
+<section class="comments" class:with-composer={canComment && mobileComposer}>
   {#if canComment}
-    <form class="composer" onsubmit={(e) => { e.preventDefault(); submit(); }}>
+    <form class="composer" class:docked={mobileComposer} style:--keyboard-inset={`${keyboardInset}px`} onsubmit={(e) => { e.preventDefault(); submit(); }}>
       {#if commentTimestamp !== null}
         <span class="ts-chip">
           <button type="button" class="ts-seek" onclick={() => onSeek(commentTimestamp!)}>
@@ -110,7 +130,7 @@
           <button type="button" class="ts-remove" onclick={() => (commentTimestamp = null)} aria-label={t().track.commentSection.removePosition}>×</button>
         </span>
       {/if}
-      <input bind:this={input} type="text" bind:value={body} maxlength={5000} placeholder={t().track.commentSection.placeholder(versionLabel)} />
+      <input bind:this={input} type="text" bind:value={body} maxlength={5000} aria-label={mobileComposer && commentTimestamp !== null ? `${versionLabel}: ${t().track.commentSection.placeholderAt(formatTime(commentTimestamp))}` : t().track.commentSection.placeholder(versionLabel)} placeholder={mobileComposer && commentTimestamp !== null ? t().track.commentSection.placeholderAt(formatTime(commentTimestamp)) : t().track.commentSection.placeholder(versionLabel)} />
       <Button type="submit" size="sm" loading={submitting} disabled={!body.trim()}>{t().track.commentSection.send}</Button>
     </form>
     <p class="hint"><span class="mouse">{t().track.commentSection.hintClick}</span><span class="touch">{t().track.commentSection.hintTap}</span><span class="mouse">{' '}{t().track.commentSection.hintKey}</span></p>
@@ -225,6 +245,28 @@
     border-radius: var(--radius-md);
   }
 
+  @media (max-width: 640px) {
+    .with-composer {
+      padding-bottom: 72px;
+    }
+
+    .composer.docked {
+      position: fixed;
+      bottom: max(calc(56px + env(safe-area-inset-bottom, 0px)), calc(var(--keyboard-inset) + 8px));
+      left: 0;
+      right: 0;
+      z-index: 91;
+      margin: 0;
+      padding: 10px var(--space-3);
+      border-radius: 0;
+      box-shadow: 0 -4px 16px rgb(0 0 0 / 15%);
+    }
+
+    .with-composer .hint {
+      display: none;
+    }
+  }
+
   .composer:focus-within {
     border-color: var(--color-border-focus);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 8%, transparent);
@@ -239,6 +281,10 @@
     color: var(--color-text-primary);
     font-family: inherit;
     font-size: var(--text-sm);
+  }
+
+  @media (max-width: 640px) {
+    .composer.docked input { font-size: 16px; }
   }
 
   .composer input:focus {

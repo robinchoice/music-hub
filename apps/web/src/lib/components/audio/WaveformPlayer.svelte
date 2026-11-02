@@ -13,6 +13,7 @@
     peaks,
     audioDuration,
     markers = [],
+    selectedTimestamp = null,
     muted = false,
     compact = false,
     label = '',
@@ -30,6 +31,7 @@
     peaks?: number[];
     audioDuration?: number | null | undefined;
     markers?: CommentMarker[];
+    selectedTimestamp?: number | null;
     muted?: boolean;
     compact?: boolean;
     label?: string;
@@ -263,6 +265,10 @@
       <div class="waveform-container">
         <div bind:this={container} class="waveform"></div>
 
+        {#if selectedTimestamp !== null && total > 0}
+          <span class="selected-position" style:left={`${Math.min(100, selectedTimestamp / total * 100)}%`} aria-hidden="true">+</span>
+        {/if}
+
         {#if groups.length > 0}
           <div class="markers">
             {#each groups as group (group.items[0].id)}
@@ -414,6 +420,27 @@
   }
   .waveform {
     cursor: pointer;
+  }
+
+  .selected-position {
+    display: none;
+  }
+  @media (max-width: 640px) {
+    .selected-position {
+      display: grid;
+      place-items: center;
+      position: absolute;
+      top: -6px;
+      transform: translateX(-50%);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      color: var(--color-on-accent);
+      font-weight: 700;
+      pointer-events: none;
+      z-index: 3;
+    }
   }
 
   .markers {

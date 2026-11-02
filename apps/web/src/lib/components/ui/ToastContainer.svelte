@@ -150,5 +150,10 @@
       bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-3));
       max-width: none;
     }
+
+    :global(body:has(.composer.docked)) .toast-container {
+      top: calc(var(--topbar-height) + var(--space-3));
+      bottom: auto;
+    }
   }
 </style>
