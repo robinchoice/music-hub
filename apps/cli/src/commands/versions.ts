@@ -14,8 +14,9 @@ const downloadSchema = z.object({ url: z.string() });
 const mb = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 
 function line(v: Version) {
+  const label = v.label || (v.autoMix ? texts.automaticMix : '');
   return [
-    `V${v.versionNumber}${v.label ? ` ${v.label}` : ''}`,
+    `V${v.versionNumber}${label ? ` ${label}` : ''}`,
     texts.versionStatus[v.status],
     texts.openComments(v.openCommentCount),
     v.createdAt.slice(0, 10),

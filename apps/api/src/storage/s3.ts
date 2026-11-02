@@ -7,6 +7,8 @@ import {
   PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 
 const s3 = new S3Client({
   region: 'eu-central-1',
@@ -70,6 +72,13 @@ export async function putObject(key: string, body: string | Uint8Array, contentT
     ContentType: contentType,
   });
   await s3.send(command);
+}
+
+export async function putObjectFile(key: string, path: string, contentType: string): Promise<void> {
+  const { size } = await stat(path);
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket, Key: key, Body: createReadStream(path), ContentLength: size, ContentType: contentType,
+  }));
 }
 
 // Size of a stored object, or null if there is none.

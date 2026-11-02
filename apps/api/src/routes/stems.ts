@@ -11,6 +11,7 @@ import { Zip, ZipPassThrough } from 'fflate';
 import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 import { t } from '../lib/i18n.js';
+import { queueStemMix } from '../services/stem-mixes.js';
 
 export const stemRoutes = new Hono<AppEnv>()
   .use('*', requireAuth)
@@ -100,6 +101,7 @@ export const stemRoutes = new Hono<AppEnv>()
           createdById: userId,
         })
         .returning();
+      await queueStemMix(tx, trackId, userId);
       return stem;
     });
     if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);
@@ -192,7 +194,7 @@ export const stemRoutes = new Hono<AppEnv>()
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
     if (await isOpen(db, access.track.id)) return c.json({ error: t(c).errors.trackOpenReplace }, 409);
 
-    const stem = await restoreRevision(db, revision.id);
+    const stem = await restoreRevision(db, revision.id, userId);
     if (!stem) return c.json({ error: 'Not found' }, 404);
 
     return c.json({ stem });
@@ -231,7 +233,10 @@ export const stemRoutes = new Hono<AppEnv>()
     }
 
     // Into the project's trash; the file goes when the stem is deleted for good
-    await db.update(stems).set({ deletedAt: new Date(), deletedById: userId }).where(eq(stems.id, stemId));
+    await db.transaction(async (tx) => {
+      await tx.update(stems).set({ deletedAt: new Date(), deletedById: userId }).where(eq(stems.id, stemId));
+      await queueStemMix(tx, stem.trackId, userId);
+    });
     return c.json({ message: 'Stem deleted' });
   })
 

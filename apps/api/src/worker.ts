@@ -5,6 +5,7 @@ import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
 import { analyzeNextVersion, processVersion } from './services/audio-processor.js';
+import { processNextStemMix, queueMissingStemMixes } from './services/stem-mixes.js';
 import {
   claimAudioJob,
   finishAudioJob,
@@ -21,6 +22,7 @@ const db = createDb(process.env.DATABASE_URL!);
 const stop = new AbortController();
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => stop.abort());
 await migrateDb(process.env.DATABASE_URL!);
+await queueMissingStemMixes(db);
 
 // For the HEALTHCHECK of the image, which the API shares
 const server = Bun.serve({ port: parseInt(process.env.PORT || '3000'), fetch: () => Response.json({ status: 'ok' }) });
@@ -52,6 +54,7 @@ while (!stop.signal.aborted) {
       break;
     }
     if (!current) {
+      if (await processNextStemMix(db, stop.signal)) continue;
       if (!await analyzeNextVersion(db, stop.signal)) await sleep(2000, undefined, { signal: stop.signal }).catch(() => {});
       continue;
     }

@@ -27,6 +27,7 @@ export const texts = {
   missingName: 'the name is missing',
   versions: (n: number) => (n === 1 ? '1 version' : `${n} versions`),
   versionsHelp: 'Lists the versions of a track, newest first',
+  automaticMix: 'Automatic mix',
   versionsUploadHelp: (extensions: string) => `Uploads an audio file as the next version (${extensions})`,
   versionsDownloadHelp: 'Saves the original of a version, by default the newest, under its file name',
   versionsUsage: (cmd: string) => `Usage: ${cmd} versions, versions upload <file> or versions download, each with --project and --track. Help: ${cmd} --help`,

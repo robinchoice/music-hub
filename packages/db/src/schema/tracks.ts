@@ -68,6 +68,7 @@ export const versions = pgTable('versions', {
     .notNull(),
   versionNumber: integer('version_number').notNull(),
   label: varchar('label', { length: 100 }),
+  autoMix: boolean('auto_mix').default(false).notNull(),
   notes: text('notes'),
   status: versionStatusEnum('status').default('uploaded').notNull(),
   // Who approved or rejected the version and when; null for decisions made before this was stored

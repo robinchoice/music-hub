@@ -10,7 +10,8 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   REJECTION_PREFIX,
 } from '@music-hub/shared';
-import { versions, comments } from '@music-hub/db';
+import { versions, comments, tracks } from '@music-hub/db';
+import { stemMixState } from '../services/stem-mixes.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
@@ -81,6 +82,7 @@ export const versionRoutes = new Hono<AppEnv>()
     const rejectionReason = new Map(rejections.map((row) => [row.versionId, row.body.slice(REJECTION_PREFIX.length)]));
 
     return c.json({
+      mixState: await stemMixState(db, trackId),
       versions: trackVersions.map((v) => ({
         ...v,
         openCommentCount: openCount.get(v.id) ?? 0,
@@ -185,6 +187,7 @@ export const versionRoutes = new Hono<AppEnv>()
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       // Next version number; versions in the trash keep theirs
+      await tx.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).for('update');
       const [latest] = await tx
         .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
         .from(versions)

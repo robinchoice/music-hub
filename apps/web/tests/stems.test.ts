@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { addStem, addVersion, logIn, removeUser } from './session.js';
 
+test.use({ serviceWorkers: 'block' });
+
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
   userId = await logIn(context, baseURL!);
@@ -68,4 +70,44 @@ test('an earlier take goes into the trash and comes back from there', async ({ p
   await expect(page.getByText('Frühere Fassung von Drums')).toBeVisible();
   await page.getByRole('button', { name: 'Wiederherstellen' }).click();
   await expect(page.locator('.toast-container')).toContainText('Fassung „Drums-take1.wav“ ist wieder da');
+});
+
+test('a stem-only track picks up its automatic mix without a reload or an SSE event', async ({ page, baseURL }) => {
+  const audio = Buffer.alloc(44 + 180 * 16000);
+  audio.write('RIFF', 0);
+  audio.writeUInt32LE(audio.length - 8, 4);
+  audio.write('WAVEfmt ', 8);
+  audio.writeUInt32LE(16, 16);
+  audio.writeUInt16LE(1, 20);
+  audio.writeUInt16LE(1, 22);
+  audio.writeUInt32LE(8000, 24);
+  audio.writeUInt32LE(16000, 28);
+  audio.writeUInt16LE(2, 32);
+  audio.writeUInt16LE(16, 34);
+  audio.write('data', 36);
+  audio.writeUInt32LE(audio.length - 44, 40);
+  await page.route('**/stream-url', (route) => route.fulfill({ json: { url: `${baseURL}/automatic-mix.wav` } }));
+  await page.route('**/automatic-mix.wav', (route) => route.fulfill({ body: audio, contentType: 'audio/wav' }));
+  await page.route('**/waveform-data', (route) => route.fulfill({ json: Array.from({ length: 200 }, (_, i) => Math.abs(Math.sin(i / 7))) }));
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Automatic mixes' } })).json();
+  const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'First stems' } })).json();
+  addStem(track.id, userId, 'Drums');
+  await page.route(`**/api/v1/versions/track/${track.id}`, async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    await route.fulfill({ json: {
+      ...data,
+      mixState: data.versions.length ? null : 'pending',
+      versions: data.versions.map((v: { id: string }) => ({ ...v, autoMix: true })),
+    } });
+  });
+  await page.goto(`/projects/${project.id}/tracks/${track.id}`);
+  await expect(page.getByRole('status').filter({ hasText: 'Mix wird aus deinen Spuren erstellt' })).toBeVisible();
+  addVersion(track.id, userId, 'ready');
+  await expect(page.getByText('Automatischer Mix', { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Abspielen', exact: true })).toBeEnabled();
+  await expect(page.getByText('Mix wird aus deinen Spuren erstellt …', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: `.savor-logs/automatic-mix-${test.info().project.name}.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Abspielen', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
 });

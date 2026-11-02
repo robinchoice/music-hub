@@ -8,6 +8,7 @@ function start(entry: 'index' | 'worker', setup: string) {
     import { mock } from 'bun:test';
     const storage = await import(${modulePath('storage/s3')});
     mock.module(${modulePath('storage/s3')}, () => ({ ...storage, allowBrowserAccess: async () => {} }));
+    const realJobs = await import(${modulePath('services/audio-jobs')});
     ${setup}
     await import(${modulePath(entry)});
   `], {
@@ -103,6 +104,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   test(`worker waits for cancellation before releasing its job on ${signal}`, async () => {
     const run = start('worker', `
       mock.module(${modulePath('services/audio-jobs')}, () => ({
+        ...realJobs,
         giveUpAudioJobs: async () => {}, claimAudioJob: async () => 'test-version', hasWaitingAudioJob: async () => false,
         releaseAudioJob: async () => console.log('job-released'),
         renewAudioJob: async () => {}, retryAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
@@ -160,6 +162,7 @@ test('worker kills the audio subprocess before releasing a cancelled job', async
       return audio;
     };
     mock.module(${modulePath('services/audio-jobs')}, () => ({
+      ...realJobs,
       giveUpAudioJobs: async () => {}, claimAudioJob: async () => version.id, hasWaitingAudioJob: async () => false,
       releaseAudioJob: async () => {
         if (audio.exitCode === null && audio.signalCode === null) throw new Error('Audio process is still running');
@@ -186,6 +189,7 @@ test('worker hands a failed job back for a later attempt', async () => {
   const run = start('worker', `
     let claimed = false;
     mock.module(${modulePath('services/audio-jobs')}, () => ({
+      ...realJobs,
       giveUpAudioJobs: async () => {}, hasWaitingAudioJob: async () => false,
       claimAudioJob: async () => (claimed ? null : ((claimed = true), 'test-version')),
       releaseAudioJob: async () => {}, renewAudioJob: async () => {}, LEASE_MS: 300000,

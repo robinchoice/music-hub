@@ -9,6 +9,7 @@ export type Version = {
   id: string;
   versionNumber: number;
   label: string | null;
+  autoMix?: boolean;
   notes: string | null;
   status: string;
   originalFileName: string;
@@ -114,8 +115,8 @@ export function hasWaveform(v: { status: string; duration: number | null }): boo
 }
 
 /** Label for lists: version label, then branch label, then the file name without extension. */
-export function versionTitle(v: { label: string | null; branchLabel?: string | null; originalFileName: string }): string {
-  return v.label || v.branchLabel || v.originalFileName.replace(/\.[^.]+$/, '');
+export function versionTitle(v: { label: string | null; branchLabel?: string | null; originalFileName: string; autoMix?: boolean }): string {
+  return v.label || v.branchLabel || (v.autoMix ? t().track.page.automaticMix : v.originalFileName.replace(/\.[^.]+$/, ''));
 }
 
 /** Drops a leading track name plus separator: "Heute Kind Sein Lead Vocal" → "Lead Vocal". */

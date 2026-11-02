@@ -1,3 +1,4 @@
+import { queueStemMix } from '../services/stem-mixes.js';
 import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
@@ -231,6 +232,7 @@ export const uploadLinkRoutes = new Hono<AppEnv>()
           createdById: ownerId,
         })
         .returning({ id: stems.id });
+      await queueStemMix(tx, track.id, ownerId);
       return stem;
     });
     if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);

@@ -20,6 +20,7 @@ const versionsSchema = z.object({
       id: z.string(),
       versionNumber: z.number(),
       label: z.string().nullable(),
+      autoMix: z.boolean().optional(),
       status: z.enum(VERSION_STATUSES),
       originalFileName: z.string(),
       fileSize: z.number(),

@@ -510,6 +510,9 @@ test('tracks, versions, comments and reviews: a song from the upload to the verd
 
   expect((await studio.cli(['versions', 'frobnicate', ...at])).code).toBe(2);
   expect((await studio.cli(['comments', ...at.slice(0, 2)])).code).toBe(2);
+  await db.update(versions).set({ autoMix: true, label: null }).where(eq(versions.id, v1!.id));
+  expect((await studio.cli(['versions', ...at])).out).toStartWith('V1 Automatic mix ·');
+  expect((await studio.cli(['versions', ...at, '--json'])).json()).toMatchObject({ versions: [{ autoMix: true }] });
 });
 
 // Last, since it fills Music Hub up

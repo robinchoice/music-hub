@@ -86,6 +86,9 @@
   let peaks = $state<number[]>([]);
   // The loaded version waits for the worker; switches together with the player data
   let processing = $state(false);
+  let mixState = $state<'pending' | 'failed' | null>(null);
+  type VersionResponse = { versions: Version[]; mixState?: 'pending' | 'failed' | null };
+  let mixPoll: ReturnType<typeof setInterval> | undefined;
   // The waveform just arrived over SSE and grows in once
   let grow = $state(false);
   // Members of the project, loaded for owners only: alone in it, the first version asks who should listen
@@ -207,7 +210,7 @@
     return () => mq.removeEventListener('change', onChange);
   });
 
-  onDestroy(() => disconnectSse?.());
+  onDestroy(() => { disconnectSse?.(); clearInterval(mixPoll); });
 
   onMount(async () => {
     await initOfflineStore();
@@ -215,7 +218,7 @@
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string; roles: string[] }>(`/projects/${projectId}`),
-        api.get<{ versions: Version[] }>(`/versions/track/${trackId}`, true).catch(() => null),
+        api.get<VersionResponse>(`/versions/track/${trackId}`, true).catch(() => null),
         api.get<{
           tracks: {
             id: string;
@@ -253,6 +256,7 @@
       forkedFrom = found.credit ? { id: found.forkedFromId ?? null, credit: found.credit, license: found.license ?? null } : null;
       openState = openRes?.open ?? null;
       versions = trackVersions.versions;
+      mixState = trackVersions.mixState ?? null;
       stems = stemsRes.stems;
       guestNotes = stemsRes.guestNotes ?? [];
 
@@ -292,6 +296,24 @@
         if (data.versionId === selectedVersion?.id || data.versionId === predecessor?.id) await trackComments.reload();
       }
     });
+    // Mixes also arrive through guests and the CLI. Polling catches a lost SSE signal.
+    let refreshing = false;
+    mixPoll = setInterval(async () => {
+      if (refreshing || document.hidden || !navigator.onLine) return;
+      refreshing = true;
+      try {
+        const latestId = versions[0]?.id;
+        const wasProcessing = selectedVersion && isProcessing(selectedVersion);
+        await refreshVersions();
+        if (versions[0]?.id !== latestId && versions[0]?.autoMix) {
+          await selectVersion(versions[0]);
+          reloadSidebar?.();
+        } else if (wasProcessing && selectedVersion && !isProcessing(selectedVersion)) {
+          await selectVersion(selectedVersion, true);
+        }
+      } catch { /* The next poll retries after a connection failure. */ }
+      finally { refreshing = false; }
+    }, 5000);
   });
 
   // Lock screen: the neighbouring playable version, older for "previous"
@@ -346,15 +368,17 @@
 
   // Reloads the list and selects the newest version, e.g. after an upload
   async function loadVersions() {
-    const res = await api.get<{ versions: Version[] }>(`/versions/track/${trackId}`);
+    const res = await api.get<VersionResponse>(`/versions/track/${trackId}`);
     versions = res.versions;
+    mixState = res.mixState ?? null;
     if (versions.length > 0) await selectVersion(versions[0]);
   }
 
   // Reloads the list (counts, status) and keeps the current selection
   async function refreshVersions() {
-    const res = await api.get<{ versions: Version[] }>(`/versions/track/${trackId}`);
+    const res = await api.get<VersionResponse>(`/versions/track/${trackId}`);
     versions = res.versions;
+    mixState = res.mixState ?? null;
     const id = selectedVersion?.id;
     if (id) selectedVersion = versions.find((v) => v.id === id) ?? selectedVersion;
   }
@@ -863,6 +887,10 @@
           />
           {/key}
         </div>
+      {/if}
+
+      {#if mixState}
+        <p role="status">{mixState === 'failed' ? t().track.page.mixFailed : t().track.page.mixingStems}</p>
       {/if}
 
       {#if view === 'compare'}
