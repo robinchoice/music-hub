@@ -11,13 +11,16 @@ import { enqueueAudioJob, LEASE_MS, MAX_ATTEMPTS, RETRY_MS } from './audio-jobs.
 import { publish } from './sse.js';
 
 export const MIX_PAUSE_MS = 20_000;
-type Executor = Pick<Database, 'insert'>;
+type Executor = Pick<Database, 'execute'>;
 
+// Only for tracks that mix their stems (tracks.stem_mix): stems uploaded without a mix stay just stems
 export async function queueStemMix(db: Executor, trackId: string, createdById: string) {
-  await db.insert(stemMixJobs).values({ trackId, createdById }).onConflictDoUpdate({
-    target: stemMixJobs.trackId,
-    set: { revision: crypto.randomUUID(), createdById, requestedAt: sql`now()`, attempts: 0 },
-  });
+  await db.execute(sql`
+    INSERT INTO stem_mix_jobs (track_id, created_by_id)
+    SELECT id, ${createdById} FROM tracks WHERE id = ${trackId} AND stem_mix
+    ON CONFLICT (track_id) DO UPDATE SET revision = gen_random_uuid(), created_by_id = excluded.created_by_id,
+      requested_at = now(), attempts = 0
+  `);
 }
 
 export async function holdStemMix(db: Database, trackId: string, fileKey: string) {
@@ -38,7 +41,7 @@ export async function queueMissingStemMixes(db: Database) {
   await db.execute(sql`
     INSERT INTO stem_mix_jobs (track_id, created_by_id)
     SELECT t.id, p.created_by_id FROM tracks t JOIN projects p ON p.id = t.project_id
-    WHERE t.deleted_at IS NULL AND NOT p.is_archived
+    WHERE t.deleted_at IS NULL AND NOT p.is_archived AND t.stem_mix
       AND (t.forked_from_id IS NULL OR EXISTS (
         SELECT 1 FROM stems s WHERE s.track_id = t.id AND NOT s.forked AND s.deleted_at IS NULL
       ))

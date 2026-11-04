@@ -7,6 +7,7 @@ import {
   magicLinks,
   projects,
   projectMembers,
+  projectFiles,
   tracks,
   pushSubscriptions,
   taskDismissals,
@@ -45,6 +46,7 @@ export async function resetTestAccount(db: Database) {
     if (projectIds.length) {
       const trackIds = (await tx.select({ id: tracks.id }).from(tracks).where(inArray(tracks.projectId, projectIds))).map((t) => t.id);
       for (const key of await fileKeysOfTracks(tx, trackIds)) keys.add(key);
+      for (const f of await tx.select({ key: projectFiles.fileKey }).from(projectFiles).where(inArray(projectFiles.projectId, projectIds))) keys.add(f.key);
       await tx.delete(projects).where(inArray(projects.id, projectIds));
     }
 

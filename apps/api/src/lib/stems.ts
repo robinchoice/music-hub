@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { stemRevisions, stems, stemMixUploads, type Database } from '@music-hub/db';
 import { fits, lockStorage, storageOf } from './storage.js';
 import { queueStemMix } from '../services/stem-mixes.js';
+import { isProjectUploadKey, uploadKeyInUse } from './files.js';
 
 type Stem = typeof stems.$inferSelect;
 type File = { originalFileName: string; mimeType: string; fileKey: string; fileSize: number; sha256?: string | undefined };
@@ -21,24 +22,15 @@ const revisionOf = (stem: Stem, replacedAt: Date) => ({
   replacedAt,
 });
 
-// A key handed out by an upload URL route for this track that no stem uses yet
+// A key handed out by an upload URL route for this track, or by the project's upload URL, that nothing uses yet
 export async function freshStemKey(db: Pick<Database, 'select'>, track: { id: string; projectId: string }, fileKey: string) {
   const expectedPrefix = `projects/${track.projectId}/tracks/${track.id}/stems/`;
   const keySuffix = fileKey.slice(expectedPrefix.length);
-  if (!fileKey.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\/[^/]+$/.test(keySuffix)) return false;
-  return !(await keyInUse(db, fileKey));
+  const trackKey = fileKey.startsWith(expectedPrefix) && /^[0-9a-f-]{36}\/[^/]+$/.test(keySuffix);
+  if (!trackKey && !isProjectUploadKey(track.projectId, fileKey)) return false;
+  return !(await uploadKeyInUse(db, fileKey));
 }
 
-// Whether a stem or an earlier file of one points to the key
-async function keyInUse(db: Pick<Database, 'select'>, fileKey: string) {
-  const [stemRef] = await db.select({ id: stems.id }).from(stems).where(eq(stems.fileKey, fileKey)).limit(1);
-  const [revisionRef] = await db
-    .select({ id: stemRevisions.id })
-    .from(stemRevisions)
-    .where(eq(stemRevisions.fileKey, fileKey))
-    .limit(1);
-  return !!stemRef || !!revisionRef;
-}
 
 // Gives the stem a new file from the user; the current one moves into its history.
 // Returns null if the file doesn't fit into the user's storage, 'taken' if a stem already uses the file.
@@ -47,7 +39,7 @@ export async function replaceStem(db: Database, stemId: string, userId: string, 
     await lockStorage(tx, userId);
     const [current] = await tx.select().from(stems).where(eq(stems.id, stemId)).for('update');
     // Checked under the lock, so the same file sent twice at once lands in the history only once
-    if (await keyInUse(tx, file.fileKey)) return 'taken' as const;
+    if (await uploadKeyInUse(tx, file.fileKey)) return 'taken' as const;
     if (!fits(await storageOf(tx, userId), file.fileSize)) return null;
 
     const now = new Date();

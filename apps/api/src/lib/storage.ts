@@ -24,7 +24,7 @@ export async function takeUploadVolume(db: Database, userId: string, bytes: numb
 export type Storage = { used: number; limit: number };
 
 // One row per file somebody pays for, with who pays (uid): the originals of versions and stems
-// they uploaded, earlier files of stems included, in all projects including archived ones.
+// they uploaded, earlier files of stems included, and the files of projects, in all projects including archived ones.
 // Stems taken over from open tracks (forked) belong to their first uploader, so they are left out here.
 // Covers, MP3s and waveforms derived from versions don't count.
 // kept: counts towards the storage, also while in the trash. live: not deleted at all.
@@ -42,6 +42,9 @@ const uploadedFiles = sql`
   SELECT r.created_by_id, s.track_id, 'stem', r.file_size, r.guest_name IS NOT NULL,
          ${keptSql('r')} AND ${keptSql('s')} AND ${keptSql('t')}, r.deleted_at IS NULL AND s.deleted_at IS NULL AND t.deleted_at IS NULL
     FROM stem_revisions r JOIN stems s ON s.id = r.stem_id JOIN tracks t ON t.id = s.track_id WHERE NOT r.forked
+  UNION ALL
+  SELECT f.created_by_id, NULL, 'file', f.file_size, false, ${keptSql('f')}, f.deleted_at IS NULL
+    FROM project_files f
 `;
 
 // The account's own limit, raised while a plan runs (activePlan in shared). greatest() skips the null of no plan.
@@ -77,12 +80,13 @@ export async function guestStorageOf(db: Executor, userId: string): Promise<Stor
   return { used: Number(used), limit: Number(limit), allowed };
 }
 
-// For the overview: the storage split into versions and stems, and the three biggest tracks.
+// For the overview: the storage split into versions, stems and files, and the three biggest tracks.
 // The biggest tracks leave out what is in the trash, the totals include it.
 export async function storageSummary(db: Executor, userId: string) {
-  const [{ versionBytes, stemBytes, limitBytes }] = await db.execute<{ versionBytes: string; stemBytes: string; limitBytes: string }>(sql`
+  const [{ versionBytes, stemBytes, fileBytes, limitBytes }] = await db.execute<{ versionBytes: string; stemBytes: string; fileBytes: string; limitBytes: string }>(sql`
     SELECT coalesce(sum(size) FILTER (WHERE kind = 'version'), 0) AS "versionBytes",
            coalesce(sum(size) FILTER (WHERE kind = 'stem'), 0) AS "stemBytes",
+           coalesce(sum(size) FILTER (WHERE kind = 'file'), 0) AS "fileBytes",
            ${limitSql(userId)} AS "limitBytes"
     FROM (${uploadedFiles}) f WHERE uid = ${userId} AND kept
   `);
@@ -95,9 +99,10 @@ export async function storageSummary(db: Executor, userId: string) {
     LIMIT 3
   `);
   return {
-    usedBytes: Number(versionBytes) + Number(stemBytes),
+    usedBytes: Number(versionBytes) + Number(stemBytes) + Number(fileBytes),
     versionBytes: Number(versionBytes),
     stemBytes: Number(stemBytes),
+    fileBytes: Number(fileBytes),
     limitBytes: Number(limitBytes),
     topTracks: [...topTracks].map((t) => ({ trackId: t.trackId, name: t.name, bytes: Number(t.bytes) })),
   };

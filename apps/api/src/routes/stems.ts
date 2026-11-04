@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, replaceStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
-import { stems, stemRevisions, stemMixUploads, guestNotes, openTracks, users, type Database } from '@music-hub/db';
+import { stems, stemRevisions, stemMixJobs, stemMixUploads, guestNotes, openTracks, tracks, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
 import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
@@ -103,7 +103,10 @@ export const stemRoutes = new Hono<AppEnv>()
         })
         .returning();
       await tx.delete(stemMixUploads).where(eq(stemMixUploads.fileKey, input.fileKey));
-      await queueStemMix(tx, trackId, userId);
+      // The latest upload decides whether the stems get mixed; without, a mix still waiting is dropped too
+      if (input.mix !== undefined) await tx.update(tracks).set({ stemMix: input.mix }).where(eq(tracks.id, trackId));
+      if (input.mix === false) await tx.delete(stemMixJobs).where(eq(stemMixJobs.trackId, trackId));
+      else await queueStemMix(tx, trackId, userId);
       return stem;
     });
     if (stem === 'taken') return c.json({ error: 'Forbidden' }, 403);

@@ -104,6 +104,22 @@ export const createStemSchema = z.object({
   originalFileName: z.string().min(1),
   mimeType: z.string().regex(STEM_MIME_TYPE),
   fileSize: z.number().int().positive(),
+  // false: keep the stems as they are, no automatic mix for this track until a later upload asks for one
+  mix: z.boolean().optional(),
+});
+
+// Any file for a project's files; the bucket serves it only as a download, never inline
+export const requestFileUploadUrlSchema = z.object({
+  fileName: z.string().min(1).max(255).regex(/^[^/]+$/),
+  mimeType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+$/),
+  fileSize: z.number().int().positive().max(MAX_FILE_SIZE),
+});
+
+export const createProjectFileSchema = z.object({
+  fileKey: z.string().min(1),
+  originalFileName: z.string().min(1).max(500),
+  mimeType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+$/),
+  trackId: z.string().uuid().nullable().optional(),
 });
 
 export const replaceStemSchema = z.object({

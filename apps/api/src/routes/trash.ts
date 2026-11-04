@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { tracks, versions, stems, stemRevisions, comments, projects, projectMembers, openTracks, type Database } from '@music-hub/db';
+import { tracks, versions, stems, stemRevisions, comments, projects, projectFiles, projectMembers, openTracks, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
 import { inTrash } from '../lib/trash.js';
@@ -9,7 +9,7 @@ import type { AppEnv } from '../types.js';
 import { t } from '../lib/i18n.js';
 import { queueStemMix } from '../services/stem-mixes.js';
 
-const KINDS = ['track', 'version', 'stem', 'revision', 'comment'] as const;
+const KINDS = ['track', 'version', 'stem', 'revision', 'file', 'comment'] as const;
 type Kind = (typeof KINDS)[number];
 const isKind = (kind: string): kind is Kind => (KINDS as readonly string[]).includes(kind);
 
@@ -17,8 +17,8 @@ async function roleIn(db: Database, projectId: string, userId: string) {
   return (await membershipOf(db, projectId, userId))?.role ?? null;
 }
 
-// What the user may restore, across all their projects that are not archived or in one: in projects they own tracks, versions, stems and earlier files of stems,
-// otherwise their own stems and earlier files, and always their own comments. Whatever sits below a deleted track or version comes back with it.
+// What the user may restore, across all their projects that are not archived or in one: in projects they own tracks, versions, stems, earlier files of stems
+// and files of the project, otherwise their own stems, earlier files and files, and always their own comments. Whatever sits below a deleted track or version comes back with it.
 export async function trashOf(db: Database, userId: string, projectId?: string) {
   const memberships = await db
     .select({ id: projects.id, name: projects.name, role: projectMembers.role })
@@ -116,6 +116,24 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
       ),
     );
 
+  const fileRows = await db
+    .select({
+      id: projectFiles.id,
+      deletedAt: projectFiles.deletedAt,
+      projectId: projectFiles.projectId,
+      trackId: projectFiles.trackId,
+      name: projectFiles.originalFileName,
+      bytes: projectFiles.fileSize,
+    })
+    .from(projectFiles)
+    .where(
+      and(
+        inArray(projectFiles.projectId, memberIds),
+        inTrash(projectFiles),
+        owner ? or(inArray(projectFiles.projectId, ownedIds), eq(projectFiles.createdById, userId)) : eq(projectFiles.createdById, userId),
+      ),
+    );
+
   const commentRows = await db
     .select({
       id: comments.id,
@@ -153,6 +171,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
     ...versionRows.map((v) => ({ kind: 'version' as const, ...v })),
     ...stemRows.map((s) => ({ kind: 'stem' as const, ...s })),
     ...revisionRows.map((r) => ({ kind: 'revision' as const, ...r })),
+    ...fileRows.map((f) => ({ kind: 'file' as const, ...f })),
     ...commentRows.map((c) => ({ kind: 'comment' as const, ...c })),
   ];
   return entries
@@ -202,6 +221,16 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
     const role = await roleIn(db, row.projectId, userId);
     return role === 'owner' || (role && row.createdById === userId) ? row : null;
   }
+  if (kind === 'file') {
+    const [row] = await db
+      .select({ projectId: projectFiles.projectId, trackId: projectFiles.trackId, createdById: projectFiles.createdById })
+      .from(projectFiles)
+      .where(and(eq(projectFiles.id, id), inTrash(projectFiles)))
+      .limit(1);
+    if (!row) return null;
+    const role = await roleIn(db, row.projectId, userId);
+    return role === 'owner' || (role && row.createdById === userId) ? row : null;
+  }
   const [row] = await db
     .select({ projectId: tracks.projectId, trackId: tracks.id, authorId: comments.userId })
     .from(comments)
@@ -219,6 +248,7 @@ async function setState(db: Pick<Database, 'update'>, kind: Kind, ids: string[],
   else if (kind === 'version') await db.update(versions).set(state).where(inArray(versions.id, ids));
   else if (kind === 'stem') await db.update(stems).set(state).where(inArray(stems.id, ids));
   else if (kind === 'revision') await db.update(stemRevisions).set(state).where(inArray(stemRevisions.id, ids));
+  else if (kind === 'file') await db.update(projectFiles).set(state).where(inArray(projectFiles.id, ids));
   else await db.update(comments).set(state).where(inArray(comments.id, ids));
 }
 
@@ -275,17 +305,19 @@ export const trashRoutes = new Hono<AppEnv>()
     const item = await trashedItem(db, kind, id, userId);
     if (!item) return c.json({ error: 'Not found' }, 404);
 
+    // Only a file of the project has no track
+    const trackId = item.trackId;
     return db.transaction(async (tx) => {
-      if (kind === 'stem' || kind === 'revision') {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'open:' + item.trackId}))`);
+      if ((kind === 'stem' || kind === 'revision') && trackId) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'open:' + trackId}))`);
         const [open] = await tx
           .select({ trackId: openTracks.trackId })
           .from(openTracks)
-          .where(and(eq(openTracks.trackId, item.trackId), isNotNull(openTracks.openedAt)));
+          .where(and(eq(openTracks.trackId, trackId), isNotNull(openTracks.openedAt)));
         if (open) return c.json({ error: t(c).errors.trackOpen }, 409);
       }
       await setState(tx, kind, [id], { deletedAt: null, deletedById: null, discardedAt: null });
-      if (kind === 'stem') await queueStemMix(tx, item.trackId, userId);
+      if (kind === 'stem' && trackId) await queueStemMix(tx, trackId, userId);
       return c.json({ ok: true });
     });
   })

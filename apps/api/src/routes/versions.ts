@@ -26,6 +26,7 @@ import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import { mayDownload, membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { uploadKeyInUse } from '../lib/files.js';
 import { t } from '../lib/i18n.js';
 
 // Reminders to give feedback on a version, per version and person
@@ -168,12 +169,7 @@ export const versionRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const [registered] = await db
-      .select({ id: versions.id })
-      .from(versions)
-      .where(eq(versions.originalFileKey, input.fileKey))
-      .limit(1);
-    if (registered) return c.json({ error: 'Forbidden' }, 403);
+    if (await uploadKeyInUse(db, input.fileKey)) return c.json({ error: 'Forbidden' }, 403);
 
     // The stored file decides the size, not what the client claims
     const fileSize = await getObjectSize(input.fileKey);
@@ -182,8 +178,7 @@ export const versionRoutes = new Hono<AppEnv>()
     const version = await db.transaction(async (tx) => {
       await lockStorage(tx, userId);
       // Checked again under the lock, so the same file sent twice at once becomes one version
-      const [taken] = await tx.select({ id: versions.id }).from(versions).where(eq(versions.originalFileKey, input.fileKey)).limit(1);
-      if (taken) return 'taken';
+      if (await uploadKeyInUse(tx, input.fileKey)) return 'taken';
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       // Next version number; versions in the trash keep theirs

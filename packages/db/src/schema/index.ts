@@ -19,3 +19,4 @@ export * from './updates.js';
 export * from './pushNotifications.js';
 export * from './deliveries.js';
 export * from './planPayments.js';
+export * from './files.js';

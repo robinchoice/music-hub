@@ -55,6 +55,8 @@ export const tracks = pgTable('tracks', {
   // The open track it was forked from, and the credit line it has to carry
   forkedFromId: uuid('forked_from_id').references((): AnyPgColumn => tracks.id, { onDelete: 'set null' }),
   credit: text('credit'),
+  // Whether a change to the stems renders a new version. Turned off when someone uploads stems without a mix.
+  stemMix: boolean('stem_mix').default(true).notNull(),
   // Moved to the project's trash; discardedAt is set when it is deleted for good before its time runs out
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),

@@ -17,6 +17,7 @@ import { uploadRoutes } from './routes/uploads.js';
 import { activityRoutes } from './routes/activity.js';
 import { onboardingRoutes } from './routes/onboarding.js';
 import { stemRoutes } from './routes/stems.js';
+import { fileRoutes } from './routes/files.js';
 import { pushRoutes } from './routes/push.js';
 import { sseRoutes } from './routes/sse.js';
 import { deviceRoutes } from './routes/device.js';
@@ -121,6 +122,7 @@ const startup = (async () => {
     .route('/activity', activityRoutes)
     .route('/onboarding', onboardingRoutes)
     .route('/stems', stemRoutes)
+.route('/files', fileRoutes)
     .route('/push', pushRoutes)
     .route('/sse', sseRoutes)
     .route('/overview', overviewRoutes)

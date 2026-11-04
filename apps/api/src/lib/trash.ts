@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { TRASH_DAYS } from '@music-hub/shared';
-import { comments, projects, shareLinks, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
+import { comments, projectFiles, projects, shareLinks, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
 import { deleteObject } from '../storage/s3.js';
 
 // After leaving the trash, deleted things are kept this long so they can be restored on request
@@ -93,6 +93,10 @@ export async function purgeTrash(db: Database) {
   for (const r of dueRevisions) collect(r.fileKey);
   if (dueRevisions.length) await db.delete(stemRevisions).where(inArray(stemRevisions.id, dueRevisions.map((r) => r.id)));
 
+  const dueFiles = await db.select({ id: projectFiles.id, fileKey: projectFiles.fileKey }).from(projectFiles).where(due(projectFiles));
+  for (const f of dueFiles) collect(f.fileKey);
+  if (dueFiles.length) await db.delete(projectFiles).where(inArray(projectFiles.id, dueFiles.map((f) => f.id)));
+
   const dueComments = await db.select({ id: comments.id, body: comments.body }).from(comments).where(due(comments));
   const commentIds = dueComments.map((c) => c.id);
   const answered = new Set(
@@ -109,9 +113,9 @@ export async function purgeTrash(db: Database) {
 
   const files = await deleteUnusedFiles(db, keys);
 
-  if (trackIds.length || dueVersions.length || dueStems.length || dueRevisions.length || commentIds.length) {
+  if (trackIds.length || dueVersions.length || dueStems.length || dueRevisions.length || dueFiles.length || commentIds.length) {
     console.log(
-      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${dueRevisions.length} earlier stem files, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
+      `[Trash] Deleted for good: ${trackIds.length} tracks, ${dueVersions.length} versions, ${dueStems.length} stems, ${dueRevisions.length} earlier stem files, ${dueFiles.length} project files, ${removable.length} comments (${blank.length} emptied), ${files} files.`,
     );
   }
 }
@@ -137,7 +141,7 @@ export async function fileKeysOfTracks(db: Pick<Database, 'select'>, trackIds: s
   return keys;
 }
 
-// Several stems can share a file; keeps every file that a remaining row still points to
+// Several stems can share a file, and a file of the project can become a stem; keeps every file that a remaining row still points to
 export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
   let files = 0;
   for (const key of keys) {
@@ -152,9 +156,10 @@ export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
       .from(stemRevisions)
       .where(eq(stemRevisions.fileKey, key))
       .limit(1);
+    const [fileRef] = await db.select({ id: projectFiles.id }).from(projectFiles).where(eq(projectFiles.fileKey, key)).limit(1);
     const [projectCoverRef] = await db.select({ id: projects.id }).from(projects).where(eq(projects.coverImageUrl, key)).limit(1);
     const [trackCoverRef] = await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.coverImageUrl, key)).limit(1);
-    if (versionRef || stemRef || revisionRef || projectCoverRef || trackCoverRef) continue;
+    if (versionRef || stemRef || revisionRef || fileRef || projectCoverRef || trackCoverRef) continue;
     try {
       await deleteObject(key);
       files++;
