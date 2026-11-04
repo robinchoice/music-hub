@@ -881,6 +881,7 @@
           <StemUploadDropzone
             bind:this={stemZone}
             {trackId}
+            hasVersions={versions.length > 0}
             initialFiles={pickedStems}
             onUploaded={async () => {
               showStemUpload = false;

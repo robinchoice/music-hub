@@ -135,6 +135,7 @@ export const de = {
     hint: 'Gleich lange Spuren werden ein Song mit Mix, ein Mix eine Version, alles andere landet in den Dateien des Projekts.',
     noProject: 'Du hast noch kein Projekt, in das du hochladen darfst. Leg zuerst eins an.',
     upload: 'Hochladen',
+    notHere: 'In dieses Projekt darfst du gerade nichts hochladen.',
   },
 
   files: {
@@ -463,6 +464,7 @@ export const en: typeof de = {
     hint: 'Stems of equal length become a song with a mix, a mix becomes a version, everything else goes to the project’s files.',
     noProject: 'You have no project to upload to yet. Create one first.',
     upload: 'Upload',
+    notHere: 'You can’t upload to this project right now.',
   },
 
   files: {

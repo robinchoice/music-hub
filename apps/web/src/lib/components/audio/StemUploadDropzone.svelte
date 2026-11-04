@@ -16,6 +16,7 @@
     base = `/stems/track/${trackId}`,
     extra = {},
     uploading = $bindable(false),
+    hasVersions = true,
   }: {
     trackId: string;
     initialFiles?: File[];
@@ -23,15 +24,18 @@
     base?: string;
     extra?: Record<string, string>;
     uploading?: boolean;
+    /** The track has something to play already; without, a single stem must not turn into its first version */
+    hasVersions?: boolean;
   } = $props();
 
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
-  // Whether the stems become a version. Untouched, a single stem doesn't: it rarely sounds like the song on its own.
-  // Upload links send to their own route, which mixes as before.
+  // Whether the stems become a version. Ticked or unticked on purpose, that is sent and the track keeps it.
+  // Untouched, a single stem on a track without any version is not mixed: on its own it rarely sounds like the song.
+  // Otherwise nothing is sent and the track mixes as it did before. Upload links send to their own route.
   const ownRoute = $derived(base === `/stems/track/${trackId}`);
   let mixChoice = $state<boolean | null>(null);
-  let mixNow = true;
+  let mixNow: boolean | undefined;
 
   // The close button cancels the uploads, so no stem turns up later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
@@ -85,7 +89,7 @@
       return;
     }
 
-    mixNow = mixChoice ?? selected.length > 1;
+    mixNow = mixChoice ?? (selected.length === 1 && !hasVersions ? false : undefined);
     uploading = true;
     inFlight = true;
     const unreadable = await unreadableFiles(selected);
@@ -139,7 +143,7 @@
         originalFileName: file.name,
         mimeType,
         fileSize: file.size,
-        ...(ownRoute ? { mix: mixNow } : {}),
+        ...(ownRoute && mixNow !== undefined ? { mix: mixNow } : {}),
       });
 
       files[idx] = { ...files[idx], progress: 100 };

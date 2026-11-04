@@ -103,3 +103,20 @@ test('stems can stay without a mix, and only sounds open the files', async ({ pa
   await expect(page.locator('.toast-container')).toContainText('2 Dateien in den Dateien des Projekts');
   await expect(page).toHaveURL(/view=dateien/);
 });
+
+test('a sound can still become a version while it uploads', async ({ page, baseURL }) => {
+  const sent = await fakeBucket(page, baseURL!);
+  const projectId = await newProject(page);
+  await page.goto(`/projects/${projectId}`);
+  await page.route('**/fake-s3/**', async (route) => {
+    await new Promise((r) => setTimeout(r, 600));
+    await route.fulfill({ status: 200 });
+  });
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dateien auswählen' }).click();
+  await (await chooser).setFiles([wav('Jingle Idee.wav', 30)]);
+  await page.getByRole('combobox', { name: /Jingle Idee\.wav/ }).selectOption({ label: 'Als Version eines Songs' });
+  await page.waitForURL(/\/tracks\/[0-9a-f-]{36}$/);
+  expect(sent.map((s) => new URL(s.url).pathname.split('/').slice(3, 5).join('/'))).toEqual(['versions/track']);
+  await expect(page.getByRole('heading', { name: 'Jingle Idee', level: 1 })).toBeVisible();
+});

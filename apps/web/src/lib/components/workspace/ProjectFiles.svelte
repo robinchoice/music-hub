@@ -14,7 +14,7 @@
 
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { STEM_MIME_TYPE } from '@music-hub/shared';
+  import { isAudioFile } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { t } from '$lib/i18n/index.js';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -50,7 +50,7 @@
 
   const trackName = (id: string | null) => tracks.find((tr) => tr.id === id)?.name;
   const chosen = $derived(files.filter((f) => selected.includes(f.id)));
-  const movable = $derived(chosen.length > 0 && chosen.every((f) => f.canChange && STEM_MIME_TYPE.test(f.mimeType)));
+  const movable = $derived(chosen.length > 0 && chosen.every((f) => f.canChange && isAudioFile(f.originalFileName, f.mimeType)));
   const anyChangeable = $derived(files.some((f) => f.canChange));
 
   onDestroy(() => audio?.pause());

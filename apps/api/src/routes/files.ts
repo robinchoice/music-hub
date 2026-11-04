@@ -2,13 +2,13 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { createProjectFileSchema, requestFileUploadUrlSchema, STEM_MIME_TYPE } from '@music-hub/shared';
+import { createProjectFileSchema, requestFileUploadUrlSchema } from '@music-hub/shared';
 import { projectFiles, stemMixJobs, stems, tracks, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl, createUploadUrl, getObjectSize } from '../storage/s3.js';
 import { fits, lockStorage, storageFull, storageOf, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { mayDownload, membershipOf } from '../lib/access.js';
-import { isProjectUploadKey, playableInline, projectUploadPrefix, uploadKeyInUse } from '../lib/files.js';
+import { isAudioFile, isProjectUploadKey, playableInline, projectUploadPrefix, uploadKeyInUse } from '../lib/files.js';
 import { queueStemMix } from '../services/stem-mixes.js';
 import { t } from '../lib/i18n.js';
 import type { AppEnv } from '../types.js';
@@ -65,7 +65,8 @@ export const fileRoutes = new Hono<AppEnv>()
     return c.json({
       files: rows.map((f) => ({
         ...f,
-        playable: playableInline(f.mimeType),
+        playable: mayDownload(membership) && playableInline(f.mimeType),
+        // The file is its own original, so playing it needs the right to download
         canChange: membership.canUpload && (membership.role === 'owner' || f.createdById === userId),
       })),
       canDownload: mayDownload(membership),
@@ -133,11 +134,13 @@ export const fileRoutes = new Hono<AppEnv>()
     return c.json({ url: await createDownloadUrl(access.file.fileKey, 3600, access.file.originalFileName) });
   })
 
-  // Listening is open to every member, like versions; only audio a browser plays is served inline
+  // There is no compressed copy to listen to: the stream is the original, so it needs the right to download like the original.
+  // Only audio a browser plays is served inline.
   .get('/:id/stream-url', async (c) => {
     const db = c.get('db');
     const access = await fileAccess(db, c.req.param('id'), c.get('userId'));
     if (!access) return c.json({ error: 'Not found' }, 404);
+    if (!mayDownload(access.membership)) return c.json({ error: 'Forbidden' }, 403);
     if (!playableInline(access.file.mimeType)) return c.json({ error: 'Not found' }, 404);
     return c.json({ url: await createDownloadUrl(access.file.fileKey) });
   })
@@ -164,7 +167,7 @@ export const fileRoutes = new Hono<AppEnv>()
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
     const track = await trackOfProject(db, access.file.projectId, trackId);
     if (!track) return c.json({ error: 'Not found' }, 404);
-    if (!STEM_MIME_TYPE.test(access.file.mimeType)) return c.json({ error: t(c).errors.notAudio }, 400);
+    if (!isAudioFile(access.file.originalFileName, access.file.mimeType)) return c.json({ error: t(c).errors.notAudio }, 400);
 
     const stem = await db.transaction(async (tx) => {
       const [moved] = await tx

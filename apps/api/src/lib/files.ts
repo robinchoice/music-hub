@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { isAudioFile } from '@music-hub/shared';
 import { projectFiles, stemRevisions, stems, versions, type Database } from '@music-hub/db';
 
 // Keys from the project's upload URL (/files/project/:id/upload-url): one upload, and the client decides
@@ -19,6 +20,8 @@ export async function uploadKeyInUse(db: Pick<Database, 'select'>, fileKey: stri
   const [fileRef] = await db.select({ id: projectFiles.id }).from(projectFiles).where(eq(projectFiles.fileKey, fileKey)).limit(1);
   return !!versionRef || !!stemRef || !!revisionRef || !!fileRef;
 }
+
+export { isAudioFile };
 
 // Audio a browser can play from the bucket; everything else is only offered as a download
 export const playableInline = (mimeType: string) => /^audio\/(wav|x-wav|wave|mpeg|mp3|mp4|x-m4a|aac|ogg|flac|x-flac|webm)$/.test(mimeType);

@@ -4,7 +4,7 @@
   import { planDrop } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import {
-    byFileName, checkFileSize, describeDrop, mimeOf, trackNameFromFile, unreadableFiles, uploadAudioFile, uploadToProject, registerVersion,
+    byFileName, checkFileSize, describeDrop, isVersionable, mimeOf, trackNameFromFile, unreadableFiles, uploadAudioFile, uploadToProject, registerVersion,
   } from '$lib/audio/upload.js';
   import { dateLocale, t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
@@ -67,7 +67,11 @@
 
   /** trackId: dropped on a track, so its mixes and stems belong to it */
   export async function add(files: File[], trackId?: string) {
-    if (busy || !files.length) return;
+    if (!files.length) return;
+    if (busy) {
+      toast(t().track.drop.busy, 'warning');
+      return;
+    }
     error = checkFileSize(files) ?? '';
     if (error) return;
     preparing = true;
@@ -79,8 +83,16 @@
     }
 
     files.sort(byFileName);
-    const described = await describeDrop(files);
-    const plan = planDrop(described);
+    let described: Awaited<ReturnType<typeof describeDrop>>;
+    let plan: ReturnType<typeof planDrop>;
+    try {
+      described = await describeDrop(files);
+      plan = planDrop(described);
+    } catch {
+      preparing = false;
+      error = t().track.drop.failed;
+      return;
+    }
     const known = [...tracks];
     const matchOf = (name: string) => {
       if (trackId) return trackId;
@@ -102,6 +114,20 @@
       }),
       ...plan.files.map((i) => newRow('file', files[i].name, [files[i]], null, { choice: 'files' })),
     ];
+    // The song a row would go to: a file row switched to a version is named after its file
+    const songOf = (row: Row) => (row.kind === 'file' ? trackNameFromFile(row.files[0].name) : row.name);
+    const resolve = async (row: Row) => {
+      if (!trackId) {
+        const matches = known.filter((t) => normalize(t.name) === normalize(songOf(row)));
+        row.matchId = matches.length === 1 ? matches[0].id : null;
+      }
+      if (row.matchId && !counts.has(row.matchId)) {
+        const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
+        counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
+      }
+      row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
+      if (!row.newTrack) row.number = row.matchedNumber;
+    };
     transferring = true;
     preparing = false;
     const counts = new Map<string, number>();
@@ -110,37 +136,28 @@
       if (row.abort.signal.aborted) continue;
       row.state = 'lädt hoch';
       try {
-        if (row.kind !== 'file') {
-          if (!trackId) {
-            const matches = known.filter((t) => normalize(t.name) === normalize(row.name));
-            row.matchId = matches.length === 1 ? matches[0].id : null;
-          }
-          if (row.matchId && !counts.has(row.matchId)) {
-            const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
-            counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
-          }
-          row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
-          if (!row.newTrack) row.number = row.matchedNumber;
-        }
+        if (row.choice !== 'files') await resolve(row);
         const keys = await transfer(row);
         if (!keys) { row.state = 'abgebrochen'; continue; }
         row.locked = true;
         row.state = 'speichert';
-        if (row.kind === 'file' || row.choice === 'files') {
+        if (row.choice === 'files') {
           for (const [i, file] of row.files.entries()) {
             await api.post(`/files/project/${projectId}`, { fileKey: keys[i], originalFileName: file.name, mimeType: mimeOf(file), trackId: trackId ?? null });
           }
           row.state = 'fertig';
           continue;
         }
+        // The choice may have changed during the transfer
+        await resolve(row);
         let targetId = row.newTrack ? null : row.matchId;
         if (!targetId) {
-          const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: row.name });
+          const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: songOf(row) });
           targetId = track.id;
-          known.push({ id: targetId, name: row.name });
+          known.push({ id: targetId, name: songOf(row) });
         }
         row.number = (counts.get(targetId) ?? 0) + 1;
-        if (row.kind === 'mix') {
+        if (row.kind !== 'stems') {
           await registerVersion(targetId, row.files[0], keys[0]);
           counts.set(targetId, row.number);
         } else {
@@ -156,7 +173,7 @@
       }
     }
     const done = rows.filter((r) => r.state === 'fertig');
-    const filed = done.filter((r) => r.kind === 'file' || r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
+    const filed = done.filter((r) => r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
     const uploaded = done.reduce((n, r) => n + r.files.length, 0);
     onDone({ files: filed, tracks: uploaded - filed });
     if (rows.length === 1 && done.length === 1 && lastTrackId) {
@@ -233,7 +250,7 @@
 
   function target(row: Row) {
     const d = t().track.drop;
-    if (row.kind === 'file' || row.choice === 'files') return d.toFiles;
+    if (row.choice === 'files') return d.toFiles;
     const existing = row.matchId && !row.newTrack;
     if (row.kind === 'stems' && !row.bounce && row.choice === 'nomix') return existing ? d.stemsOf(row.name) : d.newTrackStems;
     return existing ? d.becomes(row.number, row.name) : d.newTrack;
@@ -308,6 +325,12 @@
                 <option value="mix">{t().track.drop.choiceSong}</option>
               {/if}
               <option value="files">{t().track.drop.choiceFiles}</option>
+            </select>
+          {/if}
+          {#if row.kind !== 'stems' && (row.kind === 'mix' || isVersionable(row.file)) && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
+            <select class="choice" aria-label={t().track.drop.choiceLabel(row.file)} bind:value={row.choice}>
+              <option value="mix">{t().track.drop.choiceVersion}</option>
+              <option value="files">{t().track.drop.choiceFile}</option>
             </select>
           {/if}
           {#if row.kind !== 'file' && row.choice !== 'files' && row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}

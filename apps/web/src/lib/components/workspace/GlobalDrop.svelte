@@ -4,6 +4,7 @@
   import { t } from '$lib/i18n/index.js';
   import { overviewIndex, loadOverview } from '$lib/stores/overview.js';
   import { pendingDrop } from '$lib/stores/pending-drop.js';
+  import { toast } from '$lib/stores/toast.js';
   import { UPLOAD_ROLES } from '$lib/utils/overview.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
@@ -58,8 +59,16 @@
     if (!dropped.length) return;
     files = dropped;
     const { projectId, trackId } = $page.params;
-    if (projectId) return send(projectId, trackId);
     if (!$overviewIndex) await loadOverview();
+    if (projectId) {
+      // An archived project or one without the right to upload would keep the files waiting for nothing
+      if (!projects.some((p) => p.id === projectId)) {
+        files = [];
+        toast(t().workspace.globalDrop.notHere, 'warning');
+        return;
+      }
+      return send(projectId, trackId);
+    }
     const last = localStorage.getItem(LAST);
     choice = projects.some((p) => p.id === last) ? last! : projects[0]?.id ?? '';
     open = true;

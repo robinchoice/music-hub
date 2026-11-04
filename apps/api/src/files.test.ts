@@ -97,12 +97,13 @@ test('any file goes into the project once, counts towards the uploader and is li
   };
   expect(list.canDownload).toBe(false);
   const byName = Object.fromEntries(list.files.map((f) => [f.originalFileName, f]));
-  expect(byName['Vespa_Hupe.wav']).toMatchObject({ playable: true, canChange: false });
+  expect(byName['Vespa_Hupe.wav']).toMatchObject({ playable: false, canChange: false });
   expect(byName['Roller.als']).toMatchObject({ playable: false, canChange: false });
 
-  // Listening is open to every member, the original only with the right to download
-  expect((await call(`/files/${byName['Vespa_Hupe.wav'].id}/stream-url`, { headers: viewer.headers })).status).toBe(200);
-  expect((await call(`/files/${byName['Roller.als'].id}/stream-url`, { headers: viewer.headers })).status).toBe(404);
+  // The stream is the original itself, so it needs the right to download too
+  expect((await call(`/files/${byName['Vespa_Hupe.wav'].id}/stream-url`, { headers: viewer.headers })).status).toBe(403);
+  expect((await call(`/files/${byName['Vespa_Hupe.wav'].id}/stream-url`, { headers: producer.headers })).status).toBe(200);
+  expect((await call(`/files/${byName['Roller.als'].id}/stream-url`, { headers: producer.headers })).status).toBe(404);
   expect((await call(`/files/${byName['Roller.als'].id}/download-url`, { headers: viewer.headers })).status).toBe(403);
   expect((await call(`/files/${byName['Roller.als'].id}/download-url`, { headers: owner.headers })).status).toBe(200);
 });
@@ -127,13 +128,17 @@ test('a file becomes a stem with the same object and the same payer, and stems w
   const pdfKey = await uploadKey(producer, 'Text.pdf', 'application/pdf');
   const { file: pdf } = (await (await register(producer, pdfKey, 'Text.pdf', 'application/pdf')).json()) as { file: { id: string } };
   expect((await call(`/files/${pdf.id}/stem`, { method: 'POST', body: { trackId }, headers: producer.headers })).status).toBe(400);
+  // A DAW session arrives as application/octet-stream and must not become a stem either
+  const alsKey = await uploadKey(producer, 'Roller2.als', 'application/octet-stream');
+  const { file: als } = (await (await register(producer, alsKey, 'Roller2.als', 'application/octet-stream')).json()) as { file: { id: string } };
+  expect((await call(`/files/${als.id}/stem`, { method: 'POST', body: { trackId }, headers: producer.headers })).status).toBe(400);
 
   const res = await call(`/files/${file.id}/stem`, { method: 'POST', body: { trackId, mix: false }, headers: producer.headers });
   expect(res.status).toBe(201);
   const [stem] = await db.select().from(stems).where(eq(stems.fileKey, key));
   expect(stem).toMatchObject({ trackId, createdById: producer.id, name: 'Vespa_Leerlauf' });
   expect(await db.select().from(projectFiles).where(eq(projectFiles.id, file.id))).toHaveLength(0);
-  expect((await storageOf(db, producer.id)).used).toBe(before + 100);
+  expect((await storageOf(db, producer.id)).used).toBe(before + 200);
   expect((await db.select().from(tracks).where(eq(tracks.id, trackId)))[0].stemMix).toBe(false);
   expect(await db.select().from(stemMixJobs).where(eq(stemMixJobs.trackId, trackId))).toHaveLength(0);
 

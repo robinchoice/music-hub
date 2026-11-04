@@ -3,6 +3,13 @@
 // the stems of one song. Anything else that is long enough is a mix of its own, short sounds and
 // everything that is no audio become files of the project.
 
+import { SUPPORTED_EXTENSIONS } from './constants/audio.js';
+
+// Only real audio can become a stem: an audio type, or a file name a version accepts. application/octet-stream,
+// which browsers send for DAW sessions and archives, is not enough.
+export const isAudioFile = (fileName: string, mimeType: string) =>
+  /^audio\//.test(mimeType) || SUPPORTED_EXTENSIONS.some((ext) => fileName.toLowerCase().endsWith(ext));
+
 export type DroppedFile = {
   name: string;
   // Seconds, null when the browser could not read it
@@ -28,11 +35,15 @@ export type DropPlan = { groups: StemGroup[]; mixes: number[]; files: number[] }
 export const STEM_LENGTH_TOLERANCE = 0.1;
 // Shorter single files are sounds, not songs
 export const SHORTEST_SONG = 60;
+// Equally long files below this are loops or one-shots of a sample pack, not stems; a jingle's stems still count
+export const SHORTEST_STEMS = 20;
 
 // Names of finished mixes and versions: "Mix 3", "Master", "Bounce", "v2", "Version 4"
 const MIX_NAME = /(^|[\s_\-–.])((mix|mixdown|master|final|bounce|demo|rough|full)(\s*\d+)?|v\d+|version\s*\d+)$/i;
 
 const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
+// "Letzte Bahn – Mix 3" → "letzte bahn"; what is left of a name without its mix or version ending
+const withoutMixName = (name: string) => baseName(name).trim().replace(MIX_NAME, '').replace(/[\s_\-–—.]+$/u, '').trim().toLowerCase();
 
 // "Kreise_Kick", "Kreise_Bass" → "Kreise"; separators at the end go
 export function commonName(names: string[]) {
@@ -53,7 +64,7 @@ export function commonName(names: string[]) {
 export function planDrop(files: DroppedFile[]): DropPlan {
   const timed = files
     .map((f, i) => ({ f, i }))
-    .filter(({ f }) => f.audio && f.duration !== null)
+    .filter(({ f }) => f.audio && f.duration !== null && f.duration >= SHORTEST_STEMS)
     .sort((a, b) => a.f.duration! - b.f.duration!);
 
   const clusters: number[][] = [];
@@ -72,9 +83,11 @@ export function planDrop(files: DroppedFile[]): DropPlan {
       const base = baseName(files[i].name).trim();
       return files[i].versionable && (MIX_NAME.test(base) || (name !== '' && base.toLowerCase() === name.toLowerCase()));
     });
-    // Two bounces of the same arrangement are often equally long: several mixes stay versions of their own
+    // Two bounces of the same arrangement are often equally long: several mixes of one song stay versions of their own.
+    // "Kick v2" and "Snare v2" end the same way but name different things, so they stay stems.
     const several = mixLike(members, commonName(members.map((i) => files[i].name)));
-    if (several.length >= 2) members = members.filter((i) => !several.includes(i));
+    const oneSong = new Set(several.map((i) => withoutMixName(files[i].name))).size === 1;
+    if (several.length >= 2 && oneSong) members = members.filter((i) => !several.includes(i));
     if (members.length < 2) continue;
     const name = commonName(members.map((i) => files[i].name));
     const candidates = mixLike(members, name);

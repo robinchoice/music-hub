@@ -31,6 +31,16 @@ test('a lone mix stays a mix, a bounce among its stems becomes the version', () 
   });
 });
 
+test('loops of a sample pack and stems with a take number are no mixes', () => {
+  expect(planDrop([wav('Loop A.wav', 8), wav('Loop B.wav', 8), wav('Loop C.wav', 8)])).toEqual({ groups: [], mixes: [], files: [0, 1, 2] });
+  expect(planDrop([wav('Spot Kick.wav', 30), wav('Spot Voice.wav', 30)]).groups).toEqual([{ stems: [0, 1], mix: null, name: 'Spot' }]);
+  expect(planDrop([wav('Song - Kick v2.wav', 200), wav('Song - Snare v2.wav', 200)])).toEqual({
+    groups: [{ stems: [0, 1], mix: null, name: 'Song' }],
+    mixes: [],
+    files: [],
+  });
+});
+
 test('the common name stops at a word', () => {
   expect(commonName(['Audio 1.wav', 'Audio 12.wav'])).toBe('Audio');
   expect(commonName(['Kreise_Kick.wav', 'Kreise_Bass.wav'])).toBe('Kreise');
