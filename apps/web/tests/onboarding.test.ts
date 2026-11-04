@@ -64,7 +64,7 @@ async function newProject(page: Page) {
 test('a mix dropped on an empty project becomes a track named after the file', async ({ page, baseURL }) => {
   await fakeUploads(page, baseURL!);
   await page.goto(`/projects/${await newProject(page)}`);
-  await expect(page.getByText('Mix hier ablegen')).toBeVisible();
+  await expect(page.getByText('Mix oder Spuren hier ablegen')).toBeVisible();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Dateien auswählen' }).click();
   await (await chooser).setFiles(wav('Letzte Bahn – Mix 1.wav'));

@@ -23,6 +23,8 @@
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
   import DeliveryPanel from '$lib/components/delivery/DeliveryPanel.svelte';
+  import ProjectFiles, { type ProjectFile } from '$lib/components/workspace/ProjectFiles.svelte';
+  import { pendingDrop } from '$lib/stores/pending-drop.js';
   import { overviewIndex, overviewFailed, loadOverview, markProjectSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
@@ -79,6 +81,8 @@
   let uploadLinkOpen = $state(false);
   let shareOpen = $state(false);
   let drop = $state<ProjectDrop>();
+  let files = $state<ProjectFile[]>([]);
+  let canDownloadFiles = $state(false);
 
   const projectId = $page.params.projectId;
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
@@ -90,7 +94,7 @@
   const wanted = $derived($page.url.searchParams.get('view'));
   // The delivery (Auftrag) is the owner's business
   const view = $derived(
-    wanted === 'timeline' || wanted === 'board' ? wanted : wanted === 'auftrag' && roles.includes('owner') ? 'auftrag' : 'tracks',
+    wanted === 'timeline' || wanted === 'board' || wanted === 'dateien' ? wanted : wanted === 'auftrag' && roles.includes('owner') ? 'auftrag' : 'tracks',
   );
 
   function setView(id: string) {
@@ -117,8 +121,28 @@
     } finally {
       loading = false;
     }
+    void loadFiles();
     const trashRes = await api.get<{ entries: { deletedAt: string }[] }>(`/trash/project/${projectId}`, true).catch(() => null);
     trash = trashRes?.entries ?? [];
+  });
+
+  async function loadFiles() {
+    const res = await api.get<{ files: ProjectFile[]; canDownload: boolean }>(`/files/project/${projectId}`, true).catch(() => null);
+    files = res?.files ?? [];
+    canDownloadFiles = res?.canDownload ?? false;
+  }
+
+  async function filesChanged(opts: { tracks?: boolean } = {}) {
+    await loadFiles();
+    if (opts.tracks) await afterDrop({ files: 0, tracks: 1 });
+  }
+
+  // Files dropped elsewhere in the app for this project
+  $effect(() => {
+    const pending = $pendingDrop;
+    if (!pending || pending.projectId !== projectId || !drop || !canUpload) return;
+    pendingDrop.set(null);
+    void drop.add(pending.files, pending.trackId);
   });
 
   async function createTrack() {
@@ -168,7 +192,13 @@
   const canUpload = $derived(!project?.isArchived && roles.some((r) => UPLOAD_ROLES.includes(r)));
   const empty = $derived(!loading && tracks.length === 0);
 
-  async function afterDrop() {
+  async function afterDrop(result: { files: number; tracks: number }) {
+    if (result.files) {
+      await loadFiles();
+      // Only files: show them where they went
+      if (!result.tracks && view !== 'dateien') setView('dateien');
+    }
+    if (!result.tracks) return;
     tracks = (await api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`)).tracks;
     reloadSidebar?.();
     void loadOverview(true);
@@ -285,6 +315,7 @@
         { id: 'tracks', label: t().workspace.projectPage.tabTracks, count: loading ? undefined : tracks.length },
         { id: 'board', label: t().workspace.projectPage.tabBoard },
         { id: 'timeline', label: t().workspace.projectPage.tabTimeline },
+        { id: 'dateien', label: t().workspace.projectPage.tabFiles, count: files.length },
         ...(roles.includes('owner') ? [{ id: 'auftrag', label: t().workspace.projectPage.tabOrder }] : []),
       ]}
       active={view}
@@ -294,6 +325,8 @@
 
   {#if view === 'auftrag' && projectId && !loading}
     <DeliveryPanel {projectId} {tracks} />
+  {:else if view === 'dateien' && projectId}
+    <ProjectFiles {projectId} {files} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
   {:else if loading || (!ix && !$overviewFailed)}
     <div class="loading">
       <Skeleton height="4rem" variant="rect" />

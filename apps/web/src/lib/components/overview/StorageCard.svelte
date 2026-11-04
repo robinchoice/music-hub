@@ -18,7 +18,7 @@
   <div class="num">{formatGb(storage.usedBytes)} <span>{t().overview.storage.of(limit)}</span></div>
   <div class="meter" data-tt={tip}>
     {#if storage.versionBytes}<i style="width: {pct(storage.versionBytes)}%; background: var(--color-series-1)"></i>{/if}
-    {#if storage.stemBytes}<i style="width: {pct(storage.stemBytes)}%; background: var(--color-series-2)"></i>{/if}
+    {#if storage.stemBytes + (storage.fileBytes ?? 0)}<i style="width: {pct(storage.stemBytes + (storage.fileBytes ?? 0))}%; background: var(--color-series-2)"></i>{/if}
   </div>
   <div class="legend">
     <span><i style="background: var(--color-series-1)"></i>{t().overview.storage.versions(versions)}</span>

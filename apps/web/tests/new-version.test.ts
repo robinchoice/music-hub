@@ -67,12 +67,10 @@ test('picked files upload in the order people number them', async ({ page }) => 
   await expect(page.locator('.rows [role="alert"]')).toHaveCount(3);
 });
 
-test('upload validation errors are announced for projects, versions and stems', async ({ page }) => {
+// The project page takes any file into its files, a version and a stem have to be audio
+test('upload validation errors are announced for versions and stems', async ({ page }) => {
   const { projectId, trackId } = await newTrack(page);
   const invalid = { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not audio') };
-  await page.goto(`/projects/${projectId}`);
-  await page.locator('input[type="file"]').setInputFiles(invalid);
-  await expect(page.getByRole('alert').filter({ hasText: /notes.txt/ })).toBeVisible();
 
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
   let chooser = page.waitForEvent('filechooser');

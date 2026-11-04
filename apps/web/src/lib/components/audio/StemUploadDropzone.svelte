@@ -27,6 +27,11 @@
 
   let dragOver = $state(false);
   let files = $state<{ name: string; progress: number; error: string }[]>([]);
+  // Whether the stems become a version. Untouched, a single stem doesn't: it rarely sounds like the song on its own.
+  // Upload links send to their own route, which mixes as before.
+  const ownRoute = $derived(base === `/stems/track/${trackId}`);
+  let mixChoice = $state<boolean | null>(null);
+  let mixNow = true;
 
   // The close button cancels the uploads, so no stem turns up later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
@@ -80,6 +85,7 @@
       return;
     }
 
+    mixNow = mixChoice ?? selected.length > 1;
     uploading = true;
     inFlight = true;
     const unreadable = await unreadableFiles(selected);
@@ -133,6 +139,7 @@
         originalFileName: file.name,
         mimeType,
         fileSize: file.size,
+        ...(ownRoute ? { mix: mixNow } : {}),
       });
 
       files[idx] = { ...files[idx], progress: 100 };
@@ -189,6 +196,13 @@
     </div>
   </div>
 
+  {#if ownRoute}
+    <label class="mix">
+      <input type="checkbox" checked={mixChoice ?? true} disabled={uploading} onchange={(e) => (mixChoice = e.currentTarget.checked)} />
+      <span>{t().track.drop.choiceMix}<small>{t().track.drop.mixSingleHint}</small></span>
+    </label>
+  {/if}
+
   {#if files.length > 0}
     <div class="file-list">
       {#each files as f}
@@ -213,6 +227,28 @@
 </div>
 
 <style>
+  .mix {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .mix input {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: var(--color-accent);
+  }
+  .mix span {
+    display: grid;
+    gap: 2px;
+  }
+  .mix small {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+  }
   .stem-upload {
     display: flex;
     flex-direction: column;

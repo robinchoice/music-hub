@@ -80,6 +80,8 @@ export type OverviewStorage = {
   usedBytes: number;
   versionBytes: number;
   stemBytes: number;
+  /** Files of projects; older APIs don't send it */
+  fileBytes?: number;
   limitBytes: number;
   topTracks: { trackId: string; name: string; bytes: number }[];
 };

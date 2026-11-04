@@ -175,9 +175,9 @@ export const de = {
     sub: 'deine Uploads',
     of: (limit: string) => `von ${limit}`,
     tip: (used: string, limit: string, pct: number, versions: string, stems: string) =>
-      `${used} von ${limit} belegt (${pct} %)\nVersionen ${versions}, Spuren ${stems}`,
+      `${used} von ${limit} belegt (${pct} %)\nVersionen ${versions}, Spuren und Dateien ${stems}`,
     versions: (size: string) => `Versionen ${size}`,
-    stems: (size: string) => `Spuren ${size}`,
+    stems: (size: string) => `Spuren und Dateien ${size}`,
   },
   task: {
     // Followed by the text; the name stands in bold before it
@@ -477,9 +477,9 @@ export const en: typeof de = {
     sub: 'your uploads',
     of: (limit) => `of ${limit}`,
     tip: (used, limit, pct, versions, stems) =>
-      `${used} of ${limit} used (${pct}%)\nVersions ${versions}, stems ${stems}`,
+      `${used} of ${limit} used (${pct}%)\nVersions ${versions}, stems and files ${stems}`,
     versions: (size) => `Versions ${size}`,
-    stems: (size) => `Stems ${size}`,
+    stems: (size) => `Stems and files ${size}`,
   },
   task: {
     listen: 'uploaded a new version. Your feedback is still missing.',

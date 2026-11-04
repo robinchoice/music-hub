@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { SUPPORTED_EXTENSIONS } from '@music-hub/shared';
+  import { planDrop } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
-  import { byFileName, checkAudioFiles, trackNameFromFile, unreadableFiles, uploadAudioFile, registerVersion } from '$lib/audio/upload.js';
+  import {
+    byFileName, checkFileSize, describeDrop, mimeOf, trackNameFromFile, unreadableFiles, uploadAudioFile, uploadToProject, registerVersion,
+  } from '$lib/audio/upload.js';
   import { dateLocale, t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -20,18 +22,28 @@
     tracks?: { id: string; name: string }[];
     /** The project has no tracks yet: the zone is the way in */
     big?: boolean;
-    onDone: () => void;
+    /** How many files went into the project's files, and how many into tracks */
+    onDone: (result: { files: number; tracks: number }) => void;
     /** Stems first: a track without a mix */
     onEmptyTrack?: (() => void) | undefined;
   } = $props();
 
+  // mix: one file becomes a version. stems: files of equal length become the stems of one song, with a mix
+  // unless the choice says otherwise. file: anything else goes into the project's files.
+  type Choice = 'mix' | 'nomix' | 'files';
   type Row = {
-    name: string; file: string; size: number; loaded: number; progress: number;
+    kind: 'mix' | 'stems' | 'file';
+    name: string; file: string; files: File[]; size: number; loaded: number; progress: number;
     state: 'wartet' | 'lädt hoch' | 'speichert' | 'fertig' | 'fehler' | 'abgebrochen';
     matchId: string | null; newTrack: boolean; locked: boolean; number: number; matchedNumber: number; abort: AbortController; error?: string;
+    // stems: a finished mix that came along and becomes the version, and how long the stems are
+    bounce: File | null; duration: number; choice: Choice;
   };
   const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase(dateLocale());
   const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const minutes = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  // Names a DAW gives every export, which say nothing about the song
+  const GENERIC = /^(audio|track|spur|stem|stems|untitled|unbenannt|bounce|export)?$/i;
 
   let input = $state<HTMLInputElement>();
   let rows = $state<Row[]>([]);
@@ -47,9 +59,16 @@
     input?.click();
   }
 
-  export async function add(files: File[]) {
+  const newRow = (kind: Row['kind'], name: string, files: File[], matchId: string | null, extra: Partial<Row> = {}): Row => ({
+    kind, name, file: files.map((f) => f.name).join(', '), files, size: files.reduce((sum, f) => sum + f.size, 0), loaded: 0, progress: 0,
+    state: 'wartet', matchId, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matchId ? 0 : 1,
+    bounce: null, duration: 0, choice: 'mix', ...extra,
+  });
+
+  /** trackId: dropped on a track, so its mixes and stems belong to it */
+  export async function add(files: File[], trackId?: string) {
     if (busy || !files.length) return;
-    error = checkAudioFiles(files) ?? '';
+    error = checkFileSize(files) ?? '';
     if (error) return;
     preparing = true;
     const unreadable = await unreadableFiles(files);
@@ -60,37 +79,60 @@
     }
 
     files.sort(byFileName);
+    const described = await describeDrop(files);
+    const plan = planDrop(described);
     const known = [...tracks];
-    const counts = new Map<string, number>();
-    rows = files.map((f) => {
-      const name = trackNameFromFile(f.name);
+    const matchOf = (name: string) => {
+      if (trackId) return trackId;
       const matches = known.filter((t) => normalize(t.name) === normalize(name));
-      return { name, file: f.name, size: f.size, loaded: 0, progress: 0, state: 'wartet', matchId: matches.length === 1 ? matches[0].id : null, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matches.length === 1 ? 0 : 1 };
-    });
+      return matches.length === 1 ? matches[0].id : null;
+    };
+    rows = [
+      ...plan.groups.map((g) => {
+        const stems = g.stems.map((i) => files[i]);
+        const name = GENERIC.test(g.name) ? t().track.drop.newSongName : trackNameFromFile(g.name);
+        return newRow('stems', name, g.mix === null ? stems : [files[g.mix], ...stems], matchOf(name), {
+          bounce: g.mix === null ? null : files[g.mix],
+          duration: described[g.stems[0]].duration ?? 0,
+        });
+      }),
+      ...plan.mixes.map((i) => {
+        const name = trackNameFromFile(files[i].name);
+        return newRow('mix', name, [files[i]], matchOf(name));
+      }),
+      ...plan.files.map((i) => newRow('file', files[i].name, [files[i]], null, { choice: 'files' })),
+    ];
     transferring = true;
     preparing = false;
+    const counts = new Map<string, number>();
     let lastTrackId = '';
-    for (const [i, file] of files.entries()) {
-      const row = rows[i];
+    for (const row of rows) {
       if (row.abort.signal.aborted) continue;
       row.state = 'lädt hoch';
       try {
-        const matches = known.filter((t) => normalize(t.name) === normalize(row.name));
-        row.matchId = matches.length === 1 ? matches[0].id : null;
-        if (row.matchId && !counts.has(row.matchId)) {
-          const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
-          counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
+        if (row.kind !== 'file') {
+          if (!trackId) {
+            const matches = known.filter((t) => normalize(t.name) === normalize(row.name));
+            row.matchId = matches.length === 1 ? matches[0].id : null;
+          }
+          if (row.matchId && !counts.has(row.matchId)) {
+            const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
+            counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
+          }
+          row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
+          if (!row.newTrack) row.number = row.matchedNumber;
         }
-        row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
-        if (!row.newTrack) row.number = row.matchedNumber;
-        const fileKey = await uploadAudioFile(`/versions/project/${projectId}/upload-url`, file, {
-          onProgress: (p) => (row.progress = p),
-          onBytes: (bytes) => (row.loaded = bytes),
-          signal: row.abort.signal,
-        });
-        if (!fileKey) { row.state = 'abgebrochen'; continue; }
+        const keys = await transfer(row);
+        if (!keys) { row.state = 'abgebrochen'; continue; }
         row.locked = true;
         row.state = 'speichert';
+        if (row.kind === 'file' || row.choice === 'files') {
+          for (const [i, file] of row.files.entries()) {
+            await api.post(`/files/project/${projectId}`, { fileKey: keys[i], originalFileName: file.name, mimeType: mimeOf(file), trackId: trackId ?? null });
+          }
+          row.state = 'fertig';
+          continue;
+        }
         let targetId = row.newTrack ? null : row.matchId;
         if (!targetId) {
           const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: row.name });
@@ -98,8 +140,13 @@
           known.push({ id: targetId, name: row.name });
         }
         row.number = (counts.get(targetId) ?? 0) + 1;
-        await registerVersion(targetId, file, fileKey);
-        counts.set(targetId, row.number);
+        if (row.kind === 'mix') {
+          await registerVersion(targetId, row.files[0], keys[0]);
+          counts.set(targetId, row.number);
+        } else {
+          await registerStems(row, targetId, keys);
+          if (row.bounce || row.choice === 'mix') counts.set(targetId, row.number);
+        }
         lastTrackId = targetId;
         row.state = 'fertig';
       } catch (err) {
@@ -108,16 +155,69 @@
         row.error = err instanceof Error ? err.message : t().track.drop.failed;
       }
     }
-    onDone();
-    const ok = rows.filter((r) => r.state === 'fertig').length;
-    if (files.length === 1 && ok === 1) {
+    const done = rows.filter((r) => r.state === 'fertig');
+    const filed = done.filter((r) => r.kind === 'file' || r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
+    const uploaded = done.reduce((n, r) => n + r.files.length, 0);
+    onDone({ files: filed, tracks: uploaded - filed });
+    if (rows.length === 1 && done.length === 1 && lastTrackId) {
       transferring = false;
       goto(`/projects/${projectId}/tracks/${lastTrackId}`);
       return;
     }
-    if (ok) toast(t().track.drop.uploaded(ok));
+    if (uploaded) toast(filed === uploaded ? t().track.drop.filed(filed) : t().track.drop.uploaded(uploaded));
     rows = rows.filter((r) => r.state === 'fehler' || r.state === 'abgebrochen');
     transferring = false;
+  }
+
+  // Every file of the row into the bucket. A single mix goes the way it always went, everything else through the
+  // project's upload URL, so the row can still switch between stems and files until it is registered.
+  async function transfer(row: Row) {
+    if (row.kind === 'mix') {
+      const key = await uploadAudioFile(`/versions/project/${projectId}/upload-url`, row.files[0], {
+        onProgress: (p) => (row.progress = p),
+        onBytes: (bytes) => (row.loaded = bytes),
+        signal: row.abort.signal,
+      });
+      return key ? [key] : null;
+    }
+    const keys: string[] = [];
+    let before = 0;
+    for (const file of row.files) {
+      const key = await uploadToProject(projectId, file, {
+        onBytes: (bytes) => {
+          row.loaded = before + bytes;
+          row.progress = Math.round((row.loaded / Math.max(1, row.size)) * 100);
+        },
+        signal: row.abort.signal,
+      });
+      if (!key) return null;
+      keys.push(key);
+      before += file.size;
+    }
+    return keys;
+  }
+
+  // "Kreise_Kick.wav" of "Kreise" → "Kick"
+  const stemName = (file: string, song: string) => {
+    const base = file.replace(/\.[^.]+$/, '');
+    const rest = base.toLowerCase().startsWith(song.toLowerCase()) ? base.slice(song.length).replace(/^[\s_\-–—.]+/, '') : '';
+    return (rest || base).slice(0, 255);
+  };
+
+  async function registerStems(row: Row, trackId: string, keys: string[]) {
+    let start = 0;
+    if (row.bounce) {
+      await registerVersion(trackId, row.bounce, keys[0]);
+      start = 1;
+    }
+    // With a bounce of its own the song needs no mix from the stems
+    const mix = !row.bounce && row.choice === 'mix';
+    for (let i = start; i < row.files.length; i++) {
+      const file = row.files[i];
+      await api.post(`/stems/track/${trackId}`, {
+        fileKey: keys[i], name: stemName(file.name, row.name), originalFileName: file.name, mimeType: mimeOf(file), fileSize: file.size, mix,
+      });
+    }
   }
 
   function cancel(row: Row) {
@@ -129,6 +229,14 @@
   function toggleTarget(row: Row) {
     row.newTrack = !row.newTrack;
     row.number = row.newTrack ? 1 : row.matchedNumber;
+  }
+
+  function target(row: Row) {
+    const d = t().track.drop;
+    if (row.kind === 'file' || row.choice === 'files') return d.toFiles;
+    const existing = row.matchId && !row.newTrack;
+    if (row.kind === 'stems' && !row.bounce && row.choice === 'nomix') return existing ? d.stemsOf(row.name) : d.newTrackStems;
+    return existing ? d.becomes(row.number, row.name) : d.newTrack;
   }
 
   function handlePick(e: Event) {
@@ -147,7 +255,7 @@
 
 <svelte:window onbeforeunload={(e) => busy && e.preventDefault()} />
 
-<input bind:this={input} type="file" accept={SUPPORTED_EXTENSIONS.join(',')} multiple hidden onchange={handlePick} />
+<input bind:this={input} type="file" multiple hidden onchange={handlePick} />
 
 {#if big && !busy}
   <div
@@ -166,7 +274,7 @@
     <h2>{t().track.drop.dropMix}</h2>
     <p>{t().track.drop.hint}</p>
     <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
-    <span class="formats">WAV, MP3, FLAC, AIFF · max. 500 MB</span>
+    <span class="formats">{t().track.drop.formats}</span>
   </div>
   {#if onEmptyTrack}
     <p class="empty-track">{t().track.drop.onlyStems} <button type="button" onclick={onEmptyTrack}>{t().track.drop.createEmpty}</button></p>
@@ -183,9 +291,26 @@
       <li class="row">
         <div>
           <b>{row.name}</b>
-          <small>{row.file} · {mb(row.size)} MB</small>
-          <small class="target">{#if row.matchId && !row.newTrack}{t().track.drop.becomes(row.number, row.name)}{:else}{t().track.drop.newTrack}{/if}</small>
-          {#if row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
+          {#if row.kind === 'stems'}
+            <small>{t().track.drop.stemsRow(row.files.length - (row.bounce ? 1 : 0), minutes(row.duration))} · {mb(row.size)} MB</small>
+            <small class="names">{row.file}</small>
+          {:else}
+            <small>{row.file} · {mb(row.size)} MB</small>
+          {/if}
+          <small class="target">{target(row)}</small>
+          {#if row.bounce && row.choice !== 'files'}<small>{t().track.drop.withBounce(row.bounce.name)}</small>{/if}
+          {#if row.kind === 'stems' && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
+            <select class="choice" aria-label={t().track.drop.choiceLabel(row.name)} bind:value={row.choice}>
+              {#if !row.bounce}
+                <option value="mix">{t().track.drop.choiceMix}</option>
+                <option value="nomix">{t().track.drop.choiceNoMix}</option>
+              {:else}
+                <option value="mix">{t().track.drop.choiceSong}</option>
+              {/if}
+              <option value="files">{t().track.drop.choiceFiles}</option>
+            </select>
+          {/if}
+          {#if row.kind !== 'file' && row.choice !== 'files' && row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
             <button type="button" class="switch-target" onclick={() => toggleTarget(row)}>{row.newTrack ? t().track.drop.attachInstead : t().track.drop.newTrackInstead}</button>
           {/if}
           {#if row.state === 'lädt hoch'}
@@ -209,6 +334,8 @@
   .switch-target { justify-self: start; background: none; border: 0; padding: 4px 0; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; font: inherit; font-size: var(--text-xs); text-align: left; }
   .row b { overflow-wrap: anywhere; }
   .row .target { white-space: normal; color: var(--color-text-primary); }
+  .row .names { white-space: normal; }
+  .choice { justify-self: start; margin-top: 4px; max-width: 100%; background: var(--color-bg-subtle); color: var(--color-text-primary); border: 1px solid var(--color-border-hover); border-radius: var(--radius-sm); padding: 4px 8px; font: inherit; font-size: var(--text-xs); }
   .zone {
     display: grid;
     justify-items: center;

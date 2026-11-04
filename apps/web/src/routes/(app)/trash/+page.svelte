@@ -39,6 +39,8 @@
       })
     | (Base & { kind: 'stem'; name: string; bytes: number })
     | (Base & { kind: 'revision'; name: string; originalFileName: string; bytes: number })
+    // A file of the project; trackId is null when it is filed next to no song
+    | (Omit<Base, 'trackId' | 'trackName'> & { kind: 'file'; name: string; bytes: number; trackId: string | null; trackName?: undefined })
     | (Base & {
         kind: 'comment';
         versionId: string;
@@ -57,6 +59,7 @@
     ['version', t().workspace.trash.filterVersions],
     ['stem', t().workspace.trash.filterStems],
     ['revision', t().workspace.trash.filterRevisions],
+    ['file', t().workspace.trash.filterFiles],
     ['comment', t().workspace.trash.filterComments],
   ]);
 
@@ -105,6 +108,7 @@
     if (e.kind === 'version') return `V${e.versionNumber} · ${versionTitle(e)}`;
     if (e.kind === 'stem') return spurDisplayName(e.name, e.trackName);
     if (e.kind === 'revision') return e.originalFileName;
+    if (e.kind === 'file') return e.name;
     return t().workspace.quoted(e.body);
   }
 
@@ -114,11 +118,13 @@
     if (e.kind === 'version') return `V${e.versionNumber}`;
     if (e.kind === 'stem') return t().workspace.trash.shortStem(spurDisplayName(e.name, e.trackName));
     if (e.kind === 'revision') return t().workspace.trash.shortRevision(e.originalFileName);
+    if (e.kind === 'file') return t().workspace.trash.shortFile(e.name);
     return t().workspace.trash.shortComment;
   }
 
   // Where a restored entry is
   function place(e: Entry) {
+    if (e.kind === 'file') return `/projects/${e.projectId}?view=dateien`;
     const track = `/projects/${e.projectId}/tracks/${e.trackId}`;
     if (e.kind === 'version') return `${track}?v=${e.id}`;
     if (e.kind === 'comment') return `${track}?v=${e.versionId}`;
@@ -231,7 +237,7 @@
         </select>
       {/if}
       <div class="filter" role="tablist">
-        {#each FILTERS.filter(([f]) => f !== 'revision' || countOf(f) > 0) as [f, label]}
+        {#each FILTERS.filter(([f]) => (f !== 'revision' && f !== 'file') || countOf(f) > 0) as [f, label]}
           <button role="tab" aria-selected={filter === f} class:on={filter === f} onclick={() => (filter = f)}>
             {label} <i>{countOf(f)}</i>
           </button>
@@ -250,7 +256,7 @@
               <CoverImage src={e.coverUrl} name={e.trackName} size="sm" rounded="sm" />
             {:else}
               <span class="kind">
-                {#if e.kind === 'version'}V{e.versionNumber}{:else}<Icon name={e.kind === 'stem' || e.kind === 'revision' ? 'music' : 'comment'} size={15} />{/if}
+                {#if e.kind === 'version'}V{e.versionNumber}{:else}<Icon name={e.kind === 'stem' || e.kind === 'revision' ? 'music' : e.kind === 'file' ? 'layers' : 'comment'} size={15} />{/if}
               </span>
             {/if}
             <div class="main">
@@ -263,6 +269,8 @@
                   {t().workspace.trash.versionOf} <b>{e.trackName}</b> · {t().common.comments(e.commentCount)}{#if e.shareLinkCount} · {t().workspace.trash.shareLinks(e.shareLinkCount)}{/if}
                 {:else if e.kind === 'stem'}
                   {t().workspace.trash.stemOf} <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
+                {:else if e.kind === 'file'}
+                  {t().workspace.trash.fileOf} · {formatFileSize(e.bytes)}
                 {:else if e.kind === 'revision'}
                   {t().workspace.trash.revisionOf} <b>{spurDisplayName(e.name, e.trackName)}</b> {t().workspace.trash.revisionIn} <b>{e.trackName}</b> · {formatFileSize(e.bytes)}
                 {:else}
@@ -309,6 +317,8 @@
         <strong>{title(discarding)}</strong>{t().workspace.trash.discardVersion(t().workspace.trash.commentsDative(discarding.commentCount))}
       {:else if discarding.kind === 'stem'}
         {t().workspace.trash.discardStemBefore}<strong>{t().workspace.quoted(title(discarding))}</strong>{t().workspace.trash.discardStemAfter}
+      {:else if discarding.kind === 'file'}
+        {t().workspace.trash.discardFileBefore}<strong>{t().workspace.quoted(title(discarding))}</strong>{t().workspace.trash.discardFileAfter}
       {:else if discarding.kind === 'revision'}
         {t().workspace.trash.discardRevisionBefore}<strong>{t().workspace.quoted(title(discarding))}</strong>{t().workspace.trash.discardRevisionAfter}
       {:else}

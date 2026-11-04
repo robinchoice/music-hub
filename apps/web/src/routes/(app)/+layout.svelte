@@ -9,6 +9,7 @@
   import PleasanceFooter from '$lib/components/PleasanceFooter.svelte';
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
   import TooltipLayer from '$lib/components/ui/TooltipLayer.svelte';
+  import GlobalDrop from '$lib/components/workspace/GlobalDrop.svelte';
   import { stopListen } from '$lib/stores/listen.js';
   import { refreshOverview } from '$lib/stores/overview.js';
   import { onKey } from '$lib/utils/shortcuts.js';
@@ -69,6 +70,7 @@
 
   <ShortcutsModal bind:open={shortcutsOpen} />
   <TooltipLayer />
+  <GlobalDrop />
 {/if}
 
 <style>
