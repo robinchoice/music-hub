@@ -11,7 +11,7 @@ const uploadSchema = z.object({ uploadUrl: z.string(), fileKey: z.string() });
 const createdSchema = z.object({ version: z.looseObject({ id: z.string(), versionNumber: z.number(), status: z.enum(VERSION_STATUSES) }) });
 const downloadSchema = z.object({ url: z.string() });
 
-const mb = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+export const mb = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 
 function line(v: Version) {
   const label = v.label || (v.autoMix ? texts.automaticMix : '');
@@ -24,7 +24,7 @@ function line(v: Version) {
 }
 
 // The bucket answers presigned URLs directly; they carry their own signature, never the token of the CLI
-async function bucket(url: string, init: RequestInit) {
+export async function bucket(url: string, init: RequestInit) {
   let res: Response;
   try {
     res = await fetch(url, init);

@@ -5,6 +5,7 @@ import { auth } from './commands/auth';
 import { board } from './commands/board';
 import { comments } from './commands/comments';
 import { deliveries } from './commands/deliveries';
+import { files } from './commands/files';
 import { plan } from './commands/plan';
 import { projects } from './commands/projects';
 import { reviews } from './commands/reviews';
@@ -15,7 +16,7 @@ import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects, board, tracks, versions, comments, reviews, share, deliveries, plan };
+export const commands: Record<string, Command> = { ...auth, projects, board, tracks, versions, files, comments, reviews, share, deliveries, plan };
 
 const globalOptions = {
   json: { type: 'boolean' },

@@ -18,6 +18,7 @@ import { commentRoutes } from '../../api/src/routes/comments';
 import { shareRoutes } from '../../api/src/routes/share';
 import { trackRoutes } from '../../api/src/routes/tracks';
 import { versionRoutes } from '../../api/src/routes/versions';
+import { fileRoutes } from '../../api/src/routes/files';
 import type { AppEnv } from '../../api/src/types';
 import { run } from './cli';
 import { SLUG, sessionFile } from './config';
@@ -61,6 +62,7 @@ const app = new Hono<AppEnv>()
   .route('/projects', projectRoutes)
   .route('/tracks', trackRoutes)
   .route('/versions', versionRoutes)
+  .route('/files', fileRoutes)
   .route('/comments', commentRoutes)
   .route('/share', shareRoutes)
   .route('/deliveries', deliveryRoutes)
@@ -489,6 +491,20 @@ test('tracks, versions, comments and reviews: a song from the upload to the verd
   expect(await studio.cli(['versions', 'download', ...at, '--out', out])).toMatchObject({ code: 1, err: texts.fileExists(out) });
   expect((await label.cli(['versions', 'download', ...at, '--out', join(dir, 'label.wav')])).code).toBe(1);
   expect(await studio.cli(['versions', 'download', ...at, '--version', '7', '--out', join(dir, 'v7.wav')])).toMatchObject({ code: 1, err: texts.noSuchVersion('7', 'Abendrot') });
+  expect(bucketAuthorization).toEqual([]);
+
+  // Files of the project: any sound or session, no version and no stem
+  expect(await studio.cli(['files', '--project', 'Nachtfahrt'])).toMatchObject({ code: 0, out: texts.noProjectFiles('Nachtfahrt') });
+  const sound = join(dir, 'Vespa Hupe.wav');
+  await writeFile(sound, 'RIFF honk');
+  expect(await studio.cli(['files', 'upload', sound, '--project', 'Nachtfahrt'])).toMatchObject({ code: 0, out: texts.fileUploaded('Vespa Hupe.wav', 'Nachtfahrt') });
+  expect((await label.cli(['files', 'upload', sound, '--project', 'Nachtfahrt'])).code).toBe(1);
+  expect((await label.cli(['files', '--project', 'Nachtfahrt'])).out).toMatch(/^Vespa Hupe\.wav · 0\.0 MB · Ada · \d{4}-\d{2}-\d{2}$/);
+  const honk = join(dir, 'honk.wav');
+  expect(await studio.cli(['files', 'download', 'vespa hupe.wav', '--project', 'Nachtfahrt', '--out', honk])).toMatchObject({ code: 0 });
+  expect(await readFile(honk, 'utf8')).toBe('RIFF honk');
+  expect((await label.cli(['files', 'download', 'Vespa Hupe.wav', '--project', 'Nachtfahrt', '--out', join(dir, 'l.wav')])).code).toBe(1);
+  expect(await studio.cli(['files', 'download', 'nope', '--project', 'Nachtfahrt'])).toMatchObject({ code: 1, err: texts.noSuchProjectFile('nope', 'Nachtfahrt') });
   expect(bucketAuthorization).toEqual([]);
 
   // Comments, at a point in the song or for the whole version
