@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { logIn, removeUser } from './session.js';
 
 // Console errors fail the test
@@ -169,4 +169,73 @@ test.describe('in English', () => {
     await feedback.scrollIntoViewIfNeeded();
     await expect(feedback.getByText('Snare in the verse is a bit too loud')).toBeVisible();
   });
+});
+
+// The real app in demo mode, filling a resizable window without landing-page scaling.
+async function adaptiveDemo(page: Page, path: string) {
+  await page.route('**/__adaptive', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: `<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0}iframe{display:block;width:100vw;height:100dvh;border:0}</style><iframe name="musichub-demo" src="${path}"></iframe>`,
+  }));
+  await page.goto('/__adaptive');
+  return page.frameLocator('iframe');
+}
+
+const demoProject = '/projects/00000000-0000-4000-8000-000000000010';
+
+test('timeline playback and its controls survive narrow and wide windows', async ({ page }) => {
+  const demo = await adaptiveDemo(page, demoProject);
+  await demo.getByRole('tab', { name: 'Timeline', exact: true }).click();
+  await demo.locator('.clip').first().click();
+  const dock = demo.locator('.dock');
+  await expect(dock.locator('.wf')).toHaveClass(/playing/);
+  const position = dock.getByRole('slider');
+  await position.press('ArrowRight');
+  await expect.poll(async () => Number(await position.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(5);
+  const version = await dock.locator('.t span').innerText();
+  for (const [width, height] of [[1440, 900], [1024, 768], [900, 600], [881, 600], [880, 600], [768, 1024], [641, 500], [600, 800], [320, 568], [844, 390], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(dock.locator('.wf')).toHaveClass(/playing/);
+    await expect.poll(async () => Number(await position.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(5);
+    await expect(dock.locator('.t b')).toBeVisible();
+    await expect(dock.locator('.t span')).toHaveText(version);
+    await expect.poll(() => demo.locator('body').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    for (const control of [dock.getByRole('link', { name: 'Öffnen', exact: true }), dock.locator('.close')]) {
+      const box = (await control.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test('track draft, player and open dialog survive window and height changes', async ({ page }) => {
+  const demo = await adaptiveDemo(page, `${demoProject}/tracks/00000000-0000-4000-8000-000000000020`);
+  const composer = demo.locator('.composer input');
+  await composer.fill('Bass nach dem Größenwechsel prüfen');
+  await demo.locator('.play-btn').first().click();
+  await expect(demo.locator('.play-btn').first()).toHaveAttribute('aria-label', 'Pause');
+  await demo.locator('.meta-controls .ctl').nth(1).click();
+  const elapsed = demo.locator('.player .time').first();
+  await expect.poll(async () => (await elapsed.innerText()).split(':').reduce((seconds, part) => seconds * 60 + Number(part), 0)).toBeGreaterThanOrEqual(10);
+  for (const [width, height] of [[1440, 900], [1024, 768], [768, 1024], [600, 800], [390, 300], [844, 390], [320, 568], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(composer).toHaveValue('Bass nach dem Größenwechsel prüfen');
+    await expect(demo.locator('.play-btn').first()).toHaveAttribute('aria-label', 'Pause');
+    await expect.poll(async () => (await elapsed.innerText()).split(':').reduce((seconds, part) => seconds * 60 + Number(part), 0)).toBeGreaterThanOrEqual(10);
+    await expect.poll(() => demo.locator('body').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  }
+  const viewports = demo.locator('meta[name="viewport"]');
+  await expect(viewports).toHaveCount(1);
+  await expect(viewports).toHaveAttribute('content', /viewport-fit=cover/);
+  await demo.getByRole('button', { name: 'Teilen', exact: true }).click();
+  const dialog = demo.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  for (const [width, height] of [[390, 300], [1024, 768], [844, 390]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(dialog).toBeVisible();
+    const box = (await dialog.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(height);
+  }
+  await expect(composer).toHaveValue('Bass nach dem Größenwechsel prüfen');
 });

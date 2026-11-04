@@ -23,6 +23,13 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
     { name: 'handy', use: devices['Pixel 7'] },
+    {
+      name: 'adaptive-webkit',
+      // Linux CI installs WebKit's system libraries; local checks keep the Chromium suite.
+      testMatch: process.env.CI ? 'landing.test.ts' : [],
+      grep: /timeline playback|track draft/,
+      use: { browserName: 'webkit', viewport: { width: 1024, height: 768 }, hasTouch: true },
+    },
   ],
   webServer: [
     {

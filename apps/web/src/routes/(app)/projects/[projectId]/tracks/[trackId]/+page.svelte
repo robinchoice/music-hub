@@ -1599,6 +1599,7 @@
     top: var(--topbar-height);
     align-self: flex-start;
     height: calc(100vh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height));
     width: 320px;
     flex-shrink: 0;
     border-left: 1px solid var(--color-border);

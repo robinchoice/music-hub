@@ -271,6 +271,7 @@
     width: 240px;
     flex-shrink: 0;
     height: 100vh;
+    height: 100dvh;
     background: var(--color-bg-raised);
     border-right: 1px solid var(--color-border);
     display: flex;
@@ -633,6 +634,7 @@
       left: 0;
       bottom: 0;
       height: 100vh;
+      height: 100dvh;
       width: min(280px, 85vw);
       z-index: 100;
       transform: translateX(-100%);

@@ -60,7 +60,6 @@
 
 <svelte:head>
   <title>Music Hub</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta property="og:site_name" content="Music Hub" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content={locale() === 'de' ? 'de_DE' : 'en_GB'} />

@@ -66,6 +66,7 @@
     width: 100%;
     max-width: 480px;
     max-height: 85vh;
+    max-height: 85dvh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
     animation: pop-in 280ms var(--ease-spring);

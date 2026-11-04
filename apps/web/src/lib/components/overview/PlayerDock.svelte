@@ -41,6 +41,8 @@
     z-index: 15;
     margin-top: auto;
     display: flex;
+    flex-wrap: wrap;
+    container-type: inline-size;
     align-items: center;
     gap: 14px;
     padding: 10px var(--space-6);
@@ -89,14 +91,7 @@
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
   }
-  /* Above the bottom bar on phones */
-  @media (max-width: 640px) {
-    .dock {
-      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 8px 12px;
-    }
+  @container (max-width: 680px) {
     .t {
       width: auto;
       flex: 1;
@@ -105,6 +100,14 @@
       order: 5;
       flex-basis: 100%;
       min-width: 0;
+    }
+  }
+  /* Above the bottom bar on phones */
+  @media (max-width: 640px) {
+    .dock {
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      gap: 10px;
+      padding: 8px 12px;
     }
   }
 </style>

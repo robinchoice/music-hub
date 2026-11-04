@@ -39,6 +39,7 @@
   .sheet {
     width: 100%;
     max-height: 80vh;
+    max-height: 80dvh;
     overflow-y: auto;
     background: var(--color-bg-raised);
     border-top: 1px solid var(--color-border-hover);

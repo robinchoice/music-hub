@@ -19,7 +19,8 @@ const config = {
 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 		adapter: adapter({ out: 'build' }),
 		// SvelteKit adds nonces for its inline scripts. Audio, waveforms and covers come signed from the
-		// bucket (https, in dev and tests MinIO on localhost), offline copies play from blob URLs, the
+		// bucket (https, in dev and tests MinIO on localhost), offline copies play from blob URLs,
+		// the inline player unlocks iOS audio with a data URL of silence, and the
 		// landing page embeds the app in an iframe of its own origin. wavesurfer.js writes a <style>
 		// into its shadow DOM, so styles stay inline. Browser errors go to GlitchTip.
 		csp: {
@@ -29,7 +30,7 @@ const config = {
 				'script-src': ['self'],
 				'style-src': ['self', 'unsafe-inline'],
 				'img-src': ['self', 'data:', 'blob:', 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
-				'media-src': ['self', 'blob:', 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
+				'media-src': ['self', 'data:', 'blob:', 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
 				'connect-src': ['self', 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
 				'frame-src': ['self'],
 				'frame-ancestors': ['self'],
