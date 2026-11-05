@@ -104,6 +104,37 @@ test('stems can stay without a mix, and only sounds open the files', async ({ pa
   await expect(page).toHaveURL(/view=dateien/);
 });
 
+test('trying again after a failure neither uploads nor registers a stem twice', async ({ page, baseURL }) => {
+  const sent = await fakeBucket(page, baseURL!);
+  const projectId = await newProject(page);
+  await page.goto(`/projects/${projectId}`);
+  let puts = 0;
+  await page.route('**/fake-s3/**', (route) => {
+    puts++;
+    return route.fulfill({ status: 200 });
+  });
+  let failVox = true;
+  await page.route('**/api/v1/stems/track/*', (route) => {
+    if (failVox && route.request().postDataJSON()?.name === 'Vox') {
+      failVox = false;
+      return route.fulfill({ status: 500, json: { error: 'Kaputt' } });
+    }
+    return route.fallback();
+  });
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Dateien auswählen' }).click();
+  await (await chooser).setFiles([wav('Kreise_Bass.wav', 200), wav('Kreise_Kick.wav', 200), wav('Kreise_Vox.wav', 200)]);
+  await expect(page.locator('.rows li')).toContainText('Kaputt');
+  expect(puts).toBe(3);
+
+  await page.getByRole('button', { name: /Upload von .* erneut versuchen/ }).click();
+  await expect(page.locator('.rows li')).toHaveCount(0);
+  expect(puts).toBe(3);
+  expect(sent.filter((s) => s.url.includes('/stems/track/')).map((s) => s.body.name)).toEqual(['Bass', 'Kick', 'Vox']);
+  const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${projectId}`)).json();
+  expect(tracks).toHaveLength(1);
+});
+
 test('a sound can still become a version while it uploads', async ({ page, baseURL }) => {
   const sent = await fakeBucket(page, baseURL!);
   const projectId = await newProject(page);

@@ -83,6 +83,7 @@ export const de = {
     newTrackInstead: 'Stattdessen neuer Track',
     loadedOf: (loaded: string, size: string) => `${loaded} von ${size} MB`,
     cancelUpload: (file: string) => `Upload von ${file} abbrechen`,
+    retryUpload: (file: string) => `Upload von ${file} erneut versuchen`,
     states: {
       wartet: 'wartet',
       'lädt hoch': 'lädt hoch',
@@ -470,6 +471,7 @@ export const en: typeof de = {
     newTrackInstead: 'New track instead',
     loadedOf: (loaded, size) => `${loaded} of ${size} MB`,
     cancelUpload: (file) => `Cancel upload of ${file}`,
+    retryUpload: (file) => `Try the upload of ${file} again`,
     states: {
       wartet: 'waiting',
       'lädt hoch': 'uploading',

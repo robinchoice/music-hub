@@ -38,6 +38,8 @@
     matchId: string | null; newTrack: boolean; locked: boolean; number: number; matchedNumber: number; abort: AbortController; error?: string;
     // stems: a finished mix that came along and becomes the version, and how long the stems are
     bounce: File | null; duration: number; choice: Choice;
+    // What already went through, so trying again neither uploads nor registers a file twice
+    keys: string[]; targetId: string | null; registered: number;
   };
   const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase(dateLocale());
   const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -62,8 +64,27 @@
   const newRow = (kind: Row['kind'], name: string, files: File[], matchId: string | null, extra: Partial<Row> = {}): Row => ({
     kind, name, file: files.map((f) => f.name).join(', '), files, size: files.reduce((sum, f) => sum + f.size, 0), loaded: 0, progress: 0,
     state: 'wartet', matchId, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matchId ? 0 : 1,
-    bounce: null, duration: 0, choice: 'mix', ...extra,
+    bounce: null, duration: 0, choice: 'mix', keys: [], targetId: null, registered: 0, ...extra,
   });
+
+  // Tracks of the project, with the ones a drop created, and the highest version number of each track looked up so far
+  let known: { id: string; name: string }[] = [];
+  const counts = new Map<string, number>();
+  let dropTrackId: string | undefined;
+  // The song a row would go to: a file row switched to a version is named after its file
+  const songOf = (row: Row) => (row.kind === 'file' ? trackNameFromFile(row.files[0].name) : row.name);
+  async function resolve(row: Row) {
+    if (!dropTrackId) {
+      const matches = known.filter((t) => normalize(t.name) === normalize(songOf(row)));
+      row.matchId = matches.length === 1 ? matches[0].id : null;
+    }
+    if (row.matchId && !counts.has(row.matchId)) {
+      const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
+      counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
+    }
+    row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
+    if (!row.newTrack) row.number = row.matchedNumber;
+  }
 
   /** trackId: dropped on a track, so its mixes and stems belong to it */
   export async function add(files: File[], trackId?: string) {
@@ -93,7 +114,9 @@
       error = t().track.drop.failed;
       return;
     }
-    const known = [...tracks];
+    known = [...tracks];
+    counts.clear();
+    dropTrackId = trackId;
     const matchOf = (name: string) => {
       if (trackId) return trackId;
       const matches = known.filter((t) => normalize(t.name) === normalize(name));
@@ -114,63 +137,12 @@
       }),
       ...plan.files.map((i) => newRow('file', files[i].name, [files[i]], null, { choice: 'files' })),
     ];
-    // The song a row would go to: a file row switched to a version is named after its file
-    const songOf = (row: Row) => (row.kind === 'file' ? trackNameFromFile(row.files[0].name) : row.name);
-    const resolve = async (row: Row) => {
-      if (!trackId) {
-        const matches = known.filter((t) => normalize(t.name) === normalize(songOf(row)));
-        row.matchId = matches.length === 1 ? matches[0].id : null;
-      }
-      if (row.matchId && !counts.has(row.matchId)) {
-        const res = await api.get<{ versions: { versionNumber: number }[] }>(`/versions/track/${row.matchId}`);
-        counts.set(row.matchId, Math.max(0, ...res.versions.map((v) => v.versionNumber)));
-      }
-      row.matchedNumber = row.matchId ? (counts.get(row.matchId) ?? 0) + 1 : 1;
-      if (!row.newTrack) row.number = row.matchedNumber;
-    };
     transferring = true;
     preparing = false;
-    const counts = new Map<string, number>();
-    let lastTrackId = '';
+    let lastTrackId: string | null = null;
     for (const row of rows) {
       if (row.abort.signal.aborted) continue;
-      row.state = 'lädt hoch';
-      try {
-        if (row.choice !== 'files') await resolve(row);
-        const keys = await transfer(row);
-        if (!keys) { row.state = 'abgebrochen'; continue; }
-        row.locked = true;
-        row.state = 'speichert';
-        if (row.choice === 'files') {
-          for (const [i, file] of row.files.entries()) {
-            await api.post(`/files/project/${projectId}`, { fileKey: keys[i], originalFileName: file.name, mimeType: mimeOf(file), trackId: trackId ?? null });
-          }
-          row.state = 'fertig';
-          continue;
-        }
-        // The choice may have changed during the transfer
-        await resolve(row);
-        let targetId = row.newTrack ? null : row.matchId;
-        if (!targetId) {
-          const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: songOf(row) });
-          targetId = track.id;
-          known.push({ id: targetId, name: songOf(row) });
-        }
-        row.number = (counts.get(targetId) ?? 0) + 1;
-        if (row.kind !== 'stems') {
-          await registerVersion(targetId, row.files[0], keys[0]);
-          counts.set(targetId, row.number);
-        } else {
-          await registerStems(row, targetId, keys);
-          if (row.bounce || row.choice === 'mix') counts.set(targetId, row.number);
-        }
-        lastTrackId = targetId;
-        row.state = 'fertig';
-      } catch (err) {
-        if (row.abort.signal.aborted) { row.state = 'abgebrochen'; continue; }
-        row.state = 'fehler';
-        row.error = err instanceof Error ? err.message : t().track.drop.failed;
-      }
+      lastTrackId = (await processRow(row)) ?? lastTrackId;
     }
     const done = rows.filter((r) => r.state === 'fertig');
     const filed = done.filter((r) => r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
@@ -186,20 +158,98 @@
     transferring = false;
   }
 
+  // Uploads the row and registers it; returns the track it went to. After a failure it picks up where it stopped.
+  async function processRow(row: Row) {
+    row.state = 'lädt hoch';
+    delete row.error;
+    try {
+      if (row.choice !== 'files' && !row.targetId) await resolve(row);
+      if (!(await transfer(row))) {
+        row.state = 'abgebrochen';
+        return null;
+      }
+      const keys = row.keys;
+      row.locked = true;
+      row.state = 'speichert';
+      if (row.choice === 'files') {
+        for (; row.registered < row.files.length; row.registered++) {
+          const file = row.files[row.registered];
+          await api.post(`/files/project/${projectId}`, {
+            fileKey: keys[row.registered], originalFileName: file.name, mimeType: mimeOf(file), trackId: dropTrackId ?? null,
+          });
+        }
+        row.state = 'fertig';
+        return null;
+      }
+      if (!row.targetId) {
+        // The choice may have changed during the transfer
+        await resolve(row);
+        let targetId = row.newTrack ? null : row.matchId;
+        if (!targetId) {
+          const { track } = await api.post<{ track: { id: string } }>(`/tracks/${projectId}`, { name: songOf(row) });
+          targetId = track.id;
+          known.push({ id: targetId, name: songOf(row) });
+        }
+        row.targetId = targetId;
+        row.number = (counts.get(targetId) ?? 0) + 1;
+      }
+      const targetId = row.targetId;
+      if (row.kind !== 'stems') {
+        if (!row.registered) await registerVersion(targetId, row.files[0], keys[0]);
+        row.registered = 1;
+        counts.set(targetId, row.number);
+      } else {
+        await registerStems(row, targetId, keys);
+        if (row.bounce || row.choice === 'mix') counts.set(targetId, row.number);
+      }
+      row.state = 'fertig';
+      return targetId;
+    } catch (err) {
+      if (row.abort.signal.aborted) {
+        row.state = 'abgebrochen';
+        return null;
+      }
+      row.state = 'fehler';
+      row.error = err instanceof Error ? err.message : t().track.drop.failed;
+      return null;
+    }
+  }
+
+  // A failed or cancelled row once more, without uploading or registering again what already went through
+  async function retry(row: Row) {
+    if (busy) {
+      toast(t().track.drop.busy, 'warning');
+      return;
+    }
+    transferring = true;
+    row.abort = new AbortController();
+    await processRow(row);
+    if (row.state === 'fertig') {
+      const filed = row.choice === 'files' ? row.files.length : 0;
+      onDone({ files: filed, tracks: row.files.length - filed });
+      toast(filed ? t().track.drop.filed(filed) : t().track.drop.uploaded(row.files.length));
+      rows = rows.filter((r) => r !== row);
+    }
+    transferring = false;
+  }
+
   // Every file of the row into the bucket. A single mix goes the way it always went, everything else through the
   // project's upload URL, so the row can still switch between stems and files until it is registered.
+  // Files already in the bucket stay in row.keys and are not sent again; false if the row was cancelled.
   async function transfer(row: Row) {
     if (row.kind === 'mix') {
+      if (row.keys.length) return true;
       const key = await uploadAudioFile(`/versions/project/${projectId}/upload-url`, row.files[0], {
         onProgress: (p) => (row.progress = p),
         onBytes: (bytes) => (row.loaded = bytes),
         signal: row.abort.signal,
       });
-      return key ? [key] : null;
+      if (!key) return false;
+      row.keys.push(key);
+      return true;
     }
-    const keys: string[] = [];
-    let before = 0;
-    for (const file of row.files) {
+    let before = row.files.slice(0, row.keys.length).reduce((sum, f) => sum + f.size, 0);
+    for (const file of row.files.slice(row.keys.length)) {
       const key = await uploadToProject(projectId, file, {
         onBytes: (bytes) => {
           row.loaded = before + bytes;
@@ -207,11 +257,11 @@
         },
         signal: row.abort.signal,
       });
-      if (!key) return null;
-      keys.push(key);
+      if (!key) return false;
+      row.keys.push(key);
       before += file.size;
     }
-    return keys;
+    return true;
   }
 
   // "Kreise_Kick.wav" of "Kreise" → "Kick"
@@ -222,17 +272,16 @@
   };
 
   async function registerStems(row: Row, trackId: string, keys: string[]) {
-    let start = 0;
-    if (row.bounce) {
+    if (row.bounce && !row.registered) {
       await registerVersion(trackId, row.bounce, keys[0]);
-      start = 1;
+      row.registered = 1;
     }
     // With a bounce of its own the song needs no mix from the stems
     const mix = !row.bounce && row.choice === 'mix';
-    for (let i = start; i < row.files.length; i++) {
-      const file = row.files[i];
+    for (; row.registered < row.files.length; row.registered++) {
+      const file = row.files[row.registered];
       await api.post(`/stems/track/${trackId}`, {
-        fileKey: keys[i], name: stemName(file.name, row.name), originalFileName: file.name, mimeType: mimeOf(file), fileSize: file.size, mix,
+        fileKey: keys[row.registered], name: stemName(file.name, row.name), originalFileName: file.name, mimeType: mimeOf(file), fileSize: file.size, mix,
       });
     }
   }
@@ -344,6 +393,8 @@
         </div>
         {#if row.state === 'wartet' || row.state === 'lädt hoch'}
           <button type="button" class="switch-target" aria-label={t().track.drop.cancelUpload(row.file)} onclick={() => cancel(row)}>{t().common.cancel}</button>
+        {:else if !transferring && (row.state === 'fehler' || row.state === 'abgebrochen')}
+          <button type="button" class="switch-target" aria-label={t().track.drop.retryUpload(row.file)} onclick={() => retry(row)}>{t().common.retry}</button>
         {/if}
         <span class="state" class:bad={row.state === 'fehler'}>
           {row.state === 'lädt hoch' ? `${row.progress} %` : row.state === 'fehler' ? t().track.drop.error : t().track.drop.states[row.state]}
