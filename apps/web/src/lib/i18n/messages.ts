@@ -2,6 +2,7 @@ import * as billing from './billing.js';
 import * as common from './common.js';
 import * as delivery from './delivery.js';
 import * as guest from './guest.js';
+import * as importer from './importer.js';
 import * as landing from './landing.js';
 import * as overview from './overview.js';
 import * as track from './track.js';
@@ -15,6 +16,7 @@ export const messages = {
     common: common.de,
     delivery: delivery.de,
     guest: guest.de,
+    importer: importer.de,
     landing: landing.de,
     overview: overview.de,
     track: track.de,
@@ -25,6 +27,7 @@ export const messages = {
     common: common.en,
     delivery: delivery.en,
     guest: guest.en,
+    importer: importer.en,
     landing: landing.en,
     overview: overview.en,
     track: track.en,

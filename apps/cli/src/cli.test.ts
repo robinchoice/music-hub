@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { comments, createDb, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
+import { comments, createDb, imports as importRows, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
 import { DELIVERY_ERRORS, formatEuro } from '@music-hub/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -13,6 +13,7 @@ import { authRoutes } from '../../api/src/routes/auth';
 import { deliveryRoutes } from '../../api/src/routes/deliveries';
 import { deviceRoutes } from '../../api/src/routes/device';
 import { projectRoutes } from '../../api/src/routes/projects';
+import { importRoutes } from '../../api/src/routes/imports';
 import { billingRoutes } from '../../api/src/routes/billing';
 import { commentRoutes } from '../../api/src/routes/comments';
 import { shareRoutes } from '../../api/src/routes/share';
@@ -66,7 +67,8 @@ const app = new Hono<AppEnv>()
   .route('/comments', commentRoutes)
   .route('/share', shareRoutes)
   .route('/deliveries', deliveryRoutes)
-  .route('/billing', billingRoutes);
+  .route('/billing', billingRoutes)
+  .route('/imports', importRoutes);
 let server: ReturnType<typeof Bun.serve>;
 let url = '';
 
@@ -143,6 +145,19 @@ test('login confirmed in the browser stores a token only the user can read', asy
 
   expect(await cli(['whoami'])).toMatchObject({ code: 0, out: `Ada <${ada.email}>` });
   expect((await cli(['whoami', '--json'])).json()).toMatchObject({ user: { email: ada.email, isAdmin: false } });
+});
+
+test('imports lists the started imports, not the scans', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  await cli(['login'], { approveAs: ada.browser });
+  expect(await cli(['imports'])).toMatchObject({ code: 0, out: texts.noImports });
+  await db.insert(importRows).values([
+    { userId: ada.id, rootPath: '/Studio/Album', entries: [], status: 'done', createdAt: new Date('2026-11-05T09:30:00Z') },
+    { userId: ada.id, rootPath: '/Studio/Neu', entries: [], status: 'scanned' },
+  ]);
+  expect((await cli(['imports'])).out).toBe('2026-11-05 09:30 · /Studio/Album · done');
+  expect((await cli(['imports', '--json'])).json()).toMatchObject({ imports: [{ rootPath: '/Studio/Album', status: 'done' }] });
 });
 
 test('projects lists the own projects with roles and tracks', async () => {

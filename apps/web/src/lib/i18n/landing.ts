@@ -135,6 +135,7 @@ export const de = {
         '4. Projekte, Dateien und Kommentare',
         [
           'Was du in Music Hub hochlädst oder schreibst, also Audiodateien, Spuren, Cover, Kommentare und Freigaben, speichere ich, damit die Mitglieder deines Projekts damit arbeiten können. Sichtbar ist es nur für diese Mitglieder und für alle, denen ihr einen Link schickt. Audiodateien wandelt mein Server für die Wiedergabe um und misst dabei die Lautheit. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Die Inhalte bleiben gespeichert, bis sie im Projekt gelöscht werden. Gelöschtes liegt dann 30 Tage im Papierkorb und lässt sich dort wiederherstellen. Danach, oder sobald es dort endgültig gelöscht wird, bewahre ich es noch höchstens 60 Tage auf, damit ich versehentlich Gelöschtes auf Anfrage wiederherstellen kann, und lösche es dann samt Dateien. Ersetzte Cover und Dateien, die vor der Einführung des Papierkorbs gelöscht wurden, bleiben vorerst im Speicher. Auf Anfrage lösche ich früher.',
+          'Wenn du deine Dropbox verbindest, um Ordner zu importieren, speichere ich verschlüsselt einen Schlüssel, der nur Dateien lesen darf, dazu die Kennung deines Dropbox-Kontos und deinen Anzeigenamen dort. In deine Dropbox schreibe ich nichts. Die Liste der Dateien eines Ordners, den du dir ansiehst, lösche ich, sobald du importierst, spätestens nach einem Tag. Was du importierst, behandle ich wie hochgeladene Dateien. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Trennst du die Verbindung, widerrufe ich den Schlüssel bei Dropbox und lösche ihn.',
         ],
       ],
       [
@@ -374,6 +375,7 @@ export const en: typeof de = {
         '4. Projects, files and comments',
         [
           'What you upload or write in Music Hub, that is audio files, stems, covers, comments and approvals, I store so that the members of your project can work with it. It is visible only to these members and to everyone you send a link to. My server converts audio files for playback and measures their loudness in the process. The legal basis is Art. 6(1)(b) GDPR. The content stays stored until it is deleted in the project. Deleted items then stay in the trash for 30 days and can be restored there. After that, or as soon as they are permanently deleted there, I keep them for at most another 60 days so that I can restore accidentally deleted items on request, and then delete them along with their files. Replaced covers and files that were deleted before the trash was introduced remain in storage for now. On request I delete earlier.',
+          'If you connect your Dropbox to import folders, I store, encrypted, a key that may only read files, plus the identifier of your Dropbox account and your display name there. I never write to your Dropbox. The list of files of a folder you look at I delete as soon as you import, at the latest after one day. What you import I treat like uploaded files. The legal basis is Art. 6(1)(b) GDPR. If you disconnect, I revoke the key at Dropbox and delete it.',
         ],
       ],
       [

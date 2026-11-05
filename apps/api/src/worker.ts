@@ -5,6 +5,7 @@ import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
 import { sweepAbandonedUploads } from './lib/upload-sweep.js';
+import { deleteStaleScans, processNextImportItem } from './lib/imports.js';
 import { analyzeNextVersion, processVersion } from './services/audio-processor.js';
 import { processNextStemMix, queueMissingStemMixes } from './services/stem-mixes.js';
 import {
@@ -44,10 +45,28 @@ let purging: Promise<unknown> = Promise.resolve();
       .catch((err) => {
         console.error('[Uploads] Sweep failed:', err);
         captureException(err);
+      })
+      // Looks into Dropbox folders that never became an import
+      .then(() => deleteStaleScans(db))
+      .catch((err) => {
+        console.error('[Import] Clean-up failed:', err);
+        captureException(err);
       });
   purgeTimer = setTimeout(purge, 60_000);
   purgeInterval = setInterval(purge, 6 * 60 * 60_000);
 }
+
+// Files of Dropbox imports, one at a time next to the audio jobs, so a long download never holds up a mix
+const importing = (async () => {
+  while (!stop.signal.aborted) {
+    try {
+      if (!(await processNextImportItem(db, stop.signal))) await sleep(3000, undefined, { signal: stop.signal }).catch(() => {});
+    } catch (err) {
+      captureException(err);
+      await sleep(5000, undefined, { signal: stop.signal }).catch(() => {});
+    }
+  }
+})();
 
 console.log('[Worker] Waiting for audio jobs');
 
@@ -88,6 +107,7 @@ while (!stop.signal.aborted) {
   }
 }
 
+await importing;
 clearTimeout(purgeTimer);
 clearInterval(purgeInterval);
 await purging;

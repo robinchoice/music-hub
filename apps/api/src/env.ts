@@ -19,6 +19,14 @@ const envSchema = z.object({
     .refine((value) => Buffer.from(value, 'base64').length === 32)
     .or(unset)
     .exactOptional(),
+  // Import from Dropbox: the app key of the Dropbox app (PKCE, no app secret) and 32 random bytes as
+  // base64 that encrypt the connected accounts' refresh tokens. Unset: no Dropbox import.
+  DROPBOX_APP_KEY: z.string().regex(/^[a-z0-9]+$/).or(unset).exactOptional(),
+  DROPBOX_TOKEN_KEY: z
+    .base64()
+    .refine((value) => Buffer.from(value, 'base64').length === 32)
+    .or(unset)
+    .exactOptional(),
   // Plans paid by card: the secret API key and the signing secret of the webhook to /api/v1/billing/stripe.
   // Unset: no Stripe checkout.
   STRIPE_SECRET_KEY: z.string().startsWith('sk_').or(unset).exactOptional(),

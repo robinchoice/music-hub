@@ -39,11 +39,11 @@ export const SHORTEST_SONG = 60;
 export const SHORTEST_STEMS = 20;
 
 // Names of finished mixes and versions: "Mix 3", "Master", "Bounce", "v2", "Version 4"
-const MIX_NAME = /(^|[\s_\-–.])((mix|mixdown|master|final|bounce|demo|rough|full)(\s*\d+)?|v\d+|version\s*\d+)$/i;
+export const MIX_NAME = /(^|[\s_\-–.])((mix|mixdown|master|final|bounce|demo|rough|full)(\s*\d+)?|v\d+|version\s*\d+)$/i;
 
-const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
+export const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
 // "Letzte Bahn – Mix 3" → "letzte bahn"; what is left of a name without its mix or version ending
-const withoutMixName = (name: string) => baseName(name).trim().replace(MIX_NAME, '').replace(/[\s_\-–—.]+$/u, '').trim().toLowerCase();
+export const withoutMixName = (name: string) => baseName(name).trim().replace(MIX_NAME, '').replace(/[\s_\-–—.]+$/u, '').trim().toLowerCase();
 
 // "Kreise_Kick", "Kreise_Bass" → "Kreise"; separators at the end go
 export function commonName(names: string[]) {

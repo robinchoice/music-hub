@@ -40,6 +40,7 @@ import { updateRoutes } from './routes/updates.js';
 import { deliveryRoutes } from './routes/deliveries.js';
 import { paymentAccountRoutes } from './routes/payment-account.js';
 import { billingRoutes } from './routes/billing.js';
+import { dropboxRoutes, importRoutes } from './routes/imports.js';
 import { deliverUpdates, importDrafts } from './lib/updates.js';
 import { closeEventStreams, listenForEvents } from './services/sse.js';
 import { allowBrowserAccess } from './storage/s3.js';
@@ -137,7 +138,9 @@ const startup = (async () => {
     .route('/updates', updateRoutes)
     .route('/deliveries', deliveryRoutes)
     .route('/payment-account', paymentAccountRoutes)
-    .route('/billing', billingRoutes);
+    .route('/billing', billingRoutes)
+    .route('/dropbox', dropboxRoutes)
+    .route('/imports', importRoutes);
 
   // Announces new versions once their uploader pauses. Runs in the API because it holds SMTP and VAPID, the worker doesn't.
   // Each instance runs it; taking a batch deletes it first, so none goes out twice.
