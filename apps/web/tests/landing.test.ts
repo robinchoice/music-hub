@@ -186,7 +186,7 @@ const demoProject = '/projects/00000000-0000-4000-8000-000000000010';
 test('timeline playback and its controls survive narrow and wide windows', async ({ page }) => {
   const demo = await adaptiveDemo(page, demoProject);
   await demo.getByRole('tab', { name: 'Timeline', exact: true }).click();
-  await demo.locator('.clip').first().click();
+  await demo.locator('.clip.latest').click();
   const dock = demo.locator('.dock');
   await expect(dock.locator('.wf')).toHaveClass(/playing/);
   const position = dock.getByRole('slider');
