@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { captureException } from './monitoring';
 import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
+import { sweepAbandonedUploads } from './lib/upload-sweep.js';
 import { analyzeNextVersion, processVersion } from './services/audio-processor.js';
 import { processNextStemMix, queueMissingStemMixes } from './services/stem-mixes.js';
 import {
@@ -33,10 +34,17 @@ let purgeInterval: ReturnType<typeof setInterval>;
 let purging: Promise<unknown> = Promise.resolve();
 {
   const purge = () =>
-    purging = purgeTrash(db).catch((err) => {
-      console.error('[Trash] Purge failed:', err);
-      captureException(err);
-    });
+    purging = purgeTrash(db)
+      .catch((err) => {
+        console.error('[Trash] Purge failed:', err);
+        captureException(err);
+      })
+      // Uploads nobody registered, with the same rhythm: a second run finds nothing left
+      .then(() => sweepAbandonedUploads(db))
+      .catch((err) => {
+        console.error('[Uploads] Sweep failed:', err);
+        captureException(err);
+      });
   purgeTimer = setTimeout(purge, 60_000);
   purgeInterval = setInterval(purge, 6 * 60 * 60_000);
 }

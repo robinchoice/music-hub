@@ -6,9 +6,12 @@ import { projectFiles, stemRevisions, stems, versions, type Database } from '@mu
 // afterwards whether it becomes a version, a stem or a file of the project
 export const projectUploadPrefix = (projectId: string) => `projects/${projectId}/uploads/`;
 
-export function isProjectUploadKey(projectId: string, fileKey: string) {
+// original/ holds what was uploaded as audio and may become a version or a stem. Anything else goes to file/ and
+// stays a file of the project, so a type the browser would render never ends up in a player.
+export function isProjectUploadKey(projectId: string, fileKey: string, folders: ('original' | 'file')[] = ['original']) {
   const prefix = projectUploadPrefix(projectId);
-  return fileKey.startsWith(prefix) && /^[0-9a-f-]{36}\/original\/[^/]+$/.test(fileKey.slice(prefix.length));
+  const rest = fileKey.startsWith(prefix) ? fileKey.slice(prefix.length) : '';
+  return folders.some((folder) => new RegExp(`^[0-9a-f-]{36}/${folder}/[^/]+$`).test(rest));
 }
 
 // Whether a version, a stem, an earlier file of a stem or a file of a project points to the key,

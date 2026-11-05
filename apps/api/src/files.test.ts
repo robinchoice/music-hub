@@ -83,6 +83,11 @@ test('any file goes into the project once, counts towards the uploader and is li
   expect(sound.startsWith(`projects/${projectId}/uploads/`)).toBe(true);
   expect((await register(producer, sound, 'Vespa_Hupe.wav')).status).toBe(201);
   expect((await register(producer, sound, 'Vespa_Hupe.wav')).status).toBe(403);
+  // Anything but audio goes to file/, which no version or stem takes, even if registered as audio
+  expect(session).toContain('/file/');
+  expect((await call(`/stems/track/${trackId}`, {
+    method: 'POST', body: { fileKey: session, name: 'Roller', originalFileName: 'Roller.wav', mimeType: 'audio/wav', fileSize: 100 }, headers: producer.headers,
+  })).status).toBe(403);
   expect((await register(producer, session, 'Roller.als', 'application/octet-stream')).status).toBe(201);
   // A key of another project or a made-up one is refused
   expect((await register(owner, await uploadKey(owner, 'x.wav', 'audio/wav', otherProjectId), 'x.wav')).status).toBe(403);

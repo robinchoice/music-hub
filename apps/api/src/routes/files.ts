@@ -84,7 +84,8 @@ export const fileRoutes = new Hono<AppEnv>()
     const storage = await storageOf(db, userId);
     if (!fits(storage, fileSize)) return storageFull(c, storage);
     if (!(await takeUploadVolume(db, userId, fileSize))) return uploadVolumeExceeded(c);
-    const fileKey = `${projectUploadPrefix(projectId)}${crypto.randomUUID()}/original/${fileName}`;
+    const folder = /^audio\//.test(mimeType) ? 'original' : 'file';
+    const fileKey = `${projectUploadPrefix(projectId)}${crypto.randomUUID()}/${folder}/${fileName}`;
     return c.json({ uploadUrl: await createUploadUrl(fileKey, mimeType, fileSize), fileKey });
   })
 
@@ -95,7 +96,7 @@ export const fileRoutes = new Hono<AppEnv>()
     const input = c.req.valid('json');
     const membership = await membershipOf(db, projectId, userId);
     if (!membership?.canUpload) return c.json({ error: 'Forbidden' }, 403);
-    if (!isProjectUploadKey(projectId, input.fileKey) || (await uploadKeyInUse(db, input.fileKey))) return c.json({ error: 'Forbidden' }, 403);
+    if (!isProjectUploadKey(projectId, input.fileKey, ['original', 'file']) || (await uploadKeyInUse(db, input.fileKey))) return c.json({ error: 'Forbidden' }, 403);
     if (input.trackId && !(await trackOfProject(db, projectId, input.trackId))) return c.json({ error: 'Not found' }, 404);
 
     // The stored file decides the size, not what the client claims
@@ -131,7 +132,8 @@ export const fileRoutes = new Hono<AppEnv>()
     const access = await fileAccess(db, c.req.param('id'), c.get('userId'));
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayDownload(access.membership)) return c.json({ error: 'Forbidden' }, 403);
-    return c.json({ url: await createDownloadUrl(access.file.fileKey, 3600, access.file.originalFileName) });
+    // The type comes from the uploading client; a download is only ever bytes to save, never a page to show
+    return c.json({ url: await createDownloadUrl(access.file.fileKey, 3600, access.file.originalFileName, 'application/octet-stream') });
   })
 
   // There is no compressed copy to listen to: the stream is the original, so it needs the right to download like the original.
@@ -142,7 +144,7 @@ export const fileRoutes = new Hono<AppEnv>()
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayDownload(access.membership)) return c.json({ error: 'Forbidden' }, 403);
     if (!playableInline(access.file.mimeType)) return c.json({ error: 'Not found' }, 404);
-    return c.json({ url: await createDownloadUrl(access.file.fileKey) });
+    return c.json({ url: await createDownloadUrl(access.file.fileKey, 3600, undefined, access.file.mimeType) });
   })
 
   // Into the project's trash; the file in the bucket goes when it is deleted for good
@@ -167,7 +169,9 @@ export const fileRoutes = new Hono<AppEnv>()
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
     const track = await trackOfProject(db, access.file.projectId, trackId);
     if (!track) return c.json({ error: 'Not found' }, 404);
-    if (!isAudioFile(access.file.originalFileName, access.file.mimeType)) return c.json({ error: t(c).errors.notAudio }, 400);
+    if (!isAudioFile(access.file.originalFileName, access.file.mimeType) || !isProjectUploadKey(access.file.projectId, access.file.fileKey)) {
+      return c.json({ error: t(c).errors.notAudio }, 400);
+    }
 
     const stem = await db.transaction(async (tx) => {
       const [moved] = await tx

@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
   PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -39,7 +40,8 @@ export async function createUploadUrl(
   return getSignedUrl(s3, command, { expiresIn: 900, signableHeaders: new Set(['content-type']) }); // 15 min
 }
 
-export async function createDownloadUrl(key: string, expiresIn = 3600, downloadName?: string): Promise<string> {
+// contentType replaces the type stored with the object, which the uploading client chose
+export async function createDownloadUrl(key: string, expiresIn = 3600, downloadName?: string, contentType?: string): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -47,6 +49,7 @@ export async function createDownloadUrl(key: string, expiresIn = 3600, downloadN
     ResponseContentDisposition: downloadName
       ? `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`
       : undefined,
+    ResponseContentType: contentType,
   });
   return getSignedUrl(s3, command, { expiresIn });
 }
@@ -109,6 +112,16 @@ export async function allowBrowserAccess(origins: string[]): Promise<void> {
     },
   });
   await s3.send(command);
+}
+
+// Every object below the prefix, a page of up to 1000 at a time
+export async function* listObjects(prefix: string): AsyncGenerator<{ key: string; size: number; lastModified: Date }[]> {
+  let token: string | undefined;
+  do {
+    const page = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }));
+    yield (page.Contents ?? []).flatMap((o) => (o.Key && o.LastModified ? [{ key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified }] : []));
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
 }
 
 export async function deleteObject(key: string): Promise<void> {
