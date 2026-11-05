@@ -239,3 +239,24 @@ test('track draft, player and open dialog survive window and height changes', as
   }
   await expect(composer).toHaveValue('Bass nach dem Größenwechsel prüfen');
 });
+
+test('landing demo keeps its frame, draft and playback across layout changes', async ({ page }) => {
+  await page.goto('/');
+  const frame = page.locator('.stage iframe');
+  const demo = page.frameLocator('.stage iframe');
+  const open = page.locator('.phone-demo-open');
+  await expect(frame).toBeVisible();
+  if (await open.isVisible()) await open.click();
+  const composer = demo.locator('.composer input');
+  await composer.click();
+  await composer.fill('Keep this draft while resizing');
+  await frame.evaluate((el) => { el.dataset.resizeMarker = 'kept'; });
+  await demo.locator('.play-btn').first().click();
+  await expect(demo.locator('.play-btn').first()).toHaveAttribute('aria-label', 'Pause');
+  for (const [width, height] of [[1024, 768], [600, 800], [844, 390], [390, 844], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(frame).toHaveAttribute('data-resize-marker', 'kept');
+    await expect(composer).toHaveValue('Keep this draft while resizing');
+    await expect(demo.locator('.play-btn').first()).toHaveAttribute('aria-label', 'Pause');
+  }
+});

@@ -27,7 +27,7 @@ export default defineConfig({
       name: 'adaptive-webkit',
       // Linux CI installs WebKit's system libraries; local checks keep the Chromium suite.
       testMatch: process.env.CI ? 'landing.test.ts' : [],
-      grep: /timeline playback|track draft/,
+      grep: /timeline playback|track draft|landing demo keeps/,
       use: { browserName: 'webkit', viewport: { width: 1024, height: 768 }, hasTouch: true },
     },
   ],

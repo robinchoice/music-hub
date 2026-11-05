@@ -180,11 +180,12 @@
     if (introDone || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     introDone = true;
     const doc = win.document;
+    const frame = win.frameElement;
     let stopped = false;
     doc.addEventListener('pointerdown', () => (stopped = true), { once: true });
     const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     async function find<T>(get: () => T | null | undefined): Promise<T | null> {
-      for (let i = 0; i < 150 && !stopped; i++) {
+      for (let i = 0; i < 150 && !stopped && frame?.isConnected; i++) {
         const found = get();
         if (found) return found;
         await wait(100);
@@ -196,6 +197,7 @@
     const ready = await find(() => doc.querySelector('.play-btn:not(:disabled)'));
     if (!wave || !ready || stopped) return;
     await wait(1000);
+    if (stopped || !frame?.isConnected) return;
     const box = wave.getBoundingClientRect();
     wave.dispatchEvent(
       new win.MouseEvent('click', {
@@ -207,15 +209,16 @@
     const input = await find(() => doc.querySelector<HTMLInputElement>('.composer input'));
     if (!input || stopped) return;
     await wait(900);
+    if (stopped || !frame?.isConnected) return;
     const setValue = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set;
     for (const ch of t().landing.demo.typedComment) {
-      if (stopped || !setValue) return;
+      if (stopped || !frame?.isConnected || !setValue) return;
       setValue.call(input, input.value + ch);
       input.dispatchEvent(new win.Event('input', { bubbles: true }));
       await wait(35 + Math.random() * 55);
     }
     await wait(500);
-    if (!stopped) input.form?.requestSubmit();
+    if (!stopped && frame?.isConnected) input.form?.requestSubmit();
   }
 </script>
 
@@ -278,39 +281,35 @@
   </div>
 
   <div class="stage">
-    {#if mounted && small}
-      <div class="phone-demo" class:open={heroOpen}>
-        {#if heroOpen}
+    {#if mounted}
+      <div class:phone-demo={small} class:open={small && heroOpen} class:window={!small}>
+        {#if small && heroOpen}
           <div class="phone-demo-bar">
             <span>{t().landing.demo.phoneBar}</span>
             <button onclick={() => (heroOpen = false)}>{t().common.close}</button>
           </div>
+        {:else if !small}
+          <div class="window-bar" aria-hidden="true">
+            <i></i><i></i><i></i>
+            <span class="url"><Icon name="lock" size={11} /> hub.pleasance.org</span>
+          </div>
         {/if}
-        <div class="phone-demo-frame">
+        <div class:phone-demo-frame={small}>
           {#key locale()}
-            <DemoFrame src={DEMO.trackPath} title={t().landing.demo.phoneTitle} interactive={heroOpen} onready={intro} />
+            <DemoFrame
+              src={DEMO.trackPath}
+              title={small ? t().landing.demo.phoneTitle : t().landing.demo.desktopTitle}
+              width={small ? 0 : 1440}
+              height={small ? 0 : 880}
+              fit
+              interactive={!small || heroOpen}
+              onready={intro}
+            />
           {/key}
         </div>
-        {#if !heroOpen}
+        {#if small && !heroOpen}
           <button class="phone-demo-open" onclick={() => (heroOpen = true)}>{t().landing.demo.tryIt}</button>
         {/if}
-      </div>
-    {:else if mounted}
-      <div class="window">
-        <div class="window-bar" aria-hidden="true">
-          <i></i><i></i><i></i>
-          <span class="url"><Icon name="lock" size={11} /> hub.pleasance.org</span>
-        </div>
-        {#key locale()}
-          <DemoFrame
-            src={DEMO.trackPath}
-            title={t().landing.demo.desktopTitle}
-            width={1440}
-            height={880}
-            fit
-            onready={intro}
-          />
-        {/key}
       </div>
     {:else}
       <div class="window placeholder" aria-hidden="true"></div>

@@ -23,6 +23,7 @@
 <style>
   .tabbar {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-6);
     border-bottom: 1px solid var(--color-border);
   }
