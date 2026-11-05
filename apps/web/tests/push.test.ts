@@ -22,6 +22,7 @@ test('push fetches details with cookies and uses the same tag for duplicate sign
     const browser = window as unknown as { fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> };
     const originalFetch = browser.fetch;
     browser.fetch = async (url, options) => {
+      if (!String(url).startsWith('/api/v1/push/notifications')) return originalFetch.call(window, url, options);
       requests.push({ url: String(url), credentials: options?.credentials, cache: options?.cache });
       return Response.json({ notification: { id: '42', title: 'Privater Track', body: 'Privater Name', url: '/projects/example' } });
     };
@@ -85,7 +86,8 @@ test('foreground catch-up persists only a per-account cursor and retries failure
     const originalFetch = browser.fetch;
     let account = 'A';
     let fail = true;
-    browser.fetch = async (url) => {
+    browser.fetch = async (url, options) => {
+      if (!String(url).startsWith('/api/v1/push/notifications')) return originalFetch.call(window, url, options);
       requests.push(String(url));
       if (fail) throw new TypeError('offline');
       const query = new URL(String(url), location.origin).searchParams;
@@ -94,6 +96,7 @@ test('foreground catch-up persists only a per-account cursor and retries failure
         notifications: first ? [{ id: account === 'A' ? '42' : '43', title: `Private ${account}`, body: 'Details', url: '/for-you' }] : [] });
     };
     try {
+      await browser.fetch('/api/v1/health');
       await syncPush(registration);
       fail = false;
       await syncPush(registration);
