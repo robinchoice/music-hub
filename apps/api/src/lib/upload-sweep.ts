@@ -1,6 +1,6 @@
-import { sql } from 'drizzle-orm';
 import type { Database } from '@music-hub/db';
 import { deleteObject, listObjects } from '../storage/s3.js';
+import { keysInUse } from './files.js';
 
 // Originals and stems a client sent to a presigned URL and never registered, because the upload or the page broke off.
 // They count towards nobody's storage, so only the bucket pays for them. An upload URL lasts 15 minutes,
@@ -14,19 +14,6 @@ export const SWEEP_DELETES = false;
 const UPLOAD_KEY = /^projects\/[^/]+\/(uploads\/[^/]+\/(original|file)\/|tracks\/[^/]+\/(stems\/|versions\/[^/]+\/original\/))/;
 // Control characters don't survive the XML of a bucket listing, so such a key could differ from the one in the database
 const UNLISTABLE = /[\x00-\x1f\x7f]/;
-
-// The keys a row still points to, in one statement, so a file moving between tables in a transaction is never missed.
-// Only the columns that hold upload paths: MP3s, waveforms and covers never match UPLOAD_KEY.
-async function keysInUse(db: Pick<Database, 'execute'>, keys: string[]) {
-  const list = () => sql`ARRAY[${sql.join(keys.map((k) => sql`${k}`), sql`, `)}]::text[]`;
-  const rows = await db.execute<{ key: string }>(sql`
-    SELECT original_file_key AS key FROM versions WHERE original_file_key = ANY(${list()})
-    UNION SELECT file_key FROM stems WHERE file_key = ANY(${list()})
-    UNION SELECT file_key FROM stem_revisions WHERE file_key = ANY(${list()})
-    UNION SELECT file_key FROM project_files WHERE file_key = ANY(${list()})
-  `);
-  return new Set(rows.map((r) => r.key));
-}
 
 export async function sweepAbandonedUploads(db: Pick<Database, 'execute'>, { now = new Date(), deletes = SWEEP_DELETES } = {}) {
   const before = now.getTime() - ABANDONED_AFTER_MS;

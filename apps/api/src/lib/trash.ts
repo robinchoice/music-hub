@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { TRASH_DAYS } from '@music-hub/shared';
-import { comments, projectFiles, projects, shareLinks, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
+import { comments, projectFiles, shareLinks, stemRevisions, stems, tracks, versions, type Database } from '@music-hub/db';
 import { deleteObject } from '../storage/s3.js';
+import { keysInUse } from './files.js';
 
 // After leaving the trash, deleted things are kept this long so they can be restored on request
 const KEEP_DAYS = 60;
@@ -144,22 +145,10 @@ export async function fileKeysOfTracks(db: Pick<Database, 'select'>, trackIds: s
 // Several stems can share a file, and a file of the project can become a stem; keeps every file that a remaining row still points to
 export async function deleteUnusedFiles(db: Database, keys: Iterable<string>) {
   let files = 0;
-  for (const key of keys) {
-    const [versionRef] = await db
-      .select({ id: versions.id })
-      .from(versions)
-      .where(or(eq(versions.originalFileKey, key), eq(versions.streamFileKey, key), eq(versions.waveformDataKey, key)))
-      .limit(1);
-    const [stemRef] = await db.select({ id: stems.id }).from(stems).where(eq(stems.fileKey, key)).limit(1);
-    const [revisionRef] = await db
-      .select({ id: stemRevisions.id })
-      .from(stemRevisions)
-      .where(eq(stemRevisions.fileKey, key))
-      .limit(1);
-    const [fileRef] = await db.select({ id: projectFiles.id }).from(projectFiles).where(eq(projectFiles.fileKey, key)).limit(1);
-    const [projectCoverRef] = await db.select({ id: projects.id }).from(projects).where(eq(projects.coverImageUrl, key)).limit(1);
-    const [trackCoverRef] = await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.coverImageUrl, key)).limit(1);
-    if (versionRef || stemRef || revisionRef || fileRef || projectCoverRef || trackCoverRef) continue;
+  const list = [...keys];
+  const used = await keysInUse(db, list);
+  for (const key of list) {
+    if (used.has(key)) continue;
     try {
       await deleteObject(key);
       files++;
