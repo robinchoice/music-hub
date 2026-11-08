@@ -66,3 +66,10 @@ test('an archived project still lists its tracks', async ({ page }) => {
   await page.getByRole('link', { name: 'Letzte Bahn' }).click();
   await expect(page).toHaveURL(`/projects/${project.id}/tracks/${track.id}`);
 });
+
+test('the cover field says what it does without hovering', async ({ page }) => {
+  await page.goto('/projects/new');
+  const overlay = page.locator('.cover-upload .overlay');
+  await expect(overlay).toContainText('Cover hinzufügen');
+  await expect(overlay).toHaveCSS('opacity', '1');
+});

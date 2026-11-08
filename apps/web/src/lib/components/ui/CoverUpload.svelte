@@ -81,6 +81,7 @@
 <label
   class="cover-upload"
   class:drag={dragOver}
+  class:empty={!currentUrl}
   ondragover={(e) => { e.preventDefault(); dragOver = true; }}
   ondragleave={() => (dragOver = false)}
   ondrop={handleDrop}
@@ -143,8 +144,35 @@
     transition: opacity var(--transition-fast);
   }
   .cover-upload:hover .overlay,
-  .cover-upload.drag .overlay {
+  .cover-upload.drag .overlay,
+  .cover-upload.empty .overlay {
     opacity: 1;
+  }
+  /* Empty: the invitation replaces the initials, on the plain tile instead of a dark veil */
+  .cover-upload.empty .overlay {
+    background: none;
+    border: 1px dashed var(--color-border-hover);
+    border-radius: inherit;
+    color: var(--color-text-secondary);
+  }
+  .cover-upload.empty:hover .overlay,
+  .cover-upload.empty.drag .overlay {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent);
+  }
+  .cover-upload.empty :global(.fallback span) {
+    visibility: hidden;
+  }
+  /* Without hover the field has to say what it does: a strip over an existing cover */
+  @media (hover: none) {
+    .overlay {
+      opacity: 1;
+    }
+    .cover-upload:not(.empty) .overlay {
+      inset: auto 0 0;
+      flex-direction: row;
+      padding: 6px;
+    }
   }
   .hint {
     font-size: var(--text-xs);
