@@ -327,6 +327,17 @@
     <DeliveryPanel {projectId} {tracks} />
   {:else if view === 'dateien' && projectId}
     <ProjectFiles {projectId} {files} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
+  {:else if project?.isArchived}
+    <!-- The overview leaves archived projects out, so their tracks come straight from the track list -->
+    {#if tracks.length}
+      <ul class="archived-tracks">
+        {#each tracks as tr (tr.id)}
+          <li><a href="/projects/{projectId}/tracks/{tr.id}"><Icon name="music" size={14} /> {tr.name}</a></li>
+        {/each}
+      </ul>
+    {:else}
+      <EmptyState title={t().workspace.projectPage.emptyTitle} />
+    {/if}
   {:else if loading || (!ix && !$overviewFailed)}
     <div class="loading">
       <Skeleton height="4rem" variant="rect" />
@@ -581,6 +592,29 @@
     }
   }
 
+  .archived-tracks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .archived-tracks a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+  .archived-tracks a:hover {
+    background: var(--color-bg-raised);
+  }
+  .archived-tracks :global(svg) {
+    color: var(--color-text-tertiary);
+  }
   .trash-link {
     display: flex;
     align-items: center;

@@ -55,3 +55,14 @@ test('the settings offer the project details only to whom may change them', asyn
     removeUser(otherId);
   }
 });
+
+test('an archived project still lists its tracks', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json();
+  await page.request.delete(`/api/v1/projects/${project.id}`);
+  await page.goto(`/projects/${project.id}`);
+  await expect(page.getByRole('status')).toContainText('archiviert');
+  await expect(page.getByText('Noch keine Tracks')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Letzte Bahn' }).click();
+  await expect(page).toHaveURL(`/projects/${project.id}/tracks/${track.id}`);
+});
