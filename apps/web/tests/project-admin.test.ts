@@ -73,3 +73,13 @@ test('the cover field says what it does without hovering', async ({ page }) => {
   await expect(overlay).toContainText('Cover hinzufügen');
   await expect(overlay).toHaveCSS('opacity', '1');
 });
+
+test('the project tabs stay on one line', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  await page.goto(`/projects/${project.id}`);
+  const tabs = page.getByRole('tab');
+  // Owners see five tabs, Auftrag included
+  await expect(tabs).toHaveCount(5);
+  const tops = await tabs.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+});

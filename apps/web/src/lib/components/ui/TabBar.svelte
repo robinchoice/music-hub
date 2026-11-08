@@ -21,17 +21,27 @@
 </div>
 
 <style>
+  /* One line that scrolls sideways on narrow screens; the line under it is a shadow so scrolling cannot clip the active tab */
   .tabbar {
     display: flex;
-    flex-wrap: wrap;
     gap: var(--space-6);
-    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    box-shadow: inset 0 -1px 0 var(--color-border);
+  }
+  .tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  @media (max-width: 480px) {
+    .tabbar {
+      gap: var(--space-4);
+    }
   }
   button {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    margin-bottom: -1px;
     padding: 10px 2px;
     border: none;
     border-bottom: 2px solid transparent;
