@@ -27,3 +27,31 @@ test('moving a track to the trash shows no error afterwards', async ({ page }) =
   expect(missing).toEqual([]);
   await expect(page.locator('.toast.error')).toHaveCount(0);
 });
+
+test('the settings offer the project details only to whom may change them', async ({ page, browser, baseURL }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP', description: 'Fünf Songs' } })).json();
+  await page.goto(`/projects/${project.id}/settings`);
+  const name = page.getByLabel('Name', { exact: true });
+  await name.fill('');
+  await expect(page.getByRole('button', { name: 'Speichern' })).toBeDisabled();
+  await name.fill('Nachtbus');
+  await expect(page.getByRole('button', { name: 'Speichern' })).toBeEnabled();
+
+  const other = await browser.newContext();
+  const email = `test-${crypto.randomUUID()}@example.com`;
+  const otherId = await logIn(other, baseURL!, 'Lena', email);
+  try {
+    await page.request.post(`/api/v1/projects/${project.id}/members`, { data: { email, roles: ['management'] } });
+    const lena = await other.newPage();
+    await lena.goto(`/projects/${project.id}/settings`);
+    await expect(lena.getByText('Fünf Songs')).toBeVisible();
+    await expect(lena.getByLabel('Name', { exact: true })).toHaveCount(0);
+    await expect(lena.getByRole('button', { name: 'Speichern' })).toHaveCount(0);
+    await expect(lena.locator('.cover-upload')).toHaveCount(0);
+    // Management still invites
+    await expect(lena.getByRole('button', { name: 'Einladen' })).toBeVisible();
+  } finally {
+    await other.close();
+    removeUser(otherId);
+  }
+});

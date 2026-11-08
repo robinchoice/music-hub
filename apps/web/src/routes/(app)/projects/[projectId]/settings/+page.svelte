@@ -12,6 +12,7 @@
   import Badge from '$lib/components/ui/Badge.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
+  import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import { overviewIndex } from '$lib/stores/overview.js';
   import { artistNames, artistToSave } from '$lib/utils/overview.js';
@@ -172,18 +173,30 @@
     <!-- Projekt-Details -->
     <section class="section">
       <h2>{t().workspace.settings.details}</h2>
-      <div class="cover-row">
-        <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
-        <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
-          <ArtistInput bind:value={editArtist} />
-          <Input label={t().common.name} bind:value={editName} />
-          <label class="textarea-group">
-            <span class="input-label">{t().workspace.settings.description}</span>
-            <textarea bind:value={editDesc} rows="3" placeholder={t().workspace.settings.descriptionPlaceholder}></textarea>
-          </label>
-          <Button type="submit" loading={saving}>{t().common.save}</Button>
-        </form>
-      </div>
+      <!-- Only the owner may change the details, the API refuses everyone else -->
+      {#if role !== 'owner'}
+        <div class="cover-row">
+          <CoverImage src={project.coverUrl} name={project.name} size="xl" rounded="lg" />
+          <div class="details-text">
+            {#if project.artist}<span class="details-artist">{project.artist}</span>{/if}
+            <strong>{project.name}</strong>
+            {#if project.description}<p>{project.description}</p>{/if}
+          </div>
+        </div>
+      {:else}
+        <div class="cover-row">
+          <CoverUpload currentUrl={project.coverUrl} name={project.name} onChange={saveCover} />
+          <form class="details-form" onsubmit={(e) => { e.preventDefault(); saveProject(); }}>
+            <ArtistInput bind:value={editArtist} />
+            <Input label={t().common.name} bind:value={editName} />
+            <label class="textarea-group">
+              <span class="input-label">{t().workspace.settings.description}</span>
+              <textarea bind:value={editDesc} rows="3" placeholder={t().workspace.settings.descriptionPlaceholder}></textarea>
+            </label>
+            <Button type="submit" loading={saving} disabled={!editName.trim()}>{t().common.save}</Button>
+          </form>
+        </div>
+      {/if}
     </section>
 
     <!-- Mitwirkende -->
@@ -319,6 +332,27 @@
     .cover-row {
       flex-direction: column;
     }
+  }
+
+  .details-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .details-text strong {
+    font-size: var(--text-lg);
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+  }
+  .details-artist {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .details-text p {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-secondary);
+    white-space: pre-line;
   }
 
   form :global(.input-group) {
