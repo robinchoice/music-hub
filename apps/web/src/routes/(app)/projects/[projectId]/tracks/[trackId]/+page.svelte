@@ -89,6 +89,8 @@
   let mixState = $state<'pending' | 'failed' | null>(null);
   type VersionResponse = { versions: Version[]; mixState?: 'pending' | 'failed' | null };
   let mixPoll: ReturnType<typeof setInterval> | undefined;
+  // Left before loading finished: no stream and no poll may start afterwards
+  let destroyed = false;
   // The waveform just arrived over SSE and grows in once
   let grow = $state(false);
   // Members of the project, loaded for owners only: alone in it, the first version asks who should listen
@@ -210,7 +212,11 @@
     return () => mq.removeEventListener('change', onChange);
   });
 
-  onDestroy(() => { disconnectSse?.(); clearInterval(mixPoll); });
+  onDestroy(() => {
+    destroyed = true;
+    disconnectSse?.();
+    clearInterval(mixPoll);
+  });
 
   onMount(async () => {
     await initOfflineStore();
@@ -266,6 +272,7 @@
     } finally {
       loading = false;
     }
+    if (destroyed) return;
 
     // The upload buttons of an empty track in the overview land here
     const upload = $page.url.searchParams.get('upload');
