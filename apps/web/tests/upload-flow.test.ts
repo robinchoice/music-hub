@@ -234,45 +234,37 @@ test('new version offers A/B at the same position, resolves old points and remem
   await expect(summary).toContainText('V3 ist da');
 });
 
-test('blind A/B hides which version plays until a pick reveals it', async ({ page, baseURL }, testInfo) => {
+test('the compare tab runs a blind test that hides which version plays until a pick', async ({ page, baseURL }, testInfo) => {
   const { projectId, trackId } = await track(page);
   addVersion(trackId, userId, 'ready');
   addVersion(trackId, userId, 'ready', 2);
+  addVersion(trackId, userId, 'ready', 3);
   await audio(page, baseURL!);
-  await page.route(`**/api/v1/versions/track/${trackId}`, async (r) => {
-    const body = await (await r.fetch()).json();
-    body.versions.forEach((v: { integratedLufs: number; versionNumber: number }) => { v.integratedLufs = v.versionNumber === 1 ? -18 : -15; });
-    await r.fulfill({ json: body });
-  });
-  await page.goto(`/projects/${projectId}/tracks/${trackId}`);
-  await page.getByRole('region', { name: 'Neue Version vergleichen' }).getByRole('button', { name: 'V1 ↔ V2 vergleichen' }).click();
-  const ab = page.getByRole('region', { name: 'A/B-Vergleich' });
-  await expect(ab.locator('.wave i').first()).toBeVisible();
-  await ab.getByRole('checkbox', { name: /Gleich laut/ }).uncheck();
-  await ab.getByRole('button', { name: 'Blindtest', exact: true }).click();
-  const loudness = ab.getByRole('checkbox', { name: /Gleich laut/ });
-  await expect(loudness).toBeChecked();
-  await expect(loudness).toBeDisabled();
-  await expect(ab.locator('.choices')).not.toContainText(/V\d/);
-  await expect(ab.locator('.wave i')).toHaveCount(0);
-  await expect(ab.locator('.time')).toContainText('Du hörst X');
+  await page.goto(`/projects/${projectId}/tracks/${trackId}?view=compare`);
+  await expect(page.getByRole('region', { name: 'Kanalzüge' })).toBeVisible();
+  await page.getByRole('button', { name: 'Blindtest', exact: true }).click();
+  const blind = page.getByRole('region', { name: 'Blindtest' });
+  await expect(blind.getByRole('checkbox')).toHaveCount(3);
+  await blind.getByRole('checkbox', { name: 'V1' }).uncheck();
+  await blind.getByRole('button', { name: 'Blindtest starten' }).click();
+  await expect(page.getByRole('region', { name: 'Kanalzüge' })).toHaveCount(0);
+  await expect(blind.locator('.slot')).toHaveCount(2);
+  await expect(blind.locator('.slots')).not.toContainText(/V\d/);
+  await expect(page.locator('.now b')).toHaveText('A');
   await page.keyboard.press('2');
-  await expect(ab.locator('.time')).toContainText('Du hörst Y');
-  await page.screenshot({ path: `/tmp/musichub-upload-review/${testInfo.project.name}-blind.png`, fullPage: true });
-  await ab.getByRole('button', { name: 'Y klingt besser' }).click();
-  await expect(ab).toContainText(/Du hast Y gewählt, das war V[12]\./);
-  await expect(ab).toContainText(/Bisher: V1 [01]×, V2 [01]×/);
-  const revealed = (await ab.locator('.choices button').nth(1).textContent())!.match(/V(\d)/)![1];
-  await expect(ab).toContainText(`das war V${revealed}.`);
-  await page.screenshot({ path: `/tmp/musichub-upload-review/${testInfo.project.name}-blind-picked.png`, fullPage: true });
-  await ab.getByRole('button', { name: 'Nächste Runde' }).click();
-  await expect(ab.locator('.time')).toContainText('Du hörst X');
-  await ab.getByRole('button', { name: 'X klingt besser' }).click();
-  await expect(ab).toContainText(/Bisher: V1 \d×, V2 \d×/);
-  await ab.getByRole('button', { name: 'Blindtest beenden' }).click();
-  await expect(ab.locator('.time')).toContainText(/Du hörst V[12]/);
-  await expect(loudness).toBeEnabled();
-  await expect(loudness).not.toBeChecked();
+  await expect(page.locator('.now b')).toHaveText('B');
+  await page.screenshot({ path: `/tmp/musichub-upload-review/${testInfo.project.name}-mixer-blind.png`, fullPage: true });
+  await blind.getByRole('button', { name: 'B klingt am besten' }).click();
+  await expect(blind).toContainText(/Du hast B gewählt, das war V[23]\./);
+  await expect(blind).toContainText(/Bisher: V2 [01]×, V3 [01]×/);
+  await expect(page.locator('.now b')).toHaveText(/V[23]/);
+  await page.screenshot({ path: `/tmp/musichub-upload-review/${testInfo.project.name}-mixer-blind-picked.png`, fullPage: true });
+  await blind.getByRole('button', { name: 'Nächste Runde' }).click();
+  await expect(page.locator('.now b')).toHaveText('A');
+  await blind.getByRole('button', { name: 'A klingt am besten' }).click();
+  await expect(blind).toContainText(/Bisher: V2 \d×, V3 \d×/);
+  await page.getByRole('button', { name: 'Blindtest beenden' }).click();
+  await expect(page.getByRole('region', { name: 'Kanalzüge' })).toBeVisible();
 });
 
 test('A/B keeps selections and seeks made before the streams arrive', async ({ page, baseURL }) => {
