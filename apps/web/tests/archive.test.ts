@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { logIn, removeUser } from './session.js';
+import { logIn, projectAction, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -33,5 +33,6 @@ test('an archived project says so on its page and comes back from there', async 
   await page.getByRole('button', { name: 'Wiederherstellen' }).click();
   await expect(page.locator('.toast-container')).toContainText('Projekt wiederhergestellt');
   await expect(page.getByText('Dieses Projekt ist archiviert')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Neuer Track' })).toBeVisible();
+  await projectAction(page, 'Neuer Track');
+  await expect(page.getByPlaceholder('Track-Name')).toBeVisible();
 });

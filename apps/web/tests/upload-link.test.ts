@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { logIn, removeUser } from './session.js';
+import { logIn, projectAction, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -12,7 +12,7 @@ test('a guest without an account sends stems for a new song through the upload l
   await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Nachtbus' } });
 
   await page.goto(`/projects/${project.id}`);
-  await page.getByRole('button', { name: 'Upload-Link' }).click();
+  await projectAction(page, 'Upload-Link');
   await page.getByRole('button', { name: 'Link erstellen' }).click();
   const url = await page.getByRole('textbox', { name: 'Upload-Link' }).inputValue();
   expect(url).toMatch(new RegExp(`^${baseURL}/upload/\\w+$`));

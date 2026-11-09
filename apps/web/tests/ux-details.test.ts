@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addStem, addVersion, logIn, removeUser } from './session.js';
+import { addStem, addVersion, logIn, projectAction, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -92,7 +92,9 @@ test.describe(() => {
   });
 });
 
-test('a dialog keeps the focus inside and gives it back when it closes', async ({ page }) => {
+test('a dialog keeps the focus inside and gives it back when it closes', async ({ page, isMobile }) => {
+  // On phones the opener sits in the "⋯" sheet, which closes on the way
+  test.skip(isMobile, 'the header button exists on wide screens only');
   const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Fernlicht' } })).json();
   await page.goto(`/projects/${project.id}`);
   const opener = page.getByRole('button', { name: 'Upload-Link' });
@@ -113,7 +115,7 @@ test('a dialog keeps the focus inside and gives it back when it closes', async (
 test('a question comes in our own dialog, Escape there leaves the modal below open', async ({ page }) => {
   const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Fernlicht' } })).json();
   await page.goto(`/projects/${project.id}`);
-  await page.getByRole('button', { name: 'Upload-Link' }).click();
+  await projectAction(page, 'Upload-Link');
   await page.getByRole('button', { name: 'Link erstellen' }).click();
   const field = page.getByRole('textbox', { name: 'Upload-Link' });
   const first = await field.inputValue();

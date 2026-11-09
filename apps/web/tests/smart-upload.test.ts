@@ -98,7 +98,7 @@ test('stems can stay without a mix, and only sounds open the files', async ({ pa
 
   await page.goto(`/projects/${projectId}`);
   chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Mix hochladen' }).click();
+  await page.getByRole('button', { name: /^Mix (oder Spuren )?hochladen$/ }).filter({ visible: true }).click();
   await (await chooser).setFiles([wav('Vespa_Leerlauf.wav', 6), wav('Vespa_Anlassen.wav', 3)]);
   await expect(page.locator('.toast-container')).toContainText('2 Dateien in den Dateien des Projekts');
   await expect(page).toHaveURL(/view=dateien/);

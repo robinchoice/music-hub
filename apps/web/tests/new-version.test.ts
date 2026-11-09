@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addUnprocessedVersion, addVersion, logIn, removeUser } from './session.js';
+import { addStem, addUnprocessedVersion, addVersion, logIn, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -13,12 +13,25 @@ async function newTrack(page: Page) {
   return { projectId: project.id as string, trackId: track.id as string };
 }
 
-test('the project header fits the screen and "Mix hochladen" opens the file dialog', async ({ page }) => {
+test('the project header fits the screen and "Mix hochladen" opens the file dialog', async ({ page, isMobile }) => {
   const { projectId } = await newTrack(page);
   await page.goto(`/projects/${projectId}`);
   await expect(page.getByRole('heading', { name: 'Nachtbus EP' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  // Icon-only on phones, the buttons keep their names
+  if (isMobile) {
+    // Phones: sharing stays in the bar, the rarer actions wait behind "⋯", uploading is the big button
+    await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Weitere Aktionen' });
+    for (const name of ['Neuer Track', 'Upload-Link für Gäste', 'Einstellungen und Mitwirkende']) {
+      await expect(sheet.getByRole('button', { name }).or(sheet.getByRole('link', { name }))).toBeVisible();
+    }
+    await sheet.getByRole('button', { name: 'Neuer Track' }).click();
+    await expect(page.getByPlaceholder('Track-Name')).toBeVisible();
+    const chooser = page.waitForEvent('filechooser', { timeout: 5000 });
+    await page.getByRole('button', { name: 'Mix oder Spuren hochladen' }).click();
+    await chooser;
+    return;
+  }
   for (const name of ['Einstellungen', 'Upload-Link', 'Neuer Track']) {
     const action = page.getByRole('button', { name }).or(page.getByRole('link', { name }));
     await expect(action).toBeVisible();
@@ -71,6 +84,8 @@ test('picked files upload in the order people number them', async ({ page }) => 
 test('upload validation errors are announced for versions and stems', async ({ page }) => {
   const { projectId, trackId } = await newTrack(page);
   const invalid = { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not audio') };
+  // With a stem the track is no longer empty, so the version and stem buttons show
+  addStem(trackId, userId, 'Drums');
 
   await page.goto(`/projects/${projectId}/tracks/${trackId}`);
   let chooser = page.waitForEvent('filechooser');
@@ -80,7 +95,7 @@ test('upload validation errors are announced for versions and stems', async ({ p
   await page.getByRole('button', { name: 'Upload abbrechen' }).click();
 
   chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Spuren hochladen', exact: true }).click();
+  await page.getByRole('button', { name: 'Weitere Spuren', exact: true }).click();
   await (await chooser).setFiles(invalid);
   await expect(page.locator('.stem-upload').getByRole('alert')).toContainText('notes.txt');
 });

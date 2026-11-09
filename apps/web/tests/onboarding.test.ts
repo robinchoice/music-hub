@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addUnprocessedVersion, logIn, removeUser } from './session.js';
+import { addStem, addUnprocessedVersion, logIn, projectAction, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -29,7 +29,7 @@ test('a track needs a name', async ({ page }) => {
   await page.getByPlaceholder(/Debütalbum/).fill('Nachtbus EP');
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/);
-  await page.getByRole('button', { name: 'Neuer Track' }).filter({ visible: true }).last().click();
+  await projectAction(page, 'Neuer Track');
   const form = page.locator('form.new-track-form');
   await expect(form.getByRole('button', { name: 'Anlegen' })).toBeDisabled();
   await form.getByPlaceholder('Track-Name').fill('Letzte Bahn');
@@ -100,6 +100,8 @@ async function newTrack(page: Page) {
 
 test('closing the upload zone cancels the upload, no version turns up later', async ({ page, baseURL }) => {
   const { projectId, trackId } = await newTrack(page);
+  // An empty track only has its drop field; with a stem the version upload shows
+  addStem(trackId, userId, 'Drums');
   await page.route('**/upload-url', (route) =>
     route.fulfill({ json: { uploadUrl: `${baseURL}/fake-s3/mix.wav`, fileKey: 'test/mix.wav', versionId: crypto.randomUUID() } }),
   );
@@ -122,6 +124,7 @@ test('closing the upload zone cancels the upload, no version turns up later', as
 
 test('a finished upload only reports success', async ({ page, baseURL }) => {
   const { projectId, trackId } = await newTrack(page);
+  addStem(trackId, userId, 'Drums');
   await page.route('**/upload-url', (route) =>
     route.fulfill({ json: { uploadUrl: `${baseURL}/fake-s3/mix.wav`, fileKey: 'test/mix.wav', versionId: crypto.randomUUID() } }),
   );
@@ -174,7 +177,7 @@ test('the sidebar shows a new track right away', async ({ page, isMobile }) => {
   await page.getByLabel('Name').fill('Nachtbus EP');
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/);
-  await page.getByRole('button', { name: 'Neuer Track' }).filter({ visible: true }).last().click();
+  await projectAction(page, 'Neuer Track');
   await page.getByPlaceholder('Track-Name').fill('Letzte Bahn');
   await page.getByPlaceholder('Track-Name').press('Enter');
   await expect(page.locator('.toast-container')).toContainText('Track angelegt');

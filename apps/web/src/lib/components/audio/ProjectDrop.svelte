@@ -17,8 +17,13 @@
     big = false,
     onDone,
     onEmptyTrack,
+    trackId: forTrack,
+    trackName = '',
   }: {
     projectId: string;
+    /** On an empty track: everything goes to this track, and the zone says so */
+    trackId?: string | undefined;
+    trackName?: string;
     tracks?: { id: string; name: string }[];
     /** The project has no tracks yet: the zone is the way in */
     big?: boolean;
@@ -148,7 +153,7 @@
     const filed = done.filter((r) => r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
     const uploaded = done.reduce((n, r) => n + r.files.length, 0);
     onDone({ files: filed, tracks: uploaded - filed });
-    if (rows.length === 1 && done.length === 1 && lastTrackId) {
+    if (rows.length === 1 && done.length === 1 && lastTrackId && lastTrackId !== forTrack) {
       transferring = false;
       goto(`/projects/${projectId}/tracks/${lastTrackId}`);
       return;
@@ -309,13 +314,13 @@
     const el = e.target as HTMLInputElement;
     const files = Array.from(el.files ?? []);
     el.value = '';
-    void add(files);
+    void add(files, forTrack);
   }
 
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;
-    void add(Array.from(e.dataTransfer?.files ?? []));
+    void add(Array.from(e.dataTransfer?.files ?? []), forTrack);
   }
 </script>
 
@@ -337,9 +342,19 @@
     ondrop={handleDrop}
   >
     <span class="icon"><Icon name="upload" size={22} /></span>
-    <h2>{t().track.drop.dropMix}</h2>
-    <p>{t().track.drop.hint}</p>
-    <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+    {#if forTrack}
+      <h2>{t().track.drop.dropOnTrack}</h2>
+      <p>{t().track.drop.trackHint}</p>
+      <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+      <div class="examples" aria-hidden="true">
+        <span>{t().track.drop.exampleMix(trackName)}<b>{t().track.drop.exampleMixBecomes}</b></span>
+        <span>{t().track.drop.exampleStems}<b>{t().track.drop.exampleStemsBecome}</b></span>
+      </div>
+    {:else}
+      <h2>{t().track.drop.dropMix}</h2>
+      <p>{t().track.drop.hint}</p>
+      <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+    {/if}
     <span class="formats">{t().track.drop.formats}</span>
   </div>
   {#if onEmptyTrack}
@@ -410,6 +425,27 @@
   .row .target { white-space: normal; color: var(--color-text-primary); }
   .row .names { white-space: normal; }
   .choice { justify-self: start; margin-top: 4px; max-width: 100%; background: var(--color-bg-subtle); color: var(--color-text-primary); border: 1px solid var(--color-border-hover); border-radius: var(--radius-sm); padding: 4px 8px; font: inherit; font-size: var(--text-xs); }
+  .examples {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  .examples span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    text-align: left;
+  }
+  .examples b {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
   .zone {
     display: grid;
     justify-items: center;

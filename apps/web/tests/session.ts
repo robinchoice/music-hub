@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 
 // The API package writes straight into DATABASE_URL, like the API tests: own rows only, removed again
 const bun = (code: string) =>
@@ -155,4 +155,15 @@ export function makeViewer(projectId: string, userId: string) {
     import { projectMembers } from '@music-hub/db';
     await db.update(projectMembers).set({ role: 'viewer', extraRoles: [], canUpload: false }).where(and(eq(projectMembers.projectId, ${JSON.stringify(projectId)}), eq(projectMembers.userId, ${JSON.stringify(userId)})));
   `);
+}
+
+// The project header: on phones the rarer actions sit behind "⋯"
+export async function projectAction(page: Page, name: 'Neuer Track' | 'Upload-Link') {
+  const inBar = page.getByRole('button', { name, exact: true }).filter({ visible: true });
+  const more = page.getByRole('button', { name: 'Weitere Aktionen' }).filter({ visible: true });
+  // The header fills in once the project has loaded
+  await inBar.or(more).first().waitFor();
+  if (await inBar.count()) return inBar.first().click();
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  await page.getByRole('dialog', { name: 'Weitere Aktionen' }).getByRole('button', { name: name === 'Upload-Link' ? 'Upload-Link für Gäste' : name }).click();
 }

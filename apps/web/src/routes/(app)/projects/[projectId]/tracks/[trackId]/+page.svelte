@@ -23,6 +23,7 @@
   import TrackStatusPill from '$lib/components/ui/TrackStatusPill.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import TrackMixer from '$lib/components/overview/TrackMixer.svelte';
+  import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
   import { onKey } from '$lib/utils/shortcuts.js';
   import { snapshotForTrack, continuationFor } from '$lib/stores/player.js';
   import { connectTrackSse } from '$lib/stores/sse.js';
@@ -166,6 +167,20 @@
 
   const can = $derived(capabilities(roles));
   const canUpload = $derived(can.canUpload);
+  // Nothing here yet, not even a guest's note: one drop field instead of the version and stem buttons
+  const blank = $derived(
+    canUpload && !loading && !missing && versions.length === 0 && stems.length === 0 && guestNotes.length === 0 && !mixState && !showUpload && !showStemUpload,
+  );
+
+  // What a drop on the empty track brought: versions, stems or a mix in the making
+  async function afterBlankDrop(result: { files: number; tracks: number }) {
+    if (!result.tracks) return;
+    const res = await api.get<{ stems: Stem[]; guestNotes?: GuestNote[] }>(`/stems/track/${trackId}`);
+    stems = res.stems;
+    await loadVersions();
+    reloadSidebar?.();
+    void loadOverview();
+  }
   const canApprove = $derived(can.canApprove);
   const canComment = $derived(can.canComment);
   const canDownload = $derived(can.canDownload);
@@ -713,12 +728,12 @@
         <Icon name="git-branch" size={14} /> <span class="btn-label">{t().track.page.makeOpen}</span>
       </Button>
     {/if}
-    {#if canUpload}
+    {#if canUpload && !blank}
       <Button size="sm" onclick={openUpload}>
         <Icon name="upload" size={14} /> {t().track.versionList.newVersion}
       </Button>
     {/if}
-    {#if !isNarrow && view === 'listen'}
+    {#if !isNarrow && view === 'listen' && !blank}
       <button class="panel-toggle" class:open={panelOpen} onclick={() => (panelOpen = !panelOpen)} title={t().track.page.togglePanel} aria-label={t().track.page.togglePanel}>
         <Icon name="panel" size={16} />
       </button>
@@ -765,12 +780,14 @@
             {#if trackSection}
               <span class="section-tag">{trackSection}</span>
             {/if}
-            <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'versions'} onclick={() => showPanel('versions')}>
-              <Icon name="list" size={13} /><b>{versions.length}</b> {t().track.page.versionNoun(versions.length)}
-            </button>
-            <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
-              <Icon name="music" size={13} /><b>{stems.length}</b> {t().track.page.stemNoun(stems.length)}
-            </button>
+            {#if !blank}
+              <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'versions'} onclick={() => showPanel('versions')}>
+                <Icon name="list" size={13} /><b>{versions.length}</b> {t().track.page.versionNoun(versions.length)}
+              </button>
+              <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
+                <Icon name="music" size={13} /><b>{stems.length}</b> {t().track.page.stemNoun(stems.length)}
+              </button>
+            {/if}
             {#if openState?.openedAt}
               <button class="chip open" onclick={() => (openModal = true)}>{t().track.page.openLabel(openLabel)}</button>
             {:else if openState?.license}
@@ -819,6 +836,7 @@
         </div>
       {/if}
 
+      {#if !blank}
       <TabBar
         tabs={[
           { id: 'listen', label: t().track.page.listen },
@@ -833,6 +851,7 @@
         active={view}
         onselect={setView}
       />
+      {/if}
 
       {#if showUpload}
         <div class="upload-zone">
@@ -911,6 +930,10 @@
         {:else}
           <Skeleton height="24rem" variant="rect" />
         {/if}
+      {:else if blank && projectId}
+        <div class="blank-drop">
+          <ProjectDrop projectId={projectId} {trackId} {trackName} big onDone={afterBlankDrop} />
+        </div>
       {:else if versions.length === 0}
         <EmptyState
           title={t().track.page.noVersion}
@@ -1074,7 +1097,7 @@
     {/if}
   </main>
 
-  {#if panelOpen && !isNarrow && view === 'listen'}
+  {#if panelOpen && !isNarrow && view === 'listen' && !blank}
     <aside class="side-panel">
       <div class="panel-tabs">{@render tabSwitch()}</div>
       <div class="panel-body">
@@ -1529,6 +1552,9 @@
     padding: var(--space-5);
     /* scrollIntoView stops below the sticky TopBar instead of under it */
     scroll-margin-top: calc(var(--topbar-height) + var(--space-4));
+  }
+  .blank-drop {
+    margin-top: var(--space-6);
   }
   .empty-actions {
     display: flex;

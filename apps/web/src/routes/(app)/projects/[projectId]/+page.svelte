@@ -13,6 +13,7 @@
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import Sheet from '$lib/components/ui/Sheet.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
@@ -80,6 +81,9 @@
   let restoring = $state(false);
   let uploadLinkOpen = $state(false);
   let shareOpen = $state(false);
+  // Phones: the rarer actions wait behind "⋯"
+  let moreOpen = $state(false);
+  const canManage = $derived(roles.includes('owner') || roles.includes('management'));
   let drop = $state<ProjectDrop>();
   let files = $state<ProjectFile[]>([]);
   let canDownloadFiles = $state(false);
@@ -219,25 +223,37 @@
   ]}
 >
   {#snippet actions()}
-    {#if !loading && (roles.includes('owner') || roles.includes('management'))}
-      <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title={t().workspace.projectPage.settings}>
-        <Icon name="settings" size={14} /> <span class="btn-label">{t().workspace.projectPage.settings}</span>
-      </Button>
-    {/if}
-    {#if canUpload}
-      <Button variant="ghost" size="sm" title={t().workspace.projectPage.uploadLink} onclick={() => (uploadLinkOpen = true)}>
-        <Icon name="link" size={14} /> <span class="btn-label">{t().workspace.projectPage.uploadLink}</span>
-      </Button>
-      <Button variant="ghost" size="sm" title={newTrackLabel} onclick={() => showNewTrack = !showNewTrack}>
-        <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> <span class="btn-label">{newTrackLabel}</span>
-      </Button>
-      {#if !empty}
-        <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> {t().workspace.projectPage.uploadMix}</Button>
+    <!-- Wide screens show every action with its label; phones keep sharing and put the rest behind "⋯" -->
+    <span class="wide-only">
+      {#if !loading && canManage}
+        <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title={t().workspace.projectPage.settings}>
+          <Icon name="settings" size={14} /> {t().workspace.projectPage.settings}
+        </Button>
       {/if}
-    {/if}
-    {#if !loading && !empty}
-      <Button size="sm" title={t().workspace.projectPage.share} onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> <span class="btn-label">{t().workspace.projectPage.share}</span></Button>
-    {/if}
+      {#if canUpload}
+        <Button variant="ghost" size="sm" title={t().workspace.projectPage.uploadLink} onclick={() => (uploadLinkOpen = true)}>
+          <Icon name="link" size={14} /> {t().workspace.projectPage.uploadLink}
+        </Button>
+        <Button variant="ghost" size="sm" title={newTrackLabel} onclick={() => showNewTrack = !showNewTrack}>
+          <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> {newTrackLabel}
+        </Button>
+        {#if !empty}
+          <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> {t().workspace.projectPage.uploadMix}</Button>
+        {/if}
+      {/if}
+    </span>
+    <span class="bar-actions">
+      {#if !loading && !empty}
+        <Button size="sm" title={t().workspace.projectPage.share} onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> {t().workspace.projectPage.share}</Button>
+      {/if}
+      {#if !loading && (canUpload || canManage)}
+        <span class="narrow-only">
+          <Button variant="ghost" size="sm" title={t().workspace.projectPage.moreActions} onclick={() => (moreOpen = true)}>
+            <Icon name="more" size={16} /> <span class="sr-only">{t().workspace.projectPage.moreActions}</span>
+          </Button>
+        </span>
+      {/if}
+    </span>
   {/snippet}
 </TopBar>
 
@@ -264,6 +280,12 @@
       </div>
     {/if}
   </header>
+
+  {#if canUpload && !empty && !loading}
+    <div class="narrow-only upload-cta">
+      <Button size="lg" onclick={() => drop?.pick()}><Icon name="upload" size={16} /> {t().workspace.projectPage.uploadMixOrStems}</Button>
+    </div>
+  {/if}
 
   {#if project?.isArchived}
     <div class="archived" role="status">
@@ -294,6 +316,7 @@
   {#if showNewTrack}
     <form class="new-track-form" onsubmit={(e) => { e.preventDefault(); createTrack(); }}>
       <Input bind:value={newTrackName} placeholder={t().workspace.projectPage.trackName} autofocus />
+      <Button variant="ghost" onclick={() => { showNewTrack = false; newTrackName = ''; }}>{t().common.cancel}</Button>
       <Button type="submit" loading={creating} disabled={!newTrackName.trim()}>{t().workspace.projectPage.create}</Button>
     </form>
   {/if}
@@ -399,6 +422,18 @@
   {/each}
 {/snippet}
 
+<Sheet bind:open={moreOpen} title={t().workspace.projectPage.moreActions}>
+  <nav class="more-list" aria-label={t().workspace.projectPage.moreActions}>
+    {#if canUpload}
+      <button type="button" onclick={() => { moreOpen = false; showNewTrack = true; }}><Icon name="plus" size={18} /> {t().workspace.projectPage.newTrack}</button>
+      <button type="button" onclick={() => { moreOpen = false; uploadLinkOpen = true; }}><Icon name="link" size={18} /> {t().workspace.projectPage.uploadLinkGuests}</button>
+    {/if}
+    {#if canManage}
+      <a href="/projects/{projectId}/settings" onclick={() => (moreOpen = false)}><Icon name="settings" size={18} /> {t().workspace.projectPage.settingsMembers}</a>
+    {/if}
+  </nav>
+</Sheet>
+
 {#if canUpload && projectId}
   <UploadLinkModal bind:open={uploadLinkOpen} {projectId} />
 {/if}
@@ -469,15 +504,68 @@
     min-width: 0;
     flex: 1 1 240px;
   }
-  /* On phones the header actions show only their icons, so the bar fits the screen; the label stays for screen readers */
+  /* Phones: sharing and "⋯" in the bar, uploading as the one big button under the title */
+  .wide-only,
+  .bar-actions {
+    display: contents;
+  }
+  .narrow-only {
+    display: none;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .upload-cta {
+    margin-bottom: var(--space-5);
+  }
+  .upload-cta :global(.btn) {
+    width: 100%;
+    justify-content: center;
+  }
+  .more-list {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) 0 var(--space-4);
+  }
+  .more-list button,
+  .more-list a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 52px;
+    padding: 0 var(--space-4);
+    border: none;
+    border-top: 1px solid var(--color-border);
+    background: none;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-base);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .more-list > :first-child {
+    border-top: none;
+  }
   @media (max-width: 540px) {
-    .btn-label {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
+    .wide-only {
+      display: none;
+    }
+    .narrow-only {
+      display: contents;
+    }
+    .upload-cta.narrow-only {
+      display: block;
+    }
+    /* Big enough for a finger */
+    .bar-actions :global(.btn) {
+      min-height: 40px;
+      min-width: 40px;
     }
     .project-head {
       gap: var(--space-3);
