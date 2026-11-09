@@ -37,9 +37,16 @@ export async function checkAuth() {
   }
 }
 
+// The code of a referral link (/register?ref=…), kept until signing up, see lib/referrals.ts in the API
+const REFERRAL_KEY = 'referral';
+export function rememberReferral(code: string | null) {
+  if (code) localStorage.setItem(REFERRAL_KEY, code);
+}
+export const referral = () => localStorage.getItem(REFERRAL_KEY) ?? undefined;
+
 // updates: the unticked checkbox for update mails, counts once the link is opened
 export async function register(name: string, email: string, password: string, updates = false) {
-  const res = await api.post<{ user: User }>('/auth/register', { name, email, password, updates });
+  const res = await api.post<{ user: User }>('/auth/register', { name, email, password, updates, ref: referral() });
   return setAuthUser(res.user);
 }
 
@@ -49,7 +56,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function sendMagicLink(email: string, next?: string, updates = false) {
-  return api.post('/auth/magic-link', { email, next, updates });
+  return api.post('/auth/magic-link', { email, next, updates, ref: referral() });
 }
 
 // Silent: the verify page shows the error itself

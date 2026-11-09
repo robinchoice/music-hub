@@ -350,6 +350,8 @@ export type StripeOps = {
   periodEnd(subscriptionId: string): Promise<Date>;
   cancelAt(subscriptionId: string, at: Date | 'period_end'): Promise<void>;
   cancelNow(subscriptionId: string): Promise<void>;
+  // Credit on the customer's balance, taken off the next invoices; the key makes a retry a no-op
+  credit(customerId: string, cents: number, key: string): Promise<void>;
 };
 
 const stripeApi: StripeOps = {
@@ -362,6 +364,12 @@ const stripeApi: StripeOps = {
   },
   async cancelNow(id) {
     await withTimeout(stripe().subscriptions.cancel(id), TIMEOUT_MS);
+  },
+  async credit(customer, cents, key) {
+    await withTimeout(
+      stripe().customers.createBalanceTransaction(customer, { amount: -cents, currency: 'eur', description: 'Music Hub referral' }, { idempotencyKey: key }),
+      TIMEOUT_MS,
+    );
   },
 };
 
@@ -534,6 +542,29 @@ export async function withdrawPayment(db: Database, userId: string, paymentId: s
 
 const notifyAdmins = (text: string) =>
   sendPlanAdminNotice([...ADMIN_EMAILS], text).catch((err) => console.error('[Billing] Admin notice failed:', err instanceof Error ? err.message : err));
+
+// ---------- Free days ----------
+
+// Free days of a plan, for referrals (lib/referrals.ts). A Stripe subscription charges on its own date
+// anyway, so it gets them as credit on its next invoices, a day being a 30th of the monthly price.
+// Otherwise they go on top of plan_until, or start now if the plan has ended, in the plan last held.
+// A plan without end has nothing to add. key: unique per grant, so a retried Stripe credit counts once.
+export async function grantFreeDays(tx: Tx, userId: string, days: number, key: string) {
+  await lockUser(tx, userId);
+  const [user] = await tx.select().from(users).where(eq(users.id, userId));
+  if (!user) return;
+  const running = activePlan(user);
+  const plan = running ?? PLANS.find((p) => p === user.plan) ?? 'pro';
+  const customer = user.stripeCustomerId;
+  if (user.stripeSubscriptionId && customer) {
+    const cents = Math.round((PLAN_PRICES[plan].month * days) / 30);
+    await stripeCall(() => stripeOps().credit(customer, cents, key));
+    return;
+  }
+  if (running && !user.planUntil) return;
+  const from = running && user.planUntil ? user.planUntil : new Date();
+  await tx.update(users).set({ plan, planUntil: new Date(from.getTime() + days * 24 * 60 * 60 * 1000) }).where(eq(users.id, userId));
+}
 
 // ---------- Shared ----------
 

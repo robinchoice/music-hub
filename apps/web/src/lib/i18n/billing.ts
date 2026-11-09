@@ -44,6 +44,19 @@ export const de = {
   status: { pending: 'offen', paid: 'bezahlt', expired: 'abgelaufen' },
   openInvoice: 'Rechnung öffnen',
   thanks: 'Danke! Sobald die Zahlung bestätigt ist, läuft dein Tarif.',
+  // ReferralSettings.svelte and the hint on /register
+  referral: {
+    title: 'Freunde einladen',
+    intro: (mine: number, theirs: number) =>
+      `Schließt jemand über deinen Link einen Tarif ab, bekommst du ${mine} Tage gratis und die Person ${theirs} Tage dazu. Ohne Obergrenze: zehn Empfehlungen sind ein Monat.`,
+    copy: 'Link kopieren',
+    copied: 'Link kopiert',
+    counts: (joined: number, rewarded: number, days: number) =>
+      joined ? `${joined} angemeldet, ${rewarded} davon schon belohnt: ${rewarded * days} Tage für dich.` : 'Noch niemand über deinen Link angemeldet.',
+    conditions:
+      'Gutgeschrieben wird 14 Tage nach der ersten Zahlung, wenn sie nicht widerrufen wurde. Bei einem Abo mit Karte oder PayPal als Guthaben auf die nächste Abbuchung, sonst als Verlängerung deines Tarifs. Du siehst nur die Anzahl, keine Namen.',
+    invited: (days: number) => `Du wurdest eingeladen: Schließt du einen Tarif ab, bekommst du ${days} Tage geschenkt.`,
+  },
 };
 
 export const en: typeof de = {
@@ -89,4 +102,16 @@ export const en: typeof de = {
   status: { pending: 'open', paid: 'paid', expired: 'expired' },
   openInvoice: 'Open invoice',
   thanks: 'Thank you! Your plan starts as soon as the payment is confirmed.',
+  referral: {
+    title: 'Invite friends',
+    intro: (mine, theirs) =>
+      `When someone takes a plan through your link, you get ${mine} days free and they get ${theirs} extra days. No cap: ten referrals make a month.`,
+    copy: 'Copy link',
+    copied: 'Link copied',
+    counts: (joined, rewarded, days) =>
+      joined ? `${joined} signed up, ${rewarded} of them rewarded so far: ${rewarded * days} days for you.` : 'Nobody has signed up through your link yet.',
+    conditions:
+      'Credited 14 days after the first payment, unless it was withdrawn. With a card or PayPal subscription as credit on the next charge, otherwise as an extension of your plan. You only see the number, no names.',
+    invited: (days) => `You were invited: take a plan and you get ${days} days on top.`,
+  },
 };

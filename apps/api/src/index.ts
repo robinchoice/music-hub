@@ -31,6 +31,7 @@ import { uploadLinkRoutes } from './routes/upload-links.js';
 import { pruneNotifications } from './lib/push-notifications.js';
 import { pruneExpired } from './lib/cleanup.js';
 import { sendDueNotices } from './lib/notices.js';
+import { rewardReferrals } from './lib/referrals.js';
 import { sendDueFeedback } from './lib/reviews.js';
 import { checkLightningPayments } from './lib/deliveries.js';
 import { profileRoutes } from './routes/profiles.js';
@@ -164,11 +165,18 @@ const startup = (async () => {
     }));
   }, 30_000);
 
-  // Expired sessions and login links, old listen details and rate limits: at boot, then hourly
-  const prune = () => runInBackground(pruneExpired(db).catch((err) => {
-    console.error('[Cleanup] Failed:', err);
-    captureException(err);
-  }));
+  // Expired sessions and login links, old listen details and rate limits: at boot, then hourly.
+  // Referral rewards that came due (lib/referrals.ts) go out with it, they wait for 14 days anyway.
+  const prune = () => {
+    runInBackground(pruneExpired(db).catch((err) => {
+      console.error('[Cleanup] Failed:', err);
+      captureException(err);
+    }));
+    runInBackground(rewardReferrals(db).catch((err) => {
+      console.error('[Referrals] Rewarding failed:', err);
+      captureException(err);
+    }));
+  };
   prune();
   const cleanup = setInterval(prune, 60 * 60_000);
 

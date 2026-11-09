@@ -570,3 +570,15 @@ test('plan shows the plan, the storage and where to buy', async () => {
   expect((await cli(['plan'])).out.split('\n')[0]).toBe(texts.planUntil('Pro', '2099-01-31'));
   expect((await cli(['plan', '--json'])).json()).toMatchObject({ plan: 'pro', renews: false, payments: [] });
 });
+
+test('referral prints the own link once a plan runs', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  await cli(['login'], { approveAs: ada.browser });
+  expect((await cli(['referral'])).out).toBe(texts.referralNeedsPlan(`${url}/account#tarif`));
+
+  await db.update(users).set({ plan: 'pro', planUntil: new Date('2099-01-31T12:00:00Z') }).where(eq(users.id, ada.id));
+  const json = (await cli(['referral', '--json'])).json() as { code: string; link: string };
+  expect(json).toMatchObject({ joined: 0, rewarded: 0, link: `${url}/register?ref=${json.code}` });
+  expect((await cli(['referral'])).out.split('\n')[0]).toBe(json.link);
+});

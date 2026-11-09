@@ -6,6 +6,8 @@ export const magicLinkSchema = z.object({
   next: z.string().max(2000).optional(),
   // The unticked checkbox for update mails. Counts once the link is opened, a double opt-in.
   updates: z.boolean().optional(),
+  // Code of a referral link (/register?ref=…); an unknown one is ignored
+  ref: z.string().max(64).optional(),
 });
 
 // A path on this site to return to after login. Anything that would resolve to
@@ -35,6 +37,7 @@ export const registerSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(200),
   updates: z.boolean().optional(),
+  ref: z.string().max(64).optional(),
 });
 
 export const loginSchema = z.object({

@@ -32,6 +32,8 @@ export const users = pgTable('users', {
   // The Stripe customer, for the billing portal, and the subscription that renews the plan while it runs
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
   stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+  // The code in this account's referral link (/register?ref=…), made on first use, see lib/referrals.ts
+  referralCode: varchar('referral_code', { length: 16 }).unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

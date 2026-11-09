@@ -13,7 +13,7 @@ import {
   updateMeSchema,
   safeNextPath,
 } from '@music-hub/shared';
-import { users, magicLinks, sessions } from '@music-hub/db';
+import { users, magicLinks, referrals, sessions } from '@music-hub/db';
 import {
   generateToken,
   hashToken,
@@ -27,6 +27,7 @@ import {
 import { isAdminEmail } from '../lib/admin.js';
 import { locale, statedLocale, t } from '../lib/i18n.js';
 import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
+import { mayJoinBeyondLimit, referrerOf } from '../lib/referrals.js';
 import { clientIp, rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { sendMagicLinkEmail, sendRegistrationEmail } from '../services/email.js';
 import type { AppEnv } from '../types.js';
@@ -64,6 +65,12 @@ export const toUser = ({ id, email, name, avatarUrl, versionMails, updatesConsen
   isAdmin: isAdminEmail(email),
 });
 
+// Below MAX_USERS anyone may sign up, beyond it only through a referral link that still lets people in (lib/referrals.ts)
+async function signupOpen(db: Database, referrer: { id: string } | null) {
+  if (await registrationOpen(db)) return true;
+  return !!referrer && (await mayJoinBeyondLimit(db, referrer.id));
+}
+
 // Switching update mails on keeps the time of the first consent as proof
 const consentNow = sql`coalesce(${users.updatesConsentAt}, now())`;
 
@@ -94,8 +101,11 @@ async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'u
   if (user?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
   if (!user) {
     // Music Hub may have filled up since the link went out
-    const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration });
+    const referrer = link.referralCode ? await referrerOf(tx, link.referralCode) : null;
+    const beyondLimit = !!referrer && (await mayJoinBeyondLimit(tx, referrer.id));
+    const created = await createAccount(tx, { email: link.email, name: defaultName, ...registration }, beyondLimit);
     if (!created) return c.json({ error: t(c).errors.full }, 403);
+    if (referrer) await tx.insert(referrals).values({ referredId: created.id, referrerId: referrer.id }).onConflictDoNothing();
     user = created;
     registration = null;
   }
@@ -123,13 +133,14 @@ async function completeLink(c: Context<AppEnv>, tx: Pick<Database, 'select' | 'u
 export const authRoutes = new Hono<AppEnv>()
   // Register with password
   .post('/register', zValidator('json', registerSchema), async (c) => {
-    const { name, email, password, updates } = c.req.valid('json');
+    const { name, email, password, updates, ref } = c.req.valid('json');
     const db = c.get('db');
 
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
 
     const existing = await findUserByEmail(db, email);
-    if (!existing && !(await registrationOpen(db))) return c.json({ error: t(c).errors.full }, 403);
+    const referrer = !existing && ref ? await referrerOf(db, ref) : null;
+    if (!existing && !(await signupOpen(db, referrer))) return c.json({ error: t(c).errors.full }, 403);
     if (existing?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
     if (existing?.passwordHash) {
       return c.json({ error: t(c).errors.emailTaken }, 409);
@@ -147,6 +158,7 @@ export const authRoutes = new Hono<AppEnv>()
       name,
       passwordHash: await Bun.password.hash(password),
       updatesOptIn: updates ?? false,
+      referralCode: referrer?.referralCode ?? null,
     });
 
     await sendRegistrationEmail(email, token, updates ?? false, locale(c));
@@ -174,12 +186,13 @@ export const authRoutes = new Hono<AppEnv>()
   })
 
   .post('/magic-link', zValidator('json', magicLinkSchema), async (c) => {
-    const { email, next, updates } = c.req.valid('json');
+    const { email, next, updates, ref } = c.req.valid('json');
     const db = c.get('db');
 
     if (!(await mailsPerIp.hit(db, clientIp(c)))) return tooManyRequests(c);
     const user = await findUserByEmail(db, email);
-    if (!user && !(await registrationOpen(db))) return c.json({ error: t(c).errors.full }, 403);
+    const referrer = !user && ref ? await referrerOf(db, ref) : null;
+    if (!user && !(await signupOpen(db, referrer))) return c.json({ error: t(c).errors.full }, 403);
     if (user?.blockedAt) return c.json({ error: t(c).errors.accountBlocked }, 403);
     if (!(await mailsPerAddress.hit(db, email.toLowerCase()))) return tooManyRequests(c);
 
@@ -194,6 +207,7 @@ export const authRoutes = new Hono<AppEnv>()
       codeHash: await hashToken(code),
       expiresAt,
       updatesOptIn: updates ?? false,
+      referralCode: referrer?.referralCode ?? null,
     });
 
     await sendMagicLinkEmail(email, token, safeNextPath(next), updates ?? false, code, locale(c));

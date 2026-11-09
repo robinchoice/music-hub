@@ -21,6 +21,7 @@ import {
   withdrawPayment,
 } from '../lib/billing.js';
 import { PaymentServiceError } from '../lib/payments/errors.js';
+import { referralView } from '../lib/referrals.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { t } from '../lib/i18n.js';
 import type { AppEnv } from '../types.js';
@@ -42,6 +43,9 @@ const checkouts = rateLimit('billing-checkouts', 10, 60 * 60_000);
 
 export const billingRoutes = new Hono<AppEnv>()
   .get('/', requireAuth, async (c) => c.json(await billingView(c.get('db'), c.get('userId'))))
+
+  // The own referral link and how many signed up and paid through it
+  .get('/referrals', requireAuth, async (c) => c.json(await referralView(c.get('db'), c.get('userId'))))
 
   // For the public pages: the terms (/agb) and the privacy section about payments show only while plans are for sale
   .get('/offer', (c) => c.json({ forSale: plansForSale() }))

@@ -14,6 +14,8 @@ export const magicLinks = pgTable('magic_links', {
   passwordHash: text('password_hash'),
   // Ticked "send me updates", applied when the link is opened (double opt-in)
   updatesOptIn: boolean('updates_opt_in').default(false).notNull(),
+  // The referral code the sign-up came with; opening the link records the referral for a new account
+  referralCode: varchar('referral_code', { length: 16 }),
 });
 
 export const sessions = pgTable('sessions', {

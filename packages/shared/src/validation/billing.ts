@@ -9,6 +9,7 @@ import { PLAN_PERIODS, PLANS, type Plan, type PlanPeriod } from '../constants/pl
 //     POST  /billing/portal    -> { url }   Stripe's page to change the card and see receipts
 //     POST  /billing/cancel    -> BillingCancelResponse   "Verträge hier kündigen" (§ 312k BGB)
 //     POST  /billing/withdraw  billingWithdrawSchema -> BillingWithdrawResponse   within 14 days (§ 356a BGB)
+//     GET   /billing/referrals -> ReferralView   the own referral link (lib/referrals.ts)
 //     GET   /billing/offer     -> { forSale }   public: whether the terms and plans are out
 //     POST  /billing/stripe    Stripe webhook
 //     POST  /billing/btcpay    BTCPay webhook
@@ -61,6 +62,16 @@ export type BillingView = {
   canBuy: { plan: Plan; methods: BillingMethod[] }[];
   storage: { usedBytes: number; limitBytes: number };
   payments: PlanPaymentView[];
+};
+
+// GET /billing/referrals: the own referral link and how it went, counts only, no names
+export type ReferralView = {
+  // Null without a running plan: only paying accounts can refer
+  code: string | null;
+  // Signed up through the link
+  joined: number;
+  // Paid and past the withdrawal period, each brought REFERRAL_DAYS.referrer days
+  rewarded: number;
 };
 
 export const BILLING_ERROR_CODES = ['billing_unavailable', 'plan_running', 'billing_failed', 'consent_required', 'nothing_to_end'] as const;

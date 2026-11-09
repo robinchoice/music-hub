@@ -28,10 +28,11 @@ export async function registrationOpen(db: Pick<Database, 'execute'>) {
 }
 
 // Creates a signed-up account unless Music Hub is full. The lock keeps parallel sign-ups from overshooting.
-export async function createAccount(db: Pick<Database, 'transaction'>, values: typeof users.$inferInsert) {
+// beyondLimit: a referral link that may still let people in like an invitation (lib/referrals.ts)
+export async function createAccount(db: Pick<Database, 'transaction'>, values: typeof users.$inferInsert, beyondLimit = false) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('registration'))`);
-    if (!(await registrationOpen(tx))) return undefined;
+    if (!beyondLimit && !(await registrationOpen(tx))) return undefined;
     const [user] = await tx.insert(users).values({ ...values, storageLimit: SIGNUP_STORAGE_PER_USER }).returning();
     return user;
   });

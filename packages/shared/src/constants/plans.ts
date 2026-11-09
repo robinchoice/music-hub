@@ -19,6 +19,10 @@ export const PLAN_PRICES: Record<Plan, Record<PlanPeriod, number>> = {
   solo: { month: 2400, year: 24000 },
 };
 
+// Referrals (apps/api/src/lib/referrals.ts): free days of the plan for both sides, once the referred
+// account has paid and that payment's 14 days for withdrawal are over
+export const REFERRAL_DAYS = { referrer: 3, referred: 7 } as const;
+
 // For the German admin pages
 export const PLAN_LABELS: Record<Plan | 'free', string> = { free: 'Gratis', pro: 'Pro · 9 € im Monat', solo: 'Studio · 24 € im Monat' };
 

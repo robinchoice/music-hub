@@ -224,6 +224,9 @@ setStripeOps({
   async cancelNow(id) {
     stripeCalls.push(`cancelNow ${id}`);
   },
+  async credit(customer, cents) {
+    stripeCalls.push(`credit ${customer} ${cents}`);
+  },
 });
 
 const subscriptionInvoice = (userId: string, id: string, subscription: string, period: 'month' | 'year', end: Date, reason: string) => ({

@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
+  import { page } from '$app/state';
+  import { REFERRAL_DAYS, SIGNUP_STORAGE_PER_USER } from '@music-hub/shared';
   import { t } from '$lib/i18n/index.js';
-  import { user, register } from '$lib/stores/auth.js';
+  import { user, register, referral, rememberReferral } from '$lib/stores/auth.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import { toastSuccess } from '$lib/stores/toast.js';
@@ -17,6 +19,12 @@
   let error = $state('');
   let sent = $state(false);
   let resending = $state(false);
+  let referred = $state(false);
+
+  onMount(() => {
+    rememberReferral(page.url.searchParams.get('ref'));
+    referred = !!referral();
+  });
 
   $effect(() => {
     if ($user) goto('/dashboard');
@@ -70,6 +78,7 @@
       <p class="brand"><Tile size={36} /> Music Hub</p>
       <h1>{t().common.signUp}</h1>
       <p class="card-sub">{t().guest.register.sub(SIGNUP_STORAGE_PER_USER / 1024 ** 3)}</p>
+      {#if referred}<p class="referred">{t().billing.referral.invited(REFERRAL_DAYS.referred)}</p>{/if}
 
       {#if sent}
         <div class="sent">
@@ -184,6 +193,14 @@
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
     margin: 0 0 var(--space-6);
+  }
+  .referred {
+    margin: calc(-1 * var(--space-3)) 0 var(--space-6);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
   }
 
   form {
