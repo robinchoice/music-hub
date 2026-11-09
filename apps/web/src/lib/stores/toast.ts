@@ -19,13 +19,14 @@ export function toast(message: string, type: ToastType = 'info', duration = 4000
   const id = crypto.randomUUID();
   toasts.update((t) => [...t, { id, message, type, duration, ...(action && { action }) }]);
   setTimeout(() => removeToast(id), duration);
+  return id;
 }
 
 export function removeToast(id: string) {
   toasts.update((t) => t.filter((x) => x.id !== id));
 }
 
-export const toastSuccess = (msg: string) => toast(msg, 'success');
-export const toastError = (msg: string) => toast(msg, 'error', 6000);
+export const toastSuccess = (msg: string) => void toast(msg, 'success');
+export const toastError = (msg: string) => void toast(msg, 'error', 6000);
 // Something went to the trash; for eight seconds it can be undone right here
-export const toastTrash = (msg: string, undo: () => void) => toast(msg, 'trash', 8000, { label: t().common.undo, run: undo });
+export const toastTrash = (msg: string, undo: () => void) => void toast(msg, 'trash', 8000, { label: t().common.undo, run: undo });

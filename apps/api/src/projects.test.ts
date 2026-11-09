@@ -91,3 +91,14 @@ test('changing a member answers 404 for an unknown member and 403 for yourself',
   expect((await patch(member.id)).status).toBe(200);
   expect((await call(`/projects/${projectId}/members/${member.id}`, { method: 'PATCH', body: { roles: ['label'] }, headers: artist.headers })).status).toBe(403);
 });
+
+test('the member list puts the owner first and marks invitations nobody used yet', async () => {
+  // invitee-…-b was invited above and never logged in; Sam and Lea have sessions
+  const res = await call(`/projects/${projectId}/members`, { headers: artist.headers });
+  expect(res.status).toBe(200);
+  const { members } = (await res.json()) as { members: { role: string; invitePending: boolean; user: { email: string; name: string } }[] };
+  expect(members[0].role).toBe('owner');
+  const pending = (email: string) => members.find((m) => m.user.email === email)?.invitePending;
+  expect(pending(`invitee-${run}-b@example.com`)).toBe(true);
+  expect(members.filter((m) => m.user.name === 'Robin' || m.user.name === 'Sam' || m.user.name === 'Lea').every((m) => !m.invitePending)).toBe(true);
+});

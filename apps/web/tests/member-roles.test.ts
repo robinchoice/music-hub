@@ -21,7 +21,12 @@ test('one person can hold several roles in a project', async ({ page }, info) =>
   await form.getByRole('button', { name: 'Mastering' }).click();
   await form.getByRole('button', { name: 'Einladen' }).click();
 
-  const row = page.locator('.member-row').filter({ hasText: email });
+  // The new account has not logged in yet, so the list names it by its address
+  const listed = page.locator('.member-row').filter({ hasText: email });
+  await expect(listed).toContainText('Einladung offen');
+  await expect(listed).toContainText('Mixing');
+  await page.getByRole('button', { name: `${email} bearbeiten` }).click();
+  const row = page.getByRole('dialog');
   for (const name of ['Artist', 'Mixing', 'Mastering']) {
     await expect(row.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
   }

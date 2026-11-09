@@ -1,7 +1,7 @@
 import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import {
   createProjectSchema,
   updateProjectSchema,
@@ -11,7 +11,7 @@ import {
   memberRoles,
   type ProjectRole,
 } from '@music-hub/shared';
-import { projects, projectMembers, users, tracks, magicLinks } from '@music-hub/db';
+import { projects, projectMembers, users, tracks, magicLinks, sessions } from '@music-hub/db';
 import { requireAuth, generateToken, hashToken } from '../middleware/auth.js';
 import { findUserByEmail, inviteeAccount } from '../lib/users.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -196,12 +196,27 @@ export const projectRoutes = new Hono<AppEnv>()
           name: users.name,
           avatarUrl: users.avatarUrl,
         },
+        lastSeenAt: users.lastSeenAt,
       })
       .from(projectMembers)
       .innerJoin(users, eq(users.id, projectMembers.userId))
-      .where(eq(projectMembers.projectId, projectId));
+      .where(eq(projectMembers.projectId, projectId))
+      // The owner first, then by name
+      .orderBy(sql`${projectMembers.role} = 'owner' desc`, users.name);
 
-    return c.json({ members: members.map(({ extraRoles, ...m }) => ({ ...m, roles: memberRoles({ role: m.role, extraRoles }) })) });
+    // Invited and never logged in: no session and never seen
+    const ids = members.map((m) => m.user.id);
+    const loggedIn = new Set(
+      ids.length ? (await db.selectDistinct({ userId: sessions.userId }).from(sessions).where(inArray(sessions.userId, ids))).map((s) => s.userId) : [],
+    );
+
+    return c.json({
+      members: members.map(({ extraRoles, lastSeenAt, ...m }) => ({
+        ...m,
+        roles: memberRoles({ role: m.role, extraRoles }),
+        invitePending: !lastSeenAt && !loggedIn.has(m.user.id),
+      })),
+    });
   })
 
   .post('/:id/members', zValidator('json', inviteMemberSchema), async (c) => {

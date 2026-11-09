@@ -1,15 +1,15 @@
 <script lang="ts">
   import { t, locale } from '$lib/i18n/index.js';
-  import { getContext, onMount } from 'svelte';
+  import { getContext, onDestroy, onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api, isApiError } from '$lib/api/client.js';
-  import { toast, toastError, toastSuccess } from '$lib/stores/toast.js';
+  import { removeToast, toast, toastError, toastSuccess } from '$lib/stores/toast.js';
   import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
-  import Badge from '$lib/components/ui/Badge.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
   import CoverUpload from '$lib/components/ui/CoverUpload.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
@@ -23,6 +23,8 @@
     role: string;
     roles: string[];
     user: { id: string; email: string; name: string; avatarUrl: string | null };
+    // Invited and never logged in; older APIs leave it out
+    invitePending?: boolean;
   };
 
   type Project = { id: string; name: string; description: string | null; artist: string | null; coverUrl: string | null; coverImageUrl: string | null };
@@ -49,6 +51,16 @@
 
   // Archive
   let showArchiveModal = $state(false);
+
+  // The member whose roles are open in the dialog
+  let editing = $state<Member | null>(null);
+  let editOpen = $state(false);
+  // Removals wait for the undo toast; the request goes out when it ends or the page is left
+  const UNDO_MS = 8000;
+  let removing = $state<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Their undo toasts, which must not outlive the page that can undo
+  const undoToasts = new Map<string, string>();
+  const shown = $derived(members.filter((m) => !(m.id in removing)));
 
   const assignableRoles = PROJECT_ROLES.filter((r) => r !== 'owner');
 
@@ -101,8 +113,8 @@
         email: inviteEmail,
         roles: inviteRoles,
       });
+      toastSuccess(t().workspace.settings.invitedTo(inviteEmail.trim()));
       inviteEmail = '';
-      toastSuccess(t().workspace.settings.invited);
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
     } catch {
@@ -123,6 +135,7 @@
       toastSuccess(t().workspace.settings.rolesUpdated);
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
+      if (editing) editing = members.find((m) => m.id === editing!.id) ?? null;
     } catch (e) {
       if (!isApiError(e)) {
         toastError(e instanceof Error ? e.message : t().workspace.settings.rolesFailed);
@@ -130,16 +143,60 @@
     }
   }
 
-  async function removeMember(memberId: string) {
+  function editMember(member: Member) {
+    editing = member;
+    editOpen = true;
+  }
+
+  // Out of the list at once; gone for good only once the undo toast is over
+  function removeMember(member: Member) {
+    editOpen = false;
+    removing = { ...removing, [member.id]: setTimeout(() => void commitRemoval(member.id), UNDO_MS) };
+    const toastId = toast(t().workspace.settings.removedName(member.invitePending ? member.user.email : member.user.name), 'trash', UNDO_MS, {
+      label: t().common.undo,
+      run: () => {
+        clearTimeout(removing[member.id]);
+        const { [member.id]: _, ...rest } = removing;
+        removing = rest;
+      },
+    });
+    undoToasts.set(member.id, toastId);
+  }
+
+  async function commitRemoval(memberId: string) {
+    if (!(memberId in removing)) return;
+    clearTimeout(removing[memberId]);
+    const { [memberId]: _, ...rest } = removing;
+    removing = rest;
     try {
       await api.delete(`/projects/${projectId}/members/${memberId}`);
-      toastSuccess(t().workspace.settings.removed);
       members = members.filter((m) => m.id !== memberId);
     } catch (e) {
       if (!isApiError(e)) {
         toastError(e instanceof Error ? e.message : t().workspace.settings.removeFailed);
       }
     }
+  }
+
+  // Leaving the page ends the undo time: what waits goes out now
+  onDestroy(() => {
+    for (const id of Object.keys(removing)) {
+      const toastId = undoToasts.get(id);
+      if (toastId) removeToast(toastId);
+      void commitRemoval(id);
+    }
+  });
+  function flushOnUnload() {
+    for (const id of Object.keys(removing)) {
+      void fetch(`/api/v1/projects/${projectId}/members/${id}`, { method: 'DELETE', keepalive: true, credentials: 'same-origin' });
+    }
+    removing = {};
+  }
+
+  // Back from the browser's cache: the list may still show who was removed on the way out
+  async function reloadMembers(e: PageTransitionEvent) {
+    if (!e.persisted) return;
+    members = (await api.get<{ members: Member[] }>(`/projects/${projectId}/members`)).members;
   }
 
   async function archiveProject() {
@@ -155,6 +212,8 @@
     }
   }
 </script>
+
+<svelte:window onpagehide={flushOnUnload} onpageshow={reloadMembers} />
 
 <TopBar
   crumbs={[
@@ -201,38 +260,49 @@
 
     <!-- Mitwirkende -->
     <section class="section">
-      <h2>{t().workspace.settings.contributors}</h2>
+      <h2>{t().workspace.settings.contributors} <span class="count">{shown.length}</span></h2>
 
-      <div class="member-list">
-        {#each members as member}
-          <div class="member-row">
-            <Avatar name={member.user.name} src={member.user.avatarUrl} />
-            <div class="member-info">
-              <span class="member-name">{member.user.name}</span>
-              <span class="member-email">{member.user.email}</span>
-            </div>
-            {#if member.role === 'owner'}
-              <Badge variant="accent">{ROLE_LABELS[locale()].owner}</Badge>
-            {:else if role === 'owner'}
-              <Button variant="ghost" size="sm" onclick={() => removeMember(member.id)}>
-                <span style="color: var(--color-error)">{t().common.remove}</span>
-              </Button>
-              {@render roleChips(member.roles, (r) => updateRoles(member.id, toggled(member.roles, r)))}
+      <ul class="member-list">
+        {#each shown as member (member.id)}
+          <li class="member-row" class:pending={member.invitePending}>
+            {#if member.invitePending}
+              <span class="pending-avatar" aria-hidden="true">?</span>
             {:else}
-              {#each member.roles as r}
-                <Badge>{ROLE_LABELS[locale()][r as ProjectRole] || r}</Badge>
-              {/each}
+              <Avatar name={member.user.name} src={member.user.avatarUrl} />
             {/if}
-          </div>
+            <div class="member-info">
+              <span class="member-name">{member.invitePending ? member.user.email : member.user.name}</span>
+              <span class="member-email">{member.invitePending ? t().workspace.settings.inviteSentSub : member.user.email}</span>
+              <span class="pills">
+                {#if member.role === 'owner'}
+                  <span class="pill owner">{ROLE_LABELS[locale()].owner}</span>
+                {:else}
+                  {#if member.invitePending}<span class="pill open">{t().workspace.settings.invitePending}</span>{/if}
+                  {#each member.roles as r}
+                    <span class="pill">{ROLE_LABELS[locale()][r as ProjectRole] || r}</span>
+                  {/each}
+                {/if}
+              </span>
+            </div>
+            {#if role === 'owner' && member.role !== 'owner'}
+              {@const who = member.invitePending ? member.user.email : member.user.name}
+              <button type="button" class="more" title={t().workspace.settings.editMember(who)} aria-label={t().workspace.settings.editMember(who)} onclick={() => editMember(member)}>
+                <Icon name="more" size={16} />
+              </button>
+            {/if}
+          </li>
         {/each}
-      </div>
+      </ul>
 
       <!-- Invite -->
       {#if roles.includes('owner') || roles.includes('management')}
         <form class="invite-form" onsubmit={(e) => { e.preventDefault(); inviteMember(); }}>
-          <Input type="email" bind:value={inviteEmail} placeholder={t().workspace.settings.emailPlaceholder} />
-          <Button type="submit" loading={inviting} size="sm">{t().common.invite}</Button>
-          {@render roleChips(inviteRoles, (r) => (inviteRoles = toggled(inviteRoles, r)))}
+          <h3>{t().workspace.settings.inviteTitle}</h3>
+          <div class="invite-field">
+            <Input type="email" bind:value={inviteEmail} placeholder={t().workspace.settings.emailPlaceholder} />
+            <Button type="submit" loading={inviting} disabled={!inviteEmail.trim()}>{t().common.invite}</Button>
+          </div>
+          {@render roleTiles('invite', inviteRoles, (r) => (inviteRoles = toggled(inviteRoles, r)))}
         </form>
       {/if}
     </section>
@@ -253,21 +323,43 @@
   {/if}
 </div>
 
-{#snippet roleChips(selected: string[], toggle: (r: string) => void)}
-  <div class="role-chips" role="group" aria-label={t().workspace.settings.roles}>
-    {#each assignableRoles as r}
-      {@const on = selected.includes(r)}
-      <button
-        type="button"
-        class="chip"
-        class:on
-        aria-pressed={on}
-        disabled={on && selected.length === 1}
-        onclick={() => toggle(r)}
-      >{ROLE_LABELS[locale()][r]}</button>
-    {/each}
+{#snippet roleTiles(id: string, selected: string[], toggle: (r: string) => void)}
+  <div class="roles-block">
+    <span class="roles-label" id="{id}-roles">{t().workspace.settings.rolesHeading}</span>
+    <div class="role-tiles" role="group" aria-labelledby="{id}-roles">
+      {#each assignableRoles as r}
+        {@const on = selected.includes(r)}
+        <button
+          type="button"
+          class="tile"
+          class:on
+          aria-pressed={on}
+          aria-label={ROLE_LABELS[locale()][r]}
+          aria-describedby="{id}-hint-{r}"
+          disabled={on && selected.length === 1}
+          onclick={() => toggle(r)}
+        >
+          <span class="tile-name">{ROLE_LABELS[locale()][r]}</span>
+          <small id="{id}-hint-{r}">{t().workspace.settings.roleHints[r as Exclude<ProjectRole, 'owner'>]}</small>
+        </button>
+      {/each}
+    </div>
+    <small class="roles-note">{t().workspace.settings.rolesNote}</small>
   </div>
 {/snippet}
+
+<Modal bind:open={editOpen} title={editing ? t().workspace.settings.editMember(editing.invitePending ? editing.user.email : editing.user.name) : ''}>
+  {#if editing}
+    {@const member = editing}
+    {@render roleTiles('member', member.roles, (r) => updateRoles(member.id, toggled(member.roles, r)))}
+    <button type="button" class="remove-member" onclick={() => removeMember(member)}>
+      <Icon name="trash" size={14} /> {t().workspace.settings.removeFromProject}
+    </button>
+  {/if}
+  {#snippet actions()}
+    <Button onclick={() => (editOpen = false)}>{t().common.close}</Button>
+  {/snippet}
+</Modal>
 
 <Modal bind:open={showArchiveModal} title={t().workspace.settings.archiveTitle}>
   <p>{t().workspace.settings.archiveConfirmBefore}<strong>{project?.name}</strong>{t().workspace.settings.archiveConfirmAfter}</p>
@@ -384,26 +476,48 @@
   }
 
   /* Members */
+  h2 .count {
+    margin-left: var(--space-1);
+    font-family: var(--font-body, inherit);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+
   .member-list {
+    list-style: none;
+    margin: 0 0 var(--space-6);
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    margin-bottom: var(--space-4);
   }
 
   .member-row {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    background: var(--color-bg-raised);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--color-border);
+  }
+  .member-row:first-child {
+    border-top: none;
+  }
+
+  .pending-avatar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-full);
+    border: 1px dashed var(--color-text-tertiary);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-sm);
   }
 
   .member-info {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
   }
@@ -412,55 +526,154 @@
     color: var(--color-text-primary);
     font-weight: 500;
     font-size: var(--text-sm);
+    overflow-wrap: anywhere;
   }
 
   .member-email {
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  /* Several roles per person, toggled one by one */
-  .role-chips {
-    flex-basis: 100%;
+  .pills {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .pill {
+    font-size: var(--text-xs);
+    padding: 1px 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+  .pill.owner {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-accent);
+  }
+  .pill.open {
+    background: none;
+    border: 1px dashed var(--color-text-tertiary);
+    color: var(--color-text-tertiary);
   }
 
-  .chip {
-    height: 30px;
-    padding: 0 12px;
-    border-radius: var(--radius-full);
+  .more {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .more:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-hover);
+  }
+
+  /* Several roles per person, each says what it may do */
+  .roles-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+  }
+  .roles-label {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-tertiary);
+  }
+  .role-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-2);
+  }
+  .tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
     background: none;
     color: var(--color-text-secondary);
     font: inherit;
-    font-size: var(--text-sm);
+    text-align: left;
     cursor: pointer;
   }
-  .chip:hover {
+  .tile-name {
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+  }
+  .tile small {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .tile:hover {
     border-color: var(--color-border-hover);
-    color: var(--color-text-primary);
   }
-  .chip.on {
-    background: var(--color-bg-overlay);
+  .tile.on {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
     border-color: var(--color-accent);
-    color: var(--color-text-primary);
   }
-  .chip:disabled {
+  .tile.on small {
+    color: var(--color-text-secondary);
+  }
+  .tile:disabled {
     cursor: default;
+  }
+  .roles-note {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   .invite-form {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: stretch;
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+  }
+  .invite-form h3 {
+    margin: 0;
+    font-size: var(--text-base);
+  }
+  .invite-field {
+    display: flex;
     gap: var(--space-2);
     align-items: flex-start;
-    flex-direction: row;
+  }
+  .invite-field :global(.input-group) {
+    flex: 1;
   }
 
-  .invite-form :global(.input-group) {
-    flex: 1;
+  .remove-member {
+    margin-top: var(--space-5);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+    background: none;
+    color: var(--color-error);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .remove-member:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
   }
 
   /* Danger Zone */
