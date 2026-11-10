@@ -58,15 +58,14 @@
     await take(Array.from(e.dataTransfer?.files ?? []));
   }
 
-  // "Neu › Dateien hochladen": the same way as a drop, only from the file dialog
-  let input = $state<HTMLInputElement>();
+  // "Neu › Dateien hochladen": the same way as a drop, only from the file dialog.
+  // The input lives only for the dialog, so pages keep their own file input as the only one.
   export function pick() {
-    input?.click();
-  }
-  function picked() {
-    const chosen = Array.from(input?.files ?? []);
-    if (input) input.value = '';
-    void take(chosen);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.onchange = () => void take(Array.from(input.files ?? []));
+    input.click();
   }
 
   async function take(dropped: File[]) {
@@ -90,8 +89,6 @@
 </script>
 
 <svelte:window ondragenter={dragenter} ondragleave={dragleave} ondragover={dragover} ondrop={drop} />
-
-<input bind:this={input} type="file" multiple hidden onchange={picked} />
 
 {#if over && !$page.params.projectId}
   <div class="over" aria-hidden="true"><span>{t().workspace.globalDrop.release}</span></div>
