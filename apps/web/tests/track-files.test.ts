@@ -47,6 +47,8 @@ test('a project opens from Meine Musik with its tracks as folders of versions, s
   await page.goto('/artists/Tiefgang');
   await page.locator('.folders .folder').filter({ hasText: 'Nachtbus EP' }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}\?view=dateien$/);
+  // The tab counts what it shows: two track folders and one file without a track
+  await expect(page.getByRole('tab', { name: 'Ordner 3' })).toBeVisible();
   const folders = page.locator('.folders .folder');
   await expect(folders.locator('.name b')).toHaveText(['Letzte Bahn', 'Intro']);
   if (!isMobile) await expect(folders.locator('.contents')).toHaveText(['1 Version · 1 Datei', '0 Versionen']);

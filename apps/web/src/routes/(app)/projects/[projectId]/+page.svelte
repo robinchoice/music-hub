@@ -343,7 +343,7 @@
         { id: 'tracks', label: t().workspace.projectPage.tabTracks, count: loading ? undefined : tracks.length },
         { id: 'board', label: t().workspace.projectPage.tabBoard },
         { id: 'timeline', label: t().workspace.projectPage.tabTimeline },
-        { id: 'dateien', label: t().workspace.projectPage.tabFiles, count: files.length },
+        { id: 'dateien', label: t().workspace.projectPage.tabFiles, count: trackFolders.length + looseFiles.length },
         ...(roles.includes('owner') ? [{ id: 'auftrag', label: t().workspace.projectPage.tabOrder }] : []),
       ]}
       active={view}
