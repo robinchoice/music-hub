@@ -19,8 +19,11 @@
   let mobileMenuOpen = $state(false);
   let shortcutsOpen = $state(false);
   let sidebarRef = $state<Sidebar | undefined>();
+  let dropRef = $state<GlobalDrop | undefined>();
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
+  // "Neu › Dateien hochladen" in the sidebar opens the file dialog of the global drop
+  setContext('pickFiles', () => dropRef?.pick());
   // The sidebar shows the projects and tracks of the overview store, so a change refreshes the store
   setContext('reloadSidebar', () => void refreshOverview());
 
@@ -70,7 +73,7 @@
 
   <ShortcutsModal bind:open={shortcutsOpen} />
   <TooltipLayer />
-  <GlobalDrop />
+  <GlobalDrop bind:this={dropRef} />
 {/if}
 
 <style>

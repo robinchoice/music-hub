@@ -6,10 +6,11 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import FolderList from '$lib/components/workspace/FolderList.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
-  import ProjectStagesCard from '$lib/components/overview/ProjectStagesCard.svelte';
   import { overviewIndex, overviewFailed, loadOverview } from '$lib/stores/overview.js';
   import { projectGroups } from '$lib/utils/overview.js';
+  import { artistOf, musicCrumbs, projectFolder } from '$lib/utils/music.js';
 
   onMount(() => {
     void loadOverview(true);
@@ -17,11 +18,14 @@
 
   const artist = $derived($page.params.artist ?? '');
   const ix = $derived($overviewIndex);
-  const groups = $derived(ix ? projectGroups(ix).filter((g) => g.project.artist?.trim() === artist) : []);
+  const folders = $derived(
+    ix ? projectGroups(ix).filter((g) => artistOf(g.project) === artist).map(projectFolder).sort((a, b) => a.name.localeCompare(b.name)) : [],
+  );
   const newHref = $derived(`/projects/new?artist=${encodeURIComponent(artist)}`);
+  const crumbs = $derived(musicCrumbs(artist));
 </script>
 
-<TopBar crumbs={[{ label: t().workspace.nav.overview, href: '/dashboard' }, { label: artist }]}>
+<TopBar {crumbs}>
   {#snippet actions()}
     <Button href={newHref} size="sm">{t().workspace.sidebar.newProject}</Button>
   {/snippet}
@@ -33,21 +37,21 @@
     <LoadFailed />
   {:else if !ix}
     <Skeleton height="10rem" variant="rect" />
-  {:else if !groups.length}
+  {:else if !folders.length}
     <EmptyState title={t().workspace.artistPage.emptyTitle} description={t().workspace.artistPage.emptyText(artist)}>
       {#snippet action()}
         <Button href={newHref}>{t().workspace.sidebar.newProject}</Button>
       {/snippet}
     </EmptyState>
   {:else}
-    <ProjectStagesCard {groups} />
+    <FolderList {folders} />
   {/if}
 </div>
 
 <style>
   .page {
     padding: var(--space-6);
-    max-width: 960px;
+    max-width: 1100px;
   }
   h1 {
     margin: 0 0 var(--space-5);

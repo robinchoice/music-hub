@@ -92,6 +92,14 @@ export function addStem(trackId: string, userId: string, name: string, earlier =
   `);
 }
 
+// A file of the project, filed next to a track when trackId is given
+export function addFile(projectId: string, trackId: string | null, userId: string, name: string) {
+  bun(`
+    import { projectFiles } from '@music-hub/db';
+    await db.insert(projectFiles).values({ projectId: ${JSON.stringify(projectId)}, trackId: ${JSON.stringify(trackId)}, originalFileName: ${JSON.stringify(name)}, mimeType: 'application/octet-stream', fileSize: 7, fileKey: 'test/' + crypto.randomUUID() + '/' + ${JSON.stringify(name)}, createdById: ${JSON.stringify(userId)} });
+  `);
+}
+
 // The token behind the unsubscribe link in the user's mails
 export function mailTokenOf(userId: string) {
   return bun(`

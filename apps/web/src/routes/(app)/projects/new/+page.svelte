@@ -53,7 +53,7 @@
 
 <TopBar
   crumbs={[
-    { label: t().workspace.nav.projects, href: '/dashboard' },
+    { label: t().workspace.nav.music, href: '/music' },
     { label: t().workspace.newProject.title },
   ]}
 />

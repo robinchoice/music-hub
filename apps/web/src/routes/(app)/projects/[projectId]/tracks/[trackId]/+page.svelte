@@ -60,10 +60,14 @@
   import PushPrompt from '$lib/components/PushPrompt.svelte';
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem, type GuestNote } from './components/StemList.svelte';
+  import TrackFiles from './components/TrackFiles.svelte';
+  import type { ProjectFile } from '$lib/components/workspace/ProjectFiles.svelte';
+  import { artistOf, musicCrumbs } from '$lib/utils/music.js';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
   import { openPath, type OpenState } from '$lib/utils/open.js';
   import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
 
+  type PanelTab = 'versions' | 'spuren' | 'dateien';
   const projectId = ($page.params as Record<string, string>).projectId;
   const trackId = ($page.params as Record<string, string>).trackId;
 
@@ -129,7 +133,13 @@
   // A remix: where it comes from and the credit line it has to carry
   let forkedFrom = $state<{ id: string | null; credit: string; license: OpenLicense | null } | null>(null);
   let panelOpen = $state(true);
-  let panelTab = $state<'versions' | 'spuren'>('versions');
+  let panelTab = $state<PanelTab>('versions');
+  // Files of the project; the "Dateien" tab shows those filed next to this track
+  let projectFiles = $state<ProjectFile[]>([]);
+  let canDownloadFiles = $state(false);
+  let projectTracks = $state<{ id: string; name: string }[]>([]);
+  const trackFiles = $derived(projectFiles.filter((f) => f.trackId === trackId));
+  const artist = $derived(artistOf($overviewIndex?.projects.get(projectId) ?? { artist: null }));
   let isNarrow = $state(false);
   let sheetOpen = $state(false);
   let editVersionOpen = $state(false);
@@ -280,6 +290,8 @@
       mixState = trackVersions.mixState ?? null;
       stems = stemsRes.stems;
       guestNotes = stemsRes.guestNotes ?? [];
+      projectTracks = tracksRes.tracks.map(({ id, name }) => ({ id, name }));
+      void loadFiles();
 
       // "Öffnen" from the overview pages names the version to land on
       const requested = versions.find((v) => v.id === $page.url.searchParams.get('v'));
@@ -480,7 +492,23 @@
     scrollToUpload();
   }
 
-  function showPanel(tab: 'versions' | 'spuren') {
+  async function loadFiles() {
+    const res = await api.get<{ files: ProjectFile[]; canDownload: boolean }>(`/files/project/${projectId}`, true).catch(() => null);
+    projectFiles = res?.files ?? [];
+    canDownloadFiles = res?.canDownload ?? false;
+  }
+
+  // A file became a stem of a song, maybe of this one
+  async function filesChanged(opts: { tracks?: boolean } = {}) {
+    await loadFiles();
+    if (!opts.tracks) return;
+    stems = (await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`)).stems;
+    await loadVersions();
+    reloadSidebar?.();
+    void loadOverview();
+  }
+
+  function showPanel(tab: PanelTab) {
     if (view === 'compare') setView('listen');
     panelTab = tab;
     if (isNarrow) sheetOpen = true;
@@ -713,11 +741,7 @@
 <svelte:window onclick={handleWindowClick} />
 
 <TopBar
-  crumbs={[
-    { label: t().track.page.projects, href: '/dashboard' },
-    { label: projectName || '…', href: `/projects/${projectId}` },
-    { label: trackName || '…' },
-  ]}
+  crumbs={[...musicCrumbs(artist, { id: projectId, name: projectName || '…' }), { label: trackName || '…' }]}
 >
   {#snippet actions()}
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>
@@ -787,6 +811,11 @@
               <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'spuren'} onclick={() => showPanel('spuren')}>
                 <Icon name="music" size={13} /><b>{stems.length}</b> {t().track.page.stemNoun(stems.length)}
               </button>
+              {#if trackFiles.length}
+                <button class="chip" class:on={!isNarrow && panelOpen && view === 'listen' && panelTab === 'dateien'} onclick={() => showPanel('dateien')}>
+                  <Icon name="folder" size={13} /><b>{trackFiles.length}</b> {t().track.files.noun(trackFiles.length)}
+                </button>
+              {/if}
             {/if}
             {#if openState?.openedAt}
               <button class="chip open" onclick={() => (openModal = true)}>{t().track.page.openLabel(openLabel)}</button>
@@ -1109,8 +1138,10 @@
             onSelect={selectVersion}
             onUpload={openUpload}
           />
-        {:else}
+        {:else if panelTab === 'spuren'}
           <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} locked={!!openState?.openedAt} onUpload={openStemUpload} />
+        {:else}
+          {@render filesTab()}
         {/if}
       </div>
     </aside>
@@ -1125,11 +1156,18 @@
     <button role="tab" aria-selected={panelTab === 'spuren'} class:on={panelTab === 'spuren'} onclick={() => (panelTab = 'spuren')}>
       {t().track.page.stemsTab} <i>{stems.length}</i>
     </button>
+    <button role="tab" aria-selected={panelTab === 'dateien'} class:on={panelTab === 'dateien'} onclick={() => (panelTab = 'dateien')}>
+      {t().track.files.tab} <i>{trackFiles.length}</i>
+    </button>
   </div>
 {/snippet}
 
+{#snippet filesTab()}
+  <TrackFiles {projectId} {trackId} files={trackFiles} tracks={projectTracks} {canUpload} canDownload={canDownloadFiles} onChange={filesChanged} />
+{/snippet}
+
 {#if isNarrow}
-  <Sheet bind:open={sheetOpen} title={panelTab === 'versions' ? t().track.versionList.versions : t().track.page.stemsTab}>
+  <Sheet bind:open={sheetOpen} title={panelTab === 'versions' ? t().track.versionList.versions : panelTab === 'spuren' ? t().track.page.stemsTab : t().track.files.tab}>
     <div class="sheet-tabs">{@render tabSwitch()}</div>
     {#if panelTab === 'versions'}
       <VersionList
@@ -1139,8 +1177,10 @@
         onSelect={(v) => { sheetOpen = false; selectVersion(v); }}
         onUpload={openUpload}
       />
-    {:else}
+    {:else if panelTab === 'spuren'}
       <StemList {trackId} {trackName} bind:stems bind:notes={guestNotes} {canUpload} {canDownload} currentUserId={$user?.id ?? null} {role} locked={!!openState?.openedAt} onUpload={openStemUpload} />
+    {:else}
+      {@render filesTab()}
     {/if}
   </Sheet>
 {/if}

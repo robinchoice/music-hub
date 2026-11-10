@@ -29,6 +29,7 @@
   import { overviewIndex, overviewFailed, loadOverview, markProjectSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
+  import { artistOf, musicCrumbs } from '$lib/utils/music.js';
 
   type Track = { id: string; name: string; section: string | null };
 
@@ -94,6 +95,7 @@
   // Stand and turn of every track come from the overview, the sections from the track list
   const ix = $derived($overviewIndex);
   const group = $derived(ix ? projectGroups(ix).find((g) => g.project.id === projectId) : undefined);
+  const artist = $derived(group ? artistOf(group.project) : '');
   const sections = $derived(group ? groupBySection(group.active) : []);
   const wanted = $derived($page.url.searchParams.get('view'));
   // The delivery (Auftrag) is the owner's business
@@ -217,10 +219,7 @@
 </script>
 
 <TopBar
-  crumbs={[
-    { label: t().workspace.nav.projects, href: '/dashboard' },
-    { label: project?.name ?? '…' },
-  ]}
+  crumbs={[...musicCrumbs(artist), { label: project?.name ?? '…' }]}
 >
   {#snippet actions()}
     <!-- Wide screens show every action with its label; phones keep sharing and put the rest behind "⋯" -->

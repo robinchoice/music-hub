@@ -55,7 +55,21 @@
     over = false;
     if (e.defaultPrevented || !hasFiles(e)) return;
     e.preventDefault();
-    const dropped = Array.from(e.dataTransfer?.files ?? []);
+    await take(Array.from(e.dataTransfer?.files ?? []));
+  }
+
+  // "Neu › Dateien hochladen": the same way as a drop, only from the file dialog
+  let input = $state<HTMLInputElement>();
+  export function pick() {
+    input?.click();
+  }
+  function picked() {
+    const chosen = Array.from(input?.files ?? []);
+    if (input) input.value = '';
+    void take(chosen);
+  }
+
+  async function take(dropped: File[]) {
     if (!dropped.length) return;
     files = dropped;
     const { projectId, trackId } = $page.params;
@@ -76,6 +90,8 @@
 </script>
 
 <svelte:window ondragenter={dragenter} ondragleave={dragleave} ondragover={dragover} ondrop={drop} />
+
+<input bind:this={input} type="file" multiple hidden onchange={picked} />
 
 {#if over && !$page.params.projectId}
   <div class="over" aria-hidden="true"><span>{t().workspace.globalDrop.release}</span></div>

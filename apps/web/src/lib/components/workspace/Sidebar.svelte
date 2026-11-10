@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { getContext, onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n/index.js';
@@ -12,17 +12,14 @@
   import { STATUS_COLORS, type OverviewProject, type OverviewTrack } from '$lib/utils/overview.js';
   import { loadRequests, requests } from '$lib/stores/requests.js';
 
-  type ProjectMembership = { project: OverviewProject; trackCount: number };
-  type ArtistGroup = { artist: string; memberships: ProjectMembership[] };
-
+  // Like a drive: a few fixed places here, the projects themselves live in "Meine Musik"
   const NAV = $derived([
-    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview },
-    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou },
-    { href: '/board', icon: 'kanban', label: t().workspace.nav.board },
-    { href: '/offen', icon: 'git-branch', label: t().workspace.nav.openMusic },
-    { href: '/import', icon: 'cloud-download', label: t().importer.nav },
-    { href: '/trash', icon: 'trash', label: t().workspace.nav.trash },
-    { href: '/archive', icon: 'archive', label: t().workspace.nav.archive },
+    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview, within: [] },
+    { href: '/music', icon: 'folder', label: t().workspace.nav.music, within: ['/artists/', '/projects/', '/board', '/archive'] },
+    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou, within: [] },
+    { href: '/shared', icon: 'users', label: t().workspace.nav.shared, within: [] },
+    { href: '/offen', icon: 'git-branch', label: t().workspace.nav.openMusic, within: [] },
+    { href: '/trash', icon: 'trash', label: t().workspace.nav.trash, within: [] },
   ] as const);
 
   // Only for addresses in ADMIN_EMAILS; the admin area stays German
@@ -41,6 +38,8 @@
     onClose?: () => void;
   } = $props();
 
+  const pickFiles = getContext<(() => void) | undefined>('pickFiles');
+
   // Projects and tracks come from the overview store; the sidebar keeps no copy of its own
   const tracksByProject = $derived.by(() => {
     const map: Record<string, OverviewTrack[]> = {};
@@ -48,61 +47,30 @@
     for (const list of Object.values(map)) list.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
     return map;
   });
-  const projects = $derived<ProjectMembership[]>(
-    ($overview?.projects ?? []).map((project) => ({ project, trackCount: tracksByProject[project.id]?.length ?? 0 })),
-  );
   let menuOpen = $state(false);
+  let newOpen = $state(false);
   let query = $state('');
   let searchInput = $state<HTMLInputElement | undefined>();
   // The / shortcut only helps with a keyboard
   let touch = $state(false);
 
-  const activeProjectId = $derived(($page.params as Record<string, string>).projectId ?? null);
+  const path = $derived($page.url.pathname);
   const activeTrackId = $derived(($page.params as Record<string, string>).trackId ?? null);
+  const isActive = (item: { href: string; within: readonly string[] }) =>
+    path === item.href || item.within.some((prefix) => path.startsWith(prefix));
 
-  // Filtered projects: a project matches if its name matches, artist matches, OR any of its tracks match
-  const filtered = $derived.by(() => {
+  // While searching, the projects whose name, artist or tracks match take the place below the navigation
+  type Hit = { project: OverviewProject; tracks: OverviewTrack[] };
+  const hits = $derived.by((): Hit[] => {
     const q = query.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter(({ project }) => {
-      if (project.name.toLowerCase().includes(q)) return true;
-      if (project.artist?.toLowerCase().includes(q)) return true;
-      const tracks = tracksByProject[project.id];
-      return tracks?.some((t) => t.name.toLowerCase().includes(q));
+    if (!q) return [];
+    return ($overview?.projects ?? []).flatMap((project) => {
+      const all = tracksByProject[project.id] ?? [];
+      const tracks = all.filter((tr) => tr.name.toLowerCase().includes(q));
+      const named = project.name.toLowerCase().includes(q) || !!project.artist?.toLowerCase().includes(q);
+      return named || tracks.length ? [{ project, tracks }] : [];
     });
   });
-
-  // Group filtered projects by artist
-  const artistGroups = $derived.by(() => {
-    const groups = new Map<string, ProjectMembership[]>();
-    for (const m of filtered) {
-      const key = m.project.artist?.trim() || '';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(m);
-    }
-    const sorted: ArtistGroup[] = [];
-    for (const [artist, memberships] of groups) {
-      if (artist) sorted.push({ artist, memberships });
-    }
-    sorted.sort((a, b) => a.artist.localeCompare(b.artist));
-    const ungrouped = groups.get('');
-    if (ungrouped) sorted.push({ artist: '', memberships: ungrouped });
-    return sorted;
-  });
-
-  // Artist group collapsed state
-  let collapsedArtists = $state<Set<string>>(new Set());
-  function toggleArtist(artist: string) {
-    const next = new Set(collapsedArtists);
-    if (next.has(artist)) next.delete(artist);
-    else next.add(artist);
-    collapsedArtists = next;
-  }
-
-  function trackMatches(track: OverviewTrack) {
-    const q = query.trim().toLowerCase();
-    return !q || track.name.toLowerCase().includes(q);
-  }
 
   onMount(() => {
     touch = matchMedia('(hover: none)').matches;
@@ -122,9 +90,21 @@
   }
 
   function handleNavClick() {
+    newOpen = false;
     if (open) onClose?.();
   }
+
+  function uploadFiles() {
+    handleNavClick();
+    pickFiles?.();
+  }
+
+  function handleWindowClick(e: MouseEvent) {
+    if (newOpen && !(e.target as Element).closest('.new-root')) newOpen = false;
+  }
 </script>
+
+<svelte:window onclick={handleWindowClick} onkeydown={(e) => e.key === 'Escape' && (newOpen = false)} />
 
 <aside class="sidebar" class:open>
   <div class="sb-head">
@@ -136,9 +116,23 @@
     {/if}
   </div>
 
+  <div class="new-root">
+    <button class="new" aria-expanded={newOpen} aria-haspopup="menu" onclick={() => (newOpen = !newOpen)}>
+      <Icon name="plus" size={18} /> {t().workspace.sidebar.new}
+    </button>
+    {#if newOpen}
+      <div class="new-menu" role="menu">
+        <a role="menuitem" href="/projects/new" onclick={handleNavClick}><Icon name="music" size={16} /> {t().workspace.sidebar.newProject}</a>
+        <button role="menuitem" onclick={uploadFiles}><Icon name="upload" size={16} /> {t().workspace.sidebar.uploadFiles}</button>
+        <a role="menuitem" href="/import" onclick={handleNavClick}><Icon name="cloud-download" size={16} /> {t().importer.nav}</a>
+      </div>
+    {/if}
+  </div>
+
   <div class="search">
     <input
       bind:this={searchInput}
+      onfocus={() => (newOpen = false)}
       type="text"
       bind:value={query}
       placeholder={touch ? t().workspace.sidebar.search : t().workspace.sidebar.searchWithKey}
@@ -146,109 +140,65 @@
     />
   </div>
 
-  <nav class="nav">
-    {#each NAV as item (item.href)}
-      <a
-        href={item.href}
-        class="nav-item"
-        class:active={$page.url.pathname === item.href}
-        onclick={handleNavClick}
-      >
-        <Icon name={item.icon} size={16} /> {item.label}
-        {#if item.href === '/for-you' && $tasks.length + $requests.length}
-          <span class="badge">{$tasks.length + $requests.length}</span>
-        {/if}
-      </a>
-    {/each}
-  </nav>
-
-  {#if $user?.isAdmin}
-    <nav class="nav admin" aria-label="Admin">
-      <span class="nav-label">Admin</span>
-      {#each ADMIN_NAV as item (item.href)}
-        <a
-          href={item.href}
-          class="nav-item"
-          class:active={item.href === '/admin' ? $page.url.pathname === '/admin' : $page.url.pathname.startsWith(item.href)}
-          onclick={handleNavClick}
-        >
+  {#if query.trim()}
+    <div class="section">
+      <div class="section-head"><span>{t().workspace.sidebar.projects}</span></div>
+      <ul class="projects">
+        {#each hits as { project, tracks } (project.id)}
+          <li>
+            <a href="/projects/{project.id}" class="project" onclick={handleNavClick}>
+              <CoverImage src={project.coverUrl} name={project.name} size="xs" rounded="sm" />
+              <span class="name">{project.name}</span>
+              {#if project.artist}<span class="count">{project.artist}</span>{/if}
+            </a>
+            {#if tracks.length}
+              <ul class="tracks">
+                {#each tracks as track (track.id)}
+                  <li>
+                    <a href="/projects/{project.id}/tracks/{track.id}" class="track" class:active={activeTrackId === track.id} onclick={handleNavClick}>
+                      <span class="status-dot" style="background: {STATUS_COLORS[track.status]}"></span>
+                      {track.name}
+                    </a>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+      {#if !hits.length}
+        <p class="empty">{t().workspace.sidebar.nothingFound(query.trim())}</p>
+      {/if}
+    </div>
+  {:else}
+    <nav class="nav" aria-label={t().workspace.nav.main}>
+      {#each NAV as item (item.href)}
+        <a href={item.href} class="nav-item" class:active={isActive(item)} aria-current={isActive(item) ? 'page' : undefined} onclick={handleNavClick}>
           <Icon name={item.icon} size={16} /> {item.label}
+          {#if item.href === '/for-you' && $tasks.length + $requests.length}
+            <span class="badge">{$tasks.length + $requests.length}</span>
+          {/if}
         </a>
       {/each}
     </nav>
+
+    {#if $user?.isAdmin}
+      <nav class="nav admin" aria-label="Admin">
+        <span class="nav-label">Admin</span>
+        {#each ADMIN_NAV as item (item.href)}
+          <a
+            href={item.href}
+            class="nav-item"
+            class:active={item.href === '/admin' ? path === '/admin' : path.startsWith(item.href)}
+            onclick={handleNavClick}
+          >
+            <Icon name={item.icon} size={16} /> {item.label}
+          </a>
+        {/each}
+      </nav>
+    {/if}
+    <div class="grow"></div>
   {/if}
-
-  <div class="section">
-    <div class="section-head">
-      <span>{t().workspace.sidebar.projects}</span>
-      <a href="/projects/new" class="add" title={t().workspace.sidebar.newProject} aria-label={t().workspace.sidebar.newProject} onclick={handleNavClick}>
-        <Icon name="plus" size={14} />
-      </a>
-    </div>
-    <div class="artist-groups">
-      {#each artistGroups as group (group.artist)}
-        {@const expanded = group.artist === '' || !collapsedArtists.has(group.artist)}
-        <div class="artist-group">
-          {#if group.artist}
-            <div class="artist-head" class:active={$page.params.artist === group.artist}>
-              <button class="toggle" onclick={() => toggleArtist(group.artist)} aria-label={expanded ? t().workspace.sidebar.collapse : t().workspace.sidebar.expand}>
-                <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} />
-              </button>
-              <a href="/artists/{encodeURIComponent(group.artist)}" class="artist-name" onclick={handleNavClick}>{group.artist}</a>
-              <span class="count">{group.memberships.length}</span>
-            </div>
-          {:else}
-            <div class="artist-head ungrouped">
-              <span class="artist-name">{t().workspace.sidebar.unassigned}</span>
-            </div>
-          {/if}
-
-          {#if expanded}
-            <ul class="projects">
-              {#each group.memberships as { project, trackCount } (project.id)}
-                {@const matches = activeProjectId === project.id || query.trim()
-                  ? (tracksByProject[project.id]?.filter(trackMatches) ?? []) : []}
-                <li>
-                  <a
-                    href="/projects/{project.id}"
-                    class="project"
-                    class:active={activeProjectId === project.id}
-                    onclick={handleNavClick}
-                  >
-                    <CoverImage src={project.coverUrl} name={project.name} size="xs" rounded="sm" />
-                    <span class="name">{project.name}</span>
-                    <span class="count">{trackCount}</span>
-                  </a>
-                  {#if matches.length}
-                    <ul class="tracks">
-                      {#each matches as track (track.id)}
-                        <li>
-                          <a
-                            href="/projects/{project.id}/tracks/{track.id}"
-                            class="track"
-                            class:active={activeTrackId === track.id}
-                            onclick={handleNavClick}
-                          >
-                            <span class="status-dot" style="background: {STATUS_COLORS[track.status]}"></span>
-                            {track.name}
-                          </a>
-                        </li>
-                      {/each}
-                    </ul>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/each}
-      {#if filtered.length === 0 && query}
-        <p class="empty">{t().workspace.sidebar.nothingFound(query)}</p>
-      {:else if projects.length === 0}
-        <p class="empty">{t().workspace.sidebar.noProjects}</p>
-      {/if}
-    </div>
-  </div>
 
   <div class="user-block">
     <button class="user" onclick={() => (menuOpen = !menuOpen)}>
@@ -412,72 +362,69 @@
     letter-spacing: 0.1em;
     font-weight: 600;
   }
-  .add {
-    color: var(--color-text-tertiary);
-    text-decoration: none;
-    width: 20px;
-    height: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-  }
-  .add:hover {
-    background: var(--color-bg-overlay);
-    color: var(--color-accent);
+  .grow {
+    flex: 1;
   }
 
-  .artist-groups {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+  .new-root {
+    position: relative;
+    padding: 0 var(--space-3);
+    margin-bottom: var(--space-4);
   }
-  .artist-head {
-    display: flex;
+  .new {
+    display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    width: 100%;
-    padding: var(--space-1) var(--space-3);
-    background: none;
-    border: none;
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-    font-weight: 600;
+    padding: 0.6rem 1.1rem 0.6rem 0.85rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-hover);
+    background: var(--color-bg-overlay);
+    color: var(--color-text-primary);
     font-family: inherit;
-    text-align: left;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast);
   }
-  .toggle {
-    display: inline-flex;
-    padding: 2px;
-    margin: -2px;
+  .new:hover,
+  .new[aria-expanded='true'] {
+    background: var(--color-bg-subtle);
+  }
+  .new-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: var(--space-3);
+    right: var(--space-3);
+    z-index: var(--z-dropdown);
+    display: grid;
+    padding: var(--space-1);
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+  .new-menu a,
+  .new-menu button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
     background: none;
-    border: none;
-    color: inherit;
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    text-align: left;
+    text-decoration: none;
     cursor: pointer;
   }
-  .artist-head a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .artist-head a:hover,
-  .artist-head.active a {
+  .new-menu a:hover,
+  .new-menu button:hover {
+    background: var(--color-bg-subtle);
     color: var(--color-text-primary);
-  }
-  .artist-head.ungrouped {
-    cursor: default;
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--color-border);
-    margin-top: var(--space-1);
-    border-radius: 0;
-  }
-  .artist-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .projects {
@@ -504,10 +451,6 @@
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
   }
-  .project.active {
-    background: var(--color-bg-overlay);
-    color: var(--color-text-primary);
-  }
   .name {
     flex: 1;
     overflow: hidden;
@@ -515,9 +458,12 @@
     white-space: nowrap;
   }
   .count {
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);
-    font-variant-numeric: tabular-nums;
   }
 
   .tracks {

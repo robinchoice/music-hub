@@ -50,7 +50,7 @@
   }
 </script>
 
-<TopBar crumbs={[{ label: t().workspace.nav.archive }]} />
+<TopBar crumbs={[{ label: t().workspace.nav.music, href: '/music' }, { label: t().workspace.nav.archive }]} />
 
 <div class="archive-page">
   <header class="head">

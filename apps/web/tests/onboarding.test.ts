@@ -172,7 +172,7 @@ test('the closed menu on phones is out of reach for Tab', async ({ page, isMobil
   await expect(sidebar).toBeVisible();
 });
 
-test('the sidebar shows a new track right away', async ({ page, isMobile }) => {
+test('the sidebar search finds a new track right away', async ({ page, isMobile }) => {
   await page.goto('/projects/new');
   await page.getByLabel('Name').fill('Nachtbus EP');
   await page.getByRole('button', { name: 'Anlegen' }).click();
@@ -182,5 +182,6 @@ test('the sidebar shows a new track right away', async ({ page, isMobile }) => {
   await page.getByPlaceholder('Track-Name').press('Enter');
   await expect(page.locator('.toast-container')).toContainText('Track angelegt');
   if (isMobile) await page.getByRole('button', { name: 'Menü öffnen' }).click();
-  await expect(page.locator('aside.sidebar').getByText('Letzte Bahn')).toBeVisible();
+  await page.locator('aside.sidebar').getByLabel('Suchen').fill('letzte');
+  await expect(page.locator('aside.sidebar .track')).toHaveText(['Letzte Bahn']);
 });

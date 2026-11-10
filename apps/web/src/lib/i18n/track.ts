@@ -135,6 +135,13 @@ export const de = {
     later: 'Später jederzeit über „Teilen“ oben rechts.',
     notNow: 'Nicht jetzt',
   },
+  files: {
+    tab: 'Dateien',
+    noun: (n: number): string => (n === 1 ? 'Datei' : 'Dateien'),
+    hint: 'Projektdateien der DAW, Texte, Referenzen: alles, was zu diesem Track gehört.',
+    upload: 'Datei hochladen',
+    uploaded: (n: number) => (n === 1 ? 'Datei hochgeladen' : `${n} Dateien hochgeladen`),
+  },
   versionList: {
     versions: 'Versionen',
     newVersion: 'Neue Version',
@@ -527,6 +534,13 @@ export const en: typeof de = {
     guestLink: 'Guest link',
     later: 'You can always do this later under “Share” at the top right.',
     notNow: 'Not now',
+  },
+  files: {
+    tab: 'Files',
+    noun: (n) => (n === 1 ? 'file' : 'files'),
+    hint: 'DAW sessions, lyrics, references: everything that belongs to this track.',
+    upload: 'Upload file',
+    uploaded: (n) => (n === 1 ? 'File uploaded' : `${n} files uploaded`),
   },
   versionList: {
     versions: 'Versions',

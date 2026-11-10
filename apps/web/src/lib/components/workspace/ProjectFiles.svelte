@@ -28,12 +28,18 @@
     files,
     canDownload,
     tracks,
+    here = null,
+    compact = false,
     onChange,
   }: {
     projectId: string;
     files: ProjectFile[];
     canDownload: boolean;
     tracks: { id: string; name: string }[];
+    /** Shown on this track's page, so its name needs no repeating */
+    here?: string | null;
+    /** A narrow side panel: no selection for moving files to stems, no type icon */
+    compact?: boolean;
     /** Files went to the trash or became stems; tracks: a track was created or got stems */
     onChange: (opts?: { tracks?: boolean }) => void;
   } = $props();
@@ -48,10 +54,10 @@
   let mix = $state(true);
   let moving = $state(false);
 
-  const trackName = (id: string | null) => tracks.find((tr) => tr.id === id)?.name;
+  const trackName = (id: string | null) => (id === here ? undefined : tracks.find((tr) => tr.id === id)?.name);
   const chosen = $derived(files.filter((f) => selected.includes(f.id)));
   const movable = $derived(chosen.length > 0 && chosen.every((f) => f.canChange && isAudioFile(f.originalFileName, f.mimeType)));
-  const anyChangeable = $derived(files.some((f) => f.canChange));
+  const anyChangeable = $derived(!compact && files.some((f) => f.canChange));
 
   onDestroy(() => audio?.pause());
 
@@ -116,7 +122,7 @@
 {#if !files.length}
   <p class="empty">{t().workspace.files.empty}</p>
 {:else}
-  <ul class="files">
+  <ul class="files" class:compact>
     {#each files as file (file.id)}
       <li class:sel={selected.includes(file.id)}>
         {#if anyChangeable}
@@ -126,7 +132,7 @@
           <button type="button" class="play" onclick={() => play(file)} aria-label={playing === file.id ? t().workspace.files.pause(file.originalFileName) : t().workspace.files.play(file.originalFileName)}>
             <Icon name={playing === file.id ? 'pause' : 'play'} size={14} />
           </button>
-        {:else}
+        {:else if !compact}
           <span class="icon"><Icon name="layers" size={16} /></span>
         {/if}
         <div class="text">
@@ -236,6 +242,13 @@
     min-width: 0;
     display: grid;
     gap: 2px;
+  }
+  .compact li {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+  .compact .text b {
+    overflow-wrap: break-word;
   }
   .text b {
     overflow-wrap: anywhere;

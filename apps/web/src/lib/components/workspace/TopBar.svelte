@@ -13,12 +13,17 @@
   } = $props();
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
+  // Phones show only the current page; one step up stays a tap away, like a drive's back arrow
+  const parent = $derived(crumbs.length > 1 ? crumbs[crumbs.length - 2] : null);
 </script>
 
 <header class="topbar">
   <button class="hamburger" onclick={() => openMobileMenu?.()} aria-label={t().workspace.nav.openMenu}>
     <Icon name="menu" size={20} />
   </button>
+  {#if parent?.href}
+    <a class="up" href={parent.href} title={parent.label} aria-label={parent.label}><Icon name="arrow-left" size={18} /></a>
+  {/if}
   <nav class="crumbs" aria-label="Breadcrumb">
     {#each crumbs as crumb, i}
       {#if crumb.href && i < crumbs.length - 1}
@@ -67,7 +72,10 @@
     overflow: hidden;
   }
 
+  /* In a tight bar the path above gives way before the name of the page */
   .crumbs a {
+    flex-shrink: 4;
+    min-width: 2.5em;
     color: var(--color-text-tertiary);
     text-decoration: none;
     transition: color var(--transition-fast);
@@ -95,6 +103,19 @@
     align-items: center;
     gap: var(--space-2);
     flex-shrink: 0;
+  }
+
+  .up {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    margin-right: calc(-1 * var(--space-2));
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+  }
+  .up:hover {
+    color: var(--color-text-primary);
   }
 
   .hamburger {
@@ -138,6 +159,9 @@
     }
     .crumbs a:last-of-type {
       display: none;
+    }
+    .up {
+      display: inline-flex;
     }
   }
 </style>

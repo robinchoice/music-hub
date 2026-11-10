@@ -12,7 +12,7 @@
     | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
     | 'users' | 'activity' | 'layers' | 'reply' | 'restore' | 'archive'
     | 'mail' | 'log-in' | 'bell' | 'plug' | 'smartphone' | 'monitor' | 'external'
-    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile' | 'kanban';
+    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile' | 'kanban' | 'folder' | 'user';
 
   let {
     name,
@@ -190,6 +190,11 @@
     <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     <line x1="6" y1="16" x2="6.01" y2="16" />
     <line x1="10" y1="16" x2="10.01" y2="16" />
+  {:else if name === 'folder'}
+    <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
+  {:else if name === 'user'}
+    <circle cx="12" cy="8" r="4" />
+    <path d="M20 21a8 8 0 0 0-16 0" />
   {:else if name === 'gauge'}
     <path d="m12 14 4-4" />
     <path d="M3.34 19a10 10 0 1 1 17.32 0" />

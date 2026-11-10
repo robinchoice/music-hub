@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { logIn, removeUser } from './session.js';
+import { logIn, makeViewer, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -28,37 +28,46 @@ async function openSidebar(page: Page, isMobile: boolean) {
   await expect(sidebar(page)).toBeVisible();
 }
 
-test('projects stand under their artist with their track counts, the group folds', async ({ page, isMobile }) => {
-  await seed(page);
-  await page.goto('/dashboard');
-  await openSidebar(page, isMobile);
-  const group = sidebar(page).locator('.artist-group').filter({ hasText: 'Tiefgang' });
-  await expect(group.locator('.artist-head .count')).toHaveText('2');
-  await expect(group.locator('.project .name')).toHaveText(['Nachtbus EP', 'Single']);
-  await expect(group.locator('.project .count')).toHaveText(['2', '0']);
-  const loose = sidebar(page).locator('.artist-group').filter({ hasText: 'Ohne Zuordnung' });
-  await expect(loose.locator('.project .name')).toHaveText(['Jam Session']);
-  await expect(loose.locator('.project .count')).toHaveText(['1']);
+const folders = (page: Page) => page.locator('.folders .folder');
 
-  await group.getByRole('button', { name: 'Zuklappen' }).click();
-  await expect(group.locator('.project')).toHaveCount(0);
-  await group.getByRole('button', { name: 'Aufklappen' }).click();
-  await expect(group.locator('.project')).toHaveCount(2);
+test('Meine Musik opens like a drive: artist, project, track', async ({ page, isMobile }) => {
+  await seed(page);
+  await page.goto('/music');
+  await expect(folders(page).locator('.name b')).toHaveText(['Tiefgang', 'Jam Session']);
+  await expect(folders(page).locator('.contents')).toHaveText(['2 Projekte', '1 Track']);
+
+  await folders(page).filter({ hasText: 'Tiefgang' }).click();
+  await expect(page).toHaveURL(/\/artists\/Tiefgang$/);
+  await expect(folders(page).locator('.name b')).toHaveText(['Nachtbus EP', 'Single']);
+  await expect(folders(page).locator('.contents')).toHaveText(['2 Tracks', '0 Tracks']);
+
+  await folders(page).filter({ hasText: 'Nachtbus EP' }).click();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
+  // Phones show only the last crumb
+  if (!isMobile) {
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByRole('link')).toHaveText(['Meine Musik', 'Tiefgang']);
+    await crumbs.getByRole('link', { name: 'Meine Musik' }).click();
+    await expect(page).toHaveURL(/\/music$/);
+  }
 });
 
-test('the open project lists its tracks in order, the others keep theirs folded', async ({ page, isMobile }) => {
+test('the sidebar holds places, not projects', async ({ page, isMobile }) => {
   const { nachtbus } = await seed(page);
   await page.goto(`/projects/${nachtbus.id}`);
   await openSidebar(page, isMobile);
-  const project = sidebar(page).locator('.projects > li').filter({ has: page.locator('.project.active') });
-  await expect(project.locator('.track')).toHaveText(['Letzte Bahn', 'Intro']);
-  await expect(sidebar(page).locator('.track')).toHaveCount(2);
-  await expect(sidebar(page).getByText('Freitag')).toHaveCount(0);
+  await expect(sidebar(page).getByRole('link', { name: 'Meine Musik' })).toHaveAttribute('aria-current', 'page');
+  await expect(sidebar(page).getByText('Nachtbus EP')).toHaveCount(0);
+});
 
-  await project.locator('.track', { hasText: 'Intro' }).click();
-  await expect(page).toHaveURL(/\/tracks\/[0-9a-f-]{36}$/);
-  if (isMobile) await page.getByRole('button', { name: 'Menü öffnen' }).click();
-  await expect(sidebar(page).locator('.track.active')).toHaveText('Intro');
+test('shared with me lists the projects you do not own', async ({ page }) => {
+  await page.goto('/shared');
+  await expect(page.getByText('Noch nichts mit dir geteilt')).toBeVisible();
+  const { nachtbus } = await seed(page);
+  makeViewer(nachtbus.id, userId);
+  await page.reload();
+  await expect(folders(page).locator('.name b')).toHaveText(['Nachtbus EP']);
+  await expect(folders(page).locator('.name small')).toContainText('Tiefgang');
 });
 
 test('the search narrows the projects by name, artist and track and says when nothing matches', async ({ page, isMobile }) => {
@@ -78,10 +87,23 @@ test('the search narrows the projects by name, artist and track and says when no
   await expect(sidebar(page).locator('.project')).toHaveCount(0);
   await expect(sidebar(page).getByText('Nichts gefunden für „xyz“')).toBeVisible();
   await search.fill('');
-  await expect(sidebar(page).locator('.project')).toHaveCount(3);
+  await expect(sidebar(page).locator('.project')).toHaveCount(0);
+  await expect(sidebar(page).getByRole('link', { name: 'Meine Musik' })).toBeVisible();
 });
 
-test('a new project picks an existing artist from the list and keeps its spelling', async ({ page, isMobile }) => {
+test('"Neu" picks files and asks only for the project', async ({ page, isMobile }) => {
+  await seed(page);
+  await page.goto('/music');
+  await openSidebar(page, isMobile);
+  await sidebar(page).getByRole('button', { name: 'Neu' }).click();
+  await expect(sidebar(page).getByRole('menuitem', { name: 'Neues Projekt' })).toHaveAttribute('href', '/projects/new');
+  const chooser = page.waitForEvent('filechooser');
+  await sidebar(page).getByRole('menuitem', { name: 'Dateien hochladen' }).click();
+  await (await chooser).setFiles({ name: 'Text.txt', mimeType: 'text/plain', buffer: Buffer.from('la la') });
+  await expect(page.getByRole('dialog', { name: 'Datei hochladen' })).toBeVisible();
+});
+
+test('a new project picks an existing artist from the list and keeps its spelling', async ({ page }) => {
   await seed(page);
   await project(page, 'Demo', 'Anna Berger');
   await page.goto('/projects/new');
@@ -103,10 +125,10 @@ test('a new project picks an existing artist from the list and keeps its spellin
   await page.getByLabel('Name').fill('Zweite EP');
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
-  await openSidebar(page, isMobile);
-  const group = sidebar(page).locator('.artist-group').filter({ hasText: 'Tiefgang' });
-  await expect(group.locator('.project .name')).toHaveText(['Nachtbus EP', 'Single', 'Zweite EP']);
-  await expect(sidebar(page).locator('.artist-head')).toHaveCount(3);
+  await page.goto('/artists/Tiefgang');
+  await expect(folders(page).locator('.name b')).toHaveText(['Nachtbus EP', 'Single', 'Zweite EP']);
+  await page.goto('/music');
+  await expect(folders(page).locator('.name b')).toHaveText(['Anna Berger', 'Tiefgang', 'Jam Session']);
 });
 
 test('the artist list follows the keyboard, a new name says so', async ({ page }) => {

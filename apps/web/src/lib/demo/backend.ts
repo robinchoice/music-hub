@@ -522,6 +522,8 @@ const ROUTES: [string, RegExp, Handler][] = [
     return { ok: true };
   }],
   ['GET', /^\/stems\/track\/([\w-]+)$/, ([id]) => ({ stems: db.stems.filter((s) => s.trackId === id) })],
+  // The track page counts the files next to the track; the demo has none
+  ['GET', /^\/files\/project\/([\w-]+)$/, () => ({ files: [], canDownload: false })],
   ['GET', /^\/tracks\/([\w-]+)\/open$/, ([id]) => {
     const approved = db.versions.find((v) => v.trackId === id && v.status === 'approved');
     const people = [MARA, KAI, LISA, JONAS].filter((p) => p.id === approved?.createdById || db.stems.some((s) => s.trackId === id && s.createdById === p.id));

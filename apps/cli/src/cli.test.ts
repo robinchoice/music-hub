@@ -515,6 +515,13 @@ test('tracks, versions, comments and reviews: a song from the upload to the verd
   expect(await studio.cli(['files', 'upload', sound, '--project', 'Nachtfahrt'])).toMatchObject({ code: 0, out: texts.fileUploaded('Vespa Hupe.wav', 'Nachtfahrt') });
   expect((await label.cli(['files', 'upload', sound, '--project', 'Nachtfahrt'])).code).toBe(1);
   expect((await label.cli(['files', '--project', 'Nachtfahrt'])).out).toMatch(/^Vespa Hupe\.wav · 0\.0 MB · Ada · \d{4}-\d{2}-\d{2}$/);
+  // With --track a file sits next to a song, as on the "Dateien" tab of its page
+  expect(await studio.cli(['files', ...at])).toMatchObject({ code: 0, out: texts.noProjectFiles('Abendrot') });
+  const click = join(dir, 'Click.wav');
+  await writeFile(click, 'RIFF click');
+  expect(await studio.cli(['files', 'upload', click, ...at])).toMatchObject({ code: 0, out: texts.fileUploaded('Click.wav', 'Abendrot') });
+  expect((await studio.cli(['files', ...at])).out).toMatch(/^Click\.wav · /);
+  expect((await studio.cli(['files', '--project', 'Nachtfahrt'])).out.split('\n')).toHaveLength(2);
   const honk = join(dir, 'honk.wav');
   expect(await studio.cli(['files', 'download', 'vespa hupe.wav', '--project', 'Nachtfahrt', '--out', honk])).toMatchObject({ code: 0 });
   expect(await readFile(honk, 'utf8')).toBe('RIFF honk');

@@ -8,17 +8,18 @@
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
 
-  // Projects and account sit in the menu
+  // "Neu", sharing, the trash and the account sit in the menu
   const ITEMS = $derived([
-    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview },
-    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou },
-    { href: '/board', icon: 'kanban', label: t().workspace.nav.board },
+    { href: '/dashboard', icon: 'home', label: t().workspace.nav.overview, within: [] },
+    { href: '/music', icon: 'folder', label: t().workspace.nav.music, within: ['/artists/', '/projects/', '/board', '/archive'] },
+    { href: '/for-you', icon: 'inbox', label: t().workspace.nav.forYou, within: [] },
   ] as const);
+  const path = $derived($page.url.pathname);
 </script>
 
 <nav class="bottom-nav" aria-label={t().workspace.nav.main}>
   {#each ITEMS as item (item.href)}
-    <a href={item.href} class="nav-item" class:active={$page.url.pathname === item.href}>
+    <a href={item.href} class="nav-item" class:active={path === item.href || item.within.some((p) => path.startsWith(p))}>
       <Icon name={item.icon} size={22} />
       {#if item.href === '/for-you' && $tasks.length + $requests.length}
         <span class="badge">{$tasks.length + $requests.length}</span>
@@ -28,8 +29,8 @@
   {/each}
 
   <button class="nav-item" onclick={() => openMobileMenu?.()}>
-    <Icon name="music" size={22} />
-    <span>{t().workspace.nav.projects}</span>
+    <Icon name="menu" size={22} />
+    <span>{t().workspace.nav.more}</span>
   </button>
 </nav>
 

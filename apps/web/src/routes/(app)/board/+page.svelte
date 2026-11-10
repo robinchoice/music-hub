@@ -6,6 +6,7 @@
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import MusicViews from '$lib/components/workspace/MusicViews.svelte';
   import LoadFailed from '$lib/components/overview/LoadFailed.svelte';
   import TrackBoard from '$lib/components/overview/TrackBoard.svelte';
   import { overviewIndex, overviewFailed, loadOverview } from '$lib/stores/overview.js';
@@ -33,9 +34,10 @@
   }
 </script>
 
-<TopBar crumbs={[{ label: t().overview.board.title }]} />
+<TopBar crumbs={[{ label: t().workspace.nav.music, href: '/music' }, { label: t().overview.board.title }]} />
 
 <div class="page">
+  <MusicViews active="board" />
   {#if !ix && $overviewFailed}
     <LoadFailed />
   {:else if !ix}
