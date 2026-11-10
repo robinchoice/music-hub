@@ -114,6 +114,17 @@ test('the owner sets single rights per person, new roles start again from their 
   expect(((await res.json()) as { rights: unknown }).rights).toEqual(rightsOfRoles(['management']));
 });
 
+test('the owner may invite with single rights on top of the roles, others only by the roles', async () => {
+  const body = (email: string) => ({ email, roles: ['label'], rights: { canDownload: true, canApprove: false } });
+  const invited = await call(`/projects/${projectId}/members`, { method: 'POST', body: body(`invitee-${run}-rights@example.com`), headers: owner.headers });
+  expect(invited.status).toBe(201);
+  const { member } = (await invited.json()) as { member: Record<string, unknown> };
+  expect(member).toMatchObject({ role: 'label', canDownload: true, canApprove: false, canComment: true, canUpload: false });
+  // Management may invite, but not hand out rights beyond the roles
+  await db.update(projectMembers).set({ canInvite: true }).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, management.id)));
+  expect((await call(`/projects/${projectId}/members`, { method: 'POST', body: body(`invitee-${run}-rights2@example.com`), headers: management.headers })).status).toBe(403);
+});
+
 test('the member list puts the owner first and marks invitations nobody used yet', async () => {
   // invitee-…-b was invited above and never logged in; Sam and Lea have sessions
   const res = await call(`/projects/${projectId}/members`, { headers: artist.headers });

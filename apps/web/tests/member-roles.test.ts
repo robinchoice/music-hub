@@ -65,3 +65,23 @@ test('the owner changes single rights of a person and resets them to the roles',
   await expect(download).not.toBeChecked();
   expect(await memberOf()).toMatchObject({ role: 'label', canDownload: false });
 });
+
+test('the owner invites with single rights', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  await page.goto(`/projects/${project.id}/settings`);
+
+  const form = page.locator('.invite-form');
+  await form.getByPlaceholder('name@email.de').fill(email);
+  await form.getByRole('button', { name: 'Label' }).click();
+  await form.getByRole('button', { name: 'Artist' }).click();
+  await form.getByText('Rechte einzeln anpassen').click();
+  const download = form.getByRole('switch', { name: /Originale herunterladen/ });
+  // Label alone presets no download
+  await expect(download).not.toBeChecked();
+  await download.check();
+  await form.getByRole('button', { name: 'Einladen' }).click();
+
+  await expect(page.locator('.member-row').filter({ hasText: email })).toContainText('Rechte angepasst');
+  const { members } = await (await page.request.get(`/api/v1/projects/${project.id}/members`)).json();
+  expect(members.find((m: { user: { email: string } }) => m.user.email === email)).toMatchObject({ roles: ['label'], canDownload: true });
+});

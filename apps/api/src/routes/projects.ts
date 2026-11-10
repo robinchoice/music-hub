@@ -236,6 +236,10 @@ export const projectRoutes = new Hono<AppEnv>()
     if (!membership?.canInvite) {
       return c.json({ error: 'Forbidden' }, 403);
     }
+    // Single rights stay the owner's business, as in PATCH
+    if (input.rights && membership.role !== 'owner') {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
 
     // Each invitation is a mail and may create an account, so the limit comes first; a blocked account stays out
     if (!(await invitesPerUser.hit(db, userId))) return tooManyRequests(c);
@@ -247,7 +251,7 @@ export const projectRoutes = new Hono<AppEnv>()
       .values({
         projectId,
         userId: invitedUser.id,
-        ...roleColumns(input),
+        ...withRights(roleColumns(input), input.rights),
       })
       .onConflictDoNothing()
       .returning();

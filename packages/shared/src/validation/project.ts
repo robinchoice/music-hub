@@ -27,10 +27,6 @@ const memberRoles = {
 };
 const hasRole = (m: { role?: string | undefined; roles?: string[] | undefined }) => !!(m.role || m.roles);
 
-export const inviteMemberSchema = z
-  .object({ email: z.string().email(), ...memberRoles })
-  .refine(hasRole, { message: 'role or roles required' });
-
 // Single switches on top of the roles; new roles first set all switches to their preset
 const rightsSchema = z.object({
   canUpload: z.boolean().optional(),
@@ -39,6 +35,11 @@ const rightsSchema = z.object({
   canApprove: z.boolean().optional(),
   canInvite: z.boolean().optional(),
 });
+
+// Switches at the invitation go on top of the roles' preset; only the owner may send them
+export const inviteMemberSchema = z
+  .object({ email: z.string().email(), ...memberRoles, rights: rightsSchema.optional() })
+  .refine(hasRole, { message: 'role or roles required' });
 
 export const updateMemberSchema = z
   .object({ ...memberRoles, rights: rightsSchema.optional() })

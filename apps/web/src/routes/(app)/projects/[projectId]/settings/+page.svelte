@@ -47,6 +47,8 @@
   // Invite
   let inviteEmail = $state('');
   let inviteRoles = $state<string[]>(['artist']);
+  // The switches of the invitation start from the preset of its roles; only the owner sees them
+  let inviteRights = $state<MemberRights>(rightsOfRoles(['artist']));
   let inviting = $state(false);
 
   // Archive
@@ -109,9 +111,12 @@
     if (!inviteEmail.trim()) return;
     inviting = true;
     try {
+      const preset = rightsOfRoles(inviteRoles as ProjectRole[]);
+      const changed = MEMBER_RIGHTS.some((k) => inviteRights[k] !== preset[k]);
       await api.post(`/projects/${projectId}/members`, {
         email: inviteEmail,
         roles: inviteRoles,
+        ...(changed ? { rights: inviteRights } : {}),
       });
       toastSuccess(t().workspace.settings.invitedTo(inviteEmail.trim()));
       inviteEmail = '';
@@ -312,7 +317,16 @@
             <Input type="email" bind:value={inviteEmail} placeholder={t().workspace.settings.emailPlaceholder} />
             <Button type="submit" loading={inviting} disabled={!inviteEmail.trim()}>{t().common.invite}</Button>
           </div>
-          {@render roleTiles('invite', inviteRoles, (r) => (inviteRoles = toggled(inviteRoles, r)))}
+          {@render roleTiles('invite', inviteRoles, (r) => {
+            inviteRoles = toggled(inviteRoles, r);
+            inviteRights = rightsOfRoles(inviteRoles as ProjectRole[]);
+          })}
+          {#if role === 'owner'}
+            <details class="invite-rights">
+              <summary>{t().workspace.settings.adjustRights}</summary>
+              {@render rightSwitches('invite', inviteRights, (k, on) => (inviteRights = { ...inviteRights, [k]: on }))}
+            </details>
+          {/if}
         </form>
       {/if}
     </section>
@@ -358,32 +372,30 @@
   </div>
 {/snippet}
 
+{#snippet rightSwitches(id: string, values: MemberRights, change: (k: MemberRight, on: boolean) => void)}
+  <span class="roles-label" id="{id}-rights">{t().workspace.settings.rightsHeading}</span>
+  <ul class="rights" aria-labelledby="{id}-rights">
+    {#each MEMBER_RIGHTS as k (k)}
+      <li>
+        <label class="right">
+          <span class="right-text">
+            <span class="right-name">{t().workspace.settings.rights[k]}</span>
+            <small>{t().workspace.settings.rightHints[k]}</small>
+          </span>
+          <input type="checkbox" role="switch" class="switch" checked={values[k]} onchange={(e) => change(k, e.currentTarget.checked)} />
+        </label>
+      </li>
+    {/each}
+  </ul>
+  <small class="roles-note">{t().workspace.settings.rightsNote}</small>
+{/snippet}
+
 <Modal bind:open={editOpen} title={editing ? t().workspace.settings.editMember(editing.invitePending ? editing.user.email : editing.user.name) : ''}>
   {#if editing}
     {@const member = editing}
     {@render roleTiles('member', member.roles, (r) => updateMember(member.id, { roles: toggled(member.roles, r) }))}
     <div class="rights-block">
-      <span class="roles-label" id="member-rights">{t().workspace.settings.rightsHeading}</span>
-      <ul class="rights" aria-labelledby="member-rights">
-        {#each MEMBER_RIGHTS as k (k)}
-          <li>
-            <label class="right">
-              <span class="right-text">
-                <span class="right-name">{t().workspace.settings.rights[k]}</span>
-                <small>{t().workspace.settings.rightHints[k]}</small>
-              </span>
-              <input
-                type="checkbox"
-                role="switch"
-                class="switch"
-                checked={member[k]}
-                onchange={(e) => updateMember(member.id, { rights: { [k]: e.currentTarget.checked } as Partial<Record<MemberRight, boolean>> })}
-              />
-            </label>
-          </li>
-        {/each}
-      </ul>
-      <small class="roles-note">{t().workspace.settings.rightsNote}</small>
+      {@render rightSwitches('member', member, (k, on) => updateMember(member.id, { rights: { [k]: on } as Partial<Record<MemberRight, boolean>> }))}
       {#if customized(member)}
         <button type="button" class="reset-rights" onclick={() => updateMember(member.id, { roles: member.roles })}>
           <Icon name="restore" size={14} /> {t().workspace.settings.resetRights}
@@ -772,6 +784,25 @@
   .reset-rights:hover {
     color: var(--color-text-primary);
     border-color: var(--color-border-hover);
+  }
+
+  .invite-rights .roles-label {
+    display: block;
+    margin-bottom: var(--space-2);
+  }
+  .invite-rights .rights {
+    margin-bottom: var(--space-2);
+  }
+  .invite-rights summary {
+    cursor: pointer;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .invite-rights[open] summary {
+    margin-bottom: var(--space-2);
   }
 
   .invite-form {
