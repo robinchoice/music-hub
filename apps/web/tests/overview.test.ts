@@ -55,7 +55,7 @@ test('"Für dich" alone points to inviting instead of "Alles erledigt"', async (
 });
 
 test('once someone else is in a project, the steps are gone', async ({ page }) => {
-  others.push(addMember(await firstVersion(page)));
+  others.push(addMember(await firstVersion(page), 'Lena', true));
   await page.goto('/dashboard');
   await expect(page.locator('.sum')).toContainText('1 neue Version');
   await expect(page.locator('.sum')).not.toContainText('Noch hört niemand mit');

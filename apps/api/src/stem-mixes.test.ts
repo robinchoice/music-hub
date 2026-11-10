@@ -49,7 +49,7 @@ beforeAll(async () => {
   owner = user.id;
   const [project] = await db.insert(projects).values({ name: 'Stem mixes', createdById: owner }).returning();
   projectId = project.id;
-  await db.insert(projectMembers).values({ projectId, userId: owner, role: 'owner', canUpload: true });
+  await db.insert(projectMembers).values({ projectId, userId: owner, role: 'owner', canDownload: true, canInvite: true, canUpload: true });
 });
 
 beforeEach(async () => {

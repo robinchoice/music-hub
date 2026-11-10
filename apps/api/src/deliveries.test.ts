@@ -106,7 +106,7 @@ async function version(trackId: string, createdById: string, versionNumber: numb
 // A project of the studio with two songs, each with a V1
 async function studioProject(owner: Person) {
   const [p] = await db.insert(projects).values({ name: 'Zwischenstand', createdById: owner.id }).returning();
-  await db.insert(projectMembers).values({ projectId: p!.id, userId: owner.id, role: 'owner', canUpload: true, canComment: true, canApprove: true });
+  await db.insert(projectMembers).values({ projectId: p!.id, userId: owner.id, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true });
   const songs: { id: string; v1: Awaited<ReturnType<typeof version>> }[] = [];
   for (const [i, name] of ['Nordlicht', 'Kaltfront'].entries()) {
     const [t] = await db.insert(tracks).values({ projectId: p!.id, name, sortOrder: i, createdById: owner.id }).returning();
@@ -204,7 +204,7 @@ test('only owners with the Solo plan or an admin address create deliveries; the 
 
   // Members who aren't owner get 403, people outside the project 404
   const engineer = await person('Mischer', { plan: 'solo' });
-  await db.insert(projectMembers).values({ projectId, userId: engineer.id, role: 'mixing_engineer', canUpload: true, canComment: true });
+  await db.insert(projectMembers).values({ projectId, userId: engineer.id, role: 'mixing_engineer', canDownload: true, canUpload: true, canComment: true });
   expect((await call(`/deliveries/project/${projectId}`, { headers: engineer.headers })).status).toBe(403);
   expect((await call(`/deliveries/project/${projectId}`, { method: 'POST', headers: engineer.headers, body })).status).toBe(403);
   const stranger = await person('Fremd', { plan: 'solo' });

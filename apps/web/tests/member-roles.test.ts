@@ -42,3 +42,26 @@ test('one person can hold several roles in a project', async ({ page }, info) =>
   const member = members.find((m: { user: { email: string } }) => m.user.email === email);
   expect(member).toMatchObject({ role: 'mastering_engineer', roles: ['mastering_engineer'], canUpload: true, canApprove: false });
 });
+
+test('the owner changes single rights of a person and resets them to the roles', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  await page.request.post(`/api/v1/projects/${project.id}/members`, { data: { email, roles: ['label'] } });
+  await page.goto(`/projects/${project.id}/settings`);
+
+  await page.getByRole('button', { name: `${email} bearbeiten` }).click();
+  const dialog = page.getByRole('dialog');
+  const download = dialog.getByRole('switch', { name: /Originale herunterladen/ });
+  await expect(download).not.toBeChecked();
+  await download.check();
+  await expect(page.locator('.member-row').filter({ hasText: email })).toContainText('Rechte angepasst');
+
+  const memberOf = async () =>
+    ((await (await page.request.get(`/api/v1/projects/${project.id}/members`)).json()).members as { user: { email: string } }[]).find(
+      (m) => m.user.email === email,
+    );
+  expect(await memberOf()).toMatchObject({ role: 'label', canDownload: true, canApprove: true });
+
+  await dialog.getByRole('button', { name: 'Auf Vorgabe der Rollen zurücksetzen' }).click();
+  await expect(download).not.toBeChecked();
+  expect(await memberOf()).toMatchObject({ role: 'label', canDownload: false });
+});

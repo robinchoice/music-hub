@@ -5,7 +5,6 @@
   import { overviewIndex, loadOverview } from '$lib/stores/overview.js';
   import { pendingDrop } from '$lib/stores/pending-drop.js';
   import { toast } from '$lib/stores/toast.js';
-  import { UPLOAD_ROLES } from '$lib/utils/overview.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
 
@@ -21,7 +20,7 @@
   let depth = 0;
 
   const projects = $derived(
-    $overviewIndex ? $overviewIndex.data.projects.filter((p) => p.myRoles.some((r) => UPLOAD_ROLES.includes(r))) : [],
+    $overviewIndex ? $overviewIndex.data.projects.filter((p) => p.myRights?.canUpload) : [],
   );
 
   const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');

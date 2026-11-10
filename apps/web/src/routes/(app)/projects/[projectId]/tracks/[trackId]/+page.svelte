@@ -65,7 +65,7 @@
   import { artistOf, musicCrumbs } from '$lib/utils/music.js';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
   import { openPath, type OpenState } from '$lib/utils/open.js';
-  import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
+  import { OPEN_LICENSE_INFO, type MemberRights, type OpenLicense } from '@music-hub/shared';
 
   type PanelTab = 'versions' | 'spuren' | 'dateien';
   const projectId = ($page.params as Record<string, string>).projectId;
@@ -116,7 +116,7 @@
   let versionInput = $state<HTMLInputElement>();
   let pickedVersions = $state<File[]>([]);
   let role = $state('');
-  let roles = $state<string[]>([]);
+  let rights = $state<MemberRights | null>(null);
   let loading = $state(true);
   // The track was deleted, or its link is wrong
   let missing = $state(false);
@@ -175,7 +175,7 @@
     comparePair = false;
   }
 
-  const can = $derived(capabilities(roles));
+  const can = $derived(capabilities(rights));
   const canUpload = $derived(can.canUpload);
   // Nothing here yet, not even a guest's note: one drop field instead of the version and stem buttons
   const blank = $derived(
@@ -248,7 +248,7 @@
     try { dismissedVersions = JSON.parse(localStorage.getItem(comparisonKey) ?? '[]'); } catch { dismissedVersions = []; }
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
-        api.get<{ project: { name: string }; role: string; roles: string[] }>(`/projects/${projectId}`),
+        api.get<{ project: { name: string }; role: string; roles: string[]; rights: MemberRights }>(`/projects/${projectId}`),
         api.get<VersionResponse>(`/versions/track/${trackId}`, true).catch(() => null),
         api.get<{
           tracks: {
@@ -268,7 +268,7 @@
 
       projectName = projectRes.project.name;
       role = projectRes.role;
-      roles = projectRes.roles;
+      rights = projectRes.rights;
       inviteDismissed = localStorage.getItem(`invite-dismissed:${trackId}`) === '1';
       if (role === 'owner' && !inviteDismissed) {
         void api
@@ -742,6 +742,7 @@
 
 <TopBar
   crumbs={[...musicCrumbs(artist, { id: projectId, name: projectName || '…' }), { label: trackName || '…' }]}
+  settingsHref="/projects/{projectId}/settings"
 >
   {#snippet actions()}
     <Button size="sm" variant="ghost" onclick={() => (shareOpen = true)}>

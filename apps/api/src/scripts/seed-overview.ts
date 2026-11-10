@@ -21,7 +21,7 @@ import {
   shareLinks,
   listenEvents,
 } from '@music-hub/db';
-import { REJECTION_PREFIX, type ProjectRole } from '@music-hub/shared';
+import { REJECTION_PREFIX, rightsOfRoles, type ProjectRole } from '@music-hub/shared';
 import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
 
@@ -43,16 +43,10 @@ async function user(email: string, name: string) {
   return row;
 }
 
-const PERMISSIONS: Partial<Record<ProjectRole, { canUpload: boolean; canComment: boolean; canApprove: boolean }>> = {
-  owner: { canUpload: true, canComment: true, canApprove: true },
-  mixing_engineer: { canUpload: true, canComment: true, canApprove: false },
-  artist: { canUpload: false, canComment: true, canApprove: true },
-};
-
 async function project(name: string, artist: string, owner: Ref, members: [Ref, ProjectRole][]) {
   const [p] = await db.insert(projects).values({ name, artist, createdById: owner.id }).returning();
   for (const [member, role] of members) {
-    await db.insert(projectMembers).values({ projectId: p.id, userId: member.id, role, ...PERMISSIONS[role]! });
+    await db.insert(projectMembers).values({ projectId: p.id, userId: member.id, role, ...rightsOfRoles([role]) });
   }
   return p;
 }

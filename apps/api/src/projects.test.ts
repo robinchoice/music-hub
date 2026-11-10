@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import { and, eq, inArray, like } from 'drizzle-orm';
 import { createDb, migrateDb, projectMembers, projects, sessions, users } from '@music-hub/db';
+import { rightsOfRoles } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
 import { projectRoutes } from './routes/projects.js';
 import type { AppEnv } from './types.js';
@@ -38,9 +39,9 @@ beforeAll(async () => {
   const [project] = await db.insert(projects).values({ name: 'Fernlicht', createdById: owner.id }).returning();
   projectId = project.id;
   await db.insert(projectMembers).values([
-    { projectId, userId: owner.id, role: 'owner', canUpload: true, canComment: true, canApprove: true },
-    { projectId, userId: management.id, role: 'management', canUpload: false, canComment: true, canApprove: true },
-    { projectId, userId: artist.id, role: 'artist', canUpload: false, canComment: true, canApprove: true },
+    { projectId, userId: owner.id, role: 'owner', ...rightsOfRoles(['owner']) },
+    { projectId, userId: management.id, role: 'management', ...rightsOfRoles(['management']) },
+    { projectId, userId: artist.id, role: 'artist', ...rightsOfRoles(['artist']) },
   ]);
 });
 
@@ -90,6 +91,27 @@ test('changing a member answers 404 for an unknown member and 403 for yourself',
   const [member] = await db.select({ id: projectMembers.id }).from(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, artist.id)));
   expect((await patch(member.id)).status).toBe(200);
   expect((await call(`/projects/${projectId}/members/${member.id}`, { method: 'PATCH', body: { roles: ['label'] }, headers: artist.headers })).status).toBe(403);
+});
+
+test('the owner sets single rights per person, new roles start again from their preset', async () => {
+  const membershipOf = async (userId: string) =>
+    (await db.select().from(projectMembers).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId))))[0];
+  const patch = (memberId: string, body: unknown, p = owner) => call(`/projects/${projectId}/members/${memberId}`, { method: 'PATCH', body, headers: p.headers });
+  const sam = await membershipOf(management.id);
+
+  expect((await patch(sam.id, { rights: { canInvite: false, canDownload: false } }, artist)).status).toBe(403);
+  expect((await patch(sam.id, { rights: { canInvite: false, canDownload: false } })).status).toBe(200);
+  expect(await membershipOf(management.id)).toMatchObject({ role: 'management', canInvite: false, canDownload: false, canComment: true });
+  expect((await invite(management, `invitee-${run}-switched@example.com`)).status).toBe(403);
+
+  // Roles together with switches: preset first, the switches on top
+  expect((await patch(sam.id, { roles: ['management'], rights: { canUpload: true } })).status).toBe(200);
+  expect(await membershipOf(management.id)).toMatchObject({ canInvite: true, canDownload: true, canUpload: true });
+  expect((await patch(sam.id, { roles: ['management'] })).status).toBe(200);
+  expect(await membershipOf(management.id)).toMatchObject({ canUpload: false });
+
+  const res = await call(`/projects/${projectId}`, { headers: management.headers });
+  expect(((await res.json()) as { rights: unknown }).rights).toEqual(rightsOfRoles(['management']));
 });
 
 test('the member list puts the owner first and marks invitations nobody used yet', async () => {

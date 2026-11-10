@@ -200,6 +200,13 @@
     <div class="grow"></div>
   {/if}
 
+  <!-- Account settings stay in reach, not only behind the name -->
+  <nav class="nav settings-nav" aria-label={t().workspace.sidebar.settings}>
+    <a href="/account" class="nav-item" class:active={path === '/account'} aria-current={path === '/account' ? 'page' : undefined} onclick={handleNavClick}>
+      <Icon name="settings" size={16} /> {t().workspace.sidebar.settings}
+    </a>
+  </nav>
+
   <div class="user-block">
     <button class="user" onclick={() => (menuOpen = !menuOpen)}>
       {#if $user}
@@ -294,6 +301,10 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .settings-nav {
+    margin-bottom: var(--space-2);
   }
 
   .nav-label {

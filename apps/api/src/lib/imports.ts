@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
-import { AUDIO_MIME_BY_EXTENSION, IMPORT_KINDS, isAudioFile, isVersionable, MAX_FILE_SIZE, type SourceEntry } from '@music-hub/shared';
+import { AUDIO_MIME_BY_EXTENSION, IMPORT_KINDS, isAudioFile, isVersionable, MAX_FILE_SIZE, rightsOfRoles, type SourceEntry } from '@music-hub/shared';
 import { importItems, imports, projectFiles, projectMembers, projects, stems, tracks, versionNotices, versions, type Database } from '@music-hub/db';
 import { download, DropboxError, listFolder, session, type Session } from './dropbox.js';
 import { fits, lockStorage, storageOf, takeUploadVolume } from './storage.js';
@@ -144,7 +144,7 @@ async function start(db: Database, userId: string, importId: string, entries: Sc
       const project = item.project!;
       if (!projectIds.has(project)) {
         const [created] = await tx.insert(projects).values({ name: plan.projects[project].name, createdById: userId }).returning({ id: projects.id });
-        await tx.insert(projectMembers).values({ projectId: created.id, userId, role: 'owner', canUpload: true, canComment: true, canApprove: true });
+        await tx.insert(projectMembers).values({ projectId: created.id, userId, role: 'owner', ...rightsOfRoles(['owner']) });
         projectIds.set(project, created.id);
       }
       if (item.track !== null && !trackIds.has(item.track)) {

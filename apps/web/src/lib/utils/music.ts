@@ -16,6 +16,8 @@ export type Folder = {
   files?: number;
   /** Latest activity inside, '' without any */
   changedAt: string;
+  /** Settings and contributors of a project */
+  settingsHref?: string;
 };
 
 export type Crumb = { label: string; href?: string };
@@ -37,6 +39,7 @@ export const projectFolder = (g: ProjectGroup): Folder => ({
   coverUrl: g.project.coverUrl,
   count: g.list.length,
   changedAt: g.lastAt,
+  settingsHref: `/projects/${g.project.id}/settings`,
 });
 
 /** A track as a folder: its versions and the files filed with it */

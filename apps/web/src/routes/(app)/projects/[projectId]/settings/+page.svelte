@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { api, isApiError } from '$lib/api/client.js';
   import { removeToast, toast, toastError, toastSuccess } from '$lib/stores/toast.js';
-  import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
+  import { MEMBER_RIGHTS, ROLE_LABELS, PROJECT_ROLES, pickRights, rightsOfRoles, type MemberRight, type MemberRights, type ProjectRole } from '@music-hub/shared';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -18,7 +18,7 @@
   import { artistNames, artistToSave } from '$lib/utils/overview.js';
   import ArtistInput from '$lib/components/workspace/ArtistInput.svelte';
 
-  type Member = {
+  type Member = MemberRights & {
     id: string;
     role: string;
     roles: string[];
@@ -35,7 +35,7 @@
   let project = $state<Project | null>(null);
   let members = $state<Member[]>([]);
   let role = $state('');
-  let roles = $state<string[]>([]);
+  let rights = $state<MemberRights | null>(null);
   let loading = $state(true);
 
   // Edit project
@@ -67,12 +67,12 @@
   onMount(async () => {
     try {
       const [projectRes, membersRes] = await Promise.all([
-        api.get<{ project: Project; role: string; roles: string[] }>(`/projects/${projectId}`),
+        api.get<{ project: Project; role: string; rights: MemberRights }>(`/projects/${projectId}`),
         api.get<{ members: Member[] }>(`/projects/${projectId}/members`),
       ]);
       project = projectRes.project;
       role = projectRes.role;
-      roles = projectRes.roles;
+      rights = projectRes.rights;
       editName = project.name;
       editArtist = project.artist || '';
       editDesc = project.description || '';
@@ -129,18 +129,27 @@
     return roles.includes(r) ? roles.filter((x) => x !== r) : [...roles, r];
   }
 
-  async function updateRoles(memberId: string, roles: string[]) {
+  // New roles set the switches back to their preset, a switch changes just itself
+  async function updateMember(memberId: string, change: { roles: string[] } | { rights: Partial<MemberRights> }) {
+    const isRoles = 'roles' in change;
     try {
-      await api.patch(`/projects/${projectId}/members/${memberId}`, { roles });
-      toastSuccess(t().workspace.settings.rolesUpdated);
+      await api.patch(`/projects/${projectId}/members/${memberId}`, change);
+      toastSuccess(isRoles ? t().workspace.settings.rolesUpdated : t().workspace.settings.rightsUpdated);
       const res = await api.get<{ members: Member[] }>(`/projects/${projectId}/members`);
       members = res.members;
       if (editing) editing = members.find((m) => m.id === editing!.id) ?? null;
     } catch (e) {
       if (!isApiError(e)) {
-        toastError(e instanceof Error ? e.message : t().workspace.settings.rolesFailed);
+        toastError(e instanceof Error ? e.message : isRoles ? t().workspace.settings.rolesFailed : t().workspace.settings.rightsFailed);
       }
     }
+  }
+
+  // Switches that differ from what the roles preset
+  function customized(member: Member) {
+    const preset = rightsOfRoles(member.roles as ProjectRole[]);
+    const own = pickRights(member);
+    return MEMBER_RIGHTS.some((k) => own[k] !== preset[k]);
   }
 
   function editMember(member: Member) {
@@ -281,6 +290,7 @@
                   {#each member.roles as r}
                     <span class="pill">{ROLE_LABELS[locale()][r as ProjectRole] || r}</span>
                   {/each}
+                  {#if customized(member)}<span class="pill custom">{t().workspace.settings.customRights}</span>{/if}
                 {/if}
               </span>
             </div>
@@ -295,7 +305,7 @@
       </ul>
 
       <!-- Invite -->
-      {#if roles.includes('owner') || roles.includes('management')}
+      {#if rights?.canInvite}
         <form class="invite-form" onsubmit={(e) => { e.preventDefault(); inviteMember(); }}>
           <h3>{t().workspace.settings.inviteTitle}</h3>
           <div class="invite-field">
@@ -351,7 +361,35 @@
 <Modal bind:open={editOpen} title={editing ? t().workspace.settings.editMember(editing.invitePending ? editing.user.email : editing.user.name) : ''}>
   {#if editing}
     {@const member = editing}
-    {@render roleTiles('member', member.roles, (r) => updateRoles(member.id, toggled(member.roles, r)))}
+    {@render roleTiles('member', member.roles, (r) => updateMember(member.id, { roles: toggled(member.roles, r) }))}
+    <div class="rights-block">
+      <span class="roles-label" id="member-rights">{t().workspace.settings.rightsHeading}</span>
+      <ul class="rights" aria-labelledby="member-rights">
+        {#each MEMBER_RIGHTS as k (k)}
+          <li>
+            <label class="right">
+              <span class="right-text">
+                <span class="right-name">{t().workspace.settings.rights[k]}</span>
+                <small>{t().workspace.settings.rightHints[k]}</small>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                class="switch"
+                checked={member[k]}
+                onchange={(e) => updateMember(member.id, { rights: { [k]: e.currentTarget.checked } as Partial<Record<MemberRight, boolean>> })}
+              />
+            </label>
+          </li>
+        {/each}
+      </ul>
+      <small class="roles-note">{t().workspace.settings.rightsNote}</small>
+      {#if customized(member)}
+        <button type="button" class="reset-rights" onclick={() => updateMember(member.id, { roles: member.roles })}>
+          <Icon name="restore" size={14} /> {t().workspace.settings.resetRights}
+        </button>
+      {/if}
+    </div>
     <button type="button" class="remove-member" onclick={() => removeMember(member)}>
       <Icon name="trash" size={14} /> {t().workspace.settings.removeFromProject}
     </button>
@@ -554,6 +592,11 @@
     background: color-mix(in srgb, var(--color-accent) 14%, transparent);
     color: var(--color-accent);
   }
+  .pill.custom {
+    background: none;
+    border: 1px solid var(--color-border-hover);
+    color: var(--color-text-secondary);
+  }
   .pill.open {
     background: none;
     border: 1px dashed var(--color-text-tertiary);
@@ -634,6 +677,101 @@
   .roles-note {
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+  }
+
+  /* One switch per right, preset by the roles */
+  .rights-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+  }
+  .rights {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .rights li + li {
+    border-top: 1px solid var(--color-border);
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 48px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .right-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .right-name {
+    font-size: var(--text-sm);
+    color: var(--color-text-primary);
+  }
+  .right small {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .switch {
+    appearance: none;
+    flex-shrink: 0;
+    position: relative;
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border-hover);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-text-secondary);
+    transition: transform 0.15s;
+  }
+  .switch:checked {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  .switch:checked::after {
+    transform: translateX(16px);
+    background: var(--color-bg-base);
+  }
+  .switch:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+  }
+  .reset-rights {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: none;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .reset-rights:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-hover);
   }
 
   .invite-form {

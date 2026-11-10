@@ -28,7 +28,9 @@
   import { pendingDrop } from '$lib/stores/pending-drop.js';
   import { overviewIndex, overviewFailed, loadOverview, markProjectSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
-  import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
+  import { projectGroups, type TrackInfo } from '$lib/utils/overview.js';
+  import { capabilities } from '$lib/utils/track.js';
+  import type { MemberRights } from '@music-hub/shared';
   import { artistOf, musicCrumbs, trackFolder } from '$lib/utils/music.js';
   import FolderList from '$lib/components/workspace/FolderList.svelte';
 
@@ -67,6 +69,7 @@
   let trash = $state<{ deletedAt: string }[]>([]);
   let role = $state('');
   let roles = $state<string[]>([]);
+  let rights = $state<MemberRights | null>(null);
   // Contact requests that led here, so their message stays in view
   type Request = { id: string; message: string; answeredAt: string; from: { name: string; handle: string | null }; track: { id: string; name: string } | null };
   let requests = $state<Request[]>([]);
@@ -85,7 +88,6 @@
   let shareOpen = $state(false);
   // Phones: the rarer actions wait behind "⋯"
   let moreOpen = $state(false);
-  const canManage = $derived(roles.includes('owner') || roles.includes('management'));
   let drop = $state<ProjectDrop>();
   let files = $state<ProjectFile[]>([]);
   let canDownloadFiles = $state(false);
@@ -122,12 +124,13 @@
     void loadOverview(true);
     try {
       const [projectRes, trackRes] = await Promise.all([
-        api.get<{ project: Project; role: string; roles: string[]; requests?: Request[] }>(`/projects/${projectId}`),
+        api.get<{ project: Project; role: string; roles: string[]; rights: MemberRights; requests?: Request[] }>(`/projects/${projectId}`),
         api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`),
       ]);
       project = projectRes.project;
       role = projectRes.role;
       roles = projectRes.roles;
+      rights = projectRes.rights;
       requests = projectRes.requests ?? [];
       tracks = trackRes.tracks;
     } finally {
@@ -191,6 +194,8 @@
     try {
       await api.post(`/projects/${projectId}/restore`);
       project = { ...project!, isArchived: false };
+      // In the archive uploading, commenting and approving rested; the API answers with them again
+      rights = (await api.get<{ rights: MemberRights }>(`/projects/${projectId}`)).rights;
       reloadSidebar?.();
       void loadOverview(true);
       toastSuccess(t().workspace.projectPage.restored);
@@ -201,7 +206,7 @@
     }
   }
 
-  const canUpload = $derived(!project?.isArchived && roles.some((r) => UPLOAD_ROLES.includes(r)));
+  const canUpload = $derived(!project?.isArchived && capabilities(rights).canUpload);
   const empty = $derived(!loading && tracks.length === 0);
 
   async function afterDrop(result: { files: number; tracks: number }) {
@@ -230,7 +235,7 @@
   {#snippet actions()}
     <!-- Wide screens show every action with its label; phones keep sharing and put the rest behind "⋯" -->
     <span class="wide-only">
-      {#if !loading && canManage}
+      {#if !loading}
         <Button variant="ghost" size="sm" href="/projects/{projectId}/settings" title={t().workspace.projectPage.settings}>
           <Icon name="settings" size={14} /> {t().workspace.projectPage.settings}
         </Button>
@@ -251,7 +256,7 @@
       {#if !loading && !empty}
         <Button size="sm" title={t().workspace.projectPage.share} onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> {t().workspace.projectPage.share}</Button>
       {/if}
-      {#if !loading && (canUpload || canManage)}
+      {#if !loading}
         <span class="narrow-only">
           <Button variant="ghost" size="sm" title={t().workspace.projectPage.moreActions} onclick={() => (moreOpen = true)}>
             <Icon name="more" size={16} /> <span class="sr-only">{t().workspace.projectPage.moreActions}</span>
@@ -440,9 +445,7 @@
       <button type="button" onclick={() => { moreOpen = false; showNewTrack = true; }}><Icon name="plus" size={18} /> {t().workspace.projectPage.newTrack}</button>
       <button type="button" onclick={() => { moreOpen = false; uploadLinkOpen = true; }}><Icon name="link" size={18} /> {t().workspace.projectPage.uploadLinkGuests}</button>
     {/if}
-    {#if canManage}
-      <a href="/projects/{projectId}/settings" onclick={() => (moreOpen = false)}><Icon name="settings" size={18} /> {t().workspace.projectPage.settingsMembers}</a>
-    {/if}
+    <a href="/projects/{projectId}/settings" onclick={() => (moreOpen = false)}><Icon name="settings" size={18} /> {t().workspace.projectPage.settingsMembers}</a>
   </nav>
 </Sheet>
 
@@ -455,7 +458,7 @@
     bind:open={shareOpen}
     {projectId}
     projectName={project.name}
-    {roles}
+    {rights}
     archived={project.isArchived}
     {tracks}
   />

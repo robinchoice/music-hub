@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
-import { hasPermission, memberRoles, type RequestsFrom } from '@music-hub/shared';
+import { rightsOfRoles, type RequestsFrom } from '@music-hub/shared';
 import {
   contactRequests,
   profiles,
@@ -169,10 +169,10 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
 
     if (projectId) {
       const [membership] = await tx
-        .select({ role: projectMembers.role, extraRoles: projectMembers.extraRoles })
+        .select({ canInvite: projectMembers.canInvite })
         .from(projectMembers)
         .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
-      if (!membership || !memberRoles(membership).some((role) => hasPermission(role, 'project.invite'))) return null;
+      if (!membership?.canInvite) return null;
     } else {
       const [[me], [sender]] = await Promise.all([
         tx.select({ name: users.name }).from(users).where(eq(users.id, userId)),
@@ -186,9 +186,7 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
         projectId: project.id,
         userId,
         role: 'owner',
-        canUpload: true,
-        canComment: true,
-        canApprove: true,
+        ...rightsOfRoles(['owner']),
       });
       projectId = project.id;
     }
@@ -199,9 +197,7 @@ export async function acceptRequest(db: Database, requestId: string, userId: str
         projectId,
         userId: request.fromUserId,
         role: 'artist',
-        canUpload: hasPermission('artist', 'track.upload'),
-        canComment: hasPermission('artist', 'version.comment'),
-        canApprove: hasPermission('artist', 'version.approve'),
+        ...rightsOfRoles(['artist']),
       })
       .onConflictDoNothing();
     await tx

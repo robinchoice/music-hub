@@ -11,7 +11,7 @@
   import { formatTime, formatWhen } from '$lib/utils/format.js';
   import { byPosition } from '$lib/utils/track.js';
   import {
-    STATUS_COLORS, UPLOAD_ROLES, avatarOf, firstName, fullName, lastText, markersFor, personName, trackHref, versionName,
+    STATUS_COLORS, avatarOf, firstName, fullName, lastText, markersFor, personName, trackHref, versionName,
     type OverviewIndex, type TrackInfo,
   } from '$lib/utils/overview.js';
 
@@ -23,7 +23,7 @@
   // Opens the version that plays inline, otherwise the newest
   const playing = $derived($listen.trackId === info.track.id ? $listen.versionId : null);
   const href = $derived(trackHref(info.project.id, info.track.id, playing ?? v?.id));
-  const canUpload = $derived(info.project.myRoles.some((r) => UPLOAD_ROLES.includes(r)));
+  const canUpload = $derived(!!info.project.myRights?.canUpload);
   const last = $derived(info.last);
 </script>
 

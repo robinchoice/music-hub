@@ -31,9 +31,18 @@ export const inviteMemberSchema = z
   .object({ email: z.string().email(), ...memberRoles })
   .refine(hasRole, { message: 'role or roles required' });
 
+// Single switches on top of the roles; new roles first set all switches to their preset
+const rightsSchema = z.object({
+  canUpload: z.boolean().optional(),
+  canDownload: z.boolean().optional(),
+  canComment: z.boolean().optional(),
+  canApprove: z.boolean().optional(),
+  canInvite: z.boolean().optional(),
+});
+
 export const updateMemberSchema = z
-  .object(memberRoles)
-  .refine(hasRole, { message: 'role or roles required' });
+  .object({ ...memberRoles, rights: rightsSchema.optional() })
+  .refine((m) => hasRole(m) || !!m.rights, { message: 'roles or rights required' });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;

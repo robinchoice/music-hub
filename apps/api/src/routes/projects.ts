@@ -7,8 +7,10 @@ import {
   updateProjectSchema,
   inviteMemberSchema,
   updateMemberSchema,
-  hasPermission,
   memberRoles,
+  pickRights,
+  rightsOfRoles,
+  type MemberRights,
   type ProjectRole,
 } from '@music-hub/shared';
 import { projects, projectMembers, users, tracks, magicLinks, sessions } from '@music-hub/db';
@@ -47,6 +49,7 @@ export const projectRoutes = new Hono<AppEnv>()
         project: projects,
         role: projectMembers.role,
         extraRoles: projectMembers.extraRoles,
+        membership: projectMembers,
         trackCount: sql<number>`(select count(*)::int from ${tracks} where ${tracks.projectId} = ${projects.id} and ${tracks.deletedAt} is null)`,
       })
       .from(projectMembers)
@@ -54,9 +57,10 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, archived)));
 
     const enriched = await Promise.all(
-      memberships.map(async ({ extraRoles, ...m }) => ({
+      memberships.map(async ({ extraRoles, membership, ...m }) => ({
         ...m,
         roles: memberRoles({ role: m.role, extraRoles }),
+        rights: pickRights(membership),
         project: await withCoverUrl(m.project),
       })),
     );
@@ -76,10 +80,7 @@ export const projectRoutes = new Hono<AppEnv>()
     await db.insert(projectMembers).values({
       projectId: project.id,
       userId,
-      role: 'owner',
-      canUpload: true,
-      canComment: true,
-      canApprove: true,
+      ...roleColumns({ roles: ['owner'] }),
     });
 
     return c.json({ project }, 201);
@@ -106,6 +107,8 @@ export const projectRoutes = new Hono<AppEnv>()
       project: await withCoverUrl(project),
       role: membership.role,
       roles: memberRoles(membership),
+      // In an archived project uploading, commenting and approving rest (membershipOf)
+      rights: pickRights(membership),
       requests: await requestsInProject(db, projectId),
     });
   })
@@ -190,6 +193,8 @@ export const projectRoutes = new Hono<AppEnv>()
         canUpload: projectMembers.canUpload,
         canComment: projectMembers.canComment,
         canApprove: projectMembers.canApprove,
+        canDownload: projectMembers.canDownload,
+        canInvite: projectMembers.canInvite,
         user: {
           id: users.id,
           email: users.email,
@@ -225,10 +230,10 @@ export const projectRoutes = new Hono<AppEnv>()
     const projectId = c.req.param('id');
     const { email, ...input } = c.req.valid('json');
 
-    // Check permission (owner or management)
+    // Inviting is a switch of its own, owner and management have it by default
     const membership = await membershipOf(db, projectId, userId);
 
-    if (!membership || !memberRoles(membership).some((r) => r === 'owner' || r === 'management')) {
+    if (!membership?.canInvite) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -292,12 +297,20 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Cannot change own owner role' }, 403);
     }
 
+    const [member] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
+      .limit(1);
+    if (!member) return c.json({ error: 'Not found' }, 404);
+
+    // New roles set all switches to their preset, single switches go on top
+    const columns = input.role || input.roles ? roleColumns(input) : { role: member.role, extraRoles: member.extraRoles, ...pickRights(member) };
     const [updated] = await db
       .update(projectMembers)
-      .set(roleColumns(input))
-      .where(and(eq(projectMembers.id, memberId), eq(projectMembers.projectId, projectId)))
+      .set(withRights(columns, input.rights))
+      .where(eq(projectMembers.id, memberId))
       .returning();
-    if (!updated) return c.json({ error: 'Not found' }, 404);
 
     return c.json({ member: updated });
   })
@@ -322,15 +335,15 @@ export const projectRoutes = new Hono<AppEnv>()
     return c.json({ message: 'Member removed' });
   });
 
-// The rights of several roles add up
+// The rights of several roles add up to the preset of the switches
 export function roleColumns(input: { role?: ProjectRole | undefined; roles?: ProjectRole[] | undefined }) {
   const [role, ...extraRoles] = [...new Set(input.roles ?? [input.role!])];
-  const all = [role, ...extraRoles];
-  return {
-    role,
-    extraRoles,
-    canUpload: all.some((r) => hasPermission(r, 'track.upload')),
-    canComment: all.some((r) => hasPermission(r, 'version.comment')),
-    canApprove: all.some((r) => hasPermission(r, 'version.approve')),
-  };
+  return { role, extraRoles, ...rightsOfRoles([role, ...extraRoles]) };
+}
+
+// Single switches over the preset; an owner keeps every right, so nobody locks the project
+function withRights<T extends MemberRights & { role: ProjectRole; extraRoles: ProjectRole[] }>(columns: T, rights: Partial<Record<keyof MemberRights, boolean | undefined>> | undefined): T {
+  if (columns.role === 'owner' || columns.extraRoles.includes('owner')) return { ...columns, ...rightsOfRoles(['owner']) };
+  const set = Object.fromEntries(Object.entries(rights ?? {}).filter(([, v]) => v !== undefined));
+  return { ...columns, ...set };
 }

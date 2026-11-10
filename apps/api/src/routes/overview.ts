@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { memberRoles, taskKeySchema, REJECTION_PREFIX } from '@music-hub/shared';
+import { memberRoles, pickRights, taskKeySchema, REJECTION_PREFIX } from '@music-hub/shared';
 import {
   projects,
   projectMembers,
@@ -43,7 +43,7 @@ export const overviewRoutes = new Hono<AppEnv>()
       db.select({ taskKey: taskDismissals.taskKey }).from(taskDismissals).where(eq(taskDismissals.userId, userId)),
       storageSummary(db, userId),
       db
-        .select({ project: projects, role: projectMembers.role, extraRoles: projectMembers.extraRoles, seenAt: projectMembers.seenAt })
+        .select({ project: projects, membership: projectMembers })
         .from(projectMembers)
         .innerJoin(projects, eq(projects.id, projectMembers.projectId))
         .where(and(eq(projectMembers.userId, userId), eq(projects.isArchived, false)))
@@ -62,7 +62,13 @@ export const overviewRoutes = new Hono<AppEnv>()
     }
 
     const members = await db
-      .select({ projectId: projectMembers.projectId, userId: projectMembers.userId, role: projectMembers.role, extraRoles: projectMembers.extraRoles })
+      .select({
+        projectId: projectMembers.projectId,
+        userId: projectMembers.userId,
+        role: projectMembers.role,
+        extraRoles: projectMembers.extraRoles,
+        canApprove: projectMembers.canApprove,
+      })
       .from(projectMembers)
       .where(inArray(projectMembers.projectId, projectIds));
 
@@ -204,17 +210,18 @@ export const overviewRoutes = new Hono<AppEnv>()
 
     return c.json({
       projects: await Promise.all(
-        memberships.map(async ({ project, role, extraRoles, seenAt }) => ({
+        memberships.map(async ({ project, membership: { role, extraRoles, seenAt, ...membership } }) => ({
           id: project.id,
           name: project.name,
           artist: project.artist,
           coverUrl: project.coverImageUrl ? await createDownloadUrl(project.coverImageUrl) : null,
           myRole: role,
           myRoles: memberRoles({ role, extraRoles }),
+          myRights: pickRights(membership),
           seenAt: iso(seenAt),
           members: members
             .filter((m) => m.projectId === project.id)
-            .map((m) => ({ userId: m.userId, role: m.role, roles: memberRoles(m) })),
+            .map((m) => ({ userId: m.userId, role: m.role, roles: memberRoles(m), canApprove: m.canApprove })),
         })),
       ),
       users: userRows,

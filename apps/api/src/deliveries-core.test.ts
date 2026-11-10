@@ -73,7 +73,7 @@ async function setup(options: { includedRounds?: number } = {}) {
   const ownerId = await person('Studio Klanglabor', { plan: 'solo' });
   const [p] = await db.insert(projects).values({ name: 'Zwischenstand', createdById: ownerId }).returning();
   const projectId = p!.id;
-  await db.insert(projectMembers).values({ projectId, userId: ownerId, role: 'owner', canUpload: true, canComment: true, canApprove: true });
+  await db.insert(projectMembers).values({ projectId, userId: ownerId, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true });
   const trackIds: string[] = [];
   const v1: string[] = [];
   for (const [i, name] of ['Nordlicht', 'Kaltfront'].entries()) {

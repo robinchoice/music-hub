@@ -28,7 +28,7 @@ beforeAll(async () => {
   [robin, lena] = [await user('Robin'), await user('Lena')];
   const [project] = await db.insert(projects).values({ name: 'Tiefgang', createdById: robin }).returning();
   projectId = project.id;
-  await db.insert(projectMembers).values({ projectId, userId: robin, role: 'owner', canUpload: true });
+  await db.insert(projectMembers).values({ projectId, userId: robin, role: 'owner', canDownload: true, canInvite: true, canUpload: true });
   const [archived] = await db.insert(projects).values({ name: 'Archiv', createdById: robin, isArchived: true }).returning();
   await db.insert(projectMembers).values({ projectId: archived.id, userId: robin, role: 'owner' });
   [{ id: trackId }] = await db.insert(tracks).values({ projectId, name: 'Nachtbus', createdById: robin }).returning();

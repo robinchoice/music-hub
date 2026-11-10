@@ -2,7 +2,7 @@
 // does, so the landing page can show the current frontend without a server. Changes stay in this browser window.
 // When a page starts using a new endpoint, add it to ROUTES; missing ones are logged as "[Demo] … missing".
 // The texts come from the area `landing` (sample) in the current language; switching it reseeds the data.
-import { COMMENT_REACTIONS, type Locale, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
+import { COMMENT_REACTIONS, type Locale, REJECTION_PREFIX, rightsOfRoles, type TrackStatus } from '@music-hub/shared';
 import type { Review, ReviewVerdict, TrackComment, Version } from '$lib/utils/track.js';
 import { locale, t } from '$lib/i18n/index.js';
 import { OPEN_EXAMPLE_ID } from './mode.js';
@@ -214,16 +214,18 @@ const overviewState = { dismissed: new Set<string>(), seenAt: new Map<string, st
 
 // Roles in the demo projects: Jonas owns them, Kai mixes and masters, Mara and Lisa are the band
 const MEMBERS = [
-  { userId: JONAS.id, role: 'owner', roles: ['owner'] },
-  { userId: MARA.id, role: 'artist', roles: ['artist'] },
-  { userId: LISA.id, role: 'artist', roles: ['artist'] },
-  { userId: KAI.id, role: 'mixing_engineer', roles: ['mixing_engineer', 'mastering_engineer'] },
+  { userId: JONAS.id, role: 'owner', roles: ['owner'], canApprove: true },
+  { userId: MARA.id, role: 'artist', roles: ['artist'], canApprove: true },
+  { userId: LISA.id, role: 'artist', roles: ['artist'], canApprove: true },
+  { userId: KAI.id, role: 'mixing_engineer', roles: ['mixing_engineer', 'mastering_engineer'], canApprove: false },
 ];
+// The visitor is Mara, an artist with the rights the role presets
+const MY_RIGHTS = rightsOfRoles(['artist']);
 
 function overview() {
   const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
   return {
-    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], members: MEMBERS, seenAt: overviewState.seenAt.get(p.id) ?? null })),
+    projects: db.projects.map((p) => ({ id: p.id, name: p.name, artist: p.artist, coverUrl: p.coverUrl, myRole: 'artist', myRoles: ['artist'], myRights: MY_RIGHTS, members: MEMBERS, seenAt: overviewState.seenAt.get(p.id) ?? null })),
     users: [MARA, KAI, LISA, JONAS],
     tracks: db.tracks.map((t) => ({ id: t.id, projectId: t.projectId, name: t.name, status: t.status, coverUrl: t.coverUrl, sortOrder: t.sortOrder, createdAt: t.createdAt, createdById: JONAS.id })),
     versions: db.versions.map((v) => ({
@@ -387,12 +389,13 @@ const ROUTES: [string, RegExp, Handler][] = [
       project: { ...project, coverImageUrl: project.coverUrl, createdById: KAI.id, isArchived: false },
       role: 'artist',
       roles: ['artist'],
+      rights: MY_RIGHTS,
       trackCount: db.tracks.filter((t) => t.projectId === project.id).length,
     })),
   })],
   ['GET', /^\/projects\/([\w-]+)$/, ([id]) => {
     const project = find(db.projects, id);
-    return { project: { ...project, coverImageUrl: project.coverUrl }, role: 'artist', roles: ['artist'] };
+    return { project: { ...project, coverImageUrl: project.coverUrl }, role: 'artist', roles: ['artist'], rights: MY_RIGHTS };
   }],
   ['GET', /^\/tracks\/project\/([\w-]+)$/, ([id]) => ({
     tracks: db.tracks.filter((t) => t.projectId === id).sort((a, b) => a.sortOrder - b.sortOrder).map(trackRow),

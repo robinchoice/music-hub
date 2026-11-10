@@ -22,6 +22,7 @@ import {
 } from '@music-hub/db';
 import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
+import { rightsOfRoles } from '@music-hub/shared';
 
 const email = process.argv[2];
 if (!email) {
@@ -121,9 +122,7 @@ async function createProject(spec: ProjectSpec) {
     projectId: project.id,
     userId: me.id,
     role: 'owner',
-    canUpload: true,
-    canComment: true,
-    canApprove: true,
+    ...rightsOfRoles(['owner']),
   });
 
   for (const m of spec.members) {
@@ -133,9 +132,7 @@ async function createProject(spec: ProjectSpec) {
       projectId: project.id,
       userId: u.id,
       role: m.role,
-      canUpload: m.role.includes('engineer') || m.role === 'owner',
-      canComment: true,
-      canApprove: m.role === 'artist' || m.role === 'label' || m.role === 'management',
+      ...rightsOfRoles([m.role]),
     });
   }
 

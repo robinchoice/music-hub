@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
+  import { OPEN_LICENSE_INFO, type MemberRights, type OpenLicense } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
@@ -17,7 +17,6 @@
   import OpenHeader from '$lib/components/open/OpenHeader.svelte';
   import { OPEN_EXAMPLE_ID } from '$lib/demo/mode.js';
   import { formatFileSize } from '$lib/utils/format.js';
-  import { UPLOAD_ROLES } from '$lib/utils/overview.js';
 
   type Remix = { id: string; name: string; artist: string };
   type OpenTrack = {
@@ -35,7 +34,7 @@
     stems: { id: string; name: string; fileSize: number }[];
     remixes: { count: number; open: (Remix & { remixes: Remix[] })[] };
   };
-  type Project = { project: { id: string; name: string }; roles: string[] };
+  type Project = { project: { id: string; name: string }; roles: string[]; rights: MemberRights };
 
   const trackId = ($page.params as Record<string, string>).trackId;
   const example = trackId === OPEN_EXAMPLE_ID;
@@ -111,7 +110,7 @@
     if ($authLoading) await checkAuth();
     if (!$user) return goto(`/login?next=${encodeURIComponent(`/offen/${trackId}?remix=1`)}`);
     const res = await api.get<{ projects: Project[] }>('/projects');
-    projects = res.projects.filter((p) => p.roles.some((r) => UPLOAD_ROLES.includes(r)));
+    projects = res.projects.filter((p) => p.rights.canUpload);
     target = projects[0]?.project.id ?? 'new';
     forkOpen = true;
   }

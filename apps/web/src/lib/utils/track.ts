@@ -1,5 +1,5 @@
 // Helpers for the track page.
-import { hasPermission, REVIEW_PASS_HOURS, type ProjectRole, type ReviewVerdict } from '@music-hub/shared';
+import { REVIEW_PASS_HOURS, type MemberRights, type ReviewVerdict } from '@music-hub/shared';
 import { dateLocale, t } from '$lib/i18n/index.js';
 import { formatLufs, formatTruePeak } from './format.js';
 
@@ -97,16 +97,10 @@ export const isProcessing = (v: { status: string }) => v.status === 'uploaded' |
 // Approved or rejected: nobody's verdict is missing anymore
 export const isDecided = (v: { status: string }) => v.status === 'approved' || v.status === 'rejected';
 
-// What someone may do in a project, from all their roles; the API derives the same from its membership columns
-export function capabilities(roles: string[]) {
-  const may = (permission: 'track.upload' | 'track.download' | 'version.comment' | 'version.approve') =>
-    roles.some((r) => hasPermission(r as ProjectRole, permission));
-  return {
-    canUpload: may('track.upload'),
-    canDownload: may('track.download'),
-    canComment: may('version.comment'),
-    canApprove: may('version.approve'),
-  };
+// What someone may do in a project: the switches of their membership, which the API sends as rights
+// (preset by the roles, changed per person by the owner). Before they arrive nothing is allowed.
+export function capabilities(rights: MemberRights | null | undefined): MemberRights {
+  return rights ?? { canUpload: false, canDownload: false, canComment: false, canApprove: false, canInvite: false };
 }
 
 // The worker writes a waveform once it has read the file; one it gave up on stays without duration

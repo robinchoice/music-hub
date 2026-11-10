@@ -9,6 +9,8 @@ test('a member holds several roles and gets the rights of all of them', () => {
     canUpload: true,
     canComment: true,
     canApprove: true,
+    canDownload: true,
+    canInvite: false,
   });
 });
 
@@ -17,6 +19,7 @@ test('older clients still send a single role', () => {
     role: 'viewer',
     extraRoles: [],
     canUpload: false,
+    canDownload: false,
   });
 });
 
@@ -24,9 +27,11 @@ test('roles may not be empty or include owner', () => {
   expect(updateMemberSchema.safeParse({}).success).toBe(false);
   expect(updateMemberSchema.safeParse({ roles: [] }).success).toBe(false);
   expect(updateMemberSchema.safeParse({ roles: ['artist', 'owner'] }).success).toBe(false);
+  expect(updateMemberSchema.safeParse({ rights: { canDownload: true } }).success).toBe(true);
 });
 
 test('label and management go together, production may upload and approve', () => {
-  expect(roleColumns({ roles: ['label', 'management'] })).toMatchObject({ canUpload: false, canApprove: true });
-  expect(roleColumns({ roles: ['producer'] })).toMatchObject({ role: 'producer', canUpload: true, canApprove: true });
+  expect(roleColumns({ roles: ['label', 'management'] })).toMatchObject({ canUpload: false, canApprove: true, canDownload: true, canInvite: true });
+  expect(roleColumns({ roles: ['label'] })).toMatchObject({ canDownload: false, canInvite: false });
+  expect(roleColumns({ roles: ['producer'] })).toMatchObject({ role: 'producer', canDownload: true, canUpload: true, canApprove: true });
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ask } from '$lib/stores/confirm.js';
   import { t, locale } from '$lib/i18n/index.js';
-  import { ROLE_LABELS, PROJECT_ROLES, type ProjectRole } from '@music-hub/shared';
+  import { ROLE_LABELS, PROJECT_ROLES, type MemberRights, type ProjectRole } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import { formatDate } from '$lib/utils/format.js';
@@ -24,23 +24,23 @@
     open = $bindable(false),
     projectId,
     projectName,
-    roles,
+    rights,
     archived,
     tracks,
   }: {
     open: boolean;
     projectId: string;
     projectName: string;
-    roles: string[];
+    rights: MemberRights | null;
     archived: boolean;
     tracks: { id: string; name: string }[];
   } = $props();
 
   const DAY = 24 * 60 * 60 * 1000;
   // The API caps a link at the creator's rights; the dialog doesn't offer more either
-  const may = $derived(capabilities(roles));
+  const may = $derived(capabilities(rights));
   const canComment = $derived(may.canComment && !archived);
-  const canInvite = $derived(roles.includes('owner') || roles.includes('management'));
+  const canInvite = $derived(may.canInvite);
   const assignableRoles = PROJECT_ROLES.filter((r) => r !== 'owner');
 
   let link = $state<Link | null>(null);

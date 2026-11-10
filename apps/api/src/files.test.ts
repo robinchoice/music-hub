@@ -58,10 +58,10 @@ beforeAll(async () => {
   projectId = project.id;
   otherProjectId = other.id;
   await db.insert(projectMembers).values([
-    { projectId, userId: owner.id, role: 'owner', canUpload: true, canComment: true, canApprove: true },
-    { projectId, userId: producer.id, role: 'producer', canUpload: true, canComment: true, canApprove: false },
+    { projectId, userId: owner.id, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true },
+    { projectId, userId: producer.id, role: 'producer', canDownload: true, canUpload: true, canComment: true, canApprove: false },
     { projectId, userId: viewer.id, role: 'viewer', canUpload: false, canComment: false, canApprove: false },
-    { projectId: otherProjectId, userId: owner.id, role: 'owner', canUpload: true, canComment: true, canApprove: true },
+    { projectId: otherProjectId, userId: owner.id, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true },
   ]);
   const [track] = await db.insert(tracks).values({ projectId, name: 'Roller', createdById: owner.id }).returning();
   trackId = track.id;

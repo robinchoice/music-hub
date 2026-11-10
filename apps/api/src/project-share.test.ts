@@ -36,7 +36,7 @@ async function person(name: string) {
 
 async function project(ownerId: string) {
   const [p] = await db.insert(projects).values({ name: 'Nachtbus EP', artist: 'Fernlicht', createdById: ownerId }).returning();
-  await db.insert(projectMembers).values({ projectId: p.id, userId: ownerId, role: 'owner', canUpload: true, canComment: true, canApprove: true });
+  await db.insert(projectMembers).values({ projectId: p.id, userId: ownerId, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true });
   return p.id;
 }
 
@@ -181,7 +181,7 @@ test('a link pauses while its creator is out of the project', async () => {
   const projectId = await project(owner.id);
   await track(projectId, owner.id, 'Nachtbus', 1, 'ready');
   const mixer = await person('Lea');
-  await db.insert(projectMembers).values({ projectId, userId: mixer.id, role: 'mixing_engineer', canUpload: true, canComment: true, canApprove: false });
+  await db.insert(projectMembers).values({ projectId, userId: mixer.id, role: 'mixing_engineer', canDownload: true, canUpload: true, canComment: true, canApprove: false });
   const created = await call(`/share/project/${projectId}`, { method: 'POST', body: {}, headers: mixer.headers });
   const { link } = (await created.json()) as { link: Link };
   expect(typeof (await album(link.token))).toBe('object');

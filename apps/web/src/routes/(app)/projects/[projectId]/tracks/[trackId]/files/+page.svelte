@@ -16,6 +16,7 @@
   import StemList, { type Stem, type GuestNote } from '../components/StemList.svelte';
   import TrackFiles from '../components/TrackFiles.svelte';
   import { capabilities, isProcessing, versionTitle, type Version } from '$lib/utils/track.js';
+  import type { MemberRights } from '@music-hub/shared';
   import { trackHref } from '$lib/utils/overview.js';
   import { formatTime, formatWhen } from '$lib/utils/format.js';
   import { artistOf, musicCrumbs } from '$lib/utils/music.js';
@@ -27,7 +28,7 @@
 
   let project = $state<{ name: string; isArchived: boolean } | null>(null);
   let track = $state<{ name: string; coverUrl: string | null } | null>(null);
-  let roles = $state<string[]>([]);
+  let rights = $state<MemberRights | null>(null);
   let role = $state('');
   let versions = $state<Version[]>([]);
   let stems = $state<Stem[]>([]);
@@ -38,7 +39,7 @@
   let loading = $state(true);
   let missing = $state(false);
 
-  const can = $derived(capabilities(roles));
+  const can = $derived(capabilities(rights));
   const canUpload = $derived(can.canUpload && !project?.isArchived);
   const trackFiles = $derived(files.filter((f) => f.trackId === trackId));
   const ix = $derived($overviewIndex);
@@ -50,7 +51,7 @@
     void loadOverview();
     try {
       const [projectRes, tracksRes, versionRes, stemsRes] = await Promise.all([
-        api.get<{ project: { name: string; isArchived: boolean }; role: string; roles: string[] }>(`/projects/${projectId}`, true),
+        api.get<{ project: { name: string; isArchived: boolean }; role: string; roles: string[]; rights: MemberRights }>(`/projects/${projectId}`, true),
         api.get<{ tracks: { id: string; name: string; coverUrl: string | null }[] }>(`/tracks/project/${projectId}`, true),
         api.get<{ versions: Version[] }>(`/versions/track/${trackId}`, true),
         api.get<{ stems: Stem[]; guestNotes?: GuestNote[] }>(`/stems/track/${trackId}`, true),
@@ -62,7 +63,7 @@
       }
       project = projectRes.project;
       role = projectRes.role;
-      roles = projectRes.roles;
+      rights = projectRes.rights;
       track = { name: found.name, coverUrl: found.coverUrl ?? null };
       projectTracks = tracksRes.tracks.map(({ id, name }) => ({ id, name }));
       versions = versionRes.versions;
@@ -97,7 +98,7 @@
   }
 </script>
 
-<TopBar crumbs={[...musicCrumbs(artist, { id: projectId, name: project?.name ?? '…' }, true), { label: track?.name ?? '…' }]}>
+<TopBar settingsHref="/projects/{projectId}/settings" crumbs={[...musicCrumbs(artist, { id: projectId, name: project?.name ?? '…' }, true), { label: track?.name ?? '…' }]}>
   {#snippet actions()}
     {#if !missing}
       <Button size="sm" href={player}><Icon name="play" size={14} /> {m.openPlayer}</Button>

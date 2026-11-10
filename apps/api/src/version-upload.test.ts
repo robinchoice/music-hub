@@ -34,7 +34,7 @@ beforeAll(async () => {
   for (const name of ['Upload target', 'Other project']) {
     const [project] = await db.insert(projects).values({ name, createdById: userIds[0] }).returning();
     await db.insert(projectMembers).values([
-      { projectId: project.id, userId: userIds[0], role: 'owner', canUpload: true },
+      { projectId: project.id, userId: userIds[0], role: 'owner', canDownload: true, canInvite: true, canUpload: true },
       { projectId: project.id, userId: userIds[1], role: 'viewer', canUpload: false },
     ]);
     const [track] = await db.insert(tracks).values({ projectId: project.id, name: 'Letzte Bahn', createdById: userIds[0] }).returning();

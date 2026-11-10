@@ -32,9 +32,9 @@ beforeAll(async () => {
   [{ id: bandProject }] = await db.insert(projects).values({ name: 'Fernlicht', artist: 'Fernlicht', createdById: owner }).returning();
   [{ id: remixProject }] = await db.insert(projects).values({ name: 'Mara solo', createdById: remixer }).returning();
   await db.insert(projectMembers).values([
-    { projectId: bandProject, userId: owner, role: 'owner', canUpload: true },
+    { projectId: bandProject, userId: owner, role: 'owner', canDownload: true, canInvite: true, canUpload: true },
     { projectId: bandProject, userId: singer, role: 'artist', canUpload: true },
-    { projectId: remixProject, userId: remixer, role: 'owner', canUpload: true },
+    { projectId: remixProject, userId: remixer, role: 'owner', canDownload: true, canInvite: true, canUpload: true },
   ]);
   [{ id: trackId }] = await db.insert(tracks).values({ projectId: bandProject, name: 'Nachtbus', createdById: owner }).returning();
   await db.insert(versions).values({

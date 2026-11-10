@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { createDb, users, projects, projectMembers, tracks, versions, comments, shareLinks } from '@music-hub/db';
 import { putObject } from '../storage/s3.js';
 import { processVersion } from '../services/audio-processor.js';
+import { rightsOfRoles } from '@music-hub/shared';
 
 const email = process.argv[2];
 const audioPath = process.argv[3] || '/tmp/musichub-demo.wav';
@@ -56,9 +57,7 @@ await db.insert(projectMembers).values({
   projectId: project.id,
   userId: user.id,
   role: 'owner',
-  canUpload: true,
-  canComment: true,
-  canApprove: true,
+  ...rightsOfRoles(['owner']),
 });
 
 console.log('→ Track "Hauptmix"');

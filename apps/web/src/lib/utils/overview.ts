@@ -2,7 +2,7 @@
 import { t } from '$lib/i18n/index.js';
 import { formatDate, formatTime, initials, isoWeek } from './format.js';
 
-import { hasPermission, PROJECT_ROLES, REJECTION_PREFIX, type TrackStatus } from '@music-hub/shared';
+import { REJECTION_PREFIX, type MemberRights, type TrackStatus } from '@music-hub/shared';
 import { isDecided, isProcessing } from './track.js';
 
 export type { TrackStatus };
@@ -25,7 +25,9 @@ export type OverviewProject = {
   coverUrl: string | null;
   myRole: string;
   myRoles: string[];
-  members: { userId: string; role: string; roles: string[] }[];
+  /** The switches of my membership; an overview cached by an older API has none */
+  myRights?: MemberRights;
+  members: { userId: string; role: string; roles: string[]; canApprove?: boolean }[];
   /** Last visit of the project page; before the first one the old visit of any project counts */
   seenAt?: string | null;
 };
@@ -97,10 +99,6 @@ export type OverviewData = {
   tracksSeenAt: string | null;
 };
 
-/** Roles whose feedback a version waits for */
-export const FEEDBACK_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermission(r, 'version.approve'));
-/** Roles that may upload versions */
-export const UPLOAD_ROLES: string[] = PROJECT_ROLES.filter((r) => hasPermission(r, 'track.upload'));
 
 const DAY = 86_400_000;
 const ms = (iso: string) => new Date(iso).getTime();
@@ -308,7 +306,8 @@ export function trackInfo(ix: OverviewIndex, track: OverviewTrack): TrackInfo {
   } else {
     stage = { key: 'feedback', text: text.feedback };
     turn = project.members
-      .filter((m) => m.roles.some((r) => FEEDBACK_ROLES.includes(r)) && m.userId !== latest.createdById)
+      // Whose feedback a version waits for: everyone who may approve
+      .filter((m) => m.canApprove && m.userId !== latest.createdById)
       .map((m) => m.userId);
     if (latest.hasActiveShareLink) {
       const names = new Set<string>();
@@ -437,7 +436,7 @@ export function tasksFor(ix: OverviewIndex): Task[] {
     const comments = ix.commentsOf.get(v.id) ?? [];
     if (v.createdById !== ix.me) {
       const heard = comments.some((c) => c.userId === ix.me);
-      if (v.status === 'ready' && info.project.myRoles.some((r) => FEEDBACK_ROLES.includes(r)) && !heard) {
+      if (v.status === 'ready' && info.project.myRights?.canApprove && !heard) {
         out.push({ kind: 'listen', key: `listen:${v.id}`, at: v.createdAt, info, version: v });
       }
     } else if (v.status === 'rejected') {

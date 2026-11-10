@@ -161,7 +161,7 @@ export function makeViewer(projectId: string, userId: string) {
   bun(`
     import { and, eq } from 'drizzle-orm';
     import { projectMembers } from '@music-hub/db';
-    await db.update(projectMembers).set({ role: 'viewer', extraRoles: [], canUpload: false }).where(and(eq(projectMembers.projectId, ${JSON.stringify(projectId)}), eq(projectMembers.userId, ${JSON.stringify(userId)})));
+    await db.update(projectMembers).set({ role: 'viewer', extraRoles: [], canUpload: false, canDownload: false, canComment: false, canApprove: false, canInvite: false }).where(and(eq(projectMembers.projectId, ${JSON.stringify(projectId)}), eq(projectMembers.userId, ${JSON.stringify(userId)})));
   `);
 }
 

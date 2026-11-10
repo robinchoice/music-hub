@@ -3,13 +3,18 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { getContext } from 'svelte';
   import { t } from '$lib/i18n/index.js';
+  import { user } from '$lib/stores/auth.js';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
 
   let {
     crumbs = [],
     actions,
+    settingsHref,
   }: {
     crumbs?: { label: string; href?: string }[];
     actions?: Snippet;
+    // The settings of the project the page belongs to, as a gear after the path
+    settingsHref?: string;
   } = $props();
 
   const openMobileMenu = getContext<() => void>('openMobileMenu');
@@ -36,11 +41,22 @@
       {/if}
     {/each}
   </nav>
+  {#if settingsHref}
+    <a class="gear" href={settingsHref} title={t().workspace.projectPage.settingsMembers} aria-label={t().workspace.projectPage.settingsMembers}>
+      <Icon name="settings" size={16} />
+    </a>
+  {/if}
 
   {#if actions}
     <div class="actions">
       {@render actions()}
     </div>
+  {/if}
+  <!-- Phones have no sidebar in view: the account settings sit behind the avatar -->
+  {#if $user}
+    <a class="me" href="/account" title={t().workspace.sidebar.settings} aria-label={t().workspace.sidebar.settings}>
+      <Avatar name={$user.name} src={$user.avatarUrl ?? null} size="sm" />
+    </a>
   {/if}
 </header>
 
@@ -105,6 +121,33 @@
     flex-shrink: 0;
   }
 
+  /* Right after the path: the path only takes the room it needs */
+  .topbar:has(.gear) .crumbs {
+    flex: 0 1 auto;
+  }
+  .gear {
+    display: inline-flex;
+    margin-right: auto;
+    margin-left: calc(-1 * var(--space-2));
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-tertiary);
+  }
+  .gear:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-raised);
+  }
+
+  .me {
+    display: none;
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+  }
+
   .up {
     display: none;
     align-items: center;
@@ -139,7 +182,8 @@
       --topbar-height: 57px;
       padding: 0 var(--space-4);
     }
-    .hamburger {
+    .hamburger,
+    .me {
       display: inline-flex;
     }
     /* Hide all but the last crumb on tight viewports */

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { comments, createDb, imports as importRows, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
-import { DELIVERY_ERRORS, formatEuro } from '@music-hub/shared';
+import { DELIVERY_ERRORS, formatEuro, rightsOfRoles } from '@music-hub/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -181,6 +181,32 @@ test('projects lists the own projects with roles and tracks', async () => {
   expect((await cli(['projects', '--archived'])).out).toBe('Altbau · Listen only · 0 tracks');
 });
 
+test('members lists roles and rights, the owner allows and denies single rights', async () => {
+  const [ada, ben] = [await person('Ada'), await person('Ben')];
+  const owner = await device();
+  const other = await device();
+  await owner.cli(['login'], { approveAs: ada.browser });
+  await other.cli(['login'], { approveAs: ben.browser });
+  const [fernlicht] = await db.insert(projects).values({ name: 'Fernlicht', createdById: ada.id }).returning();
+  await db.insert(projectMembers).values([
+    { projectId: fernlicht!.id, userId: ada.id, role: 'owner', ...rightsOfRoles(['owner']) },
+    { projectId: fernlicht!.id, userId: ben.id, role: 'label', ...rightsOfRoles(['label']) },
+  ]);
+
+  expect((await owner.cli(['members', '--project', 'Fernlicht'])).out).toBe(
+    [`Ada <${ada.email}> · Owner · upload, download, comment, approve, invite`, `Ben <${ben.email}> · Label · comment, approve`].join('\n'),
+  );
+  const set = await owner.cli(['members', 'set', ben.email, '--project', 'Fernlicht', '--allow', 'download', '--deny', 'approve,comment', '--json']);
+  expect(set.code).toBe(0);
+  expect(set.json()).toMatchObject({ member: { roles: ['label'], canDownload: true, canApprove: false, canComment: false } });
+  expect((await other.cli(['members', 'set', ada.email, '--project', 'Fernlicht', '--deny', 'download'])).code).toBe(1);
+  expect((await owner.cli(['members', 'set', ben.email, '--project', 'Fernlicht', '--allow', 'fly'])).code).toBe(2);
+  expect(await owner.cli(['members', 'set', 'nobody@example.com', '--project', 'Fernlicht', '--allow', 'upload'])).toMatchObject({
+    code: 1,
+    err: texts.noSuchMember('nobody@example.com', 'Fernlicht'),
+  });
+});
+
 test('share prints the own link of a project, found by name or ID', async () => {
   const ada = await person();
   const { cli } = await device();
@@ -318,7 +344,7 @@ test('the entry point passes the exit code to the shell', async () => {
 // A project of its owner with songs, in this order
 async function projectWithTracks(owner: { id: string }, name: string, songs: string[]) {
   const [project] = await db.insert(projects).values({ name, createdById: owner.id }).returning();
-  await db.insert(projectMembers).values({ projectId: project!.id, userId: owner.id, role: 'owner', canUpload: true });
+  await db.insert(projectMembers).values({ projectId: project!.id, userId: owner.id, role: 'owner', ...rightsOfRoles(['owner']) });
   const rows = await db
     .insert(tracks)
     .values(songs.map((song, i) => ({ projectId: project!.id, name: song, sortOrder: i, createdById: owner.id })))

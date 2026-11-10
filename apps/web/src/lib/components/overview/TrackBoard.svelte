@@ -23,7 +23,7 @@
   const targets = TRACK_STATUSES.filter((s) => s !== 'in_progress');
   const label = (s: TrackStatus) => TRACK_STATUS_LABELS[locale()][s];
   const nextOf = (s: TrackStatus): TrackStatus | undefined => (s === 'in_progress' ? 'recording' : targets[targets.indexOf(s) + 1]);
-  const mayMove = (info: TrackInfo) => capabilities(info.project.myRoles).canUpload;
+  const mayMove = (info: TrackInfo) => capabilities(info.project.myRights).canUpload;
 
   let dragging = $state<TrackInfo | null>(null);
   let over = $state<TrackStatus | null>(null);

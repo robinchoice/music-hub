@@ -53,6 +53,9 @@ export const projectMembers = pgTable(
     canUpload: boolean('can_upload').default(false).notNull(),
     canComment: boolean('can_comment').default(true).notNull(),
     canApprove: boolean('can_approve').default(false).notNull(),
+    // Downloading originals and inviting: preset by the roles like the three above (rightsOfRoles)
+    canDownload: boolean('can_download').default(false).notNull(),
+    canInvite: boolean('can_invite').default(false).notNull(),
     invitedAt: timestamp('invited_at').defaultNow().notNull(),
     // Leaving the project page; newer activity there shows as new. Null: users.tracks_seen_at counts
     seenAt: timestamp('seen_at'),

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { Hono } from 'hono';
 import { and, eq, inArray } from 'drizzle-orm';
 import { createDb, migrateDb, projectMembers, projects, sessions, shareLinks, stems, tracks, users, versions } from '@music-hub/db';
+import { rightsOfRoles } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
 import type { AppEnv } from './types.js';
 
@@ -57,7 +58,7 @@ const version = async (trackId: string, versionNumber: number, createdById: stri
   return v.id;
 };
 const setRole = (userId: string, role: 'viewer' | 'producer', canComment: boolean) =>
-  db.update(projectMembers).set({ role, canComment, canUpload: role === 'producer', canApprove: role === 'producer' })
+  db.update(projectMembers).set({ role, ...rightsOfRoles([role]), canComment })
     .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
 
 beforeAll(async () => {
@@ -66,11 +67,11 @@ beforeAll(async () => {
   const [project] = await db.insert(projects).values({ name: 'Fernlicht', createdById: owner.id }).returning();
   projectId = project.id;
   await db.insert(projectMembers).values([
-    { projectId, userId: owner.id, role: 'owner', canUpload: true, canComment: true, canApprove: true },
-    { projectId, userId: producer.id, role: 'producer', canUpload: true, canComment: true, canApprove: true },
-    { projectId, userId: engineer.id, role: 'mixing_engineer', canUpload: true, canComment: true, canApprove: false },
-    { projectId, userId: label.id, role: 'label', canUpload: false, canComment: true, canApprove: true },
-    { projectId, userId: viewer.id, role: 'viewer', canUpload: false, canComment: false, canApprove: false },
+    { projectId, userId: owner.id, role: 'owner', ...rightsOfRoles(['owner']) },
+    { projectId, userId: producer.id, role: 'producer', ...rightsOfRoles(['producer']) },
+    { projectId, userId: engineer.id, role: 'mixing_engineer', ...rightsOfRoles(['mixing_engineer']) },
+    { projectId, userId: label.id, role: 'label', ...rightsOfRoles(['label']) },
+    { projectId, userId: viewer.id, role: 'viewer', ...rightsOfRoles(['viewer']) },
   ]);
   const [track] = await db.insert(tracks).values({ projectId, name: 'Nachtbus', createdById: owner.id }).returning();
   trackId = track.id;
@@ -100,6 +101,19 @@ test('stems and the ZIP follow the same right', async () => {
   expect((await call(`/stems/${stemId}/download-url`, { headers: viewer.headers })).status).toBe(403);
   expect((await call(`/stems/track/${trackId}/download-zip`, { headers: label.headers })).status).toBe(403);
   expect((await call(`/stems/${stemId}/download-url`, { headers: producer.headers })).status).toBe(200);
+});
+
+test('the download switch of a person counts, not their role', async () => {
+  const setDownload = (userId: string, canDownload: boolean) =>
+    db.update(projectMembers).set({ canDownload }).where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+  await setDownload(viewer.id, true);
+  await setDownload(producer.id, false);
+  expect((await call(`/versions/${versionId}/download-url`, { headers: viewer.headers })).status).toBe(200);
+  expect((await call(`/stems/${stemId}/download-url`, { headers: viewer.headers })).status).toBe(200);
+  expect((await call(`/versions/${versionId}/download-url`, { headers: producer.headers })).status).toBe(403);
+  expect((await call(`/stems/track/${trackId}/download-zip`, { headers: producer.headers })).status).toBe(403);
+  await setDownload(viewer.id, false);
+  await setDownload(producer.id, true);
 });
 
 test('a version is renamed by its uploader or the owner, not by another uploader', async () => {

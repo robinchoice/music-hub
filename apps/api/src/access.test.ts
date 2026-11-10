@@ -49,7 +49,7 @@ beforeAll(async () => {
   const [project] = await db.insert(projects).values({ name: 'Fernlicht', createdById: owner }).returning();
   projectId = project.id;
   await db.insert(projectMembers).values([
-    { projectId, userId: owner, role: 'owner', canUpload: true, canComment: true, canApprove: true },
+    { projectId, userId: owner, role: 'owner', canDownload: true, canInvite: true, canUpload: true, canComment: true, canApprove: true },
     { ...artistMembership, projectId, userId: artist },
   ]);
   const [track] = await db.insert(tracks).values({ projectId, name: 'Nachtbus', createdById: owner }).returning();

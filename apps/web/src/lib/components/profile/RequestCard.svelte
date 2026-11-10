@@ -10,7 +10,7 @@
   import Modal from '$lib/components/ui/Modal.svelte';
   import { formatWhen } from '$lib/utils/format.js';
 
-  type Membership = { project: { id: string; name: string }; role: string };
+  type Membership = { project: { id: string; name: string }; role: string; rights: { canInvite: boolean } };
 
   let { request }: { request: ContactRequest } = $props();
   const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
@@ -39,7 +39,7 @@
 
   async function chooseProject() {
     const res = await api.get<{ projects: Membership[] }>('/projects');
-    projects = res.projects.filter((p) => (p.role === 'owner' || p.role === 'management') && !request.sharedProjectIds.includes(p.project.id));
+    projects = res.projects.filter((p) => p.rights.canInvite && !request.sharedProjectIds.includes(p.project.id));
     target = projects[0]?.project.id ?? '';
     inviteOpen = true;
   }

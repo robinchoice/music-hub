@@ -14,6 +14,7 @@ import {
   shareLinks,
   type Database,
 } from '@music-hub/db';
+import { rightsOfRoles } from '@music-hub/shared';
 import { putObject } from '../storage/s3.js';
 import { enqueueAudioJob, waitForAudioJobs } from '../services/audio-jobs.js';
 
@@ -67,9 +68,7 @@ export async function createDemoProject(db: Database, userId: string): Promise<s
     projectId: project.id,
     userId,
     role: 'owner',
-    canUpload: true,
-    canComment: true,
-    canApprove: true,
+    ...rightsOfRoles(['owner']),
   });
 
   // Track

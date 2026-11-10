@@ -33,7 +33,8 @@ test('the project header fits the screen and "Mix hochladen" opens the file dial
     return;
   }
   for (const name of ['Einstellungen', 'Upload-Link', 'Neuer Track']) {
-    const action = page.getByRole('button', { name }).or(page.getByRole('link', { name }));
+    const header = page.getByRole('main');
+    const action = header.getByRole('button', { name }).or(header.getByRole('link', { name }));
     await expect(action).toBeVisible();
     await expect(action).toHaveAttribute('title', name);
   }
