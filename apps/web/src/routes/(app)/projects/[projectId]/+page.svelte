@@ -29,9 +29,10 @@
   import { overviewIndex, overviewFailed, loadOverview, markProjectSeen } from '$lib/stores/overview.js';
   import { trashDaysLeft } from '$lib/utils/format.js';
   import { UPLOAD_ROLES, projectGroups, type TrackInfo } from '$lib/utils/overview.js';
-  import { artistOf, musicCrumbs } from '$lib/utils/music.js';
+  import { artistOf, musicCrumbs, trackFolder } from '$lib/utils/music.js';
+  import FolderList from '$lib/components/workspace/FolderList.svelte';
 
-  type Track = { id: string; name: string; section: string | null };
+  type Track = { id: string; name: string; section: string | null; coverUrl?: string | null };
 
   type Group = { name: string; list: TrackInfo[] };
 
@@ -97,6 +98,11 @@
   const group = $derived(ix ? projectGroups(ix).find((g) => g.project.id === projectId) : undefined);
   const artist = $derived(group ? artistOf(group.project) : '');
   const sections = $derived(group ? groupBySection(group.active) : []);
+  const trackFolders = $derived.by(() => {
+    const infoOf = new Map((group?.list ?? []).map((i) => [i.track.id, i]));
+    return tracks.map((tr) => trackFolder(projectId!, tr, infoOf.get(tr.id), files.filter((f) => f.trackId === tr.id).length));
+  });
+  const looseFiles = $derived(files.filter((f) => !f.trackId || !tracks.some((tr) => tr.id === f.trackId)));
   const wanted = $derived($page.url.searchParams.get('view'));
   // The delivery (Auftrag) is the owner's business
   const view = $derived(
@@ -348,7 +354,14 @@
   {#if view === 'auftrag' && projectId && !loading}
     <DeliveryPanel {projectId} {tracks} />
   {:else if view === 'dateien' && projectId}
-    <ProjectFiles {projectId} {files} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
+    <!-- Like a drive: the tracks as folders, then the files that belong to no track -->
+    <div class="drive">
+      {#if trackFolders.length}<FolderList folders={trackFolders} />{/if}
+      {#if looseFiles.length || !trackFolders.length}
+        {#if trackFolders.length}<h2 class="drive-title">{t().workspace.music.filesTitle}</h2>{/if}
+        <ProjectFiles {projectId} files={looseFiles} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
+      {/if}
+    </div>
   {:else if project?.isArchived}
     <!-- The overview leaves archived projects out, so their tracks come straight from the track list -->
     {#if tracks.length}
@@ -631,6 +644,18 @@
 
 
 
+  .drive {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .drive-title {
+    margin: var(--space-4) 0 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-stretch: normal;
+    letter-spacing: 0;
+  }
   .tabs {
     margin-bottom: var(--space-5);
   }

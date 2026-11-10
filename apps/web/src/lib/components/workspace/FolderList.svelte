@@ -14,7 +14,12 @@
     note?: (folder: Folder) => string;
   } = $props();
 
-  const contents = (f: Folder) => (f.kind === 'artist' ? t().workspace.music.projects(f.count) : t().workspace.music.tracks(f.count));
+  function contents(f: Folder) {
+    const m = t().workspace.music;
+    if (f.kind === 'artist') return m.projects(f.count);
+    if (f.kind === 'project') return m.tracks(f.count);
+    return f.files ? `${m.versions(f.count)} · ${m.files(f.files)}` : m.versions(f.count);
+  }
 </script>
 
 <div class="folders">
@@ -30,6 +35,8 @@
         <a href={folder.href} class="folder" data-kind={folder.kind}>
           {#if folder.kind === 'artist'}
             <span class="icon" title={t().workspace.music.artist}><Icon name="user" size={16} /></span>
+          {:else if folder.kind === 'track' && !folder.coverUrl}
+            <span class="icon"><Icon name="folder" size={16} /></span>
           {:else}
             <CoverImage src={folder.coverUrl} name={folder.name} size="sm" rounded="sm" />
           {/if}
@@ -59,13 +66,13 @@
   .head,
   .folder {
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) 9rem 10rem;
+    grid-template-columns: 32px minmax(0, 1fr) 11rem 10rem;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
   }
   .head {
-    grid-template-columns: minmax(0, 1fr) 9rem 10rem;
+    grid-template-columns: minmax(0, 1fr) 11rem 10rem;
     padding-left: calc(var(--space-3) + 32px + var(--space-3));
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);

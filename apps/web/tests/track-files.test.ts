@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addFile, addVersion, logIn, removeUser } from './session.js';
+import { addFile, addStem, addVersion, logIn, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -33,4 +33,37 @@ test('a track lists the files filed next to it and takes new ones', async ({ pag
   await (await chooser).setFiles({ name: 'Lyrics.txt', mimeType: 'text/plain', buffer: Buffer.from('la la') });
   await expect(page.locator('.toast-container')).toContainText('Datei hochgeladen');
   expect(sent).toMatchObject({ fileKey: 'test/lyrics.txt', originalFileName: 'Lyrics.txt', trackId: track.id });
+});
+
+test('a project opens from Meine Musik with its tracks as folders of versions, stems and files', async ({ page, isMobile }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP', artist: 'Tiefgang' } })).json();
+  const track = (await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json()).track;
+  await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Intro' } });
+  addVersion(track.id, userId, 'ready');
+  addStem(track.id, userId, 'Bass');
+  addFile(project.id, track.id, userId, 'Letzte Bahn.als');
+  addFile(project.id, null, userId, 'Cover.psd');
+
+  await page.goto('/artists/Tiefgang');
+  await page.locator('.folders .folder').filter({ hasText: 'Nachtbus EP' }).click();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}\?view=dateien$/);
+  const folders = page.locator('.folders .folder');
+  await expect(folders.locator('.name b')).toHaveText(['Letzte Bahn', 'Intro']);
+  if (!isMobile) await expect(folders.locator('.contents')).toHaveText(['1 Version · 1 Datei', '0 Versionen']);
+  // Files of a track sit in its folder, the project keeps the rest
+  await expect(page.locator('ul.files li b')).toHaveText(['Cover.psd']);
+
+  await folders.filter({ hasText: 'Letzte Bahn' }).click();
+  await expect(page).toHaveURL(new RegExp(`/tracks/${track.id}/files$`));
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Letzte Bahn');
+  await expect(page.getByRole('region', { name: /Versionen/ }).locator('.version b')).toHaveText(['V1 · mix']);
+  await expect(page.getByRole('region', { name: /Spuren/ })).toContainText('Bass');
+  await expect(page.getByRole('region', { name: /Dateien/ }).locator('ul.files li b')).toHaveText(['Letzte Bahn.als']);
+  if (!isMobile) {
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByRole('link')).toHaveText(['Meine Musik', 'Tiefgang', 'Nachtbus EP']);
+  }
+
+  await page.getByRole('link', { name: 'Im Player öffnen' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${project.id}/tracks/${track.id}$`));
 });

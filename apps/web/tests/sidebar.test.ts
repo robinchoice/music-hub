@@ -42,7 +42,8 @@ test('Meine Musik opens like a drive: artist, project, track', async ({ page, is
   await expect(folders(page).locator('.contents')).toHaveText(['2 Tracks', '0 Tracks']);
 
   await folders(page).filter({ hasText: 'Nachtbus EP' }).click();
-  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}\?view=dateien$/);
+  await expect(folders(page).locator('.name b')).toHaveText(['Letzte Bahn', 'Intro']);
   // Phones show only the last crumb
   if (!isMobile) {
     const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
