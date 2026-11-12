@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { audioJobs, createDb, migrateDb, projects, tracks, users, versions } from '@music-hub/db';
-import { analyzeNextVersion, parseMusicAnalysis } from './services/audio-processor.js';
+import { analyzeNextVersion, measureNextVersion, parseMusicAnalysis } from './services/audio-processor.js';
 
 // Lines as music-analysis.ts prints them (essentia.js 0.1.3)
 const line = (bpm: number, bpmConfidence: number, key: string, scale: string, keyStrength: number) =>
@@ -115,3 +115,26 @@ test('a correction by hand during the analysis wins', async () => {
   expect(await analysis).toBe(true);
   expect(await stored(corrected.id)).toMatchObject({ bpm: 84, keyRoot: null });
 }, 10_000);
+
+// As mix-measurement.ts prints it
+const measured = { bands: Array(31).fill(-30), correlation: 0.8, width: 0.12, monoLossLu: 0.4, monoLossBands: Array(31).fill(0.5) };
+
+test('measures the newest version on its own mark and stores the values', async () => {
+  const older = await version({}, 5000);
+  const newer = await version({ analyzedAt: new Date() }, 5001);
+  fakeAnalysis(`console.log('${JSON.stringify(measured)}')`);
+  expect(await measureNextVersion(db, new AbortController().signal)).toBe(true);
+  expect(await stored(newer.id)).toMatchObject({ measurements: measured });
+  expect((await stored(newer.id)).measuredAt).not.toBeNull();
+  expect((await stored(older.id)).measuredAt).toBeNull();
+  // Tempo and key are marked apart
+  expect((await stored(older.id)).analyzedAt).toBeNull();
+});
+
+test('a failed measurement leaves the version marked without values', async () => {
+  const failing = await version({}, 6000);
+  fakeAnalysis(`console.log('{"bands":[]}')`);
+  expect(await measureNextVersion(db, new AbortController().signal)).toBe(true);
+  expect(await stored(failing.id)).toMatchObject({ measurements: null });
+  expect((await stored(failing.id)).measuredAt).not.toBeNull();
+});

@@ -1,9 +1,10 @@
 // Helpers for the track page.
-import { REVIEW_PASS_HOURS, type MemberRights, type ReviewVerdict } from '@music-hub/shared';
+import { REVIEW_PASS_HOURS, type Measurements, type MemberRights, type ReviewVerdict } from '@music-hub/shared';
 import { dateLocale, t } from '$lib/i18n/index.js';
 import { formatLufs, formatTruePeak } from './format.js';
 
 export type { ReviewVerdict } from '@music-hub/shared';
+export { predecessorOf } from '@music-hub/shared';
 
 export type Version = {
   id: string;
@@ -23,6 +24,8 @@ export type Version = {
   bpm?: number | null;
   keyRoot?: string | null;
   keyScale?: string | null;
+  /** Spectrum and stereo image from the worker; missing from an older API */
+  measurements?: Measurements | null;
   createdAt: string;
   parentVersionId: string | null;
   branchLabel: string | null;
@@ -70,26 +73,7 @@ export type TrackComment = {
 
 export type Reaction = { emoji: string; users: { id: string; name: string }[] };
 
-type VersionRef = {
-  id: string;
-  versionNumber: number;
-  parentVersionId?: string | null;
-  branchLabel?: string | null;
-};
-
 type Timed = { id: string; timestampSeconds: number | null; createdAt: string };
-
-/** The version whose open comments carry over: a variant's parent, otherwise the previous mainline version. */
-export function predecessorOf<T extends VersionRef>(version: T, versions: T[]): T | null {
-  // Promoting a variant clears its branchLabel but keeps parentVersionId; it counts as mainline then.
-  if (version.parentVersionId && version.branchLabel) return versions.find((v) => v.id === version.parentVersionId) ?? null;
-  let best: T | null = null;
-  for (const v of versions) {
-    if (v.branchLabel || v.versionNumber >= version.versionNumber) continue;
-    if (!best || v.versionNumber > best.versionNumber) best = v;
-  }
-  return best;
-}
 
 // The worker still has the file: nothing to hear yet
 export const isProcessing = (v: { status: string }) => v.status === 'uploaded' || v.status === 'processing';

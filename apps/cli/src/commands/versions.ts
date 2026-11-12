@@ -1,6 +1,15 @@
 import { existsSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
-import { AUDIO_MIME_BY_EXTENSION, MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, VERSION_STATUSES } from '@music-hub/shared';
+import {
+  AUDIO_MIME_BY_EXTENSION,
+  compareMeasurements,
+  MAX_FILE_SIZE,
+  measurementsSchema,
+  predecessorOf,
+  SUPPORTED_EXTENSIONS,
+  THIRD_OCTAVE_HZ,
+  VERSION_STATUSES,
+} from '@music-hub/shared';
 import { z } from 'zod';
 import { type Command, EXIT, Failure, str } from '../command';
 import { SLUG } from '../config';
@@ -10,6 +19,23 @@ import { texts } from '../texts';
 const uploadSchema = z.object({ uploadUrl: z.string(), fileKey: z.string() });
 const createdSchema = z.object({ version: z.looseObject({ id: z.string(), versionNumber: z.number(), status: z.enum(VERSION_STATUSES) }) });
 const downloadSchema = z.object({ url: z.string() });
+// What the measurement needs of a version; an older API has no measurements
+const measuredSchema = z.object({
+  id: z.string(),
+  versionNumber: z.number(),
+  parentVersionId: z.string().nullable(),
+  branchLabel: z.string().nullable(),
+  integratedLufs: z.number().nullable(),
+  truePeak: z.number().nullable(),
+  measurements: measurementsSchema.nullable().optional().transform((m) => m ?? null),
+});
+
+const signed = (x: number, digits: number) => {
+  // + 0 turns a rounded −0 into 0
+  const r = Number(x.toFixed(digits)) + 0;
+  return `${r > 0 ? '+' : ''}${r.toFixed(digits)}`;
+};
+const hz = (f: number) => (f >= 1000 ? `${f / 1000}k` : String(f));
 
 export const mb = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 
@@ -41,6 +67,7 @@ export const versions: Command = {
     ['versions --project <name or ID> --track <name or ID>', texts.versionsHelp],
     ['versions upload <file> --project <…> --track <…> [--label <text>]', texts.versionsUploadHelp(SUPPORTED_EXTENSIONS.join(', '))],
     ['versions download --project <…> --track <…> [--version <n>] [--out <file>]', texts.versionsDownloadHelp],
+    ['versions measure --project <…> --track <…> [--version <n>]', texts.versionsMeasureHelp],
   ],
   positionals: true,
   options: { project: { type: 'string' }, track: { type: 'string' }, version: { type: 'string' }, label: { type: 'string' }, out: { type: 'string' } },
@@ -81,6 +108,39 @@ export const versions: Command = {
       const { url } = await api.get(`/versions/${version.id}/download-url`, downloadSchema);
       const bytes = await Bun.write(out, await bucket(url, {}));
       return { data: { version, file: out, bytes }, text: texts.downloaded(version.versionNumber, track.name, out, mb(bytes)) };
+    }
+    if (sub === 'measure' && !file) {
+      const found = await findVersion(api, values);
+      const list = found.versions.map((v) => measuredSchema.parse(v));
+      const version = list.find((v) => v.id === found.version.id)!;
+      const previous = predecessorOf(version, list);
+      const { measurements } = version;
+      const head = { project: found.project, track: found.track, version: { id: version.id, versionNumber: version.versionNumber } };
+      if (!measurements) return { data: { ...head, measurements: null }, text: texts.notMeasured(version.versionNumber, found.track.name) };
+      const comparison = previous?.measurements ? compareMeasurements({ ...version, measurements }, { ...previous, measurements: previous.measurements }) : null;
+      const against = comparison && previous ? previous.versionNumber : null;
+      const text = [
+        texts.measuredHead(version.versionNumber, found.track.name),
+        texts.stereoImage(measurements.width.toFixed(2), measurements.correlation.toFixed(2), measurements.monoLossLu.toFixed(1)),
+        texts.bandsHead(version.versionNumber, against),
+        ...THIRD_OCTAVE_HZ.map((f, i) =>
+          [hz(f).padEnd(6), measurements.bands[i]!.toFixed(1).padStart(7), comparison ? signed(comparison.bandDiffDb[i]!, 1).padStart(12) : ''].join('').trimEnd(),
+        ),
+        ...(comparison && against !== null
+          ? [
+              texts.comparedWith(
+                against,
+                comparison.lufsDiff === null ? null : signed(comparison.lufsDiff, 1),
+                comparison.crestDiffDb === null ? null : signed(comparison.crestDiffDb, 1),
+                signed(comparison.widthDiff, 2),
+              ),
+            ]
+          : []),
+      ].join('\n');
+      return {
+        data: { ...head, measurements, previous: previous && against !== null ? { id: previous.id, versionNumber: previous.versionNumber } : null, comparison },
+        text,
+      };
     }
     if (sub !== undefined) throw new Failure(texts.versionsUsage(SLUG), EXIT.usage);
 

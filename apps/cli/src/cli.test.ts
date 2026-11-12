@@ -615,3 +615,44 @@ test('referral prints the own link once a plan runs', async () => {
   expect(json).toMatchObject({ joined: 0, rewarded: 0, link: `${url}/register?ref=${json.code}` });
   expect((await cli(['referral'])).out.split('\n')[0]).toBe(json.link);
 });
+
+test('versions measure: spectrum and stereo image of a version against the one before', async () => {
+  const ada = await person();
+  const studio = await device();
+  await studio.cli(['login'], { approveAs: ada.browser });
+  const { tracks: [song] } = await projectWithTracks(ada, 'Messung', ['Dämmerung']);
+  const at = ['--project', 'Messung', '--track', 'Dämmerung'];
+  const version = (versionNumber: number, values: Partial<typeof versions.$inferInsert>) => ({
+    trackId: song!.id, createdById: ada.id, versionNumber, status: 'ready' as const,
+    originalFileKey: `measure-test/${versionNumber}`, originalFileName: `v${versionNumber}.wav`, mimeType: 'audio/wav', fileSize: 1, ...values,
+  });
+  const measured = (level: number, width: number) => ({ bands: Array(31).fill(level), correlation: 0.8, width, monoLossLu: 0.4, monoLossBands: Array(31).fill(0.5) });
+  await db.insert(versions).values(version(1, { integratedLufs: -16, truePeak: -1, measurements: measured(-30, 0.1) }));
+
+  expect(await studio.cli(['versions', 'measure', ...at])).toMatchObject({ code: 0 });
+  expect((await studio.cli(['versions', 'measure', ...at])).out.split('\n').slice(0, 3)).toEqual([
+    'V1 of Dämmerung',
+    'Stereo width 0.10 · correlation 0.80 · mono loss 0.4 LU',
+    'Hz      V1 dB',
+  ]);
+
+  // Two dB louder and a little brighter at 10 kHz: matched in loudness only the brightness is left
+  const bands = Array(31).fill(-28);
+  bands[27] = -25;
+  const [v2] = await db.insert(versions).values(version(2, { integratedLufs: -14, truePeak: -1, measurements: { ...measured(-28, 0.15), bands } })).returning();
+  const out = (await studio.cli(['versions', 'measure', ...at])).out.split('\n');
+  expect(out[2]).toBe('Hz      V2 dB    vs V1 dB');
+  expect(out[3]).toBe('20      -28.0         0.0');
+  expect(out[30]).toBe('10k     -25.0        +3.0');
+  expect(out.at(-1)).toBe('Against V1 at equal loudness: loudness +2.0 LU · crest -2.0 dB · width +0.05');
+  expect((await studio.cli(['versions', 'measure', ...at, '--json'])).json()).toMatchObject({
+    version: { id: v2!.id, versionNumber: 2 },
+    previous: { versionNumber: 1 },
+    comparison: { lufsDiff: 2, crestDiffDb: -2 },
+  });
+
+  // Until the worker has measured a version there is nothing to show
+  await db.insert(versions).values(version(3, {}));
+  expect(await studio.cli(['versions', 'measure', ...at])).toMatchObject({ code: 0, out: texts.notMeasured(3, 'Dämmerung') });
+  expect((await studio.cli(['versions', 'measure', ...at, '--json'])).json()).toMatchObject({ measurements: null });
+});

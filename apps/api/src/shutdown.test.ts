@@ -118,7 +118,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
         releaseAudioJob: async () => console.log('job-released'),
         renewAudioJob: async () => {}, retryAudioJob: async () => {}, finishAudioJob: async () => { throw new Error('Must not finish'); }, LEASE_MS: 300000,
       }));
-      mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, processVersion: async (db, id, signal) => {
+      mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, measureNextVersion: async () => false, processVersion: async (db, id, signal) => {
         console.log('processing-started');
         await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
         await db.execute('select pg_sleep(0.1)');
@@ -205,7 +205,7 @@ test('worker hands a failed job back for a later attempt', async () => {
       retryAudioJob: async (db, id) => console.log('job-retried ' + id),
       finishAudioJob: async () => { throw new Error('Must not finish'); },
     }));
-    mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, processVersion: async () => {
+    mock.module(${modulePath('services/audio-processor')}, () => ({ analyzeNextVersion: async () => false, measureNextVersion: async () => false, processVersion: async () => {
       throw new Error('ffmpeg failed');
     } }));
   `);

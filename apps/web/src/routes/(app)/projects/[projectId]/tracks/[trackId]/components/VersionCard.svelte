@@ -7,6 +7,7 @@
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
   import { fileDetails, hasWaveform, isDecided, versionTitle, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
+  import VersionMeasurements from './VersionMeasurements.svelte';
 
   let {
     version,
@@ -253,6 +254,9 @@
     <div class="player" class:grow>{@render player()}</div>
     {#if details.length}
       <p class="file">{#each details as d, i}{#if i}<span aria-hidden="true">·</span>{/if}<span title={d.title}>{d.text}</span>{/each}</p>
+    {/if}
+    {#if version.measurements}
+      <VersionMeasurements version={{ ...version, measurements: version.measurements }} {versions} />
     {/if}
   {/if}
   {@render feedback?.()}

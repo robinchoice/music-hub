@@ -1,4 +1,20 @@
 export const de = {
+  measurements: {
+    title: 'Messwerte',
+    spectrum: 'Terzspektrum',
+    spectrumLabel: (top: string) => `Terzspektrum von 20 Hz bis 20 kHz, lauteste Terz ${top}`,
+    width: 'Stereobreite',
+    widthHint: 'Seiten- zu Mittenenergie: 0 ist mono, 1 wie zwei unabhängige Kanäle',
+    correlation: 'Korrelation',
+    correlationHint: 'Wie ein Korrelationsgradmesser: 1 mono, 0 unabhängig, unter 0 gegenphasig',
+    monoLoss: 'Mono-Verlust',
+    monoLossHint: 'So viel leiser wird der Mix, wenn er mono abgespielt wird',
+    versus: (n: number) => `Gegenüber V${n}, gleich laut gemacht`,
+    versusLabel: (n: number) => `Unterschied je Terz gegenüber V${n} bei gleicher Lautheit`,
+    loudness: 'Lautheit',
+    crest: 'Crest-Faktor',
+    same: 'Kaum ein Unterschied im Klangbild',
+  },
   details: {
     sampleRate: 'Abtastrate',
     bitDepth: 'Bittiefe',
@@ -405,6 +421,22 @@ export const de = {
 };
 
 export const en: typeof de = {
+  measurements: {
+    title: 'Measurements',
+    spectrum: 'Third-octave spectrum',
+    spectrumLabel: (top: string) => `Third-octave spectrum from 20 Hz to 20 kHz, loudest band ${top}`,
+    width: 'Stereo width',
+    widthHint: 'Side over mid energy: 0 is mono, 1 like two independent channels',
+    correlation: 'Correlation',
+    correlationHint: 'As a phase correlation meter shows it: 1 mono, 0 independent, below 0 out of phase',
+    monoLoss: 'Mono loss',
+    monoLossHint: 'How much quieter the mix gets when played in mono',
+    versus: (n: number) => `Compared with V${n}, matched in loudness`,
+    versusLabel: (n: number) => `Difference per band from V${n} at equal loudness`,
+    loudness: 'Loudness',
+    crest: 'Crest factor',
+    same: 'Hardly any difference in tone',
+  },
   details: {
     sampleRate: 'Sample rate',
     bitDepth: 'Bit depth',

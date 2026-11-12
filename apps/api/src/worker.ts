@@ -6,7 +6,7 @@ import { createDb, migrateDb } from '@music-hub/db';
 import { purgeTrash } from './lib/trash.js';
 import { sweepAbandonedUploads } from './lib/upload-sweep.js';
 import { deleteStaleScans, processNextImportItem } from './lib/imports.js';
-import { analyzeNextVersion, processVersion } from './services/audio-processor.js';
+import { analyzeNextVersion, measureNextVersion, processVersion } from './services/audio-processor.js';
 import { processNextStemMix, queueMissingStemMixes } from './services/stem-mixes.js';
 import {
   claimAudioJob,
@@ -82,6 +82,7 @@ while (!stop.signal.aborted) {
     }
     if (!current) {
       if (await processNextStemMix(db, stop.signal)) continue;
+      if (await measureNextVersion(db, stop.signal)) continue;
       if (!await analyzeNextVersion(db, stop.signal)) await sleep(2000, undefined, { signal: stop.signal }).catch(() => {});
       continue;
     }

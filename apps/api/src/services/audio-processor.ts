@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { versions } from '@music-hub/db';
 import { KEY_ROOTS, KEY_SCALES } from '@music-hub/shared';
+import { parseMeasurements } from '../lib/measure.js';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { hasWaitingAudioJob } from './audio-jobs.js';
 import { publish } from './sse.js';
@@ -73,48 +74,63 @@ export async function processVersion(db: Database, versionId: string, signal: Ab
   publish(db, version.trackId, { type: 'version:status', data: { versionId, status: 'ready' } });
 }
 
-// Tempo and key take longest, so the worker only works on them when no version waits for its MP3:
-// the newest playable version without an analysis, which also catches up on versions from before it.
-// A version is marked when taken, so one that keeps failing doesn't come back.
-export async function analyzeNextVersion(db: Database, stop: AbortSignal): Promise<boolean> {
+// What the worker does when no version waits for its MP3, one version at a time: the newest playable version
+// without it, which also catches up on versions from before it. A version is marked in `mark` when taken, so
+// one that keeps failing doesn't come back. A new upload goes first: the work stops, and the version comes back
+// once the worker is idle again.
+async function idleWork(
+  db: Database,
+  stop: AbortSignal,
+  mark: 'analyzedAt' | 'measuredAt',
+  work: (url: string, signal: AbortSignal) => Promise<Partial<typeof versions.$inferInsert> | null>,
+): Promise<boolean> {
   const next = db
     .select({ id: versions.id })
     .from(versions)
-    .where(and(isNull(versions.analyzedAt), isNull(versions.deletedAt), notInArray(versions.status, ['uploaded', 'processing'])))
+    .where(and(isNull(versions[mark]), isNull(versions.deletedAt), notInArray(versions.status, ['uploaded', 'processing'])))
     .orderBy(desc(versions.createdAt))
     .limit(1)
     .for('update', { skipLocked: true });
   const claimedAt = new Date();
   const [version] = await db
     .update(versions)
-    .set({ analyzedAt: claimedAt })
+    .set({ [mark]: claimedAt })
     .where(inArray(versions.id, next))
     .returning({ id: versions.id, trackId: versions.trackId, originalFileKey: versions.originalFileKey });
   if (!version) return false;
   // A correction by hand sets analyzed_at anew while the analysis runs, and then wins
-  const stillOurs = and(eq(versions.id, version.id), eq(versions.analyzedAt, claimedAt));
+  const stillOurs = and(eq(versions.id, version.id), eq(versions[mark], claimedAt));
 
-  // A new upload goes first: the analysis stops, and the version comes back once the worker is idle again
   const upload = new AbortController();
   const signal = AbortSignal.any([stop, upload.signal]);
   const watch = setInterval(() => {
     hasWaitingAudioJob(db).then((waiting) => waiting && upload.abort(), () => {});
   }, 2000);
   try {
-    const music = await analyzeMusic(await createDownloadUrl(version.originalFileKey, 3600), signal);
-    if (music) {
-      const [stored] = await db.update(versions).set(music).where(stillOurs).returning({ id: versions.id });
+    const values = await work(await createDownloadUrl(version.originalFileKey, 3600), signal);
+    if (values) {
+      const [stored] = await db.update(versions).set(values).where(stillOurs).returning({ id: versions.id });
       if (stored) publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
     }
   } catch (error) {
     if (!signal.aborted) throw error;
-    await db.update(versions).set({ analyzedAt: null }).where(stillOurs);
+    await db.update(versions).set({ [mark]: null }).where(stillOurs);
     if (stop.aborted) throw error;
   } finally {
     clearInterval(watch);
   }
   return true;
 }
+
+// Tempo and key take longest, so the worker only works on them when idle
+export const analyzeNextVersion = (db: Database, stop: AbortSignal) => idleWork(db, stop, 'analyzedAt', analyzeMusic);
+
+// Spectrum and stereo image for the version page, the same way
+export const measureNextVersion = (db: Database, stop: AbortSignal) =>
+  idleWork(db, stop, 'measuredAt', async (url, signal) => {
+    const measurements = await measureMix(url, signal);
+    return measurements && { measurements };
+  });
 
 async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   duration: number;
@@ -184,6 +200,7 @@ export function parseLoudness(log: string, frames: string): { integratedLufs: nu
 }
 
 const ANALYSIS_SCRIPT = `${import.meta.dir}/music-analysis.ts`;
+const MEASUREMENT_SCRIPT = `${import.meta.dir}/mix-measurement.ts`;
 
 // The first ten minutes are plenty and keep a long DJ mix from filling the memory. Runs with low
 // priority, so it gives way to everything else on VPS 1.
@@ -199,6 +216,21 @@ async function analyzeMusic(url: string, signal: AbortSignal) {
     return null;
   }
   return parseMusicAnalysis(output);
+}
+
+// The first ten minutes at 48 kHz in stereo, streamed through the measurement in its own low-priority process
+async function measureMix(url: string, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const decode = Bun.spawn(['ffmpeg', '-v', 'quiet', '-i', url, '-t', '600', '-ac', '2', '-ar', '48000', '-f', 'f32le', 'pipe:1'], { ...FFMPEG_LIMITS, signal });
+  const measure = Bun.spawn(['nice', '-n', '10', process.execPath, MEASUREMENT_SCRIPT], { stdin: decode.stdout, stderr: 'pipe', ...FFMPEG_LIMITS, signal });
+  const [output, log] = await Promise.all([new Response(measure.stdout).text(), new Response(measure.stderr).text()]);
+  const [decoded, measured] = await Promise.all([decode.exited, measure.exited]);
+  signal.throwIfAborted();
+  if (decoded !== 0 || measured !== 0) {
+    console.error(`[Worker] Mix measurement failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
+    return null;
+  }
+  return parseMeasurements(output);
 }
 
 // Keeps what Essentia is sure enough about. Its tempo confidence runs from 0 to 5.32, below 1 the beat

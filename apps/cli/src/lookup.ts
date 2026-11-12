@@ -70,5 +70,5 @@ export async function findVersion(api: Client, values: Record<string, unknown>) 
   const number = wanted && /^v?\d+$/i.test(wanted) ? Number(wanted.replace(/^v/i, '')) : null;
   const version = wanted ? list.find((v) => v.id === wanted || v.versionNumber === number) : list[0];
   if (!version) throw new Failure(wanted ? texts.noSuchVersion(wanted, track.name) : texts.noVersions(track.name), EXIT.error);
-  return { project, track, version };
+  return { project, track, version, versions: list };
 }

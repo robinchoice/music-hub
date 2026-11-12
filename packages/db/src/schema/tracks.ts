@@ -9,9 +9,11 @@ import {
   boolean,
   real,
   timestamp,
+  jsonb,
   index,
 } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import type { Measurements } from '@music-hub/shared';
 import { users } from './users.js';
 import { projects } from './projects.js';
 
@@ -101,6 +103,10 @@ export const versions = pgTable('versions', {
   keyScale: varchar('key_scale', { length: 5 }),
   // When the worker took the version for that analysis
   analyzedAt: timestamp('analyzed_at'),
+  // Third-octave spectrum and stereo image (measurementsSchema in shared), measured by the worker; null where it
+  // hasn't got to it yet or couldn't read the file. measuredAt: when it took the version for that.
+  measurements: jsonb('measurements').$type<Measurements>(),
+  measuredAt: timestamp('measured_at'),
 
   originalFileKey: text('original_file_key').notNull(),
   streamFileKey: text('stream_file_key'),
