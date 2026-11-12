@@ -16,13 +16,16 @@ const UPLOAD_KEY = /^projects\/[^/]+\/(uploads\/[^/]+\/(original|file)\/|tracks\
 const UNLISTABLE = /[\x00-\x1f\x7f]/;
 
 export async function sweepAbandonedUploads(db: Pick<Database, 'execute'>, { now = new Date(), deletes = SWEEP_DELETES } = {}) {
+  const started = Date.now();
   const before = now.getTime() - ABANDONED_AFTER_MS;
+  let scanned = 0;
   let found = 0;
   let bytes = 0;
   let deleted = 0;
   // Which upload URL they came from, so the log shows whether a single path leaves files behind
   const kinds = { uploads: 0, stems: 0, originals: 0 };
   for await (const page of listObjects('projects/')) {
+    scanned += page.length;
     const old = page.filter((o) => o.lastModified.getTime() < before && UPLOAD_KEY.test(o.key) && !UNLISTABLE.test(o.key));
     if (!old.length) continue;
     const used = await keysInUse(db, old.map((o) => o.key));
@@ -40,9 +43,8 @@ export async function sweepAbandonedUploads(db: Pick<Database, 'execute'>, { now
       }
     }
   }
-  if (found) {
-    const summary = `${found} abandoned uploads (${(bytes / 1024 ** 2).toFixed(1)} MB; ${kinds.uploads} project uploads, ${kinds.stems} stems, ${kinds.originals} originals)`;
-    console.log(deletes ? `[Uploads] Deleted ${deleted} of ${summary}.` : `[Uploads] Found ${summary}, not deleting yet.`);
-  }
+  // Logged on every run, also with nothing found, so the log shows that the sweep ran and how much it looked at
+  const summary = `${found} abandoned uploads (${(bytes / 1024 ** 2).toFixed(1)} MB; ${kinds.uploads} project uploads, ${kinds.stems} stems, ${kinds.originals} originals) among ${scanned} objects in ${((Date.now() - started) / 1000).toFixed(1)} s`;
+  console.log(deletes ? `[Uploads] Deleted ${deleted} of ${summary}.` : `[Uploads] Found ${summary}, not deleting yet.`);
   return { found, bytes, deleted };
 }
