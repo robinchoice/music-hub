@@ -1,7 +1,11 @@
-import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, expect, mock, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { audioJobs, createDb, migrateDb, projects, tracks, users, versions } from '@music-hub/db';
-import { analyzeNextVersion, measureNextVersion, parseMusicAnalysis } from './services/audio-processor.js';
+
+// The decoding is faked below; the download URL only needs to exist, without a bucket configured as in CI
+const s3 = await import('./storage/s3.js');
+mock.module('./storage/s3.js', () => ({ ...s3, createDownloadUrl: async () => 'https://bucket.test/get' }));
+const { analyzeNextVersion, measureNextVersion, parseMusicAnalysis } = await import('./services/audio-processor.js');
 
 // Lines as music-analysis.ts prints them (essentia.js 0.1.3)
 const line = (bpm: number, bpmConfidence: number, key: string, scale: string, keyStrength: number) =>
