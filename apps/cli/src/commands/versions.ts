@@ -14,12 +14,14 @@ import {
 import { z } from 'zod';
 import { type Command, EXIT, Failure, str } from '../command';
 import { SLUG } from '../config';
-import { findTrack, findVersion, type Version, versionsOf } from '../lookup';
+import { findProject, findTrack, findVersion, type Version, versionsOf } from '../lookup';
 import { texts } from '../texts';
 
 const uploadSchema = z.object({ uploadUrl: z.string(), fileKey: z.string() });
 const createdSchema = z.object({ version: z.looseObject({ id: z.string(), versionNumber: z.number(), status: z.enum(VERSION_STATUSES) }) });
 const downloadSchema = z.object({ url: z.string() });
+const movedSchema = z.object({ version: z.looseObject({ id: z.string(), versionNumber: z.number(), trackId: z.string() }) });
+const splitSchema = z.object({ track: z.looseObject({ id: z.string(), name: z.string() }), version: z.looseObject({ id: z.string(), versionNumber: z.number() }) });
 // What the measurement needs of a version; an older API has no measurements
 const measuredSchema = z.object({
   id: z.string(),
@@ -78,9 +80,20 @@ export const versions: Command = {
     ['versions upload <file> --project <…> --track <…> [--label <text>]', texts.versionsUploadHelp(SUPPORTED_EXTENSIONS.join(', '))],
     ['versions download --project <…> --track <…> [--version <n>] [--out <file>]', texts.versionsDownloadHelp],
     ['versions measure --project <…> --track <…> [--version <n>]', texts.versionsMeasureHelp],
+    ['versions move --project <…> --track <…> --version <n> --to <track> [--to-project <…>]', texts.versionsMoveHelp],
+    ['versions split --project <…> --track <…> --version <n> [--name <text>]', texts.versionsSplitHelp],
   ],
   positionals: true,
-  options: { project: { type: 'string' }, track: { type: 'string' }, version: { type: 'string' }, label: { type: 'string' }, out: { type: 'string' } },
+  options: {
+    project: { type: 'string' },
+    track: { type: 'string' },
+    version: { type: 'string' },
+    label: { type: 'string' },
+    out: { type: 'string' },
+    to: { type: 'string' },
+    'to-project': { type: 'string' },
+    name: { type: 'string' },
+  },
   async run({ api, session, values, positionals }) {
     if (!session) throw new Failure(texts.notLoggedIn(SLUG), EXIT.loggedOut);
     const [sub, file, ...more] = positionals;
@@ -171,6 +184,21 @@ export const versions: Command = {
         },
         text,
       };
+    }
+    if (sub === 'move' && !file) {
+      if (!str(values.version) || !str(values.to)) throw new Failure(texts.badOptions(texts.missingOption(str(values.version) ? '--to' : '--version'), SLUG), EXIT.usage);
+      const { project, track, version } = await findVersion(api, values);
+      const toProject = values['to-project'] ? await findProject(api, values['to-project']) : project;
+      const target = await findTrack(api, { project: toProject.id, track: values.to });
+      const { version: moved } = await api.post(`/versions/${version.id}/move`, movedSchema, { trackId: target.track.id });
+      return { data: { version: moved }, text: texts.versionMoved(version.versionNumber, track.name, moved.versionNumber, target.track.name) };
+    }
+    if (sub === 'split' && !file) {
+      if (!str(values.version)) throw new Failure(texts.badOptions(texts.missingOption('--version'), SLUG), EXIT.usage);
+      const { track, version } = await findVersion(api, values);
+      const name = str(values.name)?.trim();
+      const split = await api.post(`/versions/${version.id}/split`, splitSchema, name ? { name } : {});
+      return { data: split, text: texts.versionSplit(version.versionNumber, track.name, split.track.name) };
     }
     if (sub !== undefined) throw new Failure(texts.versionsUsage(SLUG), EXIT.usage);
 

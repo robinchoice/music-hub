@@ -673,3 +673,50 @@ test('versions measure: spectrum and stereo image of a version against the one b
   expect(await studio.cli(['versions', 'measure', ...at])).toMatchObject({ code: 0, out: texts.notMeasured(3, 'Dämmerung') });
   expect((await studio.cli(['versions', 'measure', ...at, '--json'])).json()).toMatchObject({ measurements: null });
 });
+
+test('tracks: renaming, sections, moving, merging and duplicates, for agents tidying up', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  // By login link: the device logins of this file reach the rate limit of the test address
+  expect((await cli(['login', '--link', '-'], { stdin: await loginLink(ada.email) })).code).toBe(0);
+  const { project: band } = await projectWithTracks(ada, 'Fernlicht', ['Kreisel']);
+  const { project: demos, tracks: demoSongs } = await projectWithTracks(ada, 'Fernlicht Demos', ['Kreisel (neu)', 'Neon']);
+  const version = (trackId: string, versionNumber: number) => ({
+    trackId,
+    versionNumber,
+    originalFileName: `v${versionNumber}.wav`,
+    mimeType: 'audio/wav',
+    fileSize: 10,
+    originalFileKey: `test/${crypto.randomUUID()}.wav`,
+    status: 'ready' as const,
+    createdById: ada.id,
+  });
+  const kreisel = (await db.select().from(tracks).where(eq(tracks.projectId, band.id)))[0]!;
+  await db.insert(versions).values([version(kreisel.id, 1), version(demoSongs[0]!.id, 1), version(demoSongs[0]!.id, 2)]);
+
+  expect(await cli(['tracks', 'rename', 'Neon Lights', '--project', 'Fernlicht Demos', '--track', 'Neon'])).toMatchObject({ code: 0, out: 'Renamed Neon to Neon Lights.' });
+  expect((await cli(['tracks', 'section', 'Nachtbus EP', '--project', 'Fernlicht', '--track', 'Kreisel'])).out).toBe('Kreisel is now in Fernlicht › Nachtbus EP.');
+  expect((await cli(['tracks', 'section', '--project', 'Fernlicht', '--track', 'Kreisel'])).code).toBe(2);
+
+  const duplicates = await cli(['tracks', 'duplicates', '--json']);
+  expect(duplicates.json().groups).toEqual([expect.objectContaining({ reasons: ['name'] })]);
+
+  const dry = await cli(['tracks', 'merge', '--project', 'Fernlicht Demos', '--track', 'Kreisel (neu)', '--into', 'Kreisel', '--into-project', 'Fernlicht', '--dry-run']);
+  expect(dry.out).toBe(
+    ['Merging Kreisel (neu) into Kreisel would do this (nothing changed yet):', '  V1 → V2', '  V2 → V3', '  Stems: 0 added, 0 as revision of a stem with the same name, 0 identical into the trash'].join('\n'),
+  );
+  expect((await db.select().from(tracks).where(eq(tracks.id, demoSongs[0]!.id)))[0]!.deletedAt).toBeNull();
+  const merged = await cli(['tracks', 'merge', '--project', 'Fernlicht Demos', '--track', 'Kreisel (neu)', '--into', 'Kreisel', '--into-project', 'Fernlicht', '--json']);
+  expect(merged.json()).toMatchObject({ dryRun: false, track: { id: kreisel.id } });
+  expect((await cli(['versions', '--project', 'Fernlicht', '--track', 'Kreisel'])).out.split('\n').map((l) => l.split(' ')[0])).toEqual(['V3', 'V2', 'V1']);
+
+  expect((await cli(['tracks', 'move', '--project', 'Fernlicht Demos', '--track', 'Neon Lights', '--to', 'Fernlicht', '--none'])).out).toBe('Neon Lights is now in Fernlicht.');
+  expect((await cli(['tracks', '--project', 'Fernlicht'])).out).toBe('Kreisel · Demo · 3 versions\nNeon Lights · Demo · 0 versions');
+  expect((await cli(['tracks', 'move', '--project', 'Fernlicht', '--track', 'Kreisel'])).code).toBe(2);
+
+  const moved = await cli(['versions', 'move', '--project', 'Fernlicht', '--track', 'Kreisel', '--version', '3', '--to', 'Neon Lights']);
+  expect(moved).toMatchObject({ code: 0, out: 'V3 of Kreisel is now V1 of Neon Lights.' });
+  const split = await cli(['versions', 'split', '--project', 'Fernlicht', '--track', 'Kreisel', '--version', 'V2', '--name', 'Kreisel live']);
+  expect(split).toMatchObject({ code: 0, out: 'V2 of Kreisel is now the track Kreisel live.' });
+  expect(demos.id).not.toBe(band.id);
+});
