@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import fc from 'fast-check';
 import { CAP, compareMeasurements, FLOOR_DB, type Measurements } from '@music-hub/shared';
-import { bandEdges, Meter, parseMeasurements, stored, type Measured } from './lib/measure.js';
+import { bandEdges, Meter, parseMeasuredFile, parseMeasurements, stored, type Measured } from './lib/measure.js';
 
 // Ported from the tests of pinna-analysis, with the stems-only masking left out
 const SR = 48_000;
@@ -234,10 +234,14 @@ test('a minute of stereo measures in a few seconds', () => {
 test('the worker script measures PCM from stdin as ffmpeg writes it', async () => {
   const s = sine(1000, 0.5, 2);
   const proc = Bun.spawn([process.execPath, `${import.meta.dir}/services/mix-measurement.ts`], { stdin: interleave(s, s), stdout: 'pipe' });
-  const measurements = parseMeasurements(await new Response(proc.stdout).text());
+  const output = await new Response(proc.stdout).text();
+  const measurements = parseMeasurements(output);
   expect(await proc.exited).toBe(0);
   expect(measurements!.bands[17]!).toBeCloseTo(db(0.5), 0);
   expect(measurements!.correlation).toBe(1);
+  // A reference track needs the loudness too: 0.5 on both channels is 6 dB below full scale
+  expect(parseMeasuredFile(output)!.integratedLufs!).toBeCloseTo(-6, 0);
+  expect(parseMeasuredFile(JSON.stringify(measurements))).toBeNull();
 });
 
 test('unexpected output of the script has no values', () => {

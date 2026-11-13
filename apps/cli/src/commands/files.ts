@@ -17,12 +17,14 @@ const listSchema = z.object({
       createdByName: z.string(),
       createdAt: z.string(),
       trackId: z.string().nullable(),
+      reference: z.boolean().optional(),
     }),
   ),
 });
 const uploadSchema = z.object({ uploadUrl: z.string(), fileKey: z.string() });
 const createdSchema = z.object({ file: z.looseObject({ id: z.string(), originalFileName: z.string() }) });
 const downloadSchema = z.object({ url: z.string() });
+const okSchema = z.object({ ok: z.literal(true) });
 
 // The files of a project that are no version and no stem, as the Files tab of the project page shows them
 export const files: Command = {
@@ -30,9 +32,10 @@ export const files: Command = {
     ['files --project <name or ID> [--track <name or ID>]', texts.filesHelp],
     ['files upload <file> --project <…> [--track <…>]', texts.filesUploadHelp],
     ['files download <name or ID> --project <…> [--out <file>]', texts.filesDownloadHelp],
+    ['files reference <name or ID> --project <…>  |  files reference --none --project <…>', texts.filesReferenceHelp],
   ],
   positionals: true,
-  options: { project: { type: 'string' }, track: { type: 'string' }, out: { type: 'string' } },
+  options: { project: { type: 'string' }, track: { type: 'string' }, out: { type: 'string' }, none: { type: 'boolean' } },
   async run({ api, session, values, positionals }) {
     if (!session) throw new Failure(texts.notLoggedIn(SLUG), EXIT.loggedOut);
     const [sub, target, ...more] = positionals;
@@ -58,11 +61,31 @@ export const files: Command = {
     const all = (await api.get(`/files/project/${project.id}`, listSchema)).files;
     const list = at ? all.filter((f) => f.trackId === at.track.id) : all;
 
+    const pick = (wanted: string) => {
+      const file = list.find((f) => f.id === wanted) ?? list.find((f) => f.originalFileName.toLowerCase() === wanted.toLowerCase());
+      if (!file) throw new Failure(texts.noSuchProjectFile(wanted, project.name), EXIT.error);
+      return file;
+    };
+
+    // The reference track every version of the project is compared with (versions measure)
+    if (sub === 'reference') {
+      if (values.none) {
+        if (target) throw new Failure(texts.filesUsage(SLUG), EXIT.usage);
+        const marked = all.find((f) => f.reference);
+        if (marked) await api.put(`/files/${marked.id}/reference`, okSchema, { reference: false });
+        return { data: { project, reference: null }, text: texts.referenceCleared(project.name) };
+      }
+      const wanted = target?.trim();
+      if (!wanted) throw new Failure(texts.badOptions(texts.missingFile, SLUG), EXIT.usage);
+      const file = pick(wanted);
+      await api.put(`/files/${file.id}/reference`, okSchema, { reference: true });
+      return { data: { project, reference: { ...file, reference: true } }, text: texts.referenceSet(file.originalFileName, project.name) };
+    }
+
     if (sub === 'download') {
       const wanted = target?.trim();
       if (!wanted) throw new Failure(texts.badOptions(texts.missingFile, SLUG), EXIT.usage);
-      const file = list.find((f) => f.id === wanted) ?? list.find((f) => f.originalFileName.toLowerCase() === wanted.toLowerCase());
-      if (!file) throw new Failure(texts.noSuchProjectFile(wanted, project.name), EXIT.error);
+      const file = pick(wanted);
       const out = resolve(str(values.out) ?? basename(file.originalFileName));
       if (existsSync(out)) throw new Failure(texts.fileExists(out), EXIT.error);
       const { url } = await api.get(`/files/${file.id}/download-url`, downloadSchema);
@@ -71,7 +94,8 @@ export const files: Command = {
     }
     if (sub !== undefined) throw new Failure(texts.filesUsage(SLUG), EXIT.usage);
 
-    const line = (f: (typeof list)[number]) => [f.originalFileName, mb(f.fileSize), f.createdByName, f.createdAt.slice(0, 10)].join(' · ');
+    const line = (f: (typeof list)[number]) =>
+      [f.originalFileName, mb(f.fileSize), f.createdByName, f.createdAt.slice(0, 10), ...(f.reference ? [texts.referenceMark] : [])].join(' · ');
     return { data: { project, files: list }, text: list.length ? list.map(line).join('\n') : texts.noProjectFiles(at ? at.track.name : project.name) };
   },
 };

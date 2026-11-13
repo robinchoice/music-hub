@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, expect, mock, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { audioJobs, createDb, migrateDb, projects, tracks, users, versions } from '@music-hub/db';
+import { audioJobs, createDb, migrateDb, projectFiles, projects, tracks, users, versions } from '@music-hub/db';
 
 // The decoding is faked below; the download URL only needs to exist, without a bucket configured as in CI
 const s3 = await import('./storage/s3.js');
 mock.module('./storage/s3.js', () => ({ ...s3, createDownloadUrl: async () => 'https://bucket.test/get' }));
-const { analyzeNextVersion, measureNextVersion, parseMusicAnalysis } = await import('./services/audio-processor.js');
+const { analyzeNextVersion, measureNextReference, measureNextVersion, parseMusicAnalysis } = await import('./services/audio-processor.js');
 
 // Lines as music-analysis.ts prints them (essentia.js 0.1.3)
 const line = (bpm: number, bpmConfidence: number, key: string, scale: string, keyStrength: number) =>
@@ -126,7 +126,7 @@ const measured = { bands: Array(31).fill(-30), correlation: 0.8, width: 0.12, mo
 test('measures the newest version on its own mark and stores the values', async () => {
   const older = await version({}, 5000);
   const newer = await version({ analyzedAt: new Date() }, 5001);
-  fakeAnalysis(`console.log('${JSON.stringify(measured)}')`);
+  fakeAnalysis(`console.log('${JSON.stringify({ ...measured, integratedLufs: -14 })}')`);
   expect(await measureNextVersion(db, new AbortController().signal)).toBe(true);
   expect(await stored(newer.id)).toMatchObject({ measurements: measured });
   expect((await stored(newer.id)).measuredAt).not.toBeNull();
@@ -141,4 +141,21 @@ test('a failed measurement leaves the version marked without values', async () =
   expect(await measureNextVersion(db, new AbortController().signal)).toBe(true);
   expect(await stored(failing.id)).toMatchObject({ measurements: null });
   expect((await stored(failing.id)).measuredAt).not.toBeNull();
+});
+
+test('measures the reference track of a project with its own loudness, and only that file', async () => {
+  const file = (name: string, reference: boolean) =>
+    db.insert(projectFiles).values({
+      projectId, originalFileName: name, mimeType: 'audio/wav', fileSize: 1, fileKey: `analysis-test/${crypto.randomUUID()}`, createdById: userId, reference,
+    }).returning().then(([row]) => row!);
+  const other = await file('Skizze.wav', false);
+  const reference = await file('Vorbild.wav', true);
+  fakeAnalysis(`console.log('${JSON.stringify({ ...measured, integratedLufs: -9.5 })}')`);
+  expect(await measureNextReference(db, new AbortController().signal)).toBe(true);
+  const [stored] = await db.select().from(projectFiles).where(eq(projectFiles.id, reference.id));
+  expect(stored).toMatchObject({ measurements: measured, integratedLufs: -9.5 });
+  expect(stored!.measuredAt).not.toBeNull();
+  // Nothing left: plain files are not measured
+  expect(await measureNextReference(db, new AbortController().signal)).toBe(false);
+  expect((await db.select().from(projectFiles).where(eq(projectFiles.id, other.id)))[0]!.measuredAt).toBeNull();
 });

@@ -14,6 +14,7 @@ import { t } from '../lib/i18n.js';
 import type { AppEnv } from '../types.js';
 
 const toStemSchema = z.object({ trackId: z.string().uuid(), mix: z.boolean().optional() });
+const referenceSchema = z.object({ reference: z.boolean() });
 
 // The file with the user's membership in its project; null if it is gone, in the trash or the user is no member
 async function fileAccess(db: Database, fileId: string, userId: string) {
@@ -56,6 +57,7 @@ export const fileRoutes = new Hono<AppEnv>()
         createdById: projectFiles.createdById,
         createdByName: users.name,
         createdAt: projectFiles.createdAt,
+        reference: projectFiles.reference,
       })
       .from(projectFiles)
       .innerJoin(users, eq(users.id, projectFiles.createdById))
@@ -68,6 +70,8 @@ export const fileRoutes = new Hono<AppEnv>()
         playable: mayDownload(membership) && playableInline(f.mimeType),
         // The file is its own original, so playing it needs the right to download
         canChange: membership.canUpload && (membership.role === 'owner' || f.createdById === userId),
+        // Anyone who may upload picks the reference track, among the audio files
+        markable: membership.canUpload && isAudioFile(f.originalFileName, f.mimeType),
       })),
       canDownload: mayDownload(membership),
     });
@@ -155,6 +159,23 @@ export const fileRoutes = new Hono<AppEnv>()
     if (!access) return c.json({ error: 'Not found' }, 404);
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
     await db.update(projectFiles).set({ deletedAt: new Date(), deletedById: userId }).where(eq(projectFiles.id, access.file.id));
+    return c.json({ ok: true });
+  })
+
+  // The reference track of the project, that every version is compared with: one audio file, set by anyone who
+  // may upload. Marking another file takes the mark from the previous one.
+  .put('/:id/reference', zValidator('json', referenceSchema), async (c) => {
+    const db = c.get('db');
+    const { reference } = c.req.valid('json');
+    const access = await fileAccess(db, c.req.param('id'), c.get('userId'));
+    if (!access) return c.json({ error: 'Not found' }, 404);
+    if (!access.membership.canUpload) return c.json({ error: 'Forbidden' }, 403);
+    if (reference && !isAudioFile(access.file.originalFileName, access.file.mimeType)) return c.json({ error: t(c).errors.notAudio }, 400);
+    await db.transaction(async (tx) => {
+      if (reference) await tx.update(projectFiles).set({ reference: false }).where(and(eq(projectFiles.projectId, access.file.projectId), eq(projectFiles.reference, true)));
+      // A file the worker couldn't measure gets another try when it is marked again
+      await tx.update(projectFiles).set({ reference, ...(reference && !access.file.measurements && { measuredAt: null }) }).where(eq(projectFiles.id, access.file.id));
+    });
     return c.json({ ok: true });
   })
 

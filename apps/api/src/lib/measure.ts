@@ -3,6 +3,7 @@
 // the samples block by block, so a long mix never sits in memory as a whole. Values and their edge cases are
 // described in packages/shared/src/measurements.ts.
 import { CAP, FLOOR_DB, measurementsSchema, THIRD_OCTAVE_HZ, type Measurements } from '@music-hub/shared';
+import { z } from 'zod';
 
 const BANDS = THIRD_OCTAVE_HZ.length;
 
@@ -288,6 +289,16 @@ export function stored(m: Measured): Measurements {
 export function parseMeasurements(output: string): Measurements | null {
   try {
     return measurementsSchema.parse(JSON.parse(output));
+  } catch {
+    return null;
+  }
+}
+
+/** The same line for a reference track, with the loudness the comparison matches to */
+export function parseMeasuredFile(output: string): { measurements: Measurements; integratedLufs: number | null } | null {
+  try {
+    const { integratedLufs, ...measurements } = measurementsSchema.extend({ integratedLufs: z.number().nullable() }).parse(JSON.parse(output));
+    return { measurements, integratedLufs };
   } catch {
     return null;
   }

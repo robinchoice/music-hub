@@ -5,13 +5,14 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { t } from '$lib/i18n/index.js';
   import type { OfflineQuality } from '$lib/stores/offline.svelte.js';
-  import { fileDetails, hasWaveform, isDecided, versionTitle, type Version } from '$lib/utils/track.js';
+  import { fileDetails, hasWaveform, isDecided, versionTitle, type Reference, type Version } from '$lib/utils/track.js';
   import VersionList from './VersionList.svelte';
   import VersionMeasurements from './VersionMeasurements.svelte';
 
   let {
     version,
     versions,
+    reference = null,
     narrow = false,
     processing = false,
     grow = false,
@@ -42,6 +43,8 @@
   }: {
     version: Version;
     versions: Version[];
+    /** The project's reference track, the second comparison in the measurements */
+    reference?: Reference | null;
     narrow?: boolean;
     processing?: boolean;
     grow?: boolean;
@@ -256,7 +259,7 @@
       <p class="file">{#each details as d, i}{#if i}<span aria-hidden="true">·</span>{/if}<span title={d.title}>{d.text}</span>{/each}</p>
     {/if}
     {#if version.measurements}
-      <VersionMeasurements version={{ ...version, measurements: version.measurements }} {versions} />
+      <VersionMeasurements version={{ ...version, measurements: version.measurements }} {versions} {reference} />
     {/if}
   {/if}
   {@render feedback?.()}

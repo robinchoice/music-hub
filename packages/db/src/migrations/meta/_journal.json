@@ -351,6 +351,13 @@
       "when": 1794524519678,
       "tag": "0049_version_measurements",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794576296186,
+      "tag": "0050_project_reference",
+      "breakpoints": true
     }
   ]
 }

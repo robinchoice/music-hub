@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
-import { versions } from '@music-hub/db';
+import { projectFiles, versions } from '@music-hub/db';
 import { KEY_ROOTS, KEY_SCALES } from '@music-hub/shared';
-import { parseMeasurements } from '../lib/measure.js';
+import { parseMeasuredFile } from '../lib/measure.js';
 import { putObject, createDownloadUrl } from '../storage/s3.js';
 import { hasWaitingAudioJob } from './audio-jobs.js';
 import { publish } from './sse.js';
@@ -128,9 +128,45 @@ export const analyzeNextVersion = (db: Database, stop: AbortSignal) => idleWork(
 // Spectrum and stereo image for the version page, the same way
 export const measureNextVersion = (db: Database, stop: AbortSignal) =>
   idleWork(db, stop, 'measuredAt', async (url, signal) => {
-    const measurements = await measureMix(url, signal);
-    return measurements && { measurements };
+    const measured = await measureMix(url, signal);
+    return measured && { measurements: measured.measurements };
   });
+
+// A file marked as the reference track of its project, measured like a version and with its own loudness, which
+// ffmpeg only measures for versions. Marked when taken like the versions; a new upload goes first.
+export async function measureNextReference(db: Database, stop: AbortSignal): Promise<boolean> {
+  const claimedAt = new Date();
+  const next = db
+    .select({ id: projectFiles.id })
+    .from(projectFiles)
+    .where(and(eq(projectFiles.reference, true), isNull(projectFiles.measuredAt), isNull(projectFiles.deletedAt)))
+    .limit(1)
+    .for('update', { skipLocked: true });
+  const [file] = await db
+    .update(projectFiles)
+    .set({ measuredAt: claimedAt })
+    .where(inArray(projectFiles.id, next))
+    .returning({ id: projectFiles.id, projectId: projectFiles.projectId, fileKey: projectFiles.fileKey });
+  if (!file) return false;
+  const stillOurs = and(eq(projectFiles.id, file.id), eq(projectFiles.measuredAt, claimedAt));
+
+  const upload = new AbortController();
+  const signal = AbortSignal.any([stop, upload.signal]);
+  const watch = setInterval(() => {
+    hasWaitingAudioJob(db).then((waiting) => waiting && upload.abort(), () => {});
+  }, 2000);
+  try {
+    const measured = await measureMix(await createDownloadUrl(file.fileKey, 3600), signal);
+    if (measured) await db.update(projectFiles).set(measured).where(stillOurs);
+  } catch (error) {
+    if (!signal.aborted) throw error;
+    await db.update(projectFiles).set({ measuredAt: null }).where(stillOurs);
+    if (stop.aborted) throw error;
+  } finally {
+    clearInterval(watch);
+  }
+  return true;
+}
 
 async function extractMetadata(url: string, signal: AbortSignal): Promise<{
   duration: number;
@@ -230,7 +266,7 @@ async function measureMix(url: string, signal: AbortSignal) {
     console.error(`[Worker] Mix measurement failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
     return null;
   }
-  return parseMeasurements(output);
+  return parseMeasuredFile(output);
 }
 
 // Keeps what Essentia is sure enough about. Its tempo confidence runs from 0 to 5.32, below 1 the beat

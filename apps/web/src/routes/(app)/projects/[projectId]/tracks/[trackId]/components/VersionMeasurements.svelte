@@ -1,10 +1,14 @@
 <script lang="ts">
-  import { compareMeasurements, FLOOR_DB, predecessorOf, THIRD_OCTAVE_HZ, type Measurements } from '@music-hub/shared';
+  import { compareMeasurements, FLOOR_DB, predecessorOf, THIRD_OCTAVE_HZ, type Comparison, type Measurements } from '@music-hub/shared';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { dateLocale, t } from '$lib/i18n/index.js';
-  import type { Version } from '$lib/utils/track.js';
+  import type { Reference, Version } from '$lib/utils/track.js';
 
-  let { version, versions }: { version: Version & { measurements: Measurements }; versions: Version[] } = $props();
+  let {
+    version,
+    versions,
+    reference = null,
+  }: { version: Version & { measurements: Measurements }; versions: Version[]; reference?: Reference | null } = $props();
 
   const m = $derived(version.measurements);
   // The previous version, heard at the same loudness: what changed in the mix, not how loud it got
@@ -14,6 +18,15 @@
       ? compareMeasurements(
           { measurements: m, integratedLufs: version.integratedLufs ?? null, truePeak: version.truePeak ?? null },
           { measurements: previous.measurements, integratedLufs: previous.integratedLufs ?? null, truePeak: previous.truePeak ?? null },
+        )
+      : null,
+  );
+  // The project's reference track, matched in loudness the same way; ffmpeg measures no true peak for it, so no crest
+  const versusReference = $derived(
+    reference?.measurements
+      ? compareMeasurements(
+          { measurements: m, integratedLufs: version.integratedLufs ?? null, truePeak: version.truePeak ?? null },
+          { measurements: reference.measurements, integratedLufs: reference.integratedLufs, truePeak: null },
         )
       : null,
   );
@@ -28,8 +41,7 @@
   const top = $derived(Math.max(...m.bands));
   const levels = $derived(m.bands.map((b) => (b === FLOOR_DB ? 0 : Math.max(0, (b - top + RANGE) / RANGE))));
   // The differences fill ±3 dB at least, ±12 dB at most
-  const span = $derived(comparison ? Math.min(12, Math.max(3, ...comparison.bandDiffDb.map(Math.abs))) : 3);
-  const same = $derived(comparison?.bandDiffDb.every((d) => Math.abs(d) < 0.5) ?? false);
+  const spanOf = (c: Comparison) => Math.min(12, Math.max(3, ...c.bandDiffDb.map(Math.abs)));
   const TICKS = [2, 8, 14, 20, 26];
 </script>
 
@@ -63,30 +75,40 @@
   </div>
 
   {#if comparison && previous}
-    <h3>{t().track.measurements.versus(previous.versionNumber)}</h3>
-    <p class="deltas">
-      {#if comparison.lufsDiff !== null}<span>{t().track.measurements.loudness} {num(comparison.lufsDiff, 1, true)} LU</span>{/if}
-      {#if comparison.crestDiffDb !== null}<span>{t().track.measurements.crest} {num(comparison.crestDiffDb, 1, true)} dB</span>{/if}
-      <span>{t().track.measurements.width} {num(comparison.widthDiff, 2, true)}</span>
-      {#if same}<span>{t().track.measurements.same}</span>{/if}
-    </p>
-    <svg viewBox="0 0 310 {H}" preserveAspectRatio="none" role="img" aria-label={t().track.measurements.versusLabel(previous.versionNumber)}>
-      <line class="zero" x1="0" x2="310" y1={H / 2} y2={H / 2} />
-      {#each comparison.bandDiffDb as d, i}
-        {@const h = (Math.min(span, Math.abs(d)) / span) * (H / 2)}
-        <g>
-          <title>{hz(THIRD_OCTAVE_HZ[i]!)} Hz: {num(d, 1, true)} dB</title>
-          <rect class="hit" x={i * 10} y="0" width="10" height={H} />
-          <rect class="bar" x={i * 10 + 1} y={d > 0 ? H / 2 - h : H / 2} width="8" height={h} rx="1.5" />
-        </g>
-      {/each}
-    </svg>
-    <div class="ticks" aria-hidden="true">
-      {#each TICKS as i}<span style="left: {((i + 0.5) / 31) * 100}%">{hz(THIRD_OCTAVE_HZ[i]!)}</span>{/each}
-      <span class="scale">±{num(span, 0)} dB</span>
-    </div>
+    {@render difference(comparison, t().track.measurements.versus(previous.versionNumber), t().track.measurements.versusLabel(previous.versionNumber))}
+  {/if}
+  {#if versusReference && reference}
+    {@render difference(versusReference, t().track.measurements.versusReference(reference.originalFileName), t().track.measurements.versusReferenceLabel(reference.originalFileName))}
+  {:else if reference}
+    <p class="pending">{t().track.measurements.referencePending(reference.originalFileName)}</p>
   {/if}
 </details>
+
+{#snippet difference(c: Comparison, title: string, label: string)}
+  {@const span = spanOf(c)}
+  <h3>{title}</h3>
+  <p class="deltas">
+    {#if c.lufsDiff !== null}<span>{t().track.measurements.loudness} {num(c.lufsDiff, 1, true)} LU</span>{/if}
+    {#if c.crestDiffDb !== null}<span>{t().track.measurements.crest} {num(c.crestDiffDb, 1, true)} dB</span>{/if}
+    <span>{t().track.measurements.width} {num(c.widthDiff, 2, true)}</span>
+    {#if c.bandDiffDb.every((d) => Math.abs(d) < 0.5)}<span>{t().track.measurements.same}</span>{/if}
+  </p>
+  <svg viewBox="0 0 310 {H}" preserveAspectRatio="none" role="img" aria-label={label}>
+    <line class="zero" x1="0" x2="310" y1={H / 2} y2={H / 2} />
+    {#each c.bandDiffDb as d, i}
+      {@const h = (Math.min(span, Math.abs(d)) / span) * (H / 2)}
+      <g>
+        <title>{hz(THIRD_OCTAVE_HZ[i]!)} Hz: {num(d, 1, true)} dB</title>
+        <rect class="hit" x={i * 10} y="0" width="10" height={H} />
+        <rect class="bar" x={i * 10 + 1} y={d > 0 ? H / 2 - h : H / 2} width="8" height={h} rx="1.5" />
+      </g>
+    {/each}
+  </svg>
+  <div class="ticks" aria-hidden="true">
+    {#each TICKS as i}<span style="left: {((i + 0.5) / 31) * 100}%">{hz(THIRD_OCTAVE_HZ[i]!)}</span>{/each}
+    <span class="scale">±{num(span, 0)} dB</span>
+  </div>
+{/snippet}
 
 <style>
   .measurements {
@@ -174,6 +196,11 @@
   .ticks .scale {
     right: 0;
     transform: none;
+  }
+  .pending {
+    margin: var(--space-4) 0 0;
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
   }
   .deltas {
     display: flex;

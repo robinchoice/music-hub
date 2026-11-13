@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addFile, addStem, addVersion, logIn, removeUser } from './session.js';
+import { addFile, addMeasurements, addStem, addVersion, logIn, removeUser } from './session.js';
 
 let userId: string;
 test.beforeEach(async ({ context, baseURL }) => {
@@ -68,4 +68,30 @@ test('a project opens from Meine Musik with its tracks as folders of versions, s
 
   await page.getByRole('link', { name: 'Im Player öffnen' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${project.id}/tracks/${track.id}$`));
+});
+
+test('an audio file of the project becomes its reference, and the version page compares with it', async ({ page }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const track = (await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn' } })).json()).track;
+  addMeasurements('versions', addVersion(track.id, userId, 'ready'), -30, -14);
+  const reference = addFile(project.id, null, userId, 'Vorbild.wav', 'audio/wav');
+  addFile(project.id, null, userId, 'Cover.psd');
+
+  await page.goto(`/projects/${project.id}?view=dateien`);
+  // Only audio can be the reference
+  await expect(page.getByRole('button', { name: /als Referenz des Projekts/ })).toHaveCount(1);
+  await page.getByRole('button', { name: /Vorbild\.wav als Referenz des Projekts/ }).click();
+  await expect(page.locator('.toast-container')).toContainText('Vorbild.wav ist jetzt die Referenz');
+  await expect(page.getByRole('button', { name: /Vorbild\.wav ist die Referenz des Projekts/ })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.goto(`/projects/${project.id}/tracks/${track.id}`);
+  const measurements = page.locator('.measurements');
+  await measurements.locator('summary').click();
+  await expect(measurements).toContainText('Die Referenz Vorbild.wav wird noch gemessen.');
+
+  addMeasurements('projectFiles', reference, -32, -10);
+  await page.reload();
+  await page.locator('.measurements summary').click();
+  await expect(page.getByRole('heading', { name: 'Gegenüber der Referenz Vorbild.wav, gleich laut gemacht' })).toBeVisible();
+  await expect(page.locator('.measurements')).toContainText('Lautheit −4,0 LU');
 });

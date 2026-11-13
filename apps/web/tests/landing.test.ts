@@ -16,6 +16,8 @@ test('version measurements show the spectrum and loudness-matched predecessor in
   for (const lang of ['de', 'en']) {
     await page.context().addCookies([{ name: 'locale', value: lang, url: 'http://localhost' }]);
     await page.goto('/');
+    // Only once the frame is there does the phone layout show its open button
+    await expect(page.locator('.stage iframe')).toBeVisible();
     const open = page.locator('.phone-demo-open');
     if (await open.isVisible()) await open.click();
     const demo = page.frameLocator('.stage iframe');

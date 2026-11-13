@@ -34,6 +34,9 @@ export type Version = {
   createdById?: string;
 };
 
+/** The project's reference track: a file of the project, measured by the worker (measurements null until then) */
+export type Reference = { id: string; originalFileName: string; measurements: Measurements | null; integratedLufs: number | null };
+
 const LOSSLESS = new Set(['WAV', 'WAVE', 'AIF', 'AIFF', 'FLAC']);
 
 export function fileDetails(v: Version) {

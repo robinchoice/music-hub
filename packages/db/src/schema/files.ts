@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, bigint, timestamp, index, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, bigint, boolean, real, jsonb, timestamp, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import type { Measurements } from '@music-hub/shared';
 import { sql } from 'drizzle-orm';
 import { users } from './users.js';
 import { projects } from './projects.js';
@@ -23,4 +24,15 @@ export const projectFiles = pgTable('project_files', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
-}, (t) => [index().on(t.projectId), check('project_file_size_nonnegative', sql`${t.fileSize} >= 0`)]);
+  // The project's reference track, that every version is compared with (at most one per project). The worker
+  // measures it like a version (measurementsSchema in shared) with its own integrated loudness in LUFS, null for
+  // silence; measuredAt: when it took the file for that.
+  reference: boolean('reference').default(false).notNull(),
+  measurements: jsonb('measurements').$type<Measurements>(),
+  integratedLufs: real('integrated_lufs'),
+  measuredAt: timestamp('measured_at'),
+}, (t) => [
+  index().on(t.projectId),
+  uniqueIndex('project_files_one_reference').on(t.projectId).where(sql`${t.reference}`),
+  check('project_file_size_nonnegative', sql`${t.fileSize} >= 0`),
+]);

@@ -9,6 +9,10 @@
     createdAt: string;
     playable: boolean;
     canChange: boolean;
+    /** The reference track of the project, that every version is compared with; missing from an older API */
+    reference?: boolean;
+    /** May become the reference: an audio file and the right to upload */
+    markable?: boolean;
   };
 </script>
 
@@ -91,6 +95,13 @@
     onChange();
   }
 
+  async function markReference(file: ProjectFile) {
+    const reference = !file.reference;
+    await api.put(`/files/${file.id}/reference`, { reference });
+    toastSuccess(reference ? t().workspace.files.referenceSet(file.originalFileName) : t().workspace.files.referenceCleared);
+    onChange();
+  }
+
   function openMove() {
     moveTrack = NEW;
     newName = '';
@@ -138,9 +149,19 @@
         <div class="text">
           <b>{file.originalFileName}</b>
           <small>
-            {formatFileSize(file.fileSize)} · {file.createdByName} · {formatDate(file.createdAt)}{#if trackName(file.trackId)} · {t().workspace.files.with(trackName(file.trackId)!)}{/if}
+            {#if file.reference}<span class="ref-badge">{t().workspace.files.reference}</span> · {/if}{formatFileSize(file.fileSize)} · {file.createdByName} · {formatDate(file.createdAt)}{#if trackName(file.trackId)} · {t().workspace.files.with(trackName(file.trackId)!)}{/if}
           </small>
         </div>
+        {#if file.markable}
+          <button
+            type="button"
+            class="ref"
+            aria-pressed={!!file.reference}
+            onclick={() => markReference(file)}
+            title={file.reference ? t().workspace.files.unmarkReference(file.originalFileName) : t().workspace.files.markReference(file.originalFileName)}
+            aria-label={file.reference ? t().workspace.files.unmarkReference(file.originalFileName) : t().workspace.files.markReference(file.originalFileName)}
+          ><Icon name="star" size={14} /></button>
+        {/if}
         {#if canDownload}
           <Button variant="ghost" size="sm" onclick={() => download(file)} title={t().workspace.files.download(file.originalFileName)}><Icon name="download" size={14} /></Button>
         {/if}
@@ -257,6 +278,32 @@
   .text small {
     color: var(--color-text-secondary);
     font-size: var(--text-xs);
+  }
+  .ref-badge {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .ref {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+  }
+  .ref:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+  }
+  .ref[aria-pressed='true'] {
+    color: var(--color-accent);
+  }
+  .ref[aria-pressed='true'] :global(svg) {
+    fill: currentColor;
   }
   .bar {
     position: sticky;

@@ -10,7 +10,7 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   REJECTION_PREFIX,
 } from '@music-hub/shared';
-import { versions, comments, tracks } from '@music-hub/db';
+import { versions, comments, projectFiles, tracks } from '@music-hub/db';
 import { clearFailedStemMix, stemMixState } from '../services/stem-mixes.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
@@ -82,7 +82,15 @@ export const versionRoutes = new Hono<AppEnv>()
     const openCount = new Map(counts.map((row) => [row.versionId, row.count]));
     const rejectionReason = new Map(rejections.map((row) => [row.versionId, row.body.slice(REJECTION_PREFIX.length)]));
 
+    // The reference track of the project; its measurements are null until the worker has measured it
+    const [reference] = await db
+      .select({ id: projectFiles.id, originalFileName: projectFiles.originalFileName, measurements: projectFiles.measurements, integratedLufs: projectFiles.integratedLufs })
+      .from(projectFiles)
+      .where(and(eq(projectFiles.projectId, track.projectId), eq(projectFiles.reference, true), isNull(projectFiles.deletedAt)))
+      .limit(1);
+
     return c.json({
+      reference: reference ?? null,
       mixState: await stemMixState(db, trackId),
       versions: trackVersions.map((v) => ({
         ...v,

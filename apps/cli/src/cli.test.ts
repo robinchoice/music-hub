@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { comments, createDb, imports as importRows, deliveryTracks, magicLinks, migrateDb, payments, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
+import { comments, createDb, imports as importRows, deliveryTracks, magicLinks, migrateDb, payments, projectFiles, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
 import { DELIVERY_ERRORS, formatEuro, rightsOfRoles } from '@music-hub/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -650,6 +650,23 @@ test('versions measure: spectrum and stereo image of a version against the one b
     previous: { versionNumber: 1 },
     comparison: { lufsDiff: 2, crestDiffDb: -2 },
   });
+
+  // A file of the project becomes the reference every version is compared with, once the worker has measured it
+  const [file] = await db.insert(projectFiles).values({
+    projectId: song!.projectId, originalFileName: 'Vorbild.wav', mimeType: 'audio/wav', fileSize: 1, fileKey: `measure-test/${crypto.randomUUID()}`, createdById: ada.id,
+  }).returning();
+  expect(await studio.cli(['files', 'reference', 'vorbild.wav', '--project', 'Messung'])).toMatchObject({ code: 0, out: texts.referenceSet('Vorbild.wav', 'Messung') });
+  expect((await studio.cli(['files', '--project', 'Messung'])).out).toMatch(/^Vorbild\.wav · .* · reference$/);
+  expect((await studio.cli(['versions', 'measure', ...at])).out.split('\n').at(-1)).toBe(texts.referencePending('Vorbild.wav'));
+  await db.update(projectFiles).set({ measurements: measured(-30, 0.35), integratedLufs: -10 }).where(eq(projectFiles.id, file!.id));
+  const withReference = (await studio.cli(['versions', 'measure', ...at])).out.split('\n');
+  expect(withReference[2]).toBe('Hz      V2 dB    vs V1 dB   vs ref dB');
+  // 4 dB quieter than the reference: matched, the flat bands differ by -28 + 30 + 4
+  expect(withReference[3]).toBe('20      -28.0         0.0        +6.0');
+  expect(withReference.at(-1)).toBe('Against the reference Vorbild.wav at equal loudness: loudness -4.0 LU · width -0.20');
+  expect((await studio.cli(['versions', 'measure', ...at, '--json'])).json()).toMatchObject({ reference: { id: file!.id, measured: true }, referenceComparison: { lufsDiff: -4 } });
+  expect(await studio.cli(['files', 'reference', '--none', '--project', 'Messung'])).toMatchObject({ code: 0, out: texts.referenceCleared('Messung') });
+  expect((await studio.cli(['versions', 'measure', ...at, '--json'])).json()).toMatchObject({ reference: null });
 
   // Until the worker has measured a version there is nothing to show
   await db.insert(versions).values(version(3, {}));

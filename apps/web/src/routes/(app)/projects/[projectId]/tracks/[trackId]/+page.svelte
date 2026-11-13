@@ -46,6 +46,7 @@
     isDecided,
     isProcessing,
     type ReviewVerdict,
+    type Reference,
     type Version,
   } from '$lib/utils/track.js';
   import { TrackComments } from './track-comments.svelte.js';
@@ -92,7 +93,9 @@
   // The loaded version waits for the worker; switches together with the player data
   let processing = $state(false);
   let mixState = $state<'pending' | 'failed' | null>(null);
-  type VersionResponse = { versions: Version[]; mixState?: 'pending' | 'failed' | null };
+  type VersionResponse = { versions: Version[]; mixState?: 'pending' | 'failed' | null; reference?: Reference | null };
+  // The project's reference track, compared with in the measurements of each version
+  let reference = $state<Reference | null>(null);
   let mixPoll: ReturnType<typeof setInterval> | undefined;
   // Left before loading finished: no stream and no poll may start afterwards
   let destroyed = false;
@@ -288,6 +291,7 @@
       openState = openRes?.open ?? null;
       versions = trackVersions.versions;
       mixState = trackVersions.mixState ?? null;
+      reference = trackVersions.reference ?? null;
       stems = stemsRes.stems;
       guestNotes = stemsRes.guestNotes ?? [];
       projectTracks = tracksRes.tracks.map(({ id, name }) => ({ id, name }));
@@ -409,6 +413,7 @@
     const res = await api.get<VersionResponse>(`/versions/track/${trackId}`);
     versions = res.versions;
     mixState = res.mixState ?? null;
+    reference = res.reference ?? null;
     if (versions.length > 0) await selectVersion(versions[0]);
   }
 
@@ -417,6 +422,7 @@
     const res = await api.get<VersionResponse>(`/versions/track/${trackId}`);
     versions = res.versions;
     mixState = res.mixState ?? null;
+    reference = res.reference ?? null;
     const id = selectedVersion?.id;
     if (id) selectedVersion = versions.find((v) => v.id === id) ?? selectedVersion;
   }
@@ -501,7 +507,8 @@
   // A file became a stem of a song, maybe of this one
   async function filesChanged(opts: { tracks?: boolean } = {}) {
     await loadFiles();
-    if (!opts.tracks) return;
+    // The reference may have moved
+    if (!opts.tracks) return refreshVersions();
     stems = (await api.get<{ stems: Stem[] }>(`/stems/track/${trackId}`)).stems;
     await loadVersions();
     reloadSidebar?.();
@@ -991,6 +998,7 @@
         <VersionCard
           version={selectedVersion}
           {versions}
+          {reference}
           narrow={isNarrow}
           {processing}
           {grow}

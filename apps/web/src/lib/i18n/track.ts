@@ -14,6 +14,9 @@ export const de = {
     loudness: 'Lautheit',
     crest: 'Crest-Faktor',
     same: 'Kaum ein Unterschied im Klangbild',
+    versusReference: (name: string) => `Gegenüber der Referenz ${name}, gleich laut gemacht`,
+    versusReferenceLabel: (name: string) => `Unterschied je Terz gegenüber der Referenz ${name} bei gleicher Lautheit`,
+    referencePending: (name: string) => `Die Referenz ${name} wird noch gemessen.`,
   },
   details: {
     sampleRate: 'Abtastrate',
@@ -436,6 +439,9 @@ export const en: typeof de = {
     loudness: 'Loudness',
     crest: 'Crest factor',
     same: 'Hardly any difference in tone',
+    versusReference: (name: string) => `Compared with the reference ${name}, matched in loudness`,
+    versusReferenceLabel: (name: string) => `Difference per band from the reference ${name} at equal loudness`,
+    referencePending: (name: string) => `The reference ${name} is still being measured.`,
   },
   details: {
     sampleRate: 'Sample rate',

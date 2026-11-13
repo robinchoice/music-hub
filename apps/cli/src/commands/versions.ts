@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
 import {
   AUDIO_MIME_BY_EXTENSION,
+  type Comparison,
   compareMeasurements,
   MAX_FILE_SIZE,
   measurementsSchema,
@@ -28,6 +29,15 @@ const measuredSchema = z.object({
   integratedLufs: z.number().nullable(),
   truePeak: z.number().nullable(),
   measurements: measurementsSchema.nullable().optional().transform((m) => m ?? null),
+});
+
+// The project's reference track; an older API has none
+const referenceSchema = z.object({
+  reference: z
+    .object({ id: z.string(), originalFileName: z.string(), measurements: measurementsSchema.nullable(), integratedLufs: z.number().nullable() })
+    .nullable()
+    .optional()
+    .transform((r) => r ?? null),
 });
 
 const signed = (x: number, digits: number) => {
@@ -114,17 +124,25 @@ export const versions: Command = {
       const list = found.versions.map((v) => measuredSchema.parse(v));
       const version = list.find((v) => v.id === found.version.id)!;
       const previous = predecessorOf(version, list);
+      const { reference } = await api.get(`/versions/track/${found.track.id}`, referenceSchema);
       const { measurements } = version;
       const head = { project: found.project, track: found.track, version: { id: version.id, versionNumber: version.versionNumber } };
       if (!measurements) return { data: { ...head, measurements: null }, text: texts.notMeasured(version.versionNumber, found.track.name) };
       const comparison = previous?.measurements ? compareMeasurements({ ...version, measurements }, { ...previous, measurements: previous.measurements }) : null;
       const against = comparison && previous ? previous.versionNumber : null;
+      // ffmpeg measures no true peak for a reference, so there is no crest to compare
+      const versusReference = reference?.measurements
+        ? compareMeasurements({ ...version, measurements }, { measurements: reference.measurements, integratedLufs: reference.integratedLufs, truePeak: null })
+        : null;
+      const column = (c: Comparison | null, i: number) => (c ? signed(c.bandDiffDb[i]!, 1).padStart(12) : '');
       const text = [
         texts.measuredHead(version.versionNumber, found.track.name),
         texts.stereoImage(measurements.width.toFixed(2), measurements.correlation.toFixed(2), measurements.monoLossLu.toFixed(1)),
-        texts.bandsHead(version.versionNumber, against),
+        texts.bandsHead(version.versionNumber, against, versusReference !== null),
         ...THIRD_OCTAVE_HZ.map((f, i) =>
-          [hz(f).padEnd(6), measurements.bands[i]!.toFixed(1).padStart(7), comparison ? signed(comparison.bandDiffDb[i]!, 1).padStart(12) : ''].join('').trimEnd(),
+          [hz(f).padEnd(6), measurements.bands[i]!.toFixed(1).padStart(7), comparison ? column(comparison, i) : versusReference ? ''.padStart(12) : '', column(versusReference, i)]
+            .join('')
+            .trimEnd(),
         ),
         ...(comparison && against !== null
           ? [
@@ -136,9 +154,21 @@ export const versions: Command = {
               ),
             ]
           : []),
+        ...(reference && versusReference
+          ? [texts.comparedWithReference(reference.originalFileName, versusReference.lufsDiff === null ? null : signed(versusReference.lufsDiff, 1), signed(versusReference.widthDiff, 2))]
+          : reference
+            ? [texts.referencePending(reference.originalFileName)]
+            : []),
       ].join('\n');
       return {
-        data: { ...head, measurements, previous: previous && against !== null ? { id: previous.id, versionNumber: previous.versionNumber } : null, comparison },
+        data: {
+          ...head,
+          measurements,
+          previous: previous && against !== null ? { id: previous.id, versionNumber: previous.versionNumber } : null,
+          comparison,
+          reference: reference ? { id: reference.id, originalFileName: reference.originalFileName, measured: reference.measurements !== null } : null,
+          referenceComparison: versusReference,
+        },
         text,
       };
     }

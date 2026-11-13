@@ -44,7 +44,8 @@ export const texts = {
   notMeasured: (n: number, track: string) => `V${n} of ${track} has no measurements yet.`,
   measuredHead: (n: number, track: string) => `V${n} of ${track}`,
   stereoImage: (width: string, correlation: string, monoLoss: string) => `Stereo width ${width} · correlation ${correlation} · mono loss ${monoLoss} LU`,
-  bandsHead: (n: number, previous: number | null) => `${'Hz'.padEnd(6)}${`V${n} dB`.padStart(7)}${previous === null ? '' : `vs V${previous} dB`.padStart(12)}`,
+  bandsHead: (n: number, previous: number | null, reference: boolean) =>
+    `${'Hz'.padEnd(6)}${`V${n} dB`.padStart(7)}${previous === null ? (reference ? ''.padStart(12) : '') : `vs V${previous} dB`.padStart(12)}${reference ? 'vs ref dB'.padStart(12) : ''}`,
   comparedWith: (n: number, loudness: string | null, crest: string | null, width: string) =>
     `Against V${n} at equal loudness: ${[loudness && `loudness ${loudness} LU`, crest && `crest ${crest} dB`, `width ${width}`].filter(Boolean).join(' · ')}`,
   versionStatus: { uploaded: 'uploaded', processing: 'processing', ready: 'ready', approved: 'approved', rejected: 'changes needed' },
@@ -63,7 +64,14 @@ export const texts = {
   filesHelp: 'Lists the files of a project: sounds, sessions, MIDI, anything that is no version or stem',
   filesUploadHelp: 'Uploads any file into the files of a project',
   filesDownloadHelp: 'Saves a file of the project under its name',
-  filesUsage: (cmd: string) => `Usage: ${cmd} files, files upload <file> or files download <name or ID>, each with --project. Help: ${cmd} --help`,
+  filesUsage: (cmd: string) => `Usage: ${cmd} files, files upload <file>, files download <name or ID> or files reference <name or ID>, each with --project. Help: ${cmd} --help`,
+  filesReferenceHelp: 'Makes an audio file the reference track of the project, that versions measure compares every version with; --none removes it',
+  referenceMark: 'reference',
+  referenceSet: (file: string, project: string) => `${file} is the reference of ${project} now. The worker measures it shortly.`,
+  referenceCleared: (project: string) => `${project} has no reference now.`,
+  referencePending: (file: string) => `The reference ${file} is not measured yet.`,
+  comparedWithReference: (file: string, loudness: string | null, width: string) =>
+    `Against the reference ${file} at equal loudness: ${[loudness && `loudness ${loudness} LU`, `width ${width}`].filter(Boolean).join(' · ')}`,
   noProjectFiles: (project: string) => `${project} has no files yet.`,
   noSuchProjectFile: (wanted: string, project: string) => `No file "${wanted}" in ${project}.`,
   fileUploaded: (file: string, project: string) => `Uploaded ${file} into the files of ${project}.`,

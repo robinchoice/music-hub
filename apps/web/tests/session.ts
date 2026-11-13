@@ -93,10 +93,21 @@ export function addStem(trackId: string, userId: string, name: string, earlier =
 }
 
 // A file of the project, filed next to a track when trackId is given
-export function addFile(projectId: string, trackId: string | null, userId: string, name: string) {
-  bun(`
+export function addFile(projectId: string, trackId: string | null, userId: string, name: string, mimeType = 'application/octet-stream') {
+  return bun(`
     import { projectFiles } from '@music-hub/db';
-    await db.insert(projectFiles).values({ projectId: ${JSON.stringify(projectId)}, trackId: ${JSON.stringify(trackId)}, originalFileName: ${JSON.stringify(name)}, mimeType: 'application/octet-stream', fileSize: 7, fileKey: 'test/' + crypto.randomUUID() + '/' + ${JSON.stringify(name)}, createdById: ${JSON.stringify(userId)} });
+    const [f] = await db.insert(projectFiles).values({ projectId: ${JSON.stringify(projectId)}, trackId: ${JSON.stringify(trackId)}, originalFileName: ${JSON.stringify(name)}, mimeType: ${JSON.stringify(mimeType)}, fileSize: 7, fileKey: 'test/' + crypto.randomUUID() + '/' + ${JSON.stringify(name)}, createdById: ${JSON.stringify(userId)} }).returning();
+    console.log(f.id);
+  `);
+}
+
+// What the worker's measurement stores: every band at one level, for a version or a project file
+export function addMeasurements(table: 'versions' | 'projectFiles', id: string, level: number, integratedLufs: number) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    import { ${table} as rows } from '@music-hub/db';
+    const measurements = { bands: Array(31).fill(${level}), correlation: 0.9, width: 0.2, monoLossLu: 0.3, monoLossBands: Array(31).fill(0.3) };
+    await db.update(rows).set({ measurements, integratedLufs: ${integratedLufs}, measuredAt: new Date() }).where(eq(rows.id, ${JSON.stringify(id)}));
   `);
 }
 

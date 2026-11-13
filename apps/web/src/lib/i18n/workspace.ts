@@ -188,6 +188,11 @@ export const de = {
     mixHint: 'Ohne Haken bleiben es nur Spuren. Alle Spuren müssen am selben Punkt beginnen.',
     moveConfirm: (n: number) => (n === 1 ? 'Spur anlegen' : `${n} Spuren anlegen`),
     moved: (n: number) => (n === 1 ? 'Die Datei ist jetzt eine Spur' : `${n} Dateien sind jetzt Spuren`),
+    reference: 'Referenz',
+    markReference: (name: string) => `${name} als Referenz des Projekts: jede Version wird damit verglichen`,
+    unmarkReference: (name: string) => `${name} ist die Referenz des Projekts, Markierung entfernen`,
+    referenceSet: (name: string) => `${name} ist jetzt die Referenz, die Messung folgt in Kürze`,
+    referenceCleared: 'Das Projekt hat keine Referenz mehr',
   },
 
   projectPage: {
@@ -592,6 +597,11 @@ export const en: typeof de = {
     mixHint: 'Without the tick they stay just stems. All stems have to start at the same point.',
     moveConfirm: (n) => (n === 1 ? 'Create stem' : `Create ${n} stems`),
     moved: (n) => (n === 1 ? 'The file is a stem now' : `${n} files are stems now`),
+    reference: 'Reference',
+    markReference: (name) => `Make ${name} the project's reference: every version is compared with it`,
+    unmarkReference: (name) => `${name} is the project's reference, remove the mark`,
+    referenceSet: (name) => `${name} is the reference now, its measurement follows shortly`,
+    referenceCleared: 'The project has no reference anymore',
   },
 
   projectPage: {

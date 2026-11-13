@@ -6,6 +6,7 @@ import { generateToken, hashToken } from './middleware/auth.js';
 import { fileRoutes } from './routes/files.js';
 import { stemRoutes } from './routes/stems.js';
 import { trashRoutes } from './routes/trash.js';
+import { versionRoutes } from './routes/versions.js';
 import { storageOf, storageSummary } from './lib/storage.js';
 import type { AppEnv } from './types.js';
 
@@ -16,7 +17,8 @@ const app = new Hono<AppEnv>()
   .use('*', async (c, next) => { c.set('db', db); await next(); })
   .route('/files', fileRoutes)
   .route('/stems', stemRoutes)
-  .route('/trash', trashRoutes);
+  .route('/trash', trashRoutes)
+  .route('/versions', versionRoutes);
 const run = crypto.randomUUID();
 const userIds: string[] = [];
 type Person = { id: string; headers: Record<string, string> };
@@ -159,4 +161,37 @@ test('a file becomes a stem with the same object and the same payer, and stems w
   expect(await db.select().from(stemMixJobs).where(eq(stemMixJobs.trackId, trackId))).toHaveLength(1);
   // The same upload can't also become a file
   expect((await register(owner, stemKey, 'Kick.wav')).status).toBe(403);
+});
+
+test('one audio file is the reference track of the project, set by anyone who may upload', async () => {
+  const add = async (name: string, mimeType = 'audio/wav') =>
+    ((await (await register(producer, await uploadKey(producer, name, mimeType), name, mimeType)).json()) as { file: { id: string } }).file.id;
+  const first = await add('Vorbild.wav');
+  const second = await add('Vorbild_2.flac', 'audio/flac');
+  const notes = await add('Mix-Notizen.pdf', 'application/pdf');
+  const mark = (id: string, reference: boolean, p: Person = producer) => call(`/files/${id}/reference`, { method: 'PUT', body: { reference }, headers: p.headers });
+  const referenceOfTrack = async () =>
+    ((await (await call(`/versions/track/${trackId}`, { headers: viewer.headers })).json()) as { reference: { id: string; measurements: unknown } | null }).reference;
+
+  expect(await referenceOfTrack()).toBeNull();
+  expect((await mark(first, true, viewer)).status).toBe(403);
+  expect((await mark(notes, true)).status).toBe(400);
+  expect((await mark(first, true)).status).toBe(200);
+  // Not measured yet: the worker gets to it
+  expect(await referenceOfTrack()).toMatchObject({ id: first, measurements: null });
+
+  // Marking another file takes the mark from the first
+  expect((await mark(second, true)).status).toBe(200);
+  const listed = (await (await call(`/files/project/${projectId}`, { headers: viewer.headers })).json()) as { files: { id: string; reference: boolean }[] };
+  expect(listed.files.filter((f) => f.reference).map((f) => f.id)).toEqual([second]);
+  expect((await referenceOfTrack())?.id).toBe(second);
+
+  // In the trash it compares with nothing, back again it does
+  expect((await call(`/files/${second}`, { method: 'DELETE', headers: owner.headers })).status).toBe(200);
+  expect(await referenceOfTrack()).toBeNull();
+  expect((await call(`/trash/file/${second}/restore`, { method: 'POST', headers: owner.headers })).status).toBe(200);
+  expect((await referenceOfTrack())?.id).toBe(second);
+
+  expect((await mark(second, false)).status).toBe(200);
+  expect(await referenceOfTrack()).toBeNull();
 });
