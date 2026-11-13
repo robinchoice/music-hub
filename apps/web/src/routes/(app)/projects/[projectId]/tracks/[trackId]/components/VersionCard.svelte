@@ -38,6 +38,8 @@
     onBranch,
     onPromote,
     onDelete,
+    onMove,
+    onSplit,
     player,
     feedback,
   }: {
@@ -74,6 +76,9 @@
     onBranch: () => void;
     onPromote: () => void;
     onDelete: () => void;
+    /** Into another track, or a track of its own: the owner, while tidying up */
+    onMove?: () => void;
+    onSplit?: () => void;
     player: Snippet;
     /** Below the player: your open pass and who has given feedback */
     feedback?: Snippet;
@@ -207,6 +212,13 @@
             {/if}
             {#if canApprove && version.branchLabel}
               <button role="menuitem" onclick={() => pick(onPromote)}><Icon name="arrow-up" size={14} /> {t().track.versionCard.makeMain}</button>
+            {/if}
+            {#if isOwner && onMove && onSplit}
+              <hr />
+              <button role="menuitem" onclick={() => pick(onMove)}><Icon name="folder-move" size={14} /> {t().tidy.moveVersion}</button>
+              {#if versions.length > 1}
+                <button role="menuitem" onclick={() => pick(onSplit)}><Icon name="split" size={14} /> {t().tidy.splitVersion}</button>
+              {/if}
             {/if}
             {#if isOwner}
               <hr />

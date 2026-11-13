@@ -8,14 +8,16 @@
   let {
     folders,
     note,
+    onactions,
   }: {
     folders: Folder[];
     /** A second line under the name, e.g. who owns a shared project */
     note?: (folder: Folder) => string;
+    onactions?: ((folder: Folder, at: { x: number; y: number }) => void) | undefined;
   } = $props();
 
   // Project rows carry a gear; the other rows and the head keep its room, so the columns line up
-  const withGear = $derived(folders.some((f) => f.settingsHref));
+  const withGear = $derived(!!onactions || folders.some((f) => f.settingsHref));
 
   function contents(f: Folder) {
     const m = t().workspace.music;
@@ -34,7 +36,7 @@
   <ul>
     {#each folders as folder (folder.key)}
       {@const extra = note?.(folder) ?? ''}
-      <li>
+      <li oncontextmenu={(e) => { if (onactions && folder.kind === 'track') { e.preventDefault(); onactions(folder, { x: e.clientX, y: e.clientY }); } }}>
         <a href={folder.href} class="folder" data-kind={folder.kind}>
           {#if folder.kind === 'artist'}
             <span class="icon" title={t().workspace.music.artist}><Icon name="user" size={16} /></span>
@@ -51,7 +53,9 @@
           <span class="contents">{contents(folder)}</span>
           <span class="changed">{folder.changedAt ? formatWhen(folder.changedAt) : '—'}</span>
         </a>
-        {#if folder.settingsHref}
+        {#if onactions && folder.kind === 'track'}
+          <button type="button" class="gear" aria-label={t().tidy.actions(folder.name)} onclick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onactions?.(folder, { x: r.right - 240, y: r.bottom }); }}><Icon name="more" size={16} /></button>
+        {:else if folder.settingsHref}
           {@const label = `${t().workspace.projectPage.settingsMembers}: ${folder.name}`}
           <a href={folder.settingsHref} class="gear" title={label} aria-label={label}><Icon name="settings" size={16} /></a>
         {:else if withGear}
@@ -83,6 +87,9 @@
     border-bottom: none;
   }
   .gear {
+    border: none;
+    background: none;
+    cursor: pointer;
     flex-shrink: 0;
     display: grid;
     place-items: center;

@@ -72,7 +72,7 @@ export async function purgeTrash(db: Database) {
       isNotNull(t.deletedAt),
       sql`coalesce(${t.discardedAt}, ${t.deletedAt} + make_interval(days => ${TRASH_DAYS})) < now() - make_interval(days => ${KEEP_DAYS})`,
     );
-  const trackIds = (await db.select({ id: tracks.id }).from(tracks).where(due(tracks))).map((t) => t.id);
+  const trackIds = (await db.select({ id: tracks.id }).from(tracks).where(and(due(tracks), isNull(tracks.mergedIntoId)))).map((t) => t.id);
   const keys = await fileKeysOfTracks(db, trackIds);
   const collect = (...list: (string | null)[]) => list.forEach((key) => key && keys.add(key));
   if (trackIds.length) await db.delete(tracks).where(inArray(tracks.id, trackIds));

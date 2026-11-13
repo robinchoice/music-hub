@@ -1,6 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { getContext, onMount } from 'svelte';
   import { t } from '$lib/i18n/index.js';
+  import TrackTidy from '$lib/components/workspace/TrackTidy.svelte';
+  import Icon from '$lib/components/ui/Icon.svelte';
+  import { api } from '$lib/api/client.js';
   import Button from '$lib/components/ui/Button.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
@@ -23,6 +26,16 @@
   const groups = $derived(ix ? projectGroups(ix) : []);
   const folders = $derived(musicFolders(groups));
   const recent = $derived(recentTracks(groups, 6));
+  let tidy = $state<TrackTidy>();
+  const reloadSidebar = getContext<(() => void) | undefined>('reloadSidebar');
+  async function actions(id: string, at: { x: number; y: number }) {
+    const { track } = await api.get<{ track: { id: string; name: string; projectId: string; section: string | null } }>(`/tracks/${id}`);
+    tidy?.menu([track], at);
+  }
+  async function refresh() {
+    reloadSidebar?.();
+    await loadOverview(true);
+  }
 </script>
 
 <TopBar crumbs={[{ label: t().workspace.nav.music }]}>
@@ -49,7 +62,7 @@
       <ul class="recent">
         {#each recent as info (info.track.id)}
           {@const artist = artistOf(info.project)}
-          <li>
+          <li oncontextmenu={(e) => { if (info.project.myRights?.canUpload) { e.preventDefault(); void actions(info.track.id, { x: e.clientX, y: e.clientY }); } }}>
             <a href={trackHref(info.project.id, info.track.id)}>
               <CoverImage src={info.track.coverUrl ?? info.project.coverUrl} name={info.track.name} size="md" rounded="md" />
               <span class="text">
@@ -58,6 +71,9 @@
                 <span class="when"><TrackStatusPill status={info.track.status} /> {formatWhen(info.last.at)}</span>
               </span>
             </a>
+            {#if info.project.myRights?.canUpload}
+              <button type="button" class="dots" aria-label={t().tidy.actions(info.track.name)} onclick={(e) => { const r = e.currentTarget.getBoundingClientRect(); void actions(info.track.id, { x: r.right - 240, y: r.bottom }); }}><Icon name="more" size={16} /></button>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -67,7 +83,12 @@
   {/if}
 </div>
 
+<TrackTidy bind:this={tidy} onchange={refresh} />
+
 <style>
+  .recent li { position: relative; }
+  .dots { position: absolute; right: 4px; top: 4px; border: none; background: var(--color-bg-raised); color: var(--color-text-secondary); border-radius: var(--radius-sm); width: 32px; height: 32px; display: grid; place-items: center; cursor: pointer; }
+  .recent li:has(.dots) .text { padding-right: 24px; }
   .page {
     padding: var(--space-6);
     max-width: 1100px;

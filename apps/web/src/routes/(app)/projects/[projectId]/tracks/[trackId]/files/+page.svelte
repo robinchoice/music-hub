@@ -50,6 +50,11 @@
   onMount(async () => {
     void loadOverview();
     try {
+      const { track: location } = await api.get<{ track: { id: string; projectId: string } }>(`/tracks/${trackId}`, true);
+      if (location.id !== trackId || location.projectId !== projectId) {
+        window.location.replace(`/projects/${location.projectId}/tracks/${location.id}/files${$page.url.search}`);
+        return;
+      }
       const [projectRes, tracksRes, versionRes, stemsRes] = await Promise.all([
         api.get<{ project: { name: string; isArchived: boolean }; role: string; roles: string[]; rights: MemberRights }>(`/projects/${projectId}`, true),
         api.get<{ tracks: { id: string; name: string; coverUrl: string | null }[] }>(`/tracks/project/${projectId}`, true),

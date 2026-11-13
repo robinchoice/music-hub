@@ -8,7 +8,7 @@ import { reachOf } from './users.js';
 export const QUIET = '2 minutes';
 export const MAX_WAIT = '10 minutes';
 
-export async function queueVersionNotice(db: Database, projectId: string, actorId: string, versionId: string) {
+export async function queueVersionNotice(db: Pick<Database, 'insert'>, projectId: string, actorId: string, versionId: string) {
   await db.insert(versionNotices).values({ projectId, actorId, versionId });
 }
 
@@ -41,7 +41,7 @@ export async function takeDueNotices(db: Database) {
       .select({ versionId: versions.id, versionNumber: versions.versionNumber, trackId: tracks.id, trackName: tracks.name })
       .from(versions)
       .innerJoin(tracks, eq(tracks.id, versions.trackId))
-      .where(and(inArray(versions.id, taken.map((t) => t.versionId)), isNull(versions.deletedAt), isNull(tracks.deletedAt)))
+      .where(and(inArray(versions.id, taken.map((t) => t.versionId)), eq(tracks.projectId, projectId), isNull(versions.deletedAt), isNull(tracks.deletedAt)))
       .orderBy(asc(tracks.name), asc(versions.versionNumber));
     if (items.length === 0) continue;
 

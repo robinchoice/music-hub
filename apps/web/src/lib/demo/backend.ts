@@ -408,6 +408,7 @@ type Body = Record<string, unknown> | undefined;
 type Handler = (params: string[], body: Body) => unknown;
 
 const ROUTES: [string, RegExp, Handler][] = [
+  ['GET', /^\/tracks\/([\w-]+)$/, ([id]) => ({ track: find(db.tracks, id) })],
   ['GET', /^\/auth\/me$/, () => ({ user: { id: MARA.id, email: 'mara@example.org', name: MARA.name, avatarUrl: null } })],
   ['GET', /^\/projects$/, () => ({
     projects: db.projects.map((project) => ({

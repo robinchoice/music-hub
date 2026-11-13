@@ -193,7 +193,8 @@ export const versionRoutes = new Hono<AppEnv>()
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
       // Next version number; versions in the trash keep theirs
-      await tx.select({ id: tracks.id }).from(tracks).where(eq(tracks.id, trackId)).for('update');
+      const [currentTrack] = await tx.select().from(tracks).where(eq(tracks.id, trackId)).for('update');
+      if (!currentTrack || currentTrack.deletedAt || currentTrack.projectId !== track.projectId) return 'moved';
       const [latest] = await tx
         .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
         .from(versions)
@@ -219,15 +220,15 @@ export const versionRoutes = new Hono<AppEnv>()
         .returning();
       await enqueueAudioJob(tx, version.id);
       await clearFailedStemMix(tx, trackId);
+      await queueVersionNotice(tx, track.projectId, userId, version.id);
       return version;
     });
     if (version === 'taken') return c.json({ error: 'Forbidden' }, 403);
+    if (version === 'moved') return c.json({ error: t(c).errors.uploadTrackChanged }, 409);
     if (!version) return storageFull(c, await storageOf(db, userId));
     const { versionNumber } = version;
 
     // The worker announces it once the uploader pauses, so a batch becomes one push and one mail
-    await queueVersionNotice(db, track.projectId, userId, version.id);
-
     publish(db, trackId, { type: 'version:new', data: { versionId: version.id, versionNumber, trackId } });
 
     return c.json({ version }, 201);

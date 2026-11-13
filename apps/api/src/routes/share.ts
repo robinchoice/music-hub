@@ -82,11 +82,20 @@ function matchesShown(link: { follows: string }, heard: string | undefined, show
 
 // The version the link shows with its track and its creator's membership, null while the link pauses.
 // A link never does more than its creator may right now: comments and downloads follow that membership.
-async function liveTarget(db: Database, link: { versionId: string; follows: string; createdById: string }) {
+async function liveTarget(db: Database, link: { versionId: string; follows: string; createdById: string; projectLinkId?: string | null; trackId?: string | null }) {
   const versionId = await shownVersionId(db, link);
   if (!versionId) return null;
   const found = await liveVersion(db, versionId);
   if (!found) return null;
+  // Keep the listening history, but a project link never reaches a song moved out of its project.
+  if (link.projectLinkId) {
+    const [projectLink] = await db.select({ projectId: projectShareLinks.projectId }).from(projectShareLinks).where(eq(projectShareLinks.id, link.projectLinkId));
+    if (!projectLink || projectLink.projectId !== found.track.projectId) return null;
+    if (link.trackId) {
+      const [linkedTrack] = await db.select({ id: tracks.id, mergedIntoId: tracks.mergedIntoId }).from(tracks).where(eq(tracks.id, link.trackId));
+      if (!linkedTrack || (linkedTrack.mergedIntoId ?? linkedTrack.id) !== found.track.id) return null;
+    }
+  }
   const membership = await membershipOf(db, found.track.projectId, link.createdById);
   return membership ? { ...found, membership } : null;
 }

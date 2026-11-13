@@ -12,7 +12,8 @@
     | 'inbox' | 'sliders' | 'timeline' | 'headphones' | 'drive' | 'gauge'
     | 'users' | 'activity' | 'layers' | 'reply' | 'restore' | 'archive'
     | 'mail' | 'log-in' | 'bell' | 'plug' | 'smartphone' | 'monitor' | 'external'
-    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile' | 'kanban' | 'folder' | 'user';
+    | 'arrow-left' | 'chevron-up' | 'alert' | 'star' | 'smile' | 'kanban' | 'folder' | 'user'
+    | 'folder-move' | 'merge' | 'split';
 
   let {
     name,
@@ -192,6 +193,19 @@
     <line x1="10" y1="16" x2="10.01" y2="16" />
   {:else if name === 'folder'}
     <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
+  {:else if name === 'folder-move'}
+    <path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1" />
+    <path d="M2 13h10" />
+    <path d="m9 16 3-3-3-3" />
+  {:else if name === 'merge'}
+    <circle cx="18" cy="18" r="3" />
+    <circle cx="6" cy="6" r="3" />
+    <path d="M6 21V9a9 9 0 0 0 9 9" />
+  {:else if name === 'split'}
+    <path d="M16 3h5v5" />
+    <path d="M8 3H3v5" />
+    <path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" />
+    <path d="m15 9 6-6" />
   {:else if name === 'user'}
     <circle cx="12" cy="8" r="4" />
     <path d="M20 21a8 8 0 0 0-16 0" />

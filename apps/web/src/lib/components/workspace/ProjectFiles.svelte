@@ -26,6 +26,9 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
+  import ActionMenu, { type MenuEntry } from '$lib/components/ui/ActionMenu.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import { overviewIndex } from '$lib/stores/overview.js';
 
   let {
     projectId,
@@ -102,6 +105,72 @@
     onChange();
   }
 
+  // The menu of a file: rename, give to another track, move into another project of the same owner
+  let menuOpen = $state(false);
+  let menuAt = $state<{ x: number; y: number } | null>(null);
+  let menuFile = $state<ProjectFile | null>(null);
+  let editOpen = $state<'rename' | 'track' | 'project' | null>(null);
+  let editShown = $state(false);
+  let editName = $state('');
+  let editTarget = $state('');
+  let saving = $state(false);
+  const NONE = 'none';
+  const ownedProjects = $derived(
+    $overviewIndex ? [...$overviewIndex.projects.values()].filter((p) => p.id !== projectId && (p.myRole === 'owner' || p.myRoles.includes('owner'))) : [],
+  );
+  const fileItems = $derived.by((): MenuEntry[] => {
+    const file = menuFile;
+    if (!file) return [];
+    return [
+      { label: t().tidy.rename, icon: 'edit', run: () => edit('rename', file) },
+      { label: t().tidy.fileToTrack, icon: 'music', run: () => edit('track', file) },
+      ...(ownedProjects.length ? [{ label: t().tidy.fileToProject, icon: 'folder-move' as const, run: () => edit('project', file) }] : []),
+    ];
+  });
+
+  function openFileMenu(file: ProjectFile, button: HTMLElement) {
+    const r = button.getBoundingClientRect();
+    menuFile = file;
+    menuAt = { x: r.right - 240, y: r.bottom + 4 };
+    menuOpen = true;
+  }
+
+  function edit(kind: 'rename' | 'track' | 'project', file: ProjectFile) {
+    menuFile = file;
+    editName = file.originalFileName;
+    editTarget = kind === 'track' ? (file.trackId ?? NONE) : (ownedProjects[0]?.id ?? '');
+    editOpen = kind;
+    editShown = true;
+  }
+
+  async function saveEdit() {
+    const file = menuFile;
+    if (!file || !editOpen || !editShown) return;
+    const body =
+      editOpen === 'rename'
+        ? { originalFileName: editName.trim() }
+        : editOpen === 'track'
+          ? { trackId: editTarget === NONE ? null : editTarget }
+          : { projectId: editTarget };
+    saving = true;
+    try {
+      await api.patch(`/files/${file.id}`, body);
+      const where =
+        editOpen === 'rename'
+          ? editName.trim()
+          : editOpen === 'track'
+            ? (tracks.find((tr) => tr.id === editTarget)?.name ?? t().tidy.fileNoTrack)
+            : (ownedProjects.find((p) => p.id === editTarget)?.name ?? '');
+      toastSuccess(t().tidy.fileMoved(file.originalFileName, where));
+      editShown = false;
+      onChange();
+    } catch {
+      // The API client already showed the error
+    } finally {
+      saving = false;
+    }
+  }
+
   function openMove() {
     moveTrack = NEW;
     newName = '';
@@ -167,6 +236,7 @@
         {/if}
         {#if file.canChange}
           <Button variant="ghost" size="sm" onclick={() => remove(file)} title={t().workspace.files.remove(file.originalFileName)}><Icon name="trash" size={14} /></Button>
+          <button type="button" class="ref" onclick={(e) => openFileMenu(file, e.currentTarget)} title={t().tidy.fileActions(file.originalFileName)} aria-label={t().tidy.fileActions(file.originalFileName)}><Icon name="more" size={14} /></button>
         {/if}
       </li>
     {/each}
@@ -180,6 +250,38 @@
     {#if !movable}<p class="hint">{t().workspace.files.onlyAudio}</p>{/if}
   {/if}
 {/if}
+
+<ActionMenu bind:open={menuOpen} at={menuAt} title={menuFile?.originalFileName ?? ''} items={fileItems} />
+
+<Modal
+  bind:open={editShown}
+  title={editOpen === 'rename' ? t().tidy.renameTitle : editOpen === 'track' ? t().tidy.fileTrackTitle : t().tidy.fileProjectTitle}
+>
+  <div class="move">
+    {#if editOpen === 'rename'}
+      <form onsubmit={(e) => { e.preventDefault(); void saveEdit(); }}><Input bind:value={editName} autofocus maxlength={500} /></form>
+    {:else if editOpen === 'track'}
+      <label>
+        <span>{t().workspace.files.song}</span>
+        <select bind:value={editTarget}>
+          <option value={NONE}>{t().tidy.fileNoTrack}</option>
+          {#each tracks as track (track.id)}<option value={track.id}>{track.name}</option>{/each}
+        </select>
+      </label>
+    {:else if editOpen === 'project'}
+      <label>
+        <span>{t().tidy.project}</span>
+        <select bind:value={editTarget}>
+          {#each ownedProjects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+        </select>
+      </label>
+    {/if}
+  </div>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (editShown = false)}>{t().common.cancel}</Button>
+    <Button loading={saving} disabled={editOpen === 'rename' ? !editName.trim() : !editTarget} onclick={saveEdit}>{t().tidy.save}</Button>
+  {/snippet}
+</Modal>
 
 <Modal bind:open={moveOpen} title={t().workspace.files.toStems}>
   <div class="move">

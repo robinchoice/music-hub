@@ -1,8 +1,14 @@
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { Hono } from 'hono';
+import fc from 'fast-check';
 import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import {
   comments,
+  deliveries,
+  deliveryTracks,
+  imports,
+  importItems,
+  listenEvents,
   createDb,
   migrateDb,
   openTracks,
@@ -21,6 +27,8 @@ import {
 import { generateToken, hashToken } from './middleware/auth.js';
 import { fileRoutes } from './routes/files.js';
 import { trackRoutes } from './routes/tracks.js';
+import { stemRoutes } from './routes/stems.js';
+import { shareRoutes } from './routes/share.js';
 import { versionRoutes } from './routes/versions.js';
 import { storageOf } from './lib/storage.js';
 import type { AppEnv } from './types.js';
@@ -32,7 +40,9 @@ const app = new Hono<AppEnv>()
   .use('*', async (c, next) => { c.set('db', db); await next(); })
   .route('/files', fileRoutes)
   .route('/tracks', trackRoutes)
-  .route('/versions', versionRoutes);
+  .route('/versions', versionRoutes)
+  .route('/share', shareRoutes)
+  .route('/stems', stemRoutes);
 const run = crypto.randomUUID();
 const userIds: string[] = [];
 type Person = { id: string; headers: Record<string, string> };
@@ -110,7 +120,7 @@ afterAll(async () => {
   await db.$client.end();
 });
 
-test('a track moves with everything below it, keeps its files and drops the old project links', async () => {
+test('a track moves with everything below it and keeps its files and link history', async () => {
   const t = await track(demos, 'Neon', { section: 'Demos 2025' });
   const v = await version(t.id, 1, robin);
   const [file] = await db
@@ -118,10 +128,11 @@ test('a track moves with everything below it, keeps its files and drops the old 
     .values({ projectId: demos, trackId: t.id, originalFileName: 'Lyrics.pdf', mimeType: 'application/pdf', fileSize: 10, fileKey: `projects/${demos}/uploads/${crypto.randomUUID()}/file/Lyrics.pdf`, createdById: robin.id })
     .returning();
   const [projectLink] = await db.insert(projectShareLinks).values({ projectId: demos, token: generateToken(), createdById: robin.id }).returning();
-  await db.insert(shareLinks).values([
+  const createdLinks = await db.insert(shareLinks).values([
     { versionId: v.id, token: generateToken(), createdById: robin.id, projectLinkId: projectLink.id, trackId: t.id, follows: 'latest' },
     { versionId: v.id, token: generateToken(), createdById: robin.id, follows: 'version' },
-  ]);
+  ]).returning();
+  await db.insert(listenEvents).values({ shareLinkId: createdLinks[0].id, listenSeconds: 45 });
   const before = await storageOf(db, robin.id);
 
   // A dry run changes nothing
@@ -135,7 +146,10 @@ test('a track moves with everything below it, keeps its files and drops the old 
   expect(moved).toMatchObject({ projectId: solo, section: 'Demos 2025' });
   expect((await db.select().from(projectFiles).where(eq(projectFiles.id, file.id)))[0]).toMatchObject({ projectId: solo, trackId: t.id, fileKey: file.fileKey });
   const links = await db.select().from(shareLinks).where(eq(shareLinks.versionId, v.id));
-  expect(links.map((l) => l.follows)).toEqual(['version']);
+  expect(links.map((l) => l.follows).sort()).toEqual(['latest', 'version']);
+  expect((await db.select().from(listenEvents).where(eq(listenEvents.shareLinkId, createdLinks[0].id)))).toHaveLength(1);
+  expect((await call(`/share/public/${createdLinks[0].token}`)).status).toBe(410);
+  expect((await call(`/share/public/${createdLinks[1].token}`)).status).toBe(200);
   expect(await storageOf(db, robin.id)).toEqual(before);
 
   // The section can be set along the way, or cleared
@@ -284,4 +298,135 @@ test('possible duplicates come from similar names and the same file, across own 
   const group = groups.find((g) => g.tracks.some((t) => t.id === x.id))!;
   expect(group.tracks.map((t) => t.id).sort()).toEqual([x.id, y.id, z.id].sort());
   expect(group.reasons).toEqual(['file', 'name']);
+});
+
+test('identical stems keep unique earlier revisions and project references do not collide when moved', async () => {
+  const a = await track(band, 'Archive A');
+  const b = await track(demos, 'Archive B');
+  const current = await stem(a.id, 'Drums', robin, 20, new Date(), 'e'.repeat(64));
+  const duplicate = await stem(b.id, 'Drums', robin, 20, new Date(), 'e'.repeat(64));
+  const [revision] = await db.insert(stemRevisions).values({ stemId: duplicate.id, fileKey: `test/${run}/earlier.wav`, originalFileName: 'earlier.wav', mimeType: 'audio/wav', fileSize: 12, createdById: robin.id, createdAt: new Date(), replacedAt: new Date() }).returning();
+  const before = await storageOf(db, robin.id);
+  expect((await call(`/tracks/${b.id}/merge`, { method: 'POST', body: { intoTrackId: a.id }, headers: robin.headers })).status).toBe(200);
+  expect((await db.select().from(stemRevisions).where(eq(stemRevisions.id, revision.id)))[0].stemId).toBe(current.id);
+  expect(await storageOf(db, robin.id)).toEqual(before);
+  const c = await track(demos, 'Reference');
+  const ref = (projectId: string, trackId: string | null) => ({ projectId, trackId, reference: true, originalFileName: 'ref.wav', mimeType: 'audio/wav', fileSize: 1, fileKey: `test/${run}/${crypto.randomUUID()}.wav`, createdById: robin.id });
+  const [moving] = await db.insert(projectFiles).values(ref(demos, c.id)).returning();
+  const [existing] = await db.insert(projectFiles).values(ref(solo, null)).returning();
+  expect((await call(`/tracks/${c.id}/move`, { method: 'POST', body: { projectId: solo }, headers: robin.headers })).status).toBe(200);
+  expect((await db.select().from(projectFiles).where(eq(projectFiles.id, moving.id)))[0].reference).toBe(false);
+  expect((await db.select().from(projectFiles).where(eq(projectFiles.id, existing.id)))[0].reference).toBe(true);
+});
+
+test('concurrent merges consume a source once and aliases survive clearing the trash', async () => {
+  const { purgeTrash } = await import('./lib/trash.js');
+  const { trashRoutes } = await import('./routes/trash.js');
+  const trashApp = new Hono<AppEnv>().use('*', async (c, next) => { c.set('db', db); await next(); }).route('/trash', trashRoutes);
+  const a = await track(band, 'Destination A');
+  const b = await track(band, 'Destination B');
+  const source = await track(band, 'Merge once');
+  await version(source.id, 1, robin);
+  const results = await Promise.all([a, b].map((target) => call(`/tracks/${source.id}/merge`, { method: 'POST', body: { intoTrackId: target.id }, headers: robin.headers })));
+  expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  const [alias] = await db.select().from(tracks).where(eq(tracks.id, source.id));
+  const restore = await trashApp.request(`/trash/track/${source.id}/restore`, { method: 'POST', headers: robin.headers });
+  expect(restore.status).toBe(404);
+  await db.update(tracks).set({ deletedAt: new Date('2020-01-01'), discardedAt: new Date('2020-01-01') }).where(eq(tracks.id, source.id));
+  await purgeTrash(db);
+  const lookup = await call(`/tracks/${source.id}`, { headers: robin.headers });
+  expect(((await lookup.json()) as { track: { id: string } }).track.id).toBe(alias.mergedIntoId!);
+});
+
+
+test('merging preserves target numbers and appends after the maximum, including trashed versions', async () => {
+  await fc.assert(fc.asyncProperty(
+    fc.uniqueArray(fc.integer({ min: 1, max: 30 }), { minLength: 1, maxLength: 4 }),
+    fc.uniqueArray(fc.integer({ min: 1, max: 30 }), { minLength: 1, maxLength: 4 }),
+    async (targetNumbers, sourceNumbers) => {
+      const target = await track(band, 'Property target');
+      const source = await track(band, 'Property source');
+      for (const n of targetNumbers) {
+        const v = await version(target.id, n, robin);
+        await db.update(versions).set({ deletedAt: new Date() }).where(eq(versions.id, v.id));
+      }
+      for (const n of sourceNumbers) await version(source.id, n, robin);
+      const res = await call(`/tracks/${source.id}/merge`, { method: 'POST', body: { intoTrackId: target.id }, headers: robin.headers });
+      expect(res.status).toBe(200);
+      const appended = sourceNumbers.map((_, i) => Math.max(...targetNumbers) + i + 1);
+      expect((await numbers(target.id)).map((v) => v.n)).toEqual([...targetNumbers, ...appended].sort((a, b) => a - b));
+    },
+  ), { numRuns: 6 });
+});
+
+
+test('orders and pending imports block track moves, merges and version moves', async () => {
+  const a = await track(band, 'With order');
+  const b = await track(demos, 'With import');
+  const target = await track(solo, 'Unrestricted');
+  const av = await version(a.id, 1, robin);
+  const bv = await version(b.id, 1, robin);
+  const [link] = await db.insert(projectShareLinks).values({ projectId: band, token: generateToken(), createdById: robin.id }).returning();
+  const [delivery] = await db.insert(deliveries).values({ projectId: band, projectLinkId: link.id, createdById: robin.id, clientName: 'Client' }).returning();
+  await db.insert(deliveryTracks).values({ deliveryId: delivery.id, trackId: a.id, priceCents: 100 });
+  const [job] = await db.insert(imports).values({ userId: robin.id, rootPath: '/test', entries: [], status: 'running' }).returning();
+  await db.insert(importItems).values({ importId: job.id, entry: 0, position: 0, kind: 'version', name: 'Mix', projectId: demos, trackId: b.id, fileName: 'Mix.wav', rev: 'test', fileSize: 100 });
+  for (const [tr, v, code] of [[a, av, 'in_delivery'], [b, bv, 'importing']] as const) {
+    for (const [path, body] of [
+      [`/tracks/${tr.id}/move`, { projectId: solo }],
+      [`/tracks/${tr.id}/merge`, { intoTrackId: target.id }],
+      [`/versions/${v.id}/move`, { trackId: target.id }],
+    ] as const) {
+      const res = await call(path, { method: 'POST', body, headers: robin.headers });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { problems: { code: string }[] }).problems.some((p) => p.code === code)).toBe(true);
+    }
+  }
+});
+
+
+test('version and stem registration refuse a track merged while the upload was being checked', async () => {
+  const { mergeTracks } = await import('./lib/track-moves.js');
+  for (const kind of ['versions', 'stems'] as const) {
+    const source = await track(band, `Upload source ${kind}`);
+    const target = await track(band, `Upload target ${kind}`);
+    const fileKey = `projects/${band}/tracks/${source.id}/${kind}/${crypto.randomUUID()}/${kind === 'versions' ? 'original/' : ''}mix.wav`;
+    mock.module('./storage/s3.js', () => ({ ...storage, getObjectSize: async () => {
+      expect((await mergeTracks(db, source.id, target.id, robin.id)).ok).toBe(true);
+      return 100;
+    } }));
+    try {
+      const res = await call(`/${kind}/track/${source.id}`, { method: 'POST', headers: robin.headers, body: { name: 'Mix', originalFileName: 'mix.wav', mimeType: 'audio/wav', fileSize: 100, fileKey } });
+      expect(res.status).toBe(409);
+      expect(await db.select().from(versions).where(eq(versions.trackId, source.id))).toHaveLength(0);
+      expect(await db.select().from(stems).where(eq(stems.trackId, source.id))).toHaveLength(0);
+    } finally {
+      mock.module('./storage/s3.js', () => ({ ...storage, createDownloadUrl: async (key: string) => `https://bucket.test/${key}` }));
+    }
+  }
+});
+
+test('splitting preserves remix credit, and moving a version cannot drop its license', async () => {
+  const original = await track(band, 'Original');
+  const remix = await track(band, 'CC remix', { forkedFromId: original.id, license: 'cc-by-sa', credit: 'Original by Mara' });
+  const plain = await track(band, 'Plain track');
+  const v = await version(remix.id, 1, robin);
+  const refused = await call(`/versions/${v.id}/move`, { method: 'POST', headers: robin.headers, body: { trackId: plain.id } });
+  expect(refused.status).toBe(409);
+  const split = await call(`/versions/${v.id}/split`, { method: 'POST', headers: robin.headers, body: {} });
+  expect(split.status).toBe(201);
+  expect(((await split.json()) as { track: unknown }).track).toMatchObject({ forkedFromId: original.id, license: 'cc-by-sa', credit: 'Original by Mara' });
+});
+
+test('moving the last version keeps the source project link and its listening history paused', async () => {
+  const source = await track(band, 'Last version source');
+  const target = await track(solo, 'Last version target');
+  const v = await version(source.id, 1, robin);
+  const [projectLink] = await db.insert(projectShareLinks).values({ projectId: band, createdById: robin.id, token: generateToken() }).returning();
+  const [link] = await db.insert(shareLinks).values({ projectLinkId: projectLink.id, trackId: source.id, versionId: v.id, follows: 'latest', createdById: robin.id, token: generateToken() }).returning();
+  await db.insert(listenEvents).values({ shareLinkId: link.id, listenSeconds: 42 });
+  expect((await call(`/versions/${v.id}/move`, { method: 'POST', headers: robin.headers, body: { trackId: target.id } })).status).toBe(200);
+  expect(await db.select().from(shareLinks).where(eq(shareLinks.id, link.id))).toHaveLength(1);
+  expect(await db.select().from(listenEvents).where(eq(listenEvents.shareLinkId, link.id))).toHaveLength(1);
+  expect((await call(`/share/public/${link.token}`)).status).toBe(410);
 });

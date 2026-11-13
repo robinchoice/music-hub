@@ -23,6 +23,7 @@ import { songKey } from '@music-hub/shared';
 import type { Context } from 'hono';
 import { membershipOf } from './access.js';
 import { t } from './i18n.js';
+import { queueStemMix } from '../services/stem-mixes.js';
 
 // Moving tracks between projects, merging two tracks and moving a version into another track.
 // Rows change, files don't: every key in the bucket stays where it is (keysInUse looks at rows, not paths),
@@ -51,7 +52,9 @@ async function ownsLive(db: Reader, projectId: string, userId: string) {
 // A live track, or the one a merged track went into (its old id keeps leading there for clients that stored it)
 export async function resolveTrack(db: Reader, trackId: string): Promise<Track | undefined> {
   let id = trackId;
-  for (let hops = 0; hops < 10; hops++) {
+  const seen = new Set<string>();
+  while (!seen.has(id)) {
+    seen.add(id);
     const [track] = await db.select().from(tracks).where(eq(tracks.id, id)).limit(1);
     if (!track) return undefined;
     if (!track.deletedAt) return track;
@@ -121,12 +124,15 @@ async function problemsOf(
 
 const lockTracks = async (tx: Tx, ids: string[]) => {
   // Always in the same order, so two merges of the same pair can't wait for each other
-  await tx.select({ id: tracks.id }).from(tracks).where(inArray(tracks.id, ids)).orderBy(asc(tracks.id)).for('update');
+  for (const id of [...ids].sort()) await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'open:' + id}))`);
+  await tx.select({ id: tracks.id }).from(tracks).where(inArray(tracks.id, ids)).orderBy(asc(tracks.id)).for('no key update');
 };
 
-// The project links of the old project gave out a share link per track; they must not keep reaching it
-const dropProjectLinkTracks = (tx: Tx, trackId: string) =>
-  tx.delete(shareLinks).where(and(eq(shareLinks.trackId, trackId), isNotNull(shareLinks.projectLinkId)));
+// After waiting for another move, the original project and live state must still hold.
+async function unchangedTracks(tx: Tx, before: Track[]) {
+  const rows = await tx.select().from(tracks).where(inArray(tracks.id, before.map((t) => t.id)));
+  return before.every((t) => rows.some((r) => r.id === t.id && !r.deletedAt && r.projectId === t.projectId));
+}
 
 const nextSortOrder = async (tx: Tx, projectId: string) => {
   const [row] = await tx
@@ -168,6 +174,7 @@ export async function moveTrack(
 
   return db.transaction(async (tx) => {
     await lockTracks(tx, [track.id]);
+    if (!(await unchangedTracks(tx, [track]))) return { ok: false as const, status: 409 as const, problems: [] };
     // Checked again under the lock: an order or an opening may have come in meanwhile
     const late = await check(tx);
     if (late.length) return { ok: false as const, status: 409 as const, problems: late };
@@ -183,10 +190,10 @@ export async function moveTrack(
       .where(eq(tracks.id, track.id))
       .returning();
     if (!sameProject) {
-      await tx.update(projectFiles).set({ projectId: input.projectId }).where(eq(projectFiles.trackId, track.id));
+      await tx.update(projectFiles).set({ projectId: input.projectId, reference: false }).where(eq(projectFiles.trackId, track.id));
       const ids = tx.select({ id: versions.id }).from(versions).where(eq(versions.trackId, track.id));
       await tx.update(versionNotices).set({ projectId: input.projectId }).where(inArray(versionNotices.versionId, ids));
-      await dropProjectLinkTracks(tx, track.id);
+      await tx.update(tracks).set({ projectId: input.projectId }).where(eq(tracks.mergedIntoId, track.id));
     }
     return { ok: true as const, track: moved };
   });
@@ -269,6 +276,7 @@ export async function mergeTracks(
 
   return db.transaction(async (tx) => {
     await lockTracks(tx, [source.id, target.id]);
+    if (!(await unchangedTracks(tx, [source, target]))) return { ok: false as const, status: 409 as const, problems: [] };
     const late = await check(tx);
     if (late.length) return { ok: false as const, status: 409 as const, problems: late };
     const { preview, versionMoves, stemMoves } = await mergePlan(tx, source, target);
@@ -292,6 +300,9 @@ export async function mergeTracks(
 
     // Stems: one of the same name takes the other's files into its history, the newer file stays current
     for (const m of stemMoves) {
+      if (m.into && m.kind === 'duplicate') {
+        await tx.update(stemRevisions).set({ stemId: m.into.id }).where(eq(stemRevisions.stemId, m.stem.id));
+      }
       if (!m.into || m.kind === 'duplicate') {
         await tx
           .update(stems)
@@ -336,11 +347,13 @@ export async function mergeTracks(
       await tx.delete(stems).where(eq(stems.id, incoming.id));
     }
 
-    await tx.update(projectFiles).set({ trackId: target.id, projectId: target.projectId }).where(eq(projectFiles.trackId, source.id));
+    await tx.update(projectFiles).set({ trackId: target.id, projectId: target.projectId, ...(source.projectId !== target.projectId && { reference: false }) }).where(eq(projectFiles.trackId, source.id));
     await tx.update(guestNotes).set({ trackId: target.id }).where(eq(guestNotes.trackId, source.id));
-    await dropProjectLinkTracks(tx, source.id);
     await tx.delete(stemMixJobs).where(eq(stemMixJobs.trackId, source.id));
     await tx.delete(stemMixUploads).where(eq(stemMixUploads.trackId, source.id));
+    if (stemMoves.some((m) => !m.stem.deletedAt)) await queueStemMix(tx, target.id, userId);
+    // Older aliases point straight to the final track, even after another merge.
+    await tx.update(tracks).set({ mergedIntoId: target.id, projectId: target.projectId }).where(eq(tracks.mergedIntoId, source.id));
 
     const takeCover = !target.coverImageUrl && source.coverImageUrl;
     const [merged] = await tx
@@ -350,7 +363,7 @@ export async function mergeTracks(
       .returning();
     await tx
       .update(tracks)
-      .set({ deletedAt: now, deletedById: userId, mergedIntoId: target.id, updatedAt: now, ...(takeCover && { coverImageUrl: null }) })
+      .set({ deletedAt: now, deletedById: userId, mergedIntoId: target.id, projectId: target.projectId, updatedAt: now, ...(takeCover && { coverImageUrl: null }) })
       .where(eq(tracks.id, source.id));
     return { ok: true as const, preview, track: merged };
   });
@@ -370,8 +383,6 @@ async function moveVersionTx(tx: Tx, version: Version, from: Track, to: Track) {
     .limit(1);
   if (other) {
     await tx.update(shareLinks).set({ versionId: other.id }).where(and(eq(shareLinks.versionId, version.id), ne(shareLinks.follows, 'version')));
-  } else {
-    await tx.delete(shareLinks).where(and(eq(shareLinks.versionId, version.id), isNotNull(shareLinks.projectLinkId)));
   }
   // A branch doesn't reach across tracks
   await tx.update(versions).set({ parentVersionId: null }).where(eq(versions.parentVersionId, version.id));
@@ -399,7 +410,9 @@ async function versionWithTrack(db: Reader, versionId: string) {
 
 async function versionProblems(db: Reader, version: Version, from: Track, to: Track) {
   // Only the version's own uploader has to reach it afterwards
-  return problemsOf(db, [from.id, to.id], { uploaders: [version.createdById], from: from.projectId, to: to.projectId });
+  const problems = await problemsOf(db, [from.id, to.id], { uploaders: [version.createdById], from: from.projectId, to: to.projectId });
+  if ((from.forkedFromId || to.forkedFromId) && (from.forkedFromId !== to.forkedFromId || from.license !== to.license)) problems.push({ code: 'remix' });
+  return problems;
 }
 
 export async function moveVersion(
@@ -420,6 +433,8 @@ export async function moveVersion(
 
   return db.transaction(async (tx) => {
     await lockTracks(tx, [found.track.id, to.id]);
+    const current = await versionWithTrack(tx, versionId);
+    if (!current || current.track.id !== found.track.id || !(await unchangedTracks(tx, [found.track, to]))) return { ok: false as const, status: 409 as const, problems: [] };
     const late = await versionProblems(tx, found.version, found.track, to);
     if (late.length) return { ok: false as const, status: 409 as const, problems: late };
     return { ok: true as const, version: await moveVersionTx(tx, found.version, found.track, to) };
@@ -441,6 +456,10 @@ export async function splitVersion(
 
   return db.transaction(async (tx) => {
     await lockTracks(tx, [found.track.id]);
+    const current = await versionWithTrack(tx, versionId);
+    if (!current || current.track.id !== found.track.id || !(await unchangedTracks(tx, [found.track]))) return { ok: false as const, status: 409 as const, problems: [] };
+    const late = await problemsOf(tx, [found.track.id], { uploaders: [], from: found.track.projectId, to: found.track.projectId });
+    if (late.length) return { ok: false as const, status: 409 as const, problems: late };
     const [track] = await tx
       .insert(tracks)
       .values({
@@ -450,6 +469,9 @@ export async function splitVersion(
         sortOrder: found.track.sortOrder,
         status: found.track.status,
         stemMix: false,
+        forkedFromId: found.track.forkedFromId,
+        license: found.track.license,
+        credit: found.track.credit,
         createdById: userId,
       })
       .returning();
@@ -583,13 +605,8 @@ export async function updateFile(
 
   const [updated] = await db
     .update(projectFiles)
-    .set({ projectId, trackId, ...(input.originalFileName && { originalFileName: input.originalFileName }) })
+    .set({ projectId, trackId, ...(projectId !== file.projectId && { reference: false }), ...(input.originalFileName && { originalFileName: input.originalFileName }) })
     .where(eq(projectFiles.id, file.id))
     .returning();
-  // A reference track belongs to its project; one moving on loses the mark
-  if (projectId !== file.projectId && updated.reference) {
-    await db.update(projectFiles).set({ reference: false }).where(eq(projectFiles.id, file.id));
-    updated.reference = false;
-  }
   return { ok: true, file: updated };
 }

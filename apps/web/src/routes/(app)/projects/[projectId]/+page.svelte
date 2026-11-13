@@ -33,6 +33,7 @@
   import type { MemberRights } from '@music-hub/shared';
   import { artistOf, musicCrumbs, trackFolder } from '$lib/utils/music.js';
   import FolderList from '$lib/components/workspace/FolderList.svelte';
+  import TrackTidy, { type TidyTrack } from '$lib/components/workspace/TrackTidy.svelte';
 
   type Track = { id: string; name: string; section: string | null; coverUrl?: string | null };
 
@@ -221,6 +222,132 @@
     void loadOverview(true);
   }
 
+  // --- Tidying up like a drive: a menu per row, a selection, dragging onto sections and projects ---
+  let tidy = $state<TrackTidy>();
+  let selected = $state<string[]>([]);
+  // Phones: a long press starts selecting, then taps add and remove
+  let selecting = $state(false);
+  let dragIds = $state<string[]>([]);
+  let dropKey = $state<string | null>(null);
+  const DRAG_TYPE = 'application/x-musichub-tracks';
+  const sectionNames = $derived([...new Set(tracks.map((tr) => tr.section?.trim()).filter((s): s is string => !!s))].sort((a, b) => a.localeCompare(b)));
+  const ownedProjects = $derived(ix ? [...ix.projects.values()].filter((p) => p.id !== projectId && (p.myRole === 'owner' || p.myRoles.includes('owner'))) : []);
+  const isOwner = $derived(roles.includes('owner'));
+
+  const tidyTrack = (id: string): TidyTrack | null => {
+    const tr = tracks.find((x) => x.id === id);
+    return tr ? { id: tr.id, name: tr.name, projectId: projectId!, section: tr.section?.trim() || null } : null;
+  };
+  const tidyList = (ids: string[]) => ids.map(tidyTrack).filter((x): x is TidyTrack => !!x);
+  // The row acted on, with the selection if it is part of it
+  const withSelection = (id: string) => (selected.includes(id) ? selected : [id]);
+
+  async function refresh() {
+    tracks = (await api.get<{ tracks: Track[] }>(`/tracks/project/${projectId}`)).tracks;
+    selected = selected.filter((id) => tracks.some((tr) => tr.id === id));
+    if (!selected.length) selecting = false;
+    reloadSidebar?.();
+    await loadOverview(true);
+    void loadFiles();
+  }
+
+  function toggle(id: string) {
+    selected = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    if (!selected.length) selecting = false;
+  }
+
+  function clearSelection() {
+    selected = [];
+    selecting = false;
+  }
+
+  function openMenu(id: string, at: { x: number; y: number } | null) {
+    tidy?.menu(tidyList(withSelection(id)), at);
+  }
+
+  let lastPointer = 'mouse';
+  let press: { id: string; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  let pressed = false;
+
+  function pressStart(e: PointerEvent, id: string) {
+    lastPointer = e.pointerType;
+    if (e.pointerType !== 'touch' || !canUpload) return;
+    pressed = false;
+    press = {
+      id,
+      x: e.clientX,
+      y: e.clientY,
+      timer: setTimeout(() => {
+        pressed = true;
+        selecting = true;
+        if (!selected.includes(id)) selected = [...selected, id];
+        navigator.vibrate?.(10);
+      }, 450),
+    };
+  }
+  function pressMove(e: PointerEvent) {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) pressEnd();
+  }
+  function pressEnd() {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  }
+
+  // Ctrl/⌘ and shift pick like a drive, while selecting a tap picks; the row's link stays for plain clicks
+  function clickRow(e: MouseEvent, id: string) {
+    if ((e.target as Element).closest('.pick, .dots')) return;
+    const picking = pressed || selecting || e.metaKey || e.ctrlKey || (e.shiftKey && selected.length > 0);
+    if (!picking || !canUpload) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (pressed) {
+      pressed = false;
+      return;
+    }
+    if (e.shiftKey && selected.length) {
+      const order = sections.flatMap((s) => s.list.map((i) => i.track.id));
+      const [a, b] = [order.indexOf(selected.at(-1)!), order.indexOf(id)].sort((x, y) => x - y);
+      selected = [...new Set([...selected, ...order.slice(a, b + 1)])];
+    } else {
+      toggle(id);
+    }
+  }
+
+  function contextMenu(e: MouseEvent, id: string) {
+    if (!canUpload) return;
+    e.preventDefault();
+    // A long press on a phone selects; its context menu would get in the way
+    if (lastPointer === 'touch') return;
+    openMenu(id, { x: e.clientX, y: e.clientY });
+  }
+
+  function dragStart(e: DragEvent, id: string) {
+    if (!canUpload || !e.dataTransfer) return;
+    dragIds = withSelection(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(DRAG_TYPE, dragIds.join(','));
+  }
+  function dragEnd() {
+    dragIds = [];
+    dropKey = null;
+  }
+  const carriesTracks = (e: DragEvent) => !!e.dataTransfer?.types.includes(DRAG_TYPE);
+  function dragOver(e: DragEvent, key: string) {
+    if (!carriesTracks(e)) return;
+    e.preventDefault();
+    dropKey = key;
+  }
+  function dropOn(e: DragEvent, target: { section: string | null } | { projectId: string }) {
+    if (!carriesTracks(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const list = tidyList(e.dataTransfer!.getData(DRAG_TYPE).split(','));
+    dragEnd();
+    if (!list.length) return;
+    if ('projectId' in target) tidy?.move(list, target.projectId);
+    else void tidy?.setSection(list, target.section);
+  }
+
   // Files dropped anywhere on the page become tracks too
   function dropOnPage(e: DragEvent) {
     if (!canUpload || !e.dataTransfer?.types.includes('Files')) return;
@@ -361,7 +488,7 @@
   {:else if view === 'dateien' && projectId}
     <!-- Like a drive: the tracks as folders, then the files that belong to no track -->
     <div class="drive">
-      {#if trackFolders.length}<FolderList folders={trackFolders} />{/if}
+      {#if trackFolders.length}<FolderList folders={trackFolders} onactions={canUpload ? (folder, at) => openMenu(folder.key, at) : undefined} />{/if}
       {#if looseFiles.length || !trackFolders.length}
         {#if trackFolders.length}<h2 class="drive-title">{t().workspace.music.filesTitle}</h2>{/if}
         <ProjectFiles {projectId} files={looseFiles} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
@@ -394,11 +521,18 @@
   {:else if view === 'board'}
     <TrackBoard {ix} infos={group.list} />
   {:else}
-    <div class="cols" aria-hidden="true"><span>{t().workspace.projectPage.colTrack}</span><span>{t().workspace.projectPage.colLatest}</span><span>{t().workspace.projectPage.colStage}</span><span>{t().workspace.projectPage.colLast}</span></div>
+    {#if canUpload}<p class="tidy-hint wide">{t().tidy.dragHint}</p>{/if}
+    <div class="cols" class:tidy={canUpload} aria-hidden="true"><span>{t().workspace.projectPage.colTrack}</span><span>{t().workspace.projectPage.colLatest}</span><span>{t().workspace.projectPage.colStage}</span><span>{t().workspace.projectPage.colLast}</span></div>
     {#each sections as section (section.name)}
       <section class="section">
         {#if sections.length > 1}
-          <h2 class="section-title">
+          <h2
+            class="section-title"
+            class:drop={dropKey === `s:${section.name}`}
+            ondragover={(e) => dragOver(e, `s:${section.name}`)}
+            ondragleave={() => (dropKey = null)}
+            ondrop={(e) => dropOn(e, { section: section.name === 'Mainline' ? null : section.name })}
+          >
             {section.name}
             <span class="section-count">{section.list.length}</span>
           </h2>
@@ -434,10 +568,92 @@
 
 {#snippet rows(list: TrackInfo[])}
   {#each list as info, k (info.track.id)}
+    {@const id = info.track.id}
     {#if k}<div class="sep"></div>{/if}
-    <TrackRow ix={ix!} {info} expanded={!!expanded[info.track.id]} ontoggle={() => (expanded = { ...expanded, [info.track.id]: !expanded[info.track.id] })} />
+    {#if canUpload}
+      <div
+        class="tidy-row"
+        class:selected={selected.includes(id)}
+        class:selecting
+        class:dragging={dragIds.includes(id)}
+        role="group"
+        aria-label={info.track.name}
+        draggable="true"
+        ondragstart={(e) => dragStart(e, id)}
+        ondragend={dragEnd}
+        oncontextmenu={(e) => contextMenu(e, id)}
+        onclickcapture={(e) => clickRow(e, id)}
+        onpointerdown={(e) => pressStart(e, id)}
+        onpointermove={pressMove}
+        onpointerup={pressEnd}
+        onpointercancel={pressEnd}
+      >
+        <label class="pick"><input type="checkbox" checked={selected.includes(id)} onchange={() => toggle(id)} aria-label={t().tidy.select(info.track.name)} /></label>
+        <div class="row-main">
+          <TrackRow ix={ix!} {info} expanded={!!expanded[id]} ontoggle={() => (expanded = { ...expanded, [id]: !expanded[id] })} />
+        </div>
+        <button type="button" class="dots" aria-label={t().tidy.actions(info.track.name)} title={t().tidy.actions(info.track.name)} onclick={(e) => { const r = e.currentTarget.getBoundingClientRect(); openMenu(id, { x: r.right - 240, y: r.bottom + 4 }); }}>
+          <Icon name="more" size={16} />
+        </button>
+      </div>
+    {:else}
+      <TrackRow ix={ix!} {info} expanded={!!expanded[id]} ontoggle={() => (expanded = { ...expanded, [id]: !expanded[id] })} />
+    {/if}
   {/each}
 {/snippet}
+
+<svelte:window onkeydown={(e) => e.key === 'Escape' && selected.length && clearSelection()} />
+
+{#if canUpload && projectId}
+  <TrackTidy
+    bind:this={tidy}
+    sections={sectionNames}
+    onchange={refresh}
+    onopen={(tr) => goto(`/projects/${projectId}/tracks/${tr.id}`)}
+  />
+{/if}
+
+{#if selected.length && view === 'tracks'}
+  <div class="selection-bar" role="region" aria-label={t().tidy.selected(selected.length)}>
+    <span class="count">{t().tidy.selected(selected.length)}</span>
+    <Button variant="ghost" size="sm" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tidy?.menu(tidyList(selected), { x: r.left, y: r.top - 8 }); }}>
+      <Icon name="more" size={14} /> {t().tidy.section}
+    </Button>
+    {#if isOwner}
+      <Button variant="ghost" size="sm" onclick={() => tidy?.move(tidyList(selected))}><Icon name="folder-move" size={14} /> {t().tidy.moveConfirm}</Button>
+      <Button variant="ghost" size="sm" disabled={selected.length < 2} onclick={() => tidy?.merge(tidyList(selected))}><Icon name="merge" size={14} /> {t().tidy.mergeConfirm}</Button>
+      <Button variant="ghost" size="sm" title={t().tidy.trash} onclick={() => tidy?.trash(tidyList(selected))}><Icon name="trash" size={14} /></Button>
+    {/if}
+    <Button variant="ghost" size="sm" title={t().tidy.clear} onclick={clearSelection}><Icon name="x" size={14} /></Button>
+  </div>
+{/if}
+
+{#if dragIds.length}
+  <div class="drop-dock" role="region" aria-label={t().tidy.dropProjects}>
+    {#each [...sectionNames, null] as s (s ?? '')}
+      <span
+        class="drop-chip"
+        role="listitem"
+        class:drop={dropKey === `d:${s ?? ''}`}
+        ondragover={(e) => dragOver(e, `d:${s ?? ''}`)}
+        ondragleave={() => (dropKey = null)}
+        ondrop={(e) => dropOn(e, { section: s })}
+      ><Icon name="layers" size={13} /> {s ?? t().tidy.noSection}</span>
+    {/each}
+    {#if isOwner}
+      {#each ownedProjects as p (p.id)}
+        <span
+          class="drop-chip project"
+          role="listitem"
+          class:drop={dropKey === `p:${p.id}`}
+          ondragover={(e) => dragOver(e, `p:${p.id}`)}
+          ondragleave={() => (dropKey = null)}
+          ondrop={(e) => dropOn(e, { projectId: p.id })}
+        ><Icon name="folder-move" size={13} /> {p.name}</span>
+      {/each}
+    {/if}
+  </div>
+{/if}
 
 <Sheet bind:open={moreOpen} title={t().workspace.projectPage.moreActions}>
   <nav class="more-list" aria-label={t().workspace.projectPage.moreActions}>
@@ -679,6 +895,141 @@
     height: 1px;
     background: var(--color-border);
     margin: 0 var(--space-3);
+  }
+  .cols.tidy {
+    padding-left: calc(var(--space-3) + 28px);
+    padding-right: calc(var(--space-3) + 36px);
+  }
+  .tidy-hint {
+    margin: calc(-1 * var(--space-3)) 0 var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .tidy-row {
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-md);
+    -webkit-touch-callout: none;
+  }
+  .tidy-row.selected {
+    background: var(--color-accent-subtle);
+  }
+  .tidy-row.dragging {
+    opacity: 0.45;
+  }
+  .row-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .pick {
+    width: 28px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    align-self: stretch;
+    cursor: pointer;
+  }
+  .pick input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+    opacity: 0;
+    cursor: pointer;
+  }
+  .tidy-row:hover .pick input,
+  .tidy-row.selected .pick input,
+  .pick input:focus-visible {
+    opacity: 1;
+  }
+  .dots {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    margin-right: 4px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+  }
+  .dots:hover,
+  .dots:focus-visible {
+    background: var(--color-bg-overlay);
+    color: var(--color-text-primary);
+  }
+  .section-title.drop,
+  .drop-chip.drop {
+    outline: 2px dashed var(--color-accent);
+    outline-offset: 2px;
+    color: var(--color-text-primary);
+  }
+  .selection-bar,
+  .drop-dock {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+    z-index: var(--z-dropdown);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100vw - 2 * var(--space-4));
+    padding: 6px 8px;
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-hover);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+  .selection-bar .count {
+    padding: 0 var(--space-2);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+  .drop-dock {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  .drop-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px dashed var(--color-border-hover);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+  .drop-chip.project {
+    border-style: solid;
+  }
+  @media (max-width: 640px) {
+    .tidy-hint.wide,
+    .cols.tidy {
+      display: none;
+    }
+    .pick {
+      display: none;
+    }
+    .tidy-row.selecting .pick {
+      display: grid;
+    }
+    .tidy-row.selecting .pick input {
+      opacity: 1;
+    }
+    .selection-bar {
+      left: var(--space-3);
+      right: var(--space-3);
+      transform: none;
+      max-width: none;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
   }
   .more {
     display: flex;

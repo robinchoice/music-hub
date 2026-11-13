@@ -47,7 +47,7 @@ export async function trashOf(db: Database, userId: string, projectId?: string) 
           bytes: sql<number>`((select coalesce(sum(v.file_size), 0) from versions v where v.track_id = tracks.id and v.deleted_at is null) + (select coalesce(sum(s.file_size), 0) from stems s where s.track_id = tracks.id and not s.forked and s.deleted_at is null) + (select coalesce(sum(r.file_size), 0) from stem_revisions r join stems s on s.id = r.stem_id where s.track_id = tracks.id and not r.forked and s.deleted_at is null and r.deleted_at is null))::float8`,
         })
         .from(tracks)
-        .where(and(inArray(tracks.projectId, ownedIds), inTrash(tracks)))
+        .where(and(inArray(tracks.projectId, ownedIds), inTrash(tracks), isNull(tracks.mergedIntoId)))
     : [];
 
   const versionRows = owner
@@ -185,7 +185,7 @@ async function trashedItem(db: Database, kind: Kind, id: string, userId: string)
     const [row] = await db
       .select({ projectId: tracks.projectId, trackId: tracks.id })
       .from(tracks)
-      .where(and(eq(tracks.id, id), inTrash(tracks)))
+      .where(and(eq(tracks.id, id), inTrash(tracks), isNull(tracks.mergedIntoId)))
       .limit(1);
     return row && (await roleIn(db, row.projectId, userId)) === 'owner' ? row : null;
   }

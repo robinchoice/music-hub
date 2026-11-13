@@ -15,6 +15,8 @@ Music Hub ist eine kollaborative Plattform für Produzenten, Engineers und Label
 - Magic-Link-Auth — kein Passwort-Reset-Chaos
 - S3-kompatibler File-Storage (Hetzner Object Storage)
 
+Tracks lassen sich über Rechtsklick oder „⋯“ umbenennen, einem Abschnitt (etwa EP oder Album) zuordnen, in ein anderes eigenes Projekt verschieben oder zusammenführen. In der Track-Liste helfen Mehrfachauswahl und Ziehen auf Abschnitte oder Projekte; am Handy beginnt langes Drücken die Auswahl. Zusammenführen zeigt vorher eine Vorschau, hängt Versionen hinten an und erhält Dateien, Kommentare und alte Adressen. Es lässt sich nicht als Ganzes rückgängig machen. Vorher die Sync-App synchronisieren: Lokal geänderte Dateien im alten Ordner können sonst wieder einen eigenen Track anlegen. Fremde Uploader müssen auch im Zielprojekt Mitglied sein; offene Tracks, Aufträge und laufende Importe sperren die Aktion.
+
 ## Stack
 
 | Layer | Tech |

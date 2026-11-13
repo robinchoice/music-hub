@@ -56,6 +56,7 @@ const de = {
         : `${names[0]} hat hier hochgeladen und ist nicht im Zielprojekt. Lade die Person erst dort ein.`,
     moveRemix: 'Ein Remix lässt sich nur mit einem Remix desselben Originals unter derselben Lizenz zusammenführen.',
     moveSameTrack: 'Wähle einen anderen Track als Ziel.',
+    uploadTrackChanged: 'Der Track wurde während des Uploads verschoben oder zusammengeführt. Bitte erneut versuchen.',
   },
 
   push: {
@@ -204,6 +205,7 @@ const en: typeof de = {
       `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]} uploaded here and ${names.length > 1 ? 'are' : 'is'} not in the target project. Invite them there first.`,
     moveRemix: 'A remix can only be merged with a remix of the same original under the same license.',
     moveSameTrack: 'Pick another track as the target.',
+    uploadTrackChanged: 'The track was moved or merged during the upload. Please try again.',
   },
 
   push: {

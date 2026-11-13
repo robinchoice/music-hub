@@ -5,6 +5,7 @@ import * as guest from './guest.js';
 import * as importer from './importer.js';
 import * as landing from './landing.js';
 import * as overview from './overview.js';
+import * as tidy from './tidy.js';
 import * as track from './track.js';
 import * as workspace from './workspace.js';
 
@@ -19,6 +20,7 @@ export const messages = {
     importer: importer.de,
     landing: landing.de,
     overview: overview.de,
+    tidy: tidy.de,
     track: track.de,
     workspace: workspace.de,
   },
@@ -30,6 +32,7 @@ export const messages = {
     importer: importer.en,
     landing: landing.en,
     overview: overview.en,
+    tidy: tidy.en,
     track: track.en,
     workspace: workspace.en,
   },

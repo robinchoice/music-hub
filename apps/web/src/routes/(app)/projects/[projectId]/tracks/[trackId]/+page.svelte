@@ -62,6 +62,7 @@
   import CommentSection from './components/CommentSection.svelte';
   import StemList, { type Stem, type GuestNote } from './components/StemList.svelte';
   import TrackFiles from './components/TrackFiles.svelte';
+  import TrackTidy from '$lib/components/workspace/TrackTidy.svelte';
   import type { ProjectFile } from '$lib/components/workspace/ProjectFiles.svelte';
   import { artistOf, musicCrumbs } from '$lib/utils/music.js';
   import OpenModal from '$lib/components/open/OpenModal.svelte';
@@ -249,6 +250,8 @@
   onMount(async () => {
     await initOfflineStore();
     try { dismissedVersions = JSON.parse(localStorage.getItem(comparisonKey) ?? '[]'); } catch { dismissedVersions = []; }
+    // A moved or merged track lives elsewhere now; old links from mails and pushes lead there
+    const where = api.get<{ track: { id: string; projectId: string } }>(`/tracks/${trackId}`, true).catch(() => null);
     try {
       const [projectRes, trackVersions, tracksRes, stemsRes, openRes] = await Promise.all([
         api.get<{ project: { name: string }; role: string; roles: string[]; rights: MemberRights }>(`/projects/${projectId}`),
@@ -280,7 +283,7 @@
       }
       const found = tracksRes.tracks.find((t) => t.id === trackId);
       if (!found || !trackVersions || !stemsRes) {
-        missing = true;
+        if (!(await followMoved(where))) missing = true;
         return;
       }
       trackName = found.name || '';
@@ -300,6 +303,8 @@
       // "Öffnen" from the overview pages names the version to land on
       const requested = versions.find((v) => v.id === $page.url.searchParams.get('v'));
       if (versions.length > 0) await selectVersion(requested ?? versions[0]);
+    } catch {
+      if (!(await followMoved(where))) missing = true;
     } finally {
       loading = false;
     }
@@ -663,6 +668,25 @@
     }
   }
 
+  // Goes to where the track lives now, if that is not this address. A full load, so the page starts over.
+  async function followMoved(where: Promise<{ track: { id: string; projectId: string } } | null>) {
+    const here = (await where)?.track;
+    if (!here || (here.id === trackId && here.projectId === projectId)) return false;
+    window.location.replace(`/projects/${here.projectId}/tracks/${here.id}${$page.url.search}`);
+    return true;
+  }
+
+  let tidy = $state<TrackTidy>();
+  const tidyThis = () => ({ id: trackId, name: trackName, projectId, section: trackSection });
+
+  // After moving, merging or splitting: off to the track's new address, or reload what changed here
+  async function afterTidy() {
+    reloadSidebar?.();
+    void loadOverview();
+    const where = api.get<{ track: { id: string; projectId: string } }>(`/tracks/${trackId}`, true).catch(() => null);
+    if (!(await followMoved(where))) await loadVersions();
+  }
+
   async function deleteTrack() {
     await api.delete(`/tracks/${trackId}`);
     toastTrash(t().track.page.trackTrashed(trackName), async () => {
@@ -845,6 +869,9 @@
                 {/if}
                 {#if role === 'owner'}
                   <hr />
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; tidy?.move([tidyThis()]); }}><Icon name="folder-move" size={14} /> {t().tidy.move}</button>
+                  <button role="menuitem" onclick={() => { trackMenuOpen = false; tidy?.merge([tidyThis()]); }}><Icon name="merge" size={14} /> {t().tidy.merge}</button>
+                  <hr />
                   <button role="menuitem" class="danger" onclick={() => { trackMenuOpen = false; deleteTrack(); }}><Icon name="trash" size={14} /> {t().track.page.trackToTrash}</button>
                   <span class="menu-hint">{t().track.page.trackTrashHint}</span>
                 {/if}
@@ -1024,6 +1051,8 @@
           onBranch={startBranch}
           onPromote={handlePromote}
           onDelete={deleteVersion}
+          onMove={() => selectedVersion && tidy?.moveVersion(selectedVersion, tidyThis())}
+          onSplit={() => selectedVersion && tidy?.splitVersion(selectedVersion)}
         >
           {#snippet player()}
             {#key streamUrl}
@@ -1203,6 +1232,10 @@
     {canComment}
     {canDownload}
   />
+{/if}
+
+{#if role === 'owner'}
+  <TrackTidy bind:this={tidy} onchange={afterTidy} />
 {/if}
 
 {#if openState && $user}
