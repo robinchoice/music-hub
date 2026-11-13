@@ -2,16 +2,17 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { createProjectFileSchema, requestFileUploadUrlSchema } from '@music-hub/shared';
+import { createProjectFileSchema, requestFileUploadUrlSchema, updateProjectFileSchema } from '@music-hub/shared';
 import { projectFiles, stemMixJobs, stems, tracks, users, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl, createUploadUrl, getObjectSize } from '../storage/s3.js';
 import { fits, lockStorage, storageFull, storageOf, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
 import { mayDownload, membershipOf } from '../lib/access.js';
-import { isAudioFile, isProjectUploadKey, playableInline, projectUploadPrefix, uploadKeyInUse } from '../lib/files.js';
+import { isAudioFile, isAudioUploadKey, isProjectUploadKey, playableInline, projectUploadPrefix, uploadKeyInUse } from '../lib/files.js';
 import { queueStemMix } from '../services/stem-mixes.js';
 import { t } from '../lib/i18n.js';
 import type { AppEnv } from '../types.js';
+import { refuse, updateFile } from '../lib/track-moves.js';
 
 const toStemSchema = z.object({ trackId: z.string().uuid(), mix: z.boolean().optional() });
 const referenceSchema = z.object({ reference: z.boolean() });
@@ -151,6 +152,13 @@ export const fileRoutes = new Hono<AppEnv>()
     return c.json({ url: await createDownloadUrl(access.file.fileKey, 3600, undefined, access.file.mimeType) });
   })
 
+  // Rename, give to another track (null: to none) or move into another project of the same owner
+  .patch('/:id', zValidator('json', updateProjectFileSchema), async (c) => {
+    const result = await updateFile(c.get('db'), c.req.param('id'), c.req.valid('json'), c.get('userId'));
+    if (!result.ok) return refuse(c, result);
+    return c.json({ file: result.file });
+  })
+
   // Into the project's trash; the file in the bucket goes when it is deleted for good
   .delete('/:id', async (c) => {
     const db = c.get('db');
@@ -190,7 +198,7 @@ export const fileRoutes = new Hono<AppEnv>()
     if (!mayChange(access, userId)) return c.json({ error: 'Forbidden' }, 403);
     const track = await trackOfProject(db, access.file.projectId, trackId);
     if (!track) return c.json({ error: 'Not found' }, 404);
-    if (!isAudioFile(access.file.originalFileName, access.file.mimeType) || !isProjectUploadKey(access.file.projectId, access.file.fileKey)) {
+    if (!isAudioFile(access.file.originalFileName, access.file.mimeType) || !isAudioUploadKey(access.file.fileKey)) {
       return c.json({ error: t(c).errors.notAudio }, 400);
     }
 

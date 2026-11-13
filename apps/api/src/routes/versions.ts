@@ -5,6 +5,8 @@ import {
   requestUploadUrlSchema,
   createVersionSchema,
   updateVersionSchema,
+  moveVersionSchema,
+  splitVersionSchema,
   rejectVersionSchema,
   createReviewSchema,
   SUPPORTED_AUDIO_FORMATS,
@@ -26,6 +28,7 @@ import { publish } from '../services/sse.js';
 import { queueVersionNotice } from '../lib/notices.js';
 import { mayDownload, membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { liveTrackId, moveVersion, refuse, splitVersion } from '../lib/track-moves.js';
 import { uploadKeyInUse } from '../lib/files.js';
 import { t } from '../lib/i18n.js';
 
@@ -39,7 +42,7 @@ export const versionRoutes = new Hono<AppEnv>()
   .get('/track/:trackId', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
 
     const found = await trackAccess(db, trackId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
@@ -121,7 +124,7 @@ export const versionRoutes = new Hono<AppEnv>()
     async (c) => {
       const db = c.get('db');
       const userId = c.get('userId');
-      const trackId = c.req.param('trackId');
+      const trackId = await liveTrackId(db, c.req.param('trackId'));
       const { fileName, mimeType, fileSize } = c.req.valid('json');
 
       const found = await trackAccess(db, trackId, userId);
@@ -149,7 +152,7 @@ export const versionRoutes = new Hono<AppEnv>()
   .post('/track/:trackId', zValidator('json', createVersionSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
     const input = c.req.valid('json');
 
     const found = await trackAccess(db, trackId, userId);
@@ -230,6 +233,20 @@ export const versionRoutes = new Hono<AppEnv>()
     return c.json({ version }, 201);
   })
 
+  // Into another track, where it gets the next number; its comments go along
+  .post('/:id/move', zValidator('json', moveVersionSchema), async (c) => {
+    const result = await moveVersion(c.get('db'), c.req.param('id'), c.req.valid('json'), c.get('userId'));
+    if (!result.ok) return refuse(c, result);
+    return c.json({ version: result.version });
+  })
+
+  // Into a new track of its own, next to the old one
+  .post('/:id/split', zValidator('json', splitVersionSchema), async (c) => {
+    const result = await splitVersion(c.get('db'), c.req.param('id'), c.req.valid('json').name, c.get('userId'));
+    if (!result.ok) return refuse(c, result);
+    return c.json({ track: result.track, version: result.version }, 201);
+  })
+
   // Update label/notes/branchLabel, tempo and key: the uploader of the version or the owner
   .patch('/:id', zValidator('json', updateVersionSchema), async (c) => {
     const db = c.get('db');
@@ -280,7 +297,7 @@ export const versionRoutes = new Hono<AppEnv>()
   .get('/track/:trackId/tree', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
 
     const found = await trackAccess(db, trackId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);

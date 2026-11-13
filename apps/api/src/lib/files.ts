@@ -14,6 +14,9 @@ export function isProjectUploadKey(projectId: string, fileKey: string, folders: 
   return folders.some((folder) => new RegExp(`^[0-9a-f-]{36}/${folder}/[^/]+$`).test(rest));
 }
 
+// An audio upload of any project: a file moved into another project keeps the key it was uploaded under
+export const isAudioUploadKey = (fileKey: string) => /^projects\/[0-9a-f-]{36}\/uploads\/[0-9a-f-]{36}\/original\/[^/]+$/.test(fileKey);
+
 // The one list of every column that points to a file in the bucket. Registering checks it so an upload counts once,
 // deleting checks it so a file a row still needs stays. A new column holding keys belongs here, or its files get deleted.
 // One statement, so a file moving between tables in a transaction is never missed.

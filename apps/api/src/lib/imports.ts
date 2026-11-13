@@ -10,6 +10,7 @@ import { importItems, imports, projectFiles, projectMembers, projects, stems, tr
 import { download, DropboxError, listFolder, session, type Session } from './dropbox.js';
 import { fits, lockStorage, storageOf, takeUploadVolume } from './storage.js';
 import { membershipOf } from './access.js';
+import { resolveTrack } from './track-moves.js';
 import { deleteObject, putObjectFile } from '../storage/s3.js';
 import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { clearFailedStemMix, queueStemMix } from '../services/stem-mixes.js';
@@ -126,8 +127,8 @@ async function start(db: Database, userId: string, importId: string, entries: Sc
   for (const item of wanted) {
     const before = earlier.get(entries[item.entry].hash ?? '');
     if (item.track === null || !before?.trackId || trackTarget.has(item.track)) continue;
-    const [track] = await db.select({ id: tracks.id, projectId: tracks.projectId }).from(tracks)
-      .where(and(eq(tracks.id, before.trackId), isNull(tracks.deletedAt))).limit(1);
+    // A song merged into another one since gets the files there
+    const track = await resolveTrack(db, before.trackId);
     if (track && (await membershipOf(db, track.projectId, userId))?.canUpload) trackTarget.set(item.track, { trackId: track.id, projectId: track.projectId });
   }
   const projectTarget = new Map<number, string>();

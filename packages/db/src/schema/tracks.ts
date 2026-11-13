@@ -63,6 +63,8 @@ export const tracks = pgTable('tracks', {
   deletedAt: timestamp('deleted_at'),
   deletedById: uuid('deleted_by_id').references(() => users.id),
   discardedAt: timestamp('discarded_at'),
+  // Set when the track was merged into another one and went into the trash empty; its old id leads there
+  mergedIntoId: uuid('merged_into_id').references((): AnyPgColumn => tracks.id, { onDelete: 'set null' }),
 }, (t) => [index().on(t.projectId)]);
 
 export const versions = pgTable('versions', {

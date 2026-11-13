@@ -10,6 +10,7 @@ import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolu
 import { Zip, ZipPassThrough } from 'fflate';
 import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { liveTrackId } from '../lib/track-moves.js';
 import { t } from '../lib/i18n.js';
 import { holdStemMix, queueStemMix } from '../services/stem-mixes.js';
 
@@ -19,7 +20,7 @@ export const stemRoutes = new Hono<AppEnv>()
   .get('/track/:trackId', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
 
     const found = await trackAccess(db, trackId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);
@@ -46,7 +47,7 @@ export const stemRoutes = new Hono<AppEnv>()
   .post('/track/:trackId/upload-url', zValidator('json', requestStemUploadUrlSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
     const { fileName, mimeType, fileSize } = c.req.valid('json');
 
     const found = await trackAccess(db, trackId, userId);
@@ -69,7 +70,7 @@ export const stemRoutes = new Hono<AppEnv>()
   .post('/track/:trackId', zValidator('json', createStemSchema), async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
     const input = c.req.valid('json');
 
     const found = await trackAccess(db, trackId, userId);
@@ -248,7 +249,7 @@ export const stemRoutes = new Hono<AppEnv>()
   .get('/track/:trackId/download-zip', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
-    const trackId = c.req.param('trackId');
+    const trackId = await liveTrackId(db, c.req.param('trackId'));
 
     const found = await trackAccess(db, trackId, userId);
     if (!found) return c.json({ error: 'Not found' }, 404);

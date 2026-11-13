@@ -47,6 +47,15 @@ const de = {
     notOpen: 'Diese Seite ist nicht (mehr) offen.',
     uploadLinkOff: 'Dieser Upload-Link ist ausgeschaltet oder gilt nicht mehr.',
     trackOpenReplace: 'Der Track ist offen. Schließe ihn, um Spuren zu ersetzen.',
+    moveTrackOpen: 'Der Track ist offen. Schließe ihn, bevor du ihn verschiebst oder zusammenführst.',
+    moveInDelivery: 'Der Track gehört zu einem Auftrag und bleibt deshalb, wo er ist.',
+    moveImporting: 'Der Track wird gerade aus Dropbox importiert. Versuch es danach noch einmal.',
+    moveUploadersMissing: (names: string[]) =>
+      names.length > 1
+        ? `${names.slice(0, -1).join(', ')} und ${names.at(-1)} haben hier hochgeladen und sind nicht im Zielprojekt. Lade sie erst dort ein.`
+        : `${names[0]} hat hier hochgeladen und ist nicht im Zielprojekt. Lade die Person erst dort ein.`,
+    moveRemix: 'Ein Remix lässt sich nur mit einem Remix desselben Originals unter derselben Lizenz zusammenführen.',
+    moveSameTrack: 'Wähle einen anderen Track als Ziel.',
   },
 
   push: {
@@ -188,6 +197,13 @@ const en: typeof de = {
     notOpen: 'This page is not open (anymore).',
     uploadLinkOff: 'This upload link is turned off or no longer valid.',
     trackOpenReplace: 'The track is open. Close it to replace stems.',
+    moveTrackOpen: 'The track is open. Close it before you move or merge it.',
+    moveInDelivery: 'The track belongs to an order, so it stays where it is.',
+    moveImporting: 'The track is being imported from Dropbox. Try again once that is done.',
+    moveUploadersMissing: (names) =>
+      `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]} uploaded here and ${names.length > 1 ? 'are' : 'is'} not in the target project. Invite them there first.`,
+    moveRemix: 'A remix can only be merged with a remix of the same original under the same license.',
+    moveSameTrack: 'Pick another track as the target.',
   },
 
   push: {

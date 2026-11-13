@@ -14,3 +14,4 @@ export * from './upload-plan.js';
 export * from './import-plan.js';
 export * from './measurements.js';
 export * from './versions.js';
+export * from './song-key.js';

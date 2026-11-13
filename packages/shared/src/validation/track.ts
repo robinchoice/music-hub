@@ -44,6 +44,29 @@ export const updateTrackSchema = z.object({
   section: z.string().max(100).nullable().optional(),
 });
 
+// Moving a track into another project; without section it keeps its own. dryRun only reports what stands in the way.
+export const moveTrackSchema = z.object({
+  projectId: z.string().uuid(),
+  section: z.string().trim().max(100).nullable().optional(),
+  dryRun: z.boolean().optional(),
+});
+
+// Merging the track into another one; dryRun answers with the preview and changes nothing
+export const mergeTrackSchema = z.object({
+  intoTrackId: z.string().uuid(),
+  dryRun: z.boolean().optional(),
+});
+
+export const moveVersionSchema = z.object({
+  trackId: z.string().uuid(),
+  dryRun: z.boolean().optional(),
+});
+
+// The version becomes a track of its own next to its old one
+export const splitVersionSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+});
+
 export const coverUploadSchema = z.object({
   fileName: z.string().min(1).max(200),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -120,6 +143,13 @@ export const createProjectFileSchema = z.object({
   originalFileName: z.string().min(1).max(500),
   mimeType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+$/),
   trackId: z.string().uuid().nullable().optional(),
+});
+
+// Renaming a file of the project, giving it to another track (null: to none) or moving it into another project
+export const updateProjectFileSchema = z.object({
+  originalFileName: z.string().trim().min(1).max(500).regex(/^[^/]+$/).optional(),
+  trackId: z.string().uuid().nullable().optional(),
+  projectId: z.string().uuid().optional(),
 });
 
 export const replaceStemSchema = z.object({

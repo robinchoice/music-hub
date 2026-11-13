@@ -2,7 +2,7 @@ import { runInBackground } from '../lib/background.js';
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, sql, isNull } from 'drizzle-orm';
-import { createTrackSchema, updateTrackSchema, openTrackSchema } from '@music-hub/shared';
+import { createTrackSchema, updateTrackSchema, openTrackSchema, moveTrackSchema, mergeTrackSchema } from '@music-hub/shared';
 import { tracks, openTracks, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { createDownloadUrl } from '../storage/s3.js';
@@ -12,6 +12,7 @@ import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { notifyUser } from '../services/push.js';
 import { membershipOf, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
+import { duplicateTracks, mergeTracks, moveTrack, refuse, whereIsTrack } from '../lib/track-moves.js';
 import { t } from '../lib/i18n.js';
 
 // Reminders to agree to opening a track, per track and person
@@ -70,6 +71,34 @@ export const trackRoutes = new Hono<AppEnv>()
       })),
     );
     return c.json({ tracks: enriched });
+  })
+
+  // Possible duplicates in the user's own projects: similar names or the same file
+  .get('/duplicates', async (c) => {
+    const projectId = c.req.query('projectId');
+    return c.json({ groups: await duplicateTracks(c.get('db'), c.get('userId'), projectId || undefined) });
+  })
+
+  // Where a track lives now; a merged track answers with the one it went into
+  .get('/:id', async (c) => {
+    const track = await whereIsTrack(c.get('db'), c.req.param('id'), c.get('userId'));
+    if (!track) return c.json({ error: 'Not found' }, 404);
+    return c.json({ track: { id: track.id, projectId: track.projectId, name: track.name, section: track.section } });
+  })
+
+  // Into another project of the same owner, everything below it included; dryRun only checks
+  .post('/:id/move', zValidator('json', moveTrackSchema), async (c) => {
+    const result = await moveTrack(c.get('db'), c.req.param('id'), c.req.valid('json'), c.get('userId'));
+    if (!result.ok) return refuse(c, result);
+    return c.json({ track: result.track });
+  })
+
+  // The track goes into another one: versions are appended, stems join, the emptied track goes into the trash
+  .post('/:id/merge', zValidator('json', mergeTrackSchema), async (c) => {
+    const { intoTrackId, dryRun } = c.req.valid('json');
+    const result = await mergeTracks(c.get('db'), c.req.param('id'), intoTrackId, c.get('userId'), dryRun);
+    if (!result.ok) return refuse(c, result);
+    return c.json({ preview: result.preview, track: result.track });
   })
 
   .post('/:projectId', zValidator('json', createTrackSchema), async (c) => {
