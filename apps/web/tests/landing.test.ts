@@ -12,6 +12,23 @@ test.beforeEach(({ page }) => {
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
+test('version measurements show the spectrum and loudness-matched predecessor in both languages', async ({ page }) => {
+  for (const lang of ['de', 'en']) {
+    await page.context().addCookies([{ name: 'locale', value: lang, url: 'http://localhost' }]);
+    await page.goto('/');
+    const open = page.locator('.phone-demo-open');
+    if (await open.isVisible()) await open.click();
+    const demo = page.frameLocator('.stage iframe');
+    const measurements = demo.locator('.measurements');
+    await measurements.locator('summary').click();
+    await expect(measurements.getByRole('heading', { name: lang === 'de' ? 'Terzspektrum' : 'Third-octave spectrum' })).toBeVisible();
+    await expect(measurements.getByRole('heading', { name: lang === 'de' ? 'Gegenüber V2, gleich laut gemacht' : 'Compared with V2, matched in loudness' })).toBeVisible();
+    await expect(measurements.locator('svg[role="img"]')).toHaveCount(2);
+    await expect(measurements.locator('svg[role="img"] .bar')).toHaveCount(62);
+    expect(await measurements.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+});
+
 test('initials skip brackets in guest names', async ({ page }) => {
   await page.goto('/');
   const feedback = page.locator('.frag-stack').first();

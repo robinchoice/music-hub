@@ -245,3 +245,17 @@ test('unexpected output of the script has no values', () => {
   expect(parseMeasurements('not json')).toBeNull();
   expect(parseMeasurements(JSON.stringify({ ...stored(measure(sine(1000, 0.5, 1))), bands: [0] }))).toBeNull();
 });
+
+test('the worker keeps partial PCM frames across stdin chunks', async () => {
+  const s = sine(1000, 0.5, 1);
+  const pcm = new Uint8Array(interleave(s, s).buffer);
+  const proc = Bun.spawn([process.execPath, `${import.meta.dir}/services/mix-measurement.ts`], { stdin: 'pipe', stdout: 'pipe' });
+  const output = new Response(proc.stdout).text();
+  proc.stdin.write(pcm.subarray(0, 3));
+  await proc.stdin.flush();
+  await Bun.sleep(1000);
+  proc.stdin.write(pcm.subarray(3));
+  await proc.stdin.end();
+  expect(await proc.exited).toBe(0);
+  expect(parseMeasurements(await output)).toEqual(parseMeasurements(JSON.stringify(stored(measure(s)))));
+});

@@ -11,6 +11,30 @@ import { OPEN_EXAMPLE_ID } from './mode.js';
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const COVER = '/demo/nachtbus-cover.svg';
 
+// Measured from static/demo/nachtbus-v1…v4.mp3 with the worker's Meter.
+const DEMO_BANDS = [
+  [
+    -57.3, -55.1, -52.1, -46.8, -20.9, -25.1, -26.2, -24.3, -27.4, -28.1, -22.1,
+    -26.8, -22.7, -31.7, -29.9, -29, -33.5, -34.1, -36.1, -37.9, -40, -39.8,
+    -39.5, -39.2, -39, -39.1, -39.7, -42.2, -90.9, -119.2, -119.7,
+  ],
+  [
+    -55.1, -53, -50, -44.5, -19.2, -24.1, -25.9, -25, -27.4, -29.7, -24.9,
+    -29.5, -25.9, -31.3, -29.3, -28.1, -35.7, -36.8, -38.3, -38.3, -38.8, -38.1,
+    -37.1, -36.2, -35.5, -34.9, -34.9, -36.6, -84.6, -119.2, -119.9,
+  ],
+  [
+    -55.9, -53.9, -50.4, -44.7, -19.2, -24.1, -25.8, -24.9, -27.3, -29.6, -24.9,
+    -29.5, -25.9, -31.2, -29.3, -28.1, -35.6, -36.8, -38.3, -38.4, -38.9, -38.4,
+    -37.4, -36.6, -35.9, -35.4, -35.4, -37, -85.4, -119.2, -119.9,
+  ],
+  [
+    -54.9, -52.7, -49.9, -44.5, -19.4, -23.7, -24.6, -22.4, -26, -27, -23.8,
+    -28.3, -25.6, -30.6, -29.2, -28.3, -35.4, -36.9, -38.8, -39.1, -40.2, -39.9,
+    -39, -38.1, -37.4, -36.7, -36.7, -38.5, -87.1, -118.8, -119.4,
+  ],
+];
+
 export const DEMO = {
   userId: uuid(1),
   projectId: uuid(10),
@@ -115,6 +139,7 @@ function seed() {
     audio: `/demo/nachtbus-v${versionNumber}.mp3`,
     // Measured from the files in static/demo with ffmpeg's ebur128 filter
     ...loudness,
+    measurements: { bands: DEMO_BANDS[versionNumber - 1]!, correlation: 1, width: 0, monoLossLu: 0, monoLossBands: Array(31).fill(0) },
     // What the worker's Essentia analysis finds in them
     bpm: 96,
     keyRoot: 'A',
