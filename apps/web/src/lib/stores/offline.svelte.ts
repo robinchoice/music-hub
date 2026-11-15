@@ -8,7 +8,7 @@ import {
   type OfflineQuality,
 } from '$lib/offline/db.js';
 
-export type { OfflineVersionRecord, OfflineQuality };
+export type { OfflineQuality };
 
 const OFFLINE_CACHE = 'musichub-offline-v1';
 

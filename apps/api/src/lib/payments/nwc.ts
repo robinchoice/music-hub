@@ -17,7 +17,7 @@ export type NwcInfo = {
   methods: string[];
 };
 
-export type NwcInvoice = {
+type NwcInvoice = {
   // BOLT11
   invoice: string;
   // hex, 64 characters
@@ -26,7 +26,7 @@ export type NwcInvoice = {
   expiresAt: Date | null;
 };
 
-export type NwcLookup = {
+type NwcLookup = {
   settled: boolean;
   settledAt: Date | null;
 };
@@ -46,11 +46,11 @@ export type NwcFactory = (url: string) => Promise<NwcClient>;
 
 // The methods a receive-only connection may list; anything else (pay_invoice, pay_keysend,
 // multi_pay_invoice, multi_pay_keysend, ...) refuses it. make_invoice and lookup_invoice are required.
-export const RECEIVE_ONLY_METHODS = ['make_invoice', 'lookup_invoice', 'get_info', 'get_balance', 'list_transactions'] as const;
-export const REQUIRED_METHODS = ['make_invoice', 'lookup_invoice'] as const;
+const RECEIVE_ONLY_METHODS = ['make_invoice', 'lookup_invoice', 'get_info', 'get_balance', 'list_transactions'] as const;
+const REQUIRED_METHODS = ['make_invoice', 'lookup_invoice'] as const;
 
 // Each relay round trip (connect, request and reply) gets at most this long
-export const NWC_TIMEOUT_MS = 10_000;
+const NWC_TIMEOUT_MS = 10_000;
 
 let factory: NwcFactory | null = null;
 
@@ -71,7 +71,7 @@ export async function connectNwc(url: string, options: { timeoutMs?: number; all
 }
 
 /** The relay URLs of a connection string, [] when it has none or isn't one */
-export function relayUrlsOf(url: string): string[] {
+function relayUrlsOf(url: string): string[] {
   const prefix = 'nostr+walletconnect://';
   if (!url.startsWith(prefix)) return [];
   try {

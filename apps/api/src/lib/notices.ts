@@ -5,8 +5,8 @@ import { sendVersionsEmail } from '../services/email.js';
 import { reachOf } from './users.js';
 
 // A batch goes out once its uploader has been quiet this long, or at the latest after MAX_WAIT
-export const QUIET = '2 minutes';
-export const MAX_WAIT = '10 minutes';
+const QUIET = '2 minutes';
+const MAX_WAIT = '10 minutes';
 
 export async function queueVersionNotice(db: Pick<Database, 'insert'>, projectId: string, actorId: string, versionId: string) {
   await db.insert(versionNotices).values({ projectId, actorId, versionId });
@@ -58,7 +58,7 @@ export async function takeDueNotices(db: Database) {
   return batches;
 }
 
-export async function deliverNotices(db: Database, batch: NoticeBatch) {
+async function deliverNotices(db: Database, batch: NoticeBatch) {
   const [first] = batch.items;
   await notifyUsers(db, batch.pushTo, (m) =>
     batch.items.length === 1

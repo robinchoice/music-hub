@@ -10,7 +10,7 @@ import { createDownloadUrl, deleteObject, putObjectFile } from '../storage/s3.js
 import { enqueueAudioJob, LEASE_MS, MAX_ATTEMPTS, RETRY_MS } from './audio-jobs.js';
 import { publish } from './sse.js';
 
-export const MIX_PAUSE_MS = 20_000;
+const MIX_PAUSE_MS = 20_000;
 type Executor = Pick<Database, 'execute'>;
 
 // Only for tracks that mix their stems (tracks.stem_mix): stems uploaded without a mix stay just stems

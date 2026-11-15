@@ -1,6 +1,6 @@
 import { api } from '$lib/api/client.js';
 
-export type PushState = 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed';
+type PushState = 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed';
 
 let _state = $state<PushState>('unsupported');
 let _loading = $state(false);

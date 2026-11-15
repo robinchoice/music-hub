@@ -27,7 +27,7 @@ interface MusicHubDB extends DBSchema {
 
 let _db: IDBPDatabase<MusicHubDB> | null = null;
 
-export async function getDb(): Promise<IDBPDatabase<MusicHubDB>> {
+async function getDb(): Promise<IDBPDatabase<MusicHubDB>> {
   if (_db) return _db;
   _db = await openDB<MusicHubDB>('musichub', 1, {
     upgrade(db) {

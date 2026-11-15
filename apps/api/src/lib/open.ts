@@ -27,7 +27,7 @@ export function allowedLicenses(inherited: string | null): OpenLicense[] {
 }
 
 // The newest approved version is what opens
-export async function approvedVersion(db: Db, trackId: string) {
+async function approvedVersion(db: Db, trackId: string) {
   const [version] = await db
     .select()
     .from(versions)

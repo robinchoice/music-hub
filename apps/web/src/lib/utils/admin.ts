@@ -7,7 +7,7 @@ type IconName = ComponentProps<typeof Icon>['name'];
 
 // ---------- Answers of /admin/* ----------
 
-export type Counts = { versions: number; stems: number; comments: number; approvals: number; plays: number };
+type Counts = { versions: number; stems: number; comments: number; approvals: number; plays: number };
 
 export type ActionType = 'login' | 'version' | 'stem' | 'comment' | 'approve' | 'reject' | 'share' | 'push' | 'task' | 'tracks';
 
@@ -38,7 +38,7 @@ export type Person = {
   planUntil: string | null;
 };
 
-export type Totals = {
+type Totals = {
   versions: number;
   stems: number;
   comments: number;
@@ -48,7 +48,7 @@ export type Totals = {
   complete: number;
 };
 
-export type SeriesPoint = { start: string; value: number };
+type SeriesPoint = { start: string; value: number };
 
 /** One column of ColumnChart; `tip` is the tooltip, `tick` shows the label under the axis */
 export type Column = { label: string; value: number; tip: string; tick: boolean };
@@ -114,7 +114,7 @@ export type PersonDetail = {
   devices: { kind: 'push' | 'plugin'; label: string; since: string }[];
 };
 
-export type Listener = { guestName: string | null; seconds: number; completed: boolean; played: boolean; at: string; device: string };
+type Listener = { guestName: string | null; seconds: number; completed: boolean; played: boolean; at: string; device: string };
 
 export type ShareLinkRow = {
   id: string;
@@ -213,7 +213,7 @@ export function standOf(ms: number): string {
 /** "3 Personen", "1 Person" */
 export const plural = (n: number, one: string, many: string) => `${n.toLocaleString('de-DE')} ${n === 1 ? one : many}`;
 
-export const EVENT_ICON: Record<AdminEvent['type'], IconName> = {
+const EVENT_ICON: Record<AdminEvent['type'], IconName> = {
   login: 'log-in',
   version: 'upload',
   stems: 'layers',

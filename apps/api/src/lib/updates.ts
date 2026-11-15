@@ -15,7 +15,7 @@ import { sendUpdateMail, updateMail } from '../services/email.js';
 //
 //   # en: Stems now download as a ZIP
 //   - One click downloads all stems of a track.
-export const DRAFTS_DIR = path.join(import.meta.dir, '../../../../updates');
+const DRAFTS_DIR = path.join(import.meta.dir, '../../../../updates');
 
 export type Draft = { slug: string; content: UpdateContent; image: Buffer | null };
 

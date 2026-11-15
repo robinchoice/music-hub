@@ -11,12 +11,12 @@ const apiUrl = () => process.env.DROPBOX_API_URL || 'https://api.dropboxapi.com'
 const contentUrl = () => process.env.DROPBOX_CONTENT_URL || 'https://content.dropboxapi.com';
 const appKey = () => process.env.DROPBOX_APP_KEY ?? '';
 
-export const SCOPES = 'account_info.read files.metadata.read files.content.read';
+const SCOPES = 'account_info.read files.metadata.read files.content.read';
 // A folder with more files than this is too big to look at in one go; pick a folder further down
-export const MAX_SCAN_FILES = 20_000;
+const MAX_SCAN_FILES = 20_000;
 
 export const dropboxConfigured = () => Boolean(process.env.DROPBOX_APP_KEY && process.env.DROPBOX_TOKEN_KEY);
-export const redirectUri = () => `${process.env.APP_URL || 'http://localhost:5173'}/api/v1/dropbox/callback`;
+const redirectUri = () => `${process.env.APP_URL || 'http://localhost:5173'}/api/v1/dropbox/callback`;
 
 export class DropboxError extends Error {
   constructor(readonly status: number, readonly summary: string) {

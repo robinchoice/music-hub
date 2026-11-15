@@ -6,7 +6,7 @@ type PlayerState = {
   isPlaying: boolean;
 };
 
-export const playerState = writable<PlayerState>({
+const playerState = writable<PlayerState>({
   trackId: null,
   currentTime: 0,
   isPlaying: false,
@@ -21,7 +21,7 @@ export function snapshotForTrack(trackId: string, currentTime: number, isPlaying
 
 /**
  * Get a continuation snapshot if we're staying within the same track.
- * Returns the previously snapshotted time + isPlaying, or null for a fresh start.
+ * Returns the snapshotted time + isPlaying, or null for a fresh start.
  */
 export function continuationFor(trackId: string): { initialTime: number; autoPlay: boolean } | null {
   let snap: PlayerState | null = null;

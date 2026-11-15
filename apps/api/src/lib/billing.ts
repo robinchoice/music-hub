@@ -318,7 +318,7 @@ export async function checkLightningPayment(db: Database, externalId: string) {
     await db.update(planPayments).set({ status: 'expired' }).where(and(eq(planPayments.id, payment.id), eq(planPayments.status, 'pending')));
 }
 
-export async function markLightningPaid(db: Database, paymentId: string) {
+async function markLightningPaid(db: Database, paymentId: string) {
   const booked = await db.transaction(async (tx) => {
     const [first] = await tx.select({ userId: planPayments.userId }).from(planPayments).where(eq(planPayments.id, paymentId));
     if (!first?.userId) return null;

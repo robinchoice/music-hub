@@ -67,7 +67,7 @@ async function headerDuration(file: File): Promise<number | null> {
 }
 
 // Length in seconds, null when it can't be read. Nothing is uploaded for it.
-export async function audioDuration(file: File): Promise<number | null> {
+async function audioDuration(file: File): Promise<number | null> {
   if (!isAudioType(file)) return null;
   const fromHeader = await headerDuration(file).catch(() => null);
   if (fromHeader !== null) return fromHeader;

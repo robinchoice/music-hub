@@ -74,7 +74,7 @@ export type TrackComment = {
   reactions?: Reaction[];
 };
 
-export type Reaction = { emoji: string; users: { id: string; name: string }[] };
+type Reaction = { emoji: string; users: { id: string; name: string }[] };
 
 type Timed = { id: string; timestampSeconds: number | null; createdAt: string };
 

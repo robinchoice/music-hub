@@ -10,17 +10,18 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "check": "biome lint && bun run --sequential --filter '@music-hub/*' check",
+    "check": "biome lint && knip && bun run --sequential --filter '@music-hub/*' check",
     "test": "bun run --sequential --filter '@music-hub/*' test",
     "db:generate": "turbo db:generate --filter=@music-hub/db",
     "db:migrate": "turbo db:migrate --filter=@music-hub/db",
     "db:seed": "turbo db:seed --filter=@music-hub/db"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
     "@types/bun": "latest",
+    "knip": "^6.44.2",
     "turbo": "latest",
-    "typescript": "^5",
-    "@biomejs/biome": "^2.5.15"
+    "typescript": "^5"
   },
   "overrides": {
     "@sveltejs/kit": {

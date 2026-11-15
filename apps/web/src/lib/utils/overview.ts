@@ -31,7 +31,7 @@ export type OverviewProject = {
   /** Last visit of the project page; before the first one the old visit of any project counts */
   seenAt?: string | null;
 };
-export type OverviewUser = { id: string; name: string; avatarUrl: string | null };
+type OverviewUser = { id: string; name: string; avatarUrl: string | null };
 export type OverviewTrack = {
   id: string;
   projectId: string;
@@ -70,7 +70,7 @@ export type OverviewComment = {
   createdAt: string;
   body: string;
 };
-export type OverviewListen = {
+type OverviewListen = {
   versionId: string;
   listenerName: string | null;
   plays: number;
@@ -171,7 +171,7 @@ export const avatarOf = (ix: OverviewIndex, userId: string | null) =>
 export const joinNames = (names: string[]): string => t().overview.names.joinNames(names);
 
 /** Guests reached by a share link; '' stands for guests without a name */
-export const guestLabel = (name: string) => t().overview.names.guestViaLink(name);
+const guestLabel = (name: string) => t().overview.names.guestViaLink(name);
 
 export const versionName = (v: { label: string | null; branchLabel: string | null }) => v.label || v.branchLabel || '';
 

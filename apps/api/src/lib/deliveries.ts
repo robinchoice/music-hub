@@ -142,7 +142,7 @@ export function methodsOf(account: PaymentAccountRow | undefined) {
 }
 
 // Verwendungszweck of a transfer
-export const remittanceOf = (delivery: Pick<Delivery, 'id' | 'reference'>) => delivery.reference ?? `MH-${delivery.id.slice(0, 8)}`;
+const remittanceOf = (delivery: Pick<Delivery, 'id' | 'reference'>) => delivery.reference ?? `MH-${delivery.id.slice(0, 8)}`;
 
 // Description of a Lightning invoice
 export const invoiceDescription = (delivery: Pick<Delivery, 'reference'>, projectName: string) =>
@@ -150,7 +150,7 @@ export const invoiceDescription = (delivery: Pick<Delivery, 'reference'>, projec
 
 // ---------- Rounds and totals ----------
 
-export type TrackState = Omit<StudioDeliveryTrack, 'approvedAt'> & { approvedAt: Date | null };
+type TrackState = Omit<StudioDeliveryTrack, 'approvedAt'> & { approvedAt: Date | null };
 export type DeliveryState = { tracks: TrackState[]; rounds: DeliveryRound[]; totals: DeliveryTotals; payable: boolean };
 
 export function totalsOf(
@@ -539,7 +539,7 @@ export async function announcePayment(db: Database, paymentId: string) {
 }
 
 // A pending payment that can no longer be paid, e.g. a Lightning invoice past its expiry
-export async function expirePayment(db: Database, paymentId: string) {
+async function expirePayment(db: Database, paymentId: string) {
   const rows = await db
     .update(payments)
     .set({ status: 'expired' })

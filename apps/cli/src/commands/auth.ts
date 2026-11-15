@@ -4,7 +4,7 @@ import { type Command, type Context, EXIT, Failure, str } from '../command';
 import { removeSession, SLUG, saveSession } from '../config';
 import { texts } from '../texts';
 
-export const userSchema = z.object({ id: z.string(), email: z.string(), name: z.string() });
+const userSchema = z.object({ id: z.string(), email: z.string(), name: z.string() });
 const meSchema = z.object({ user: userSchema.extend({ isAdmin: z.boolean() }).nullable() });
 const loginSchema = z.object({ user: userSchema, token: z.string() });
 const startSchema = z.object({
@@ -18,7 +18,7 @@ const pollSchema = z.union([loginSchema, z.object({ status: z.literal('pending')
 const loggedOutSchema = z.object({ message: z.string() });
 
 // The logged-in account, for every command that needs one
-export async function currentUser({ api, session }: Context) {
+async function currentUser({ api, session }: Context) {
   const user = session && (await api.get('/auth/me', meSchema)).user;
   if (!user) throw new Failure(texts.notLoggedIn(SLUG), EXIT.loggedOut);
   return user;

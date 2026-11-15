@@ -19,7 +19,7 @@ import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-export const commands: Record<string, Command> = { ...auth, projects, members, board, tracks, versions, files, comments, reviews, share, deliveries, plan, referral, imports };
+const commands: Record<string, Command> = { ...auth, projects, members, board, tracks, versions, files, comments, reviews, share, deliveries, plan, referral, imports };
 
 const globalOptions = {
   json: { type: 'boolean' },

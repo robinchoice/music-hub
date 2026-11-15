@@ -22,7 +22,7 @@ export function setPriceSource(next: PriceSource | null): void {
 }
 
 /** The current price source; the real one fetches mempool.space. */
-export function priceSource(): PriceSource {
+function priceSource(): PriceSource {
   return source ?? fetchEurPrice;
 }
 

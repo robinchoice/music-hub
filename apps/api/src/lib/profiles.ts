@@ -13,7 +13,7 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 // After a silent decline the same person can't ask again for this long
-export const DECLINED_PAUSE = 30 * DAY;
+const DECLINED_PAUSE = 30 * DAY;
 
 // Open tracks someone worked on: asked to open it, uploaded the open mix or one of its own stems.
 // Same visibility as liveOpenTrack(): opened, not in the trash, project owner not blocked.

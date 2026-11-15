@@ -1,6 +1,6 @@
 import type { OpenLicense } from '@music-hub/shared';
 
-export type OpenContributor = { id: string; name: string; avatarUrl: string | null; stemCount: number; consented: boolean };
+type OpenContributor = { id: string; name: string; avatarUrl: string | null; stemCount: number; consented: boolean };
 
 // GET /tracks/:id/open
 export type OpenState = {

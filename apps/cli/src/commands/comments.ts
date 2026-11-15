@@ -20,7 +20,7 @@ const listSchema = z.object({ comments: z.array(commentSchema) });
 const createdSchema = z.object({ comment: z.looseObject({ id: z.string(), body: z.string() }) });
 
 // 83 → 1:23, as the player shows it
-export const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
 // --at as 1:23 or 83 (seconds, also 83.5)
 function at(value: unknown) {

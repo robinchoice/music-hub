@@ -23,13 +23,13 @@ export type Folder = {
 export type Crumb = { label: string; href?: string };
 
 export const artistOf = (project: Pick<OverviewProject, 'artist'>) => project.artist?.trim() || '';
-export const artistHref = (artist: string) => `/artists/${encodeURIComponent(artist)}`;
+const artistHref = (artist: string) => `/artists/${encodeURIComponent(artist)}`;
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 
 // Opened from Meine Musik a project shows its folder view: the tracks as folders and its files
-export const projectFolderHref = (projectId: string) => `/projects/${projectId}?view=dateien`;
-export const trackFolderHref = (projectId: string, trackId: string) => `/projects/${projectId}/tracks/${trackId}/files`;
+const projectFolderHref = (projectId: string) => `/projects/${projectId}?view=dateien`;
+const trackFolderHref = (projectId: string, trackId: string) => `/projects/${projectId}/tracks/${trackId}/files`;
 
 export const projectFolder = (g: ProjectGroup): Folder => ({
   key: g.project.id,
