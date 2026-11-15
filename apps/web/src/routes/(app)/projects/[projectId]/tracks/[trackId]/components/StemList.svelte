@@ -21,6 +21,8 @@
     guestName?: string | null;
     revisedAt?: string | null;
     revisionCount?: number;
+    // Taken over from an open track; these alone never mix into a version
+    forked?: boolean;
   };
 
   export type GuestNote = { id: string; guestName: string; body: string; createdAt: string };

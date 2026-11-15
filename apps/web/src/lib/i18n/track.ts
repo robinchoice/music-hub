@@ -396,6 +396,8 @@ export const de = {
     stemsReady: (n: number) =>
       `${n === 1 ? '1 Spur liegt' : `${n} Spuren liegen`} bereit. Aus Audiospuren entsteht automatisch eine abspielbare Version. Alle Spuren müssen denselben Startpunkt haben.`,
     startWithStems: 'Fang mit den Spuren an oder lade direkt einen Mix als erste Version hoch.',
+    remixStemsReady: (n: number) =>
+      `${n === 1 ? 'Die Spur des Originals liegt' : `Die ${n} Spuren des Originals liegen`} bereit. Lade sie herunter, bau deinen Remix und lade ihn hier als Version oder als eigene Spuren hoch.`,
     moreStems: 'Weitere Spuren',
     uploadVersion: 'Version hochladen',
     finishHint: (name: string, minutes: number) =>
@@ -815,6 +817,8 @@ export const en: typeof de = {
     stemsReady: (n) =>
       `${n === 1 ? '1 stem is' : `${n} stems are`} ready. A playable version is created automatically from audio stems. All stems must share the same start point.`,
     startWithStems: 'Start with the stems or upload a mix right away as the first version.',
+    remixStemsReady: (n) =>
+      `${n === 1 ? "The original's stem is" : `The original's ${n} stems are`} ready. Download them, build your remix and upload it here as a version or as stems of your own.`,
     moreStems: 'More stems',
     uploadVersion: 'Upload version',
     finishHint: (name, minutes) =>

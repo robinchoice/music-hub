@@ -1001,7 +1001,7 @@
       {:else if versions.length === 0}
         <EmptyState
           title={t().track.page.noVersion}
-          description={stems.length ? t().track.page.stemsReady(stems.length) : t().track.page.startWithStems}
+          description={!stems.length ? t().track.page.startWithStems : forkedFrom && stems.every((s) => s.forked) ? t().track.page.remixStemsReady(stems.length) : t().track.page.stemsReady(stems.length)}
         >
           {#snippet action()}
             {#if canUpload && !showUpload && !showStemUpload}
