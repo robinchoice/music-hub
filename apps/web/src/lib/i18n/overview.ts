@@ -81,7 +81,7 @@ export const de = {
     uploadText: 'Dein Mix wird die erste Version eines Tracks. Spuren gehen auch.',
     uploadButton: 'Mix hochladen',
     inviteTitle: 'Leute dazuholen',
-    inviteText: 'Band, Produzentin oder Label hören rein und kommentieren an der Stelle.',
+    inviteText: 'Band, Produktion oder Label hören rein und kommentieren an der Stelle.',
   },
   listens: {
     title: 'Per Link gehört',

@@ -39,12 +39,12 @@ test('a client approves every song, pays by transfer, and downloads once the stu
   test.setTimeout(120_000);
   // The studio sets up the order on the project page
   await page.goto(`/projects/${projectId}?view=auftrag`);
-  await page.getByLabel('Kunde', { exact: true }).fill('Lena Berger');
+  await page.getByLabel('Kundschaft', { exact: true }).fill('Lena Berger');
   await page.getByLabel('Preis pro Song (€)').fill('120');
   await page.getByLabel('Korrekturrunden inklusive').fill('0');
   await page.getByRole('button', { name: 'Auftrag anlegen' }).click();
   await expect(page.getByRole('heading', { name: /Songs und Runden/ })).toBeVisible();
-  const link = new URL(await page.getByLabel('Link für den Kunden').inputValue()).pathname;
+  const link = new URL(await page.getByLabel('Link für die Kundschaft').inputValue()).pathname;
   const studio = await context.cookies();
 
   // The client hears without an account; paying waits for every approval

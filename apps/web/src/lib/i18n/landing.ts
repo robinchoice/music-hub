@@ -55,7 +55,7 @@ export const de = {
       'Leertaste spielt, C kommentiert, ← und → wechseln die Version',
     ],
     phoneAlt: 'Der Track Nachtbus am Handy: V4 mit Wellenform, Kommentaren und Knöpfen zum Freigeben',
-    band: 'Band, Artists und Kunden',
+    band: 'Band, Artists und Kundschaft',
     bandItems: [
       'Am Handy anhören und kommentieren, als App installierbar',
       'Zum Reinhören reicht ein Link, ganz ohne Account',
@@ -83,7 +83,7 @@ export const de = {
     provider: 'Angaben gemäß § 5 DDG',
     contact: 'Kontakt',
     responsible: 'Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV',
-    userContent: 'Inhalte von Nutzerinnen und Nutzern',
+    userContent: 'Hochgeladene Inhalte',
     userContentBefore:
       'Audiodateien, Kommentare und andere Inhalte in den Projekten stammen von deren Mitgliedern und von Gästen mit einem geteilten Link. Wenn dir dort ein rechtswidriger Inhalt auffällt, schreib mir an',
     userContentAfter: ', dann prüfe ich ihn und entferne ihn gegebenenfalls.',
@@ -92,7 +92,7 @@ export const de = {
       'Die Inhalte dieser Seite wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte kann jedoch keine Gewähr übernommen werden.',
     linkLiability: 'Haftung für Links',
     linkLiabilityText:
-      'Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte kein Einfluss besteht. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter verantwortlich.',
+      'Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte kein Einfluss besteht. Für die Inhalte der verlinkten Seiten ist stets verantwortlich, wer sie anbietet.',
   },
   unsubscribe: {
     title: 'Mails abbestellen — Music Hub',
@@ -128,7 +128,7 @@ export const de = {
         '3. Konto und Anmeldung',
         [
           'Für dein Konto speichere ich deinen Namen, deine E-Mail-Adresse, die Sprache für Mails und Benachrichtigungen und, falls du eines festlegst, dein Passwort als Hash. Konten entstehen über eine Registrierung oder eine Einladung, beide bestätigst du über einen Link per E-Mail. Links per E-Mail gelten je nach Zweck zwischen 15 Minuten und sieben Tagen. Nicht genutzte lösche ich, sobald sie abgelaufen sind, genutzte nach 90 Tagen. Nach dem Login setzt Music Hub ein Cookie, das dich angemeldet hält. Die Anmeldung gilt 365 Tage und verlängert sich, solange du Music Hub benutzt, eine abgelaufene lösche ich. Apps wie das DAW-Plugin und die Kommandozeile melden sich über einen Gerätecode an, für sie gilt dasselbe. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Nutzung von Music Hub). Dein Konto bleibt bestehen, bis du um die Löschung bittest.',
-          'Außerdem speichere ich, wann du Music Hub zuletzt benutzt hast, auf wenige Minuten genau. Jede Nutzung überschreibt diesen Zeitpunkt, ein Verlauf entsteht dabei nicht. Zusammen mit deinen Logins, Uploads und Kommentaren zeigt er mir als Betreiber, wer gerade online ist und wer schon länger nicht mehr da war. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem Überblick über den Betrieb).',
+          'Außerdem speichere ich, wann du Music Hub zuletzt benutzt hast, auf wenige Minuten genau. Jede Nutzung überschreibt diesen Zeitpunkt, ein Verlauf entsteht dabei nicht. Zusammen mit deinen Logins, Uploads und Kommentaren zeigt er mir für den Betrieb, wer gerade online ist und wer schon länger nicht mehr da war. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem Überblick über den Betrieb).',
         ],
       ],
       [

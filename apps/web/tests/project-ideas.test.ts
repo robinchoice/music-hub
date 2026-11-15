@@ -55,7 +55,7 @@ test('contributors: roles explain themselves, open invitations show, removing ca
   await page.goto(`/projects/${project.id}/settings`);
 
   // The owner comes first, the invitation is marked as open
-  await expect(page.locator('.member-row').first()).toContainText('Besitzer');
+  await expect(page.locator('.member-row').first()).toContainText('Owner');
   const row = page.locator('.member-row').filter({ hasText: email });
   await expect(row).toContainText('Einladung offen');
   // Every role says what it may do

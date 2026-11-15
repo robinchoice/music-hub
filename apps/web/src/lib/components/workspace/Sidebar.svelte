@@ -25,7 +25,7 @@
   // Only for addresses in ADMIN_EMAILS; the admin area stays German
   const ADMIN_NAV = [
     { href: '/admin', icon: 'gauge', label: 'Lagebild' },
-    { href: '/admin/users', icon: 'users', label: 'Nutzerliste' },
+    { href: '/admin/users', icon: 'users', label: 'Kontenliste' },
     { href: '/admin/log', icon: 'activity', label: 'Protokoll' },
     { href: '/admin/updates', icon: 'mail', label: 'Updates' },
   ] as const;

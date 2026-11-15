@@ -53,7 +53,7 @@ export const de = {
     protectedLink: '🔒 Geschützter Link',
     enterPassword: 'Bitte Passwort eingeben:',
     preparing: 'Die Vorschau wird vorbereitet. Schau gleich noch einmal vorbei.',
-    namePrompt: 'Wie heißt du? So wissen die Künstler, wer zugehört hat.',
+    namePrompt: 'Wie heißt du? So wissen alle im Projekt, wer zugehört hat.',
     yourName: 'Dein Name',
     ok: 'OK',
     skip: 'Überspringen',
@@ -114,7 +114,7 @@ export const de = {
   openList: {
     title: 'Offene Musik — Music Hub',
     heading: 'Offene Musik',
-    intro: 'Songs, deren Künstler Mix und Spuren zum Remixen freigegeben haben, unter Creative Commons. Hör rein, lad die Spuren herunter oder leg deinen eigenen Remix an.',
+    intro: 'Songs, deren Mix und Spuren zum Remixen freigegeben sind, unter Creative Commons. Hör rein, lad die Spuren herunter oder leg deinen eigenen Remix an.',
     remixes: (n: number) => (n === 1 ? '1 Remix' : `${n} Remixe`),
     steps: [
       { title: 'Track freigeben', text: 'Du stellst den freigegebenen Mix offen und wählst die CC-Lizenz. Alle, deren Mix oder Spuren drinstecken, stimmen zu.' },

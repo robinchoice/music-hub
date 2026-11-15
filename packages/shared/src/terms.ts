@@ -82,9 +82,9 @@ export const TERMS: Record<Locale, LegalText> = {
       {
         title: '§ 8 Aufträge (Studio)',
         items: [
-          'Mit einem Auftrag bietest du deinem Kunden über deinen Link zum Reinhören Songs zur Freigabe an, mit Korrekturrunden und einer Bezahlwand.',
-          'Der Vertrag über die Produktion besteht nur zwischen dir und deinem Kunden. Wir sind nicht Vertragspartei, nehmen kein Geld entgegen und sind kein Zahlungsdienst: Dein Kunde zahlt per Lightning an deine eigene Wallet oder per Überweisung an dein Konto. Preise, Rechnungen, Steuern, Rückzahlungen und die Rechte an der Musik regelst du mit deinem Kunden.',
-          'Die Daten deiner Kunden (Name, E-Mail, Kommentare, Freigaben) verarbeiten wir in deinem Auftrag. Bist du Unternehmer, schließen wir dafür auf Wunsch einen Vertrag zur Auftragsverarbeitung.',
+          'Mit einem Auftrag bietest du deiner Kundschaft über deinen Link zum Reinhören Songs zur Freigabe an, mit Korrekturrunden und einer Bezahlwand.',
+          'Der Vertrag über die Produktion besteht nur zwischen dir und deiner Kundschaft. Wir sind nicht Vertragspartei, nehmen kein Geld entgegen und sind kein Zahlungsdienst: Deine Kundschaft zahlt per Lightning an deine eigene Wallet oder per Überweisung an dein Konto. Preise, Rechnungen, Steuern, Rückzahlungen und die Rechte an der Musik regelst du mit deiner Kundschaft.',
+          'Die Daten deiner Kundschaft (Name, E-Mail, Kommentare, Freigaben) verarbeiten wir in deinem Auftrag. Nutzt du Music Hub gewerblich oder selbständig beruflich, schließen wir dafür auf Wunsch einen Vertrag zur Auftragsverarbeitung.',
           'Die Verbindung zu deiner Wallet speichern wir verschlüsselt und nur mit dem Recht, Rechnungen zu erstellen und abzufragen, nie zu zahlen.',
         ],
       },
@@ -98,7 +98,7 @@ export const TERMS: Record<Locale, LegalText> = {
           'Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit, bei Verletzung von Leben, Körper oder Gesundheit, nach dem Produkthaftungsgesetz und soweit wir eine Garantie übernommen haben.',
           'Bei leichter Fahrlässigkeit haften wir nur für die Verletzung wesentlicher Vertragspflichten, also solcher, deren Erfüllung den Vertrag erst möglich macht und auf die du regelmäßig vertrauen darfst, und nur bis zur Höhe des vertragstypischen, vorhersehbaren Schadens.',
           'Bei Datenverlust haften wir im Rahmen von Abs. 2 nur für den Aufwand, die Daten aus unseren Backups oder deinen eigenen Sicherungen wiederherzustellen.',
-          'Für Zahlungen zwischen dir und deinen Kunden (§ 8) haften wir nicht, soweit der Fehler nicht bei uns liegt.',
+          'Für Zahlungen zwischen dir und deiner Kundschaft (§ 8) haften wir nicht, soweit der Fehler nicht bei uns liegt.',
         ],
       },
       {
@@ -319,7 +319,7 @@ export const PRIVACY_PAYMENTS: Record<Locale, LegalSection> = {
       'Wenn du Pro oder Studio bezahlst, speichere ich deinen Tarif, bis wann er bezahlt ist, und zu jeder Zahlung die Zahlungsart, die Kennung der Rechnung beim Zahlungsdienst, den Betrag, den Status, die Zeitpunkte, deine Zustimmung zum sofortigen Beginn und einen Widerruf. Kartendaten, Kontonummern oder Wallets sehe ich nicht. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über den Tarif). Die Angaben zu Zahlungen bewahre ich acht Jahre auf, weil das Handels- und Steuerrecht es verlangt (Art. 6 Abs. 1 lit. c DSGVO, § 147 AO, § 257 HGB), auch wenn du dein Konto vorher löschst. Dann bleiben sie ohne Verbindung zu deinem Konto stehen.',
       'Karte, PayPal oder SEPA: Die Zahlung wickelt Stripe ab (Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin 2, Irland). Stripe bekommt deine E-Mail-Adresse und die Zahlungsdaten, die du dort eingibst, und schickt dir Belege. Bei mir liegen nur deine Kundennummer und die Nummer deines Abos bei Stripe. Für Betrugsprävention und gesetzliche Pflichten ist Stripe selbst verantwortlich. Dabei können Daten an die Stripe, Inc. in die USA gehen; sie ist nach dem EU-US Data Privacy Framework zertifiziert. Zahlst du mit PayPal, ist zusätzlich PayPal (Europe) S.à r.l. et Cie, S.C.A., 22–24 Boulevard Royal, 2449 Luxemburg, beteiligt. Es gelten auch deren Datenschutzerklärungen.',
       'Lightning: Die Rechnung erstellt ein BTCPay Server, den ich selbst betreibe. Er kennt nur Betrag, Tarif und Status der Rechnung, keine Namen. Eine Lightning-Zahlung erscheint nicht öffentlich. Zahlst du über die Bitcoin-Blockchain statt über Lightning, ist die Transaktion dort dauerhaft öffentlich sichtbar, ohne deinen Namen.',
-      'Freunde einladen: Meldest du dich über den Empfehlungslink eines anderen Kontos an, speichere ich, wer dich empfohlen hat und wann du dafür Gratis-Tage bekommen hast, damit ihr beide sie bekommt (Art. 6 Abs. 1 lit. b DSGVO). Die Person, die dich empfohlen hat, sieht nur, wie viele sich über ihren Link angemeldet haben und wie viele davon zahlen, nicht wer.',
+      'Kontakte einladen: Meldest du dich über den Empfehlungslink eines anderen Kontos an, speichere ich, wer dich empfohlen hat und wann du dafür Gratis-Tage bekommen hast, damit ihr beide sie bekommt (Art. 6 Abs. 1 lit. b DSGVO). Die Person, die dich empfohlen hat, sieht nur, wie viele sich über ihren Link angemeldet haben und wie viele davon zahlen, nicht wer.',
     ],
   },
   en: {

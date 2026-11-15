@@ -335,7 +335,7 @@ export async function sendRequestReportEmail(to: string[], fromName: string, sen
       to,
       subject: `Gemeldete Anfrage von ${fromName}`,
       html: layout(
-        `${paragraph(`${strong(toName)} hat eine Anfrage von ${strong(fromName)} (${escapeHtml(senderEmail)}) blockiert und gemeldet:`, '0 0 0.5rem')}${quote(message)}${small('Sperren lässt sich das Konto in der Nutzerliste.')}`,
+        `${paragraph(`${strong(toName)} hat eine Anfrage von ${strong(fromName)} (${escapeHtml(senderEmail)}) blockiert und gemeldet:`, '0 0 0.5rem')}${quote(message)}${small('Sperren lässt sich das Konto in der Kontenliste.')}`,
       ),
     },
     `${toName} reported a request from ${fromName} <${senderEmail}> to ${to.join(', ')}`,

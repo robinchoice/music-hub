@@ -160,7 +160,7 @@
     {#if selected}
       <section>
         {#if selected.sentAt}
-          <p>Versendet am {date(selected.sentAt)} · {total(selected)} Empfänger · {selected.failed} Fehler</p>
+          <p>Versendet am {date(selected.sentAt)} · {total(selected)} Adressen · {selected.failed} Fehler</p>
           {#if selected.pending}
             <progress max={total(selected)} value={selected.sent + selected.failed}></progress>
             <p class="muted">{selected.sent + selected.failed} von {total(selected)} versendet</p>

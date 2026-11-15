@@ -150,7 +150,7 @@ export const de = {
     emailPlaceholder: 'name@beispiel.de',
     role: 'Rolle',
     manageMembers: 'Mitglieder verwalten',
-    onlyOwnerInvites: 'Einladen können der Besitzer und das Management des Projekts.',
+    onlyOwnerInvites: 'Einladen können die Person, der das Projekt gehört, und das Management.',
     copied: 'Link kopiert',
     copyFailed: 'Kopieren ging nicht, bitte den Link markieren und kopieren.',
     confirmSwitchOff:
@@ -181,7 +181,7 @@ export const de = {
     selection: 'Auswahl',
     selected: (n: number) => `${n} ausgewählt`,
     toStems: 'Als Spuren zu einem Song',
-    onlyAudio: 'Spuren werden können nur Audiodateien, die du selbst hochgeladen hast (als Besitzer alle).',
+    onlyAudio: 'Spuren werden können nur Audiodateien, die du selbst hochgeladen hast (gehört dir das Projekt, alle).',
     song: 'Song',
     newSong: 'Neuer Song',
     songName: 'Name des Songs',
@@ -208,7 +208,7 @@ export const de = {
     changeCover: 'Cover ändern',
     archived: 'Dieses Projekt ist archiviert',
     archivedOwner: 'Es ist für alle Beteiligten ausgeblendet, bis du es wiederherstellst.',
-    archivedOther: 'Es ist für alle Beteiligten ausgeblendet. Nur der Besitzer kann es wiederherstellen.',
+    archivedOther: 'Es ist für alle Beteiligten ausgeblendet. Wiederherstellen kann nur, wem das Projekt gehört.',
     restore: 'Wiederherstellen',
     requestFrom: 'Anfrage von',
     requestOn: ' zu ',
@@ -313,13 +313,13 @@ export const de = {
   },
 
   archivePage: {
-    intro: 'Archivierte Projekte bleiben mit allen Tracks und Dateien erhalten, bis ihr Besitzer sie wiederherstellt.',
+    intro: 'Archivierte Projekte bleiben mit allen Tracks und Dateien erhalten, bis sie wiederhergestellt werden.',
     storage: 'Ihre Dateien zählen weiter zum Speicher.',
     emptyTitle: 'Das Archiv ist leer',
     emptyText: 'Archivierte Projekte, an denen du beteiligt bist, landen hier.',
     meta: (tracks: number, ago: string) => `${tracks}\u00a0${tracks === 1 ? 'Track' : 'Tracks'} · archiviert ${ago}`,
     restore: 'Wiederherstellen',
-    ownerOnly: 'Nur der Besitzer kann es wiederherstellen',
+    ownerOnly: 'Wiederherstellen kann nur, wem es gehört',
     restored: (name: string) => `„${name}“ ist wieder da`,
   },
 

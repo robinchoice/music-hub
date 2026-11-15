@@ -562,7 +562,7 @@
       toast(t().track.page.approved(versionNumber), 'success', 8000, { label: t().common.undo, run: () => undoApprove(id) });
       await reloadOpenState();
     } else {
-      toastSuccess(t().track.page.notified(trackComments.uploader?.name ?? t().track.page.theUploader));
+      toastSuccess(trackComments.uploader ? t().track.page.notified(trackComments.uploader.name) : t().track.page.notifiedUploader);
     }
   }
 

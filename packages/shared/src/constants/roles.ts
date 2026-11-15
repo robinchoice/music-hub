@@ -16,7 +16,7 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export const ROLE_LABELS: Record<Locale, Record<ProjectRole, string>> = {
   de: {
-    owner: 'Besitzer',
+    owner: 'Owner',
     producer: 'Produktion',
     recording_engineer: 'Aufnahme',
     mixing_engineer: 'Mixing',

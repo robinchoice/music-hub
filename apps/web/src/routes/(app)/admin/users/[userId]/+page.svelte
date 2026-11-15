@@ -4,7 +4,7 @@
   import PersonView from '$lib/components/admin/PersonView.svelte';
 </script>
 
-<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Nutzerliste', href: '/admin/users' }, { label: 'Person' }]} />
+<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Kontenliste', href: '/admin/users' }, { label: 'Person' }]} />
 
 <div class="page">
   <div class="card">

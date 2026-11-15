@@ -553,7 +553,7 @@ export const adminRoutes = new Hono<AppEnv>()
     });
   })
 
-  // Nutzerliste: everyone with their numbers of the last 30 days or of all time
+  // Kontenliste: everyone with their numbers of the last 30 days or of all time
   .get('/users', async (c) => {
     const from = c.req.query('range') === 'all' ? new Date(0) : new Date(Date.now() - 30 * DAY);
     const { people } = await loadPeople(c.get('db'), from);

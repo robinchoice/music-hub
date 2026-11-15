@@ -173,7 +173,7 @@
   const heard = (seconds: number, duration: number | null) => `${formatTime(seconds)}${duration ? ` von ${formatTime(duration)}` : ''}`;
 </script>
 
-<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Nutzerliste' }]} />
+<TopBar crumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Kontenliste' }]} />
 
 <div class="page">
   {#if !people && failed}

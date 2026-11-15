@@ -31,8 +31,8 @@ export const de = {
   yearHint: 'zwei Monate geschenkt',
   storage: (gb: string) => `${gb} Speicher`,
   features: {
-    pro: ['Alles aus Gratis', 'Für Bands und Produzenten mit vielen Spuren'],
-    solo: ['Aufträge mit Korrekturrunden und Bezahlwand', 'Kunden zahlen dich direkt, ohne Provision'],
+    pro: ['Alles aus Gratis', 'Für Bands und Produktionen mit vielen Spuren'],
+    solo: ['Aufträge mit Korrekturrunden und Bezahlwand', 'Deine Kundschaft zahlt direkt, ohne Provision'],
   } as Record<Plan, string[]>,
   payStripe: 'Mit Karte oder PayPal',
   payLightning: 'Mit Lightning',
@@ -46,7 +46,7 @@ export const de = {
   thanks: 'Danke! Sobald die Zahlung bestätigt ist, läuft dein Tarif.',
   // ReferralSettings.svelte and the hint on /register
   referral: {
-    title: 'Freunde einladen',
+    title: 'Kontakte einladen',
     intro: (mine: number, theirs: number) =>
       `Schließt jemand über deinen Link einen Tarif ab, bekommst du ${mine} Tage gratis und die Person ${theirs} Tage dazu. Ohne Obergrenze: zehn Empfehlungen sind ein Monat.`,
     copy: 'Link kopieren',
