@@ -68,7 +68,8 @@
     gap: var(--space-3);
     /* Same height on every page, the track page's sticky panel sits right below it */
     min-height: var(--topbar-height);
-    padding: 0 var(--space-6);
+    /* Below the status bar of an installed app, which --topbar-height includes */
+    padding: env(safe-area-inset-top, 0px) var(--space-6) 0;
     border-bottom: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-bg-base) 88%, transparent);
     position: sticky;
@@ -179,8 +180,8 @@
 
   @media (max-width: 880px) {
     .topbar {
-      --topbar-height: 57px;
-      padding: 0 var(--space-4);
+      --topbar-height: calc(57px + env(safe-area-inset-top, 0px));
+      padding: env(safe-area-inset-top, 0px) var(--space-4) 0;
     }
     .hamburger,
     .me {

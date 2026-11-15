@@ -127,3 +127,36 @@ test('a passkey button error remains visible when autofill resumes', async ({ pa
     removeUser(id);
   }
 });
+
+test('forms stay usable and keep their draft across live window resizes', async ({ page, context, baseURL }) => {
+  const sizes = [
+    { width: 280, height: 640 },
+    { width: 1024, height: 768 },
+    { width: 768, height: 1024 },
+    { width: 640, height: 360 },
+    { width: 280, height: 640 },
+  ];
+  const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+  await page.goto('/login?tab=magic');
+  await page.getByLabel('E-Mail', { exact: true }).fill('resize@example.com');
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await expect(page.getByLabel('E-Mail', { exact: true })).toHaveValue('resize@example.com');
+    expect(await fits()).toBe(true);
+  }
+  const id = await logIn(context, baseURL!);
+  try {
+    await page.goto('/projects/new');
+    const name = page.getByRole('textbox', { name: 'Name', exact: true });
+    await name.fill('Unsaved resize draft');
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await expect(page).toHaveURL(/\/projects\/new$/);
+      await expect(name).toHaveValue('Unsaved resize draft');
+      expect(await fits()).toBe(true);
+      const create = page.getByRole('button', { name: 'Anlegen', exact: true });
+      await create.scrollIntoViewIfNeeded();
+      await expect(create).toBeInViewport();
+    }
+  } finally { removeUser(id); }
+});

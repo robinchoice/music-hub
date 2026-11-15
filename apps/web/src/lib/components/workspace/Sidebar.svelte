@@ -234,7 +234,7 @@
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    padding: var(--space-5) 0 var(--space-4);
+    padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) 0 calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
     position: sticky;
     top: 0;
   }
@@ -594,6 +594,7 @@
       height: 100vh;
       height: 100dvh;
       width: min(280px, 85vw);
+      padding-left: env(safe-area-inset-left, 0px);
       z-index: 100;
       transform: translateX(-100%);
       /* Hidden once it slid out, so Tab and screen readers skip the closed drawer */

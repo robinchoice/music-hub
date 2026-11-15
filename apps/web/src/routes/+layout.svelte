@@ -190,7 +190,7 @@
     --transition-fast: 120ms var(--ease-out);
     --transition-base: 200ms var(--ease-out);
 
-    --topbar-height: 65px;
+    --topbar-height: calc(65px + env(safe-area-inset-top, 0px));
 
     /* Z-Index */
     --z-dropdown: 100;
@@ -242,6 +242,9 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
+    /* viewport-fit=cover: keep content out of the notch in landscape. Top and
+       bottom insets belong to the top bar, sidebar and bottom bars. */
+    padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
     /* Avoid iOS rubber-band white flash */
     overscroll-behavior-y: none;
   }
