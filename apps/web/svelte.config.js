@@ -22,7 +22,8 @@ const config = {
 		// bucket (https, in dev and tests MinIO on localhost), offline copies play from blob URLs,
 		// the inline player unlocks iOS audio with a data URL of silence, and the
 		// landing page embeds the app in an iframe of its own origin. wavesurfer.js writes a <style>
-		// into its shadow DOM, so styles stay inline. Browser errors go to GlitchTip.
+		// into its shadow DOM, so styles stay inline. Browser errors go to GlitchTip. The app dock in
+		// the footer loads pleasance.org/apps.json and its tiles over https.
 		csp: {
 			mode: 'auto',
 			directives: {

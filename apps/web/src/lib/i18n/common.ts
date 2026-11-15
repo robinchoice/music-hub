@@ -49,6 +49,10 @@ export const de = {
   // Footer and link preview
   madeBy: 'ein Werkzeug von',
   otherLanguage: 'English',
+  pleasanceTools: 'Werkzeuge von Pleasance',
+  youAreHere: 'Du bist hier',
+  desktopApp: 'Desktop-App',
+  freeSpot: 'Freier Platz',
   description: 'Jeder Stand deines Songs, Feedback auf die Sekunde und klar, welcher Mix freigegeben ist.',
   claim: 'Versionen für Musik. Ohne Chaos.',
 
@@ -118,6 +122,10 @@ export const en: typeof de = {
 
   madeBy: 'a tool by',
   otherLanguage: 'Deutsch',
+  pleasanceTools: 'Tools by Pleasance',
+  youAreHere: 'You are here',
+  desktopApp: 'Desktop app',
+  freeSpot: 'Free spot',
   description: 'Every take of your song, feedback to the second and always clear which mix is approved.',
   claim: 'Versions for music. Without the chaos.',
 
