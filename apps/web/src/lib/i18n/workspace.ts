@@ -238,7 +238,7 @@ export const de = {
 
   newProject: {
     title: 'Neues Projekt',
-    namePlaceholder: 'z. B. Debütalbum, Sommer-EP oder Single',
+    namePlaceholder: 'z. B. Debütalbum oder Sommer-EP',
     description: 'Beschreibung (optional)',
     descriptionPlaceholder: "Worum geht's in diesem Projekt?",
     cover: 'Cover (optional)',
@@ -649,7 +649,7 @@ export const en: typeof de = {
 
   newProject: {
     title: 'New project',
-    namePlaceholder: 'e.g. debut album, summer EP or single',
+    namePlaceholder: 'e.g. debut album or summer EP',
     description: 'Description (optional)',
     descriptionPlaceholder: "What's this project about?",
     cover: 'Cover (optional)',
