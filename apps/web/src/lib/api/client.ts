@@ -17,6 +17,12 @@ export function isApiError(error: unknown) {
   return error instanceof Error && 'status' in error;
 }
 
+// The message of an error answer from a plain fetch: validation errors come back as objects, not text
+export function errorText(body: unknown, fallback: string) {
+  const text = errorAnswer.safeParse(body).data?.error;
+  return (text && t().common.apiErrors[text]) ?? text ?? fallback;
+}
+
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {}, silent = false } = options;
 

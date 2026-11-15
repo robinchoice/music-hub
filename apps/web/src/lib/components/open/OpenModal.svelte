@@ -46,13 +46,16 @@
     }
   });
 
+  // True once the request went through
   async function run(request: () => Promise<{ open: OpenState }>) {
     saving = true;
     try {
       openState = (await request()).open;
       if (openState.openedAt) toastSuccess(t().guest.openModal.nowOpen(trackName));
+      return true;
     } catch {
       // The API client already showed the error
+      return false;
     } finally {
       saving = false;
     }
@@ -62,9 +65,10 @@
   const consent = () => run(() => api.post(`/tracks/${trackId}/open/consent`));
 
   async function close() {
-    if (!(await ask(openState.openedAt ? t().guest.openModal.confirmCloseOpen(trackName) : t().guest.openModal.confirmWithdraw))) return;
-    await run(() => api.delete(`/tracks/${trackId}/open`));
-    toastSuccess(openState.openedAt ? t().guest.openModal.closed : t().guest.openModal.withdrawn);
+    // The answer resets the state, so remember what was closed
+    const wasOpen = !!openState.openedAt;
+    if (!(await ask(wasOpen ? t().guest.openModal.confirmCloseOpen(trackName) : t().guest.openModal.confirmWithdraw))) return;
+    if (await run(() => api.delete(`/tracks/${trackId}/open`))) toastSuccess(wasOpen ? t().guest.openModal.closed : t().guest.openModal.withdrawn);
   }
 
   async function remind(id: string) {

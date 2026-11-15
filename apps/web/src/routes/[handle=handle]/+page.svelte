@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { MAX_REQUEST_LENGTH, OPEN_LICENSE_INFO, type OpenLicense } from '@music-hub/shared';
-  import { api } from '$lib/api/client.js';
+  import { api, errorText } from '$lib/api/client.js';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import { toastSuccess } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
@@ -54,7 +54,7 @@
   async function load() {
     const res = await fetch(`/api/v1/profiles/${handle}`).catch(() => null);
     if (!res?.ok) {
-      error = (await res?.json().catch(() => null))?.error ?? t().guest.profile.notFound;
+      error = errorText(await res?.json().catch(() => null), t().guest.profile.notFound);
       return;
     }
     data = await res.json();

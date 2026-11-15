@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { OPEN_LICENSE_INFO, type MemberRights, type OpenLicense } from '@music-hub/shared';
-  import { api } from '$lib/api/client.js';
+  import { api, errorText } from '$lib/api/client.js';
   import { user, authLoading, checkAuth } from '$lib/stores/auth.js';
   import { toastError, toastSuccess } from '$lib/stores/toast.js';
   import WaveformPlayer from '$lib/components/audio/WaveformPlayer.svelte';
@@ -65,7 +65,7 @@
     }
     const res = await fetch(`/api/v1/open/${trackId}`).catch(() => null);
     if (!res?.ok) {
-      error = (await res?.json().catch(() => null))?.error ?? t().guest.openTrack.gone;
+      error = errorText(await res?.json().catch(() => null), t().guest.openTrack.gone);
       return;
     }
     const open: OpenTrack = await res.json();
@@ -81,7 +81,7 @@
     if (example) return notInExample();
     const res = await fetch(`/api/v1/open/${trackId}/${path}`);
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return toastError(body.error ?? t().guest.openTrack.downloadFailed);
+    if (!res.ok) return toastError(errorText(body, t().guest.openTrack.downloadFailed));
     location.href = body.url;
   }
 
@@ -136,7 +136,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason, email: contact.trim() || undefined }),
       });
-      if (!res.ok) return toastError((await res.json().catch(() => ({}))).error ?? t().guest.openTrack.reportFailed);
+      if (!res.ok) {
+        // A contact address the API rejects is the only input the reader can fix here
+        const fallback = res.status === 400 && contact.trim() ? t().guest.openTrack.invalidContact : t().guest.openTrack.reportFailed;
+        return toastError(errorText(await res.json().catch(() => null), fallback));
+      }
       reportOpen = false;
       reason = '';
       toastSuccess(t().guest.openTrack.reportThanks);
