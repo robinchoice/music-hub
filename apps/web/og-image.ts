@@ -1,5 +1,5 @@
 // Renders the link preview that WhatsApp, Signal and co. show for shared links,
-// 1200×630 into static/og-image-<locale>.png (see DESIGN.md in robinchoice/starter,
+// 1200×630 into static/og-image-<locale>.png (see the design guide of robinchoice/starter,
 // "Vorschaubild"), one per language. Rerun after changing the claim, APP_BAND or
 // the tile in static/favicon.svg, and commit them.
 // Run: bun run og-image

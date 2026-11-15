@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "check": "biome lint && knip && bun run --sequential --filter '@music-hub/*' check",
+    "check": "scripts/check-comments.sh && biome lint && knip && bun run --sequential --filter '@music-hub/*' check",
     "test": "bun run --sequential --filter '@music-hub/*' test",
     "db:generate": "turbo db:generate --filter=@music-hub/db",
     "db:migrate": "turbo db:migrate --filter=@music-hub/db",

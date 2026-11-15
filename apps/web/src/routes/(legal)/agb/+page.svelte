@@ -2,7 +2,7 @@
   import { TERMS, WITHDRAWAL, type LegalSection } from '@music-hub/shared';
   import { locale, t } from '$lib/i18n/index.js';
 
-  // Text from shared/terms.ts, the same as in /agb.md and the confirmation mail
+  // Text from shared/terms.ts, the same as in the Markdown of /agb and the confirmation mail
   const terms = $derived(TERMS[locale()]);
   const notice = $derived(WITHDRAWAL[locale()]);
 </script>

@@ -5,7 +5,7 @@ export * from './i18n.js';
 export * from './constants/index.js';
 export * from './validation/index.js';
 
-// Section of the Pleasance family colour band for Music Hub, see DESIGN.md in the starter
+// Section of the Pleasance family colour band for Music Hub, see the design guide of the starter
 export const APP_BAND: Band = { from: 1.35, to: 2.2 };
 
 export * from './login-messages.js';

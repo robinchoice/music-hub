@@ -1,4 +1,4 @@
-// Pleasance family colour band, see DESIGN.md in robinchoice/starter. Stages 1 to 7:
+// Pleasance family colour band, see the design guide of robinchoice/starter. Stages 1 to 7:
 // glow for gradient surfaces and dark backgrounds, deep for text and thin lines on
 // light backgrounds.
 export const GLOW = ['#F2545B', '#FB8C45', '#F2C14E', '#6CCF8E', '#46BFE0', '#8E92F8', '#C39BF2'];
