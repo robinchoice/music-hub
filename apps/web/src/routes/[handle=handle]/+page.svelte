@@ -189,7 +189,7 @@
                 </span>
                 {#if tr.remixCount}<span class="faint remixes">{t().guest.openList.remixes(tr.remixCount)}</span>{/if}
               </a>
-              <button class="star" class:on={tr.starred} onclick={() => toggleStar(tr)} aria-pressed={tr.starred} title={tr.starred ? t().guest.profile.unstar : t().guest.profile.star}>
+              <button class="star" class:on={tr.starred} onclick={() => toggleStar(tr)} aria-label={t().guest.profile.starLabel(tr.starred, tr.stars)} title={tr.starred ? t().guest.profile.unstar : t().guest.profile.star}>
                 <Icon name="star" size={13} /> {tr.stars}
               </button>
             </li>

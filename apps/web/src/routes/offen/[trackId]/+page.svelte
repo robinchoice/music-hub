@@ -190,7 +190,7 @@
           </div>
         </div>
         <div class="actions">
-          <button class="star" class:on={data.starred} onclick={toggleStar} aria-pressed={data.starred} title={data.starred ? t().guest.openTrack.unstar : t().guest.openTrack.star}>
+          <button class="star" class:on={data.starred} onclick={toggleStar} aria-label={t().guest.openTrack.starLabel(data.starred, data.stars)} title={data.starred ? t().guest.openTrack.unstar : t().guest.openTrack.star}>
             <Icon name="star" size={15} /> {data.stars}
           </button>
           <Button onclick={startFork}><Icon name="git-branch" size={14} /> {t().guest.openTrack.remixHere}</Button>

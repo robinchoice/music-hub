@@ -49,6 +49,14 @@ test.describe('signed in', () => {
   });
   test.afterEach(() => removeUser(userId));
 
+  test('regression: the star button names its action and the count, not just the number', async ({ page }) => {
+    await page.route(`**/api/v1/open/${OPEN_ID}`, (route) => route.fulfill({ json: { ...openTrack, stars: 1 } }));
+    await page.route(`**/api/v1/open/${OPEN_ID}/star`, (route) => route.fulfill({ json: { success: true } }));
+    await page.goto(`/offen/${OPEN_ID}`);
+    await page.getByRole('button', { name: 'Stern geben, 1 Stern', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Stern zurücknehmen, 2 Sterne', exact: true })).toBeVisible();
+  });
+
   test('closing an open page confirms that it is closed, not withdrawn', async ({ page }) => {
     const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
     const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Nachtbus' } })).json();
