@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
-import { AUDIO_MIME_BY_EXTENSION, IMPORT_KINDS, isAudioFile, isVersionable, MAX_FILE_SIZE, rightsOfRoles, type SourceEntry } from '@music-hub/shared';
+import { AUDIO_MIME_BY_EXTENSION, IMPORT_KINDS, isAudioFile, isVersionable, MAX_FILE_SIZE, rightsOfRoles, similarTracks, type ImportPlan, type SourceEntry } from '@music-hub/shared';
 import { importItems, imports, projectFiles, projectMembers, projects, stems, tracks, versionNotices, versions, type Database } from '@music-hub/db';
 import { download, DropboxError, listFolder, session, type Session } from './dropbox.js';
 import { fits, lockStorage, storageOf, takeUploadVolume } from './storage.js';
@@ -63,6 +63,30 @@ export async function earlierImports(db: Database, userId: string, entries: Scan
     for (const row of rows) if (row.hash) earlier.set(row.hash, { trackId: row.trackId, projectId: row.projectId });
   }
   return earlier;
+}
+
+// Marks the songs of a plan that look like tracks the person already has in projects they may upload to,
+// so the preview can say so. Only a mark: the import itself still creates the planned track.
+export async function markSimilar(db: Database, userId: string, plan: ImportPlan): Promise<ImportPlan> {
+  const existing = await db
+    .select({ id: tracks.id, name: tracks.name, projectId: projects.id, projectName: projects.name })
+    .from(tracks)
+    .innerJoin(projects, and(eq(projects.id, tracks.projectId), eq(projects.isArchived, false)))
+    .innerJoin(projectMembers, and(eq(projectMembers.projectId, projects.id), eq(projectMembers.userId, userId), eq(projectMembers.canUpload, true)))
+    .where(isNull(tracks.deletedAt))
+    .orderBy(asc(tracks.createdAt));
+  if (!existing.length) return plan;
+  return {
+    ...plan,
+    tracks: plan.tracks.map((track) => {
+      const projectName = plan.projects[track.project]?.name.toLowerCase();
+      // In a project of the same name first, then the rest
+      const similar = similarTracks(track.name, existing)
+        .sort((a, b) => Number(b.projectName.toLowerCase() === projectName) - Number(a.projectName.toLowerCase() === projectName))
+        .slice(0, 5);
+      return similar.length ? { ...track, similar } : track;
+    }),
+  };
 }
 
 export const startSchema = z.object({

@@ -46,6 +46,54 @@ test('matching mixes append in order without duplicating the track', async ({ pa
   expect(versions.map((v: { versionNumber: number }) => v.versionNumber)).toEqual([3, 2, 1]);
 });
 
+for (const pick of ['similar', 'new'] as const) {
+test(`a mix named like a track with a version ending waits for the choice: ${pick}`, async ({ page, baseURL }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const { track } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn v1' } })).json();
+  await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Zugabe' } });
+  addVersion(track.id, userId, 'ready');
+  const registered: string[] = [];
+  await uploads(page, baseURL!, registered);
+  await page.goto(`/projects/${project.id}`);
+  await page.locator('input[type=file]').setInputFiles(wav('Letzte Bahn – Mix 2.wav'));
+  const row = page.locator('.rows .row');
+  await expect(row).toContainText('Ein ähnlicher Track ist schon im Projekt. Wohin gehört das?');
+  await expect(row.locator('.state')).toHaveText('wartet auf deine Wahl');
+  // Nothing is registered and no track is created until the person picks
+  expect(registered).toEqual([]);
+  expect((await (await page.request.get(`/api/v1/tracks/project/${project.id}`)).json()).tracks).toHaveLength(2);
+  const choice = row.getByRole('group', { name: 'Wohin „Letzte Bahn“ gehört' });
+  if (pick === 'similar') await choice.getByRole('button', { name: 'Als neue Version zu „Letzte Bahn v1“', exact: true }).click();
+  else await choice.getByRole('button', { name: 'Neuer Track', exact: true }).click();
+  await page.waitForURL(/\/tracks\/[\w-]+$/);
+  expect(registered).toHaveLength(1);
+  const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${project.id}`)).json();
+  if (pick === 'similar') {
+    expect(registered[0]).toBe(track.id);
+    expect(tracks).toHaveLength(2);
+  } else {
+    expect(registered[0]).not.toBe(track.id);
+    expect(tracks.map((t: { name: string }) => t.name).sort()).toEqual(['Letzte Bahn', 'Letzte Bahn v1', 'Zugabe']);
+  }
+});
+}
+
+test('several rows waiting for a choice all finish before the drop ends', async ({ page, baseURL }) => {
+  const { project } = await (await page.request.post('/api/v1/projects', { data: { name: 'Nachtbus EP' } })).json();
+  const { track: bahn } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Letzte Bahn v1' } })).json();
+  const { track: zugabe } = await (await page.request.post(`/api/v1/tracks/${project.id}`, { data: { name: 'Zugabe v1' } })).json();
+  const registered: string[] = [];
+  await uploads(page, baseURL!, registered);
+  await page.goto(`/projects/${project.id}`);
+  await page.locator('input[type=file]').setInputFiles([wav('Letzte Bahn – Mix 2.wav'), wav('Zugabe Mix.wav')]);
+  await expect(page.locator('.rows .state')).toHaveText(['wartet auf deine Wahl', 'wartet auf deine Wahl']);
+  await page.getByRole('button', { name: 'Als neue Version zu „Zugabe v1“', exact: true }).click();
+  await page.getByRole('button', { name: 'Als neue Version zu „Letzte Bahn v1“', exact: true }).click();
+  await expect(page.locator('.toast-container')).toContainText('2 Dateien hochgeladen');
+  expect(registered.sort()).toEqual([bahn.id, zugabe.id].sort());
+  await expect(page.locator('.rows')).toHaveCount(0);
+});
+
 for (const switchBack of [false, true]) {
 test(`the destination can ${switchBack ? 'switch back to the existing track' : 'change to a new track'} during transfer`, async ({ page, baseURL }, testInfo) => {
   const { projectId, trackId } = await track(page);
@@ -125,6 +173,11 @@ test('ambiguous track names do not silently choose a destination', async ({ page
   await uploads(page, baseURL!, registered);
   await page.goto(`/projects/${projectId}`);
   await page.locator('input[type=file]').setInputFiles(wav('Letzte Bahn – Mix 4.wav'));
+  // Both tracks are offered, nothing is registered before the choice
+  const choice = page.getByRole('group', { name: 'Wohin „Letzte Bahn“ gehört' });
+  await expect(choice.getByRole('button', { name: 'Als neue Version zu „Letzte Bahn“', exact: true })).toHaveCount(2);
+  expect(registered).toEqual([]);
+  await choice.getByRole('button', { name: 'Neuer Track', exact: true }).click();
   await page.waitForURL(/\/tracks\/[\w-]+$/);
   expect(registered).toHaveLength(1);
   expect(registered[0]).not.toBe(trackId);

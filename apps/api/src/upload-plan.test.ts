@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import fc from 'fast-check';
-import { commonName, planDrop, SHORTEST_SONG, STEM_LENGTH_TOLERANCE, type DroppedFile } from '@music-hub/shared';
+import { commonName, planDrop, SHORTEST_SONG, similarTracks, STEM_LENGTH_TOLERANCE, withoutMixName, type DroppedFile } from '@music-hub/shared';
 
 const wav = (name: string, duration: number | null): DroppedFile => ({ name, duration, audio: true, versionable: true });
 const other = (name: string): DroppedFile => ({ name, duration: null, audio: false, versionable: false });
@@ -71,6 +71,30 @@ test('every file lands in exactly one place, and stems of a group share their le
         expect(files[i].versionable).toBe(true);
         expect(files[i].duration === null || files[i].duration! >= SHORTEST_SONG).toBe(true);
       }
+    }),
+  );
+});
+
+test('similar tracks share the song name without mix or version ending', () => {
+  const tracks = [{ name: 'Kreise' }, { name: 'Kreise Instrumental' }, { name: 'Letzte_Bahn' }, { name: 'Mr. Blue' }, { name: 'Mix' }];
+  expect(similarTracks('Kreise v3', tracks)).toEqual([{ name: 'Kreise' }]);
+  expect(similarTracks('kreise – Mix 2', tracks)).toEqual([{ name: 'Kreise' }]);
+  expect(similarTracks('Letzte Bahn Master', tracks)).toEqual([{ name: 'Letzte_Bahn' }]);
+  expect(similarTracks('Mr. Blue Rough', tracks)).toEqual([{ name: 'Mr. Blue' }]);
+  expect(similarTracks('Kreise Instrumental', tracks)).toEqual([{ name: 'Kreise Instrumental' }]);
+  expect(similarTracks('Kreisel', tracks)).toEqual([]);
+  // A name that is only a mix ending says nothing about the song
+  expect(similarTracks('Mix 2', tracks)).toEqual([]);
+});
+
+test('a track is found again under any mix or version ending', () => {
+  const ending = fc.constantFrom(' v2', ' Mix', ' – Mix 3', '_Master', ' Version 4', ' bounce', '');
+  const word = fc.stringMatching(/^[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß ]{0,15}[A-Za-zÄÖÜäöüß]$/);
+  fc.assert(
+    fc.property(word, ending, (name, end) => {
+      const track = { name };
+      fc.pre(withoutMixName(name) === name.toLowerCase().replace(/\s+/g, ' ').trim());
+      return similarTracks(name + end, [track]).length === 1;
     }),
   );
 });

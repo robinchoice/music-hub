@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { similarTracks } from '@music-hub/shared';
   import { page } from '$app/stores';
   import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
@@ -32,6 +33,12 @@
 
   // An existing song with that name gets the files, otherwise a new one is created
   const existing = $derived(data?.tracks.find((track) => track.name.trim().toLowerCase() === songName.trim().toLowerCase()) ?? null);
+  // Songs of the link's project with a similar name ("Kreise v1" for "Kreise"): the guest picks one or a new song.
+  // Only names the link shows anyway.
+  const similar = $derived(existing || !data ? [] : similarTracks(songName, data.tracks));
+  // The name the guest confirmed as a new song despite similar ones
+  let newConfirmed = $state('');
+  const choosing = $derived(similar.length > 0 && newConfirmed !== songName.trim());
 
   onMount(async () => {
     guestName = localStorage.getItem('listenName') ?? '';
@@ -46,7 +53,7 @@
 
   async function start(e: Event) {
     e.preventDefault();
-    if (!guestName.trim() || !songName.trim()) return;
+    if (!guestName.trim() || !songName.trim() || choosing) return;
     localStorage.setItem('listenName', guestName.trim());
     starting = true;
     try {
@@ -105,7 +112,15 @@
           <datalist id="songs">
             {#each data.tracks as track (track.id)}<option value={track.name}></option>{/each}
           </datalist>
-          {#if songName.trim()}
+          {#if choosing}
+            <div class="similar" role="group" aria-label={t().guest.upload.similarAsk}>
+              <p class="hint">{t().guest.upload.similarAsk}</p>
+              {#each similar as track (track.id)}
+                <Button size="sm" onclick={() => (songName = track.name)}>{t().guest.upload.toSimilar(track.name)}</Button>
+              {/each}
+              <Button size="sm" variant="secondary" onclick={() => (newConfirmed = songName.trim())}>{t().guest.upload.similarNew(songName.trim())}</Button>
+            </div>
+          {:else if songName.trim()}
             <p class="hint">
               {existing ? t().guest.upload.toExisting(existing.name) : t().guest.upload.newSong(songName.trim())}
             </p>
@@ -116,7 +131,7 @@
             <span class="input-label">{t().guest.upload.noteTo(data.invitedBy)}</span>
             <textarea bind:value={note} rows="3" maxlength="2000" placeholder={t().guest.upload.notePlaceholder}></textarea>
           </label>
-          <Button type="submit" loading={starting} disabled={!guestName.trim() || !songName.trim()}>{t().guest.upload.next}</Button>
+          <Button type="submit" loading={starting} disabled={!guestName.trim() || !songName.trim() || choosing}>{t().guest.upload.next}</Button>
         </form>
       {:else}
         <section class="card">
@@ -201,6 +216,15 @@
     margin: calc(-1 * var(--space-2)) 0 0;
     color: var(--color-text-tertiary);
     font-size: var(--text-sm);
+  }
+  .similar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .similar .hint {
+    flex-basis: 100%;
   }
   .note {
     display: flex;

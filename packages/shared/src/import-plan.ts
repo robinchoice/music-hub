@@ -37,9 +37,13 @@ export type PlannedItem = {
   name: string;
 };
 
+// A track the person already has whose name says it is the same song; the API marks them after the scan
+export type SimilarTrack = { id: string; name: string; projectId: string; projectName: string };
+
 export type ImportPlan = {
   projects: { name: string }[];
-  tracks: { name: string; project: number }[];
+  // similar: existing tracks this song may duplicate. The import still creates a new track; nothing is guessed.
+  tracks: { name: string; project: number; similar?: SimilarTrack[] }[];
   // In the order they are imported: versions of a track get their numbers in this order
   items: PlannedItem[];
   // Entries left out without asking: system files and the insides of DAW projects

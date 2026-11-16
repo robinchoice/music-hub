@@ -7,7 +7,7 @@ import { planImport } from '@music-hub/shared';
 import { dropboxConnections, imports } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import { authorizeUrl, connect, dropboxConfigured, DropboxError, listFolder, pkcePair, revoke, session } from '../lib/dropbox.js';
-import { cancelImport, earlierImports, importStatus, scanFolder, startImport, startSchema } from '../lib/imports.js';
+import { cancelImport, earlierImports, importStatus, markSimilar, scanFolder, startImport, startSchema } from '../lib/imports.js';
 import { storageFull, storageOf, uploadVolumeExceeded } from '../lib/storage.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
 import { t } from '../lib/i18n.js';
@@ -127,7 +127,7 @@ export const importRoutes = new Hono<AppEnv>()
         id: scan.id,
         rootName: scan.rootName,
         entries: scan.entries.map(({ path, size, modified }) => ({ path, size, modified })),
-        plan: planImport(scan.entries, scan.rootName),
+        plan: await markSimilar(db, userId, planImport(scan.entries, scan.rootName)),
         duplicates: scan.entries.flatMap((e, i) => (e.hash && earlier.has(e.hash) ? [i] : [])),
         storage: await storageOf(db, userId),
       });

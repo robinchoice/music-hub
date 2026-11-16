@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { planDrop } from '@music-hub/shared';
+  import { planDrop, similarTracks } from '@music-hub/shared';
   import { api } from '$lib/api/client.js';
   import {
     byFileName, checkFileSize, describeDrop, isVersionable, mimeOf, trackNameFromFile, unreadableFiles, uploadAudioFile, uploadToProject, registerVersion,
@@ -39,8 +39,11 @@
   type Row = {
     kind: 'mix' | 'stems' | 'file';
     name: string; file: string; files: File[]; size: number; loaded: number; progress: number;
-    state: 'wartet' | 'lädt hoch' | 'speichert' | 'fertig' | 'fehler' | 'abgebrochen';
+    state: 'wartet' | 'lädt hoch' | 'wählt' | 'speichert' | 'fertig' | 'fehler' | 'abgebrochen';
     matchId: string | null; newTrack: boolean; locked: boolean; number: number; matchedNumber: number; abort: AbortController; error?: string;
+    // Tracks of the project with a similar name ("Kreise v1" for "Kreise"): the row waits after its transfer
+    // until the person picks one of them or a new track; decided once they did
+    similar: { id: string; name: string }[]; decided: boolean; matchName: string | null;
     // stems: a finished mix that came along and becomes the version, and how long the stems are
     bounce: File | null; duration: number; choice: Choice;
     // What already went through, so trying again neither uploads nor registers a file twice
@@ -69,7 +72,7 @@
   const newRow = (kind: Row['kind'], name: string, files: File[], matchId: string | null, extra: Partial<Row> = {}): Row => ({
     kind, name, file: files.map((f) => f.name).join(', '), files, size: files.reduce((sum, f) => sum + f.size, 0), loaded: 0, progress: 0,
     state: 'wartet', matchId, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matchId ? 0 : 1,
-    bounce: null, duration: 0, choice: 'mix', keys: [], targetId: null, registered: 0, ...extra,
+    bounce: null, duration: 0, choice: 'mix', keys: [], targetId: null, registered: 0, similar: [], decided: false, matchName: null, ...extra,
   });
 
   // Tracks of the project, with the ones a drop created, and the highest version number of each track looked up so far
@@ -79,7 +82,7 @@
   // The song a row would go to: a file row switched to a version is named after its file
   const songOf = (row: Row) => (row.kind === 'file' ? trackNameFromFile(row.files[0].name) : row.name);
   async function resolve(row: Row) {
-    if (!dropTrackId) {
+    if (!dropTrackId && !row.decided) {
       const matches = known.filter((t) => normalize(t.name) === normalize(songOf(row)));
       row.matchId = matches.length === 1 ? matches[0].id : null;
     }
@@ -142,13 +145,15 @@
       }),
       ...plan.files.map((i) => newRow('file', files[i].name, [files[i]], null, { choice: 'files' })),
     ];
+    if (!trackId) for (const row of rows) if (row.kind !== 'file' && !row.matchId) row.similar = similarTracks(row.name, known);
     transferring = true;
     preparing = false;
-    let lastTrackId: string | null = null;
+    lastTrackId = null;
     for (const row of rows) {
       if (row.abort.signal.aborted) continue;
       lastTrackId = (await processRow(row)) ?? lastTrackId;
     }
+    await settleChoices();
     const done = rows.filter((r) => r.state === 'fertig');
     const filed = done.filter((r) => r.choice === 'files').reduce((n, r) => n + r.files.length, 0);
     const uploaded = done.reduce((n, r) => n + r.files.length, 0);
@@ -171,6 +176,10 @@
       if (row.choice !== 'files' && !row.targetId) await resolve(row);
       if (!(await transfer(row))) {
         row.state = 'abgebrochen';
+        return null;
+      }
+      if (row.choice !== 'files' && !row.targetId && row.similar.length && !row.decided) {
+        row.state = 'wählt';
         return null;
       }
       const keys = row.keys;
@@ -229,6 +238,7 @@
     transferring = true;
     row.abort = new AbortController();
     await processRow(row);
+    await settleChoices();
     if (row.state === 'fertig') {
       const filed = row.choice === 'files' ? row.files.length : 0;
       onDone({ files: filed, tracks: row.files.length - filed });
@@ -295,6 +305,33 @@
     row.abort.abort();
     row.state = 'abgebrochen';
     toast(t().track.upload.aborted);
+    choiceMade();
+  }
+
+  // The track a drop went to last, for opening it when the drop was a single row
+  let lastTrackId: string | null = null;
+  // Rows waiting for the person to pick a similar track or a new one go on one after the other, in the drop or the
+  // retry that started them, so no two rows register at once; a drop ends once none waits
+  let poke: (() => void) | null = null;
+  function choiceMade() {
+    poke?.();
+    poke = null;
+  }
+  async function settleChoices() {
+    while (rows.some((r) => r.state === 'wählt')) {
+      const ready = rows.find((r) => r.state === 'wählt' && r.decided);
+      if (ready) lastTrackId = (await processRow(ready)) ?? lastTrackId;
+      else await new Promise<void>((done) => (poke = done));
+    }
+  }
+
+  // track null: a new track after all. A row still transferring takes the choice along.
+  function decide(row: Row, track: { id: string; name: string } | null) {
+    row.decided = true;
+    row.newTrack = track === null;
+    row.matchId = track?.id ?? null;
+    row.matchName = track?.name ?? null;
+    choiceMade();
   }
 
   function toggleTarget(row: Row) {
@@ -305,9 +342,11 @@
   function target(row: Row) {
     const d = t().track.drop;
     if (row.choice === 'files') return d.toFiles;
+    if (row.similar.length && !row.decided) return d.similarAsk;
     const existing = row.matchId && !row.newTrack;
-    if (row.kind === 'stems' && !row.bounce && row.choice === 'nomix') return existing ? d.stemsOf(row.name) : d.newTrackStems;
-    return existing ? d.becomes(row.number, row.name) : d.newTrack;
+    const name = row.matchName ?? row.name;
+    if (row.kind === 'stems' && !row.bounce && row.choice === 'nomix') return existing ? d.stemsOf(name) : d.newTrackStems;
+    return existing ? d.becomes(row.number, name) : d.newTrack;
   }
 
   function handlePick(e: Event) {
@@ -397,7 +436,14 @@
               <option value="files">{t().track.drop.choiceFile}</option>
             </select>
           {/if}
-          {#if row.kind !== 'file' && row.choice !== 'files' && row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
+          {#if row.choice !== 'files' && row.similar.length && !row.decided && (row.state === 'wartet' || row.state === 'lädt hoch' || row.state === 'wählt')}
+            <div class="similar" role="group" aria-label={t().track.drop.similarLabel(row.name)}>
+              {#each row.similar as track (track.id)}
+                <Button size="sm" onclick={() => decide(row, track)}>{t().track.drop.toSimilar(track.name)}</Button>
+              {/each}
+              <Button size="sm" variant="secondary" onclick={() => decide(row, null)}>{t().track.drop.similarNew}</Button>
+            </div>
+          {:else if row.kind !== 'file' && row.choice !== 'files' && row.matchId && !row.locked && (row.state === 'wartet' || row.state === 'lädt hoch')}
             <button type="button" class="switch-target" onclick={() => toggleTarget(row)}>{row.newTrack ? t().track.drop.attachInstead : t().track.drop.newTrackInstead}</button>
           {/if}
           {#if row.state === 'lädt hoch'}
@@ -406,7 +452,7 @@
           {/if}
           {#if row.error}<small class="row-error" role="alert">{row.error}</small>{/if}
         </div>
-        {#if row.state === 'wartet' || row.state === 'lädt hoch'}
+        {#if row.state === 'wartet' || row.state === 'lädt hoch' || row.state === 'wählt'}
           <button type="button" class="switch-target" aria-label={t().track.drop.cancelUpload(row.file)} onclick={() => cancel(row)}>{t().common.cancel}</button>
         {:else if !transferring && (row.state === 'fehler' || row.state === 'abgebrochen')}
           <button type="button" class="switch-target" aria-label={t().track.drop.retryUpload(row.file)} onclick={() => retry(row)}>{t().common.retry}</button>
@@ -422,6 +468,7 @@
 <style>
   .switch-target { justify-self: start; background: none; border: 0; padding: 4px 0; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; font: inherit; font-size: var(--text-xs); text-align: left; }
   .row b { overflow-wrap: anywhere; }
+  .similar { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 6px; }
   .row .target { white-space: normal; color: var(--color-text-primary); }
   .row .names { white-space: normal; }
   .choice { justify-self: start; margin-top: 4px; max-width: 100%; background: var(--color-bg-subtle); color: var(--color-text-primary); border: 1px solid var(--color-border-hover); border-radius: var(--radius-sm); padding: 4px 8px; font: inherit; font-size: var(--text-xs); }
@@ -517,6 +564,7 @@
   }
   .row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
@@ -529,7 +577,7 @@
     display: grid;
     gap: 2px;
     min-width: 0;
-    flex: 1;
+    flex: 1 1 240px;
   }
   .row small {
     color: var(--color-text-secondary);

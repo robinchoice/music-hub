@@ -32,6 +32,15 @@ test('a guest without an account sends stems for a new song through the upload l
   await guestPage.getByLabel('Dein Name').fill('Kai');
   await guestPage.getByLabel('Für welchen Song?').fill('nachtbus');
   await expect(guestPage.locator('.hint')).toHaveText('Die Dateien kommen zu „Nachtbus“.');
+  // A similar name asks before a second song comes up, and shows nothing the link does not show anyway
+  await guestPage.getByLabel('Für welchen Song?').fill('Nachtbus_Mix 2');
+  await expect(guestPage.locator('.hint')).toHaveText('Ein ähnlicher Song ist schon im Projekt. Gehören die Dateien dazu?');
+  await expect(guestPage.getByRole('button', { name: 'Weiter' })).toBeDisabled();
+  await guestPage.getByRole('button', { name: 'Neuer Song „Nachtbus_Mix 2“' }).click();
+  await expect(guestPage.locator('.hint')).toHaveText('„Nachtbus_Mix 2“ wird als neuer Song angelegt.');
+  await guestPage.getByLabel('Für welchen Song?').fill('Nachtbus v3');
+  await guestPage.getByRole('button', { name: 'Zu „Nachtbus“' }).click();
+  await expect(guestPage.locator('.hint')).toHaveText('Die Dateien kommen zu „Nachtbus“.');
   await guestPage.getByLabel('Für welchen Song?').fill('Kreide');
   await expect(guestPage.locator('.hint')).toHaveText('„Kreide“ wird als neuer Song angelegt.');
   await guestPage.getByLabel('Notiz an Robin Choice (optional)').fill('Gesang bitte etwas lauter');

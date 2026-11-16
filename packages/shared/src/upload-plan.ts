@@ -42,8 +42,18 @@ export const SHORTEST_STEMS = 20;
 export const MIX_NAME = /(^|[\s_\-–.])((mix|mixdown|master|final|bounce|demo|rough|full)(\s*\d+)?|v\d+|version\s*\d+)$/i;
 
 export const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
-// "Letzte Bahn – Mix 3" → "letzte bahn"; what is left of a name without its mix or version ending
-export const withoutMixName = (name: string) => baseName(name).trim().replace(MIX_NAME, '').replace(/[\s_\-–—.]+$/u, '').trim().toLowerCase();
+const mixFree = (name: string) => name.trim().replace(MIX_NAME, '').replace(/[\s_\-–—.]+$/u, '').trim().toLowerCase();
+// "Letzte Bahn – Mix 3.wav" → "letzte bahn"; what is left of a file name without its extension and mix or version ending
+export const withoutMixName = (name: string) => mixFree(baseName(name));
+
+// Tracks a new song would duplicate: the same name once mix and version endings, case and underscores are set
+// aside. "Kreise v3" and "kreise_Mix 2" find "Kreise"; "Kreise Instrumental" stays a song of its own.
+// Both sides are track names, so a dot stays part of the name ("Mr. Blue").
+export function similarTracks<T extends { name: string }>(name: string, tracks: T[]): T[] {
+  const key = (n: string) => mixFree(n.replace(/_+/g, ' ')).replace(/\s+/g, ' ');
+  const wanted = key(name);
+  return wanted ? tracks.filter((track) => key(track.name) === wanted) : [];
+}
 
 // "Kreise_Kick", "Kreise_Bass" → "Kreise"; separators at the end go
 export function commonName(names: string[]) {
