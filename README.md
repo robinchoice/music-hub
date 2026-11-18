@@ -271,6 +271,34 @@ music-hub/
 └── docker-compose.yml
 ```
 
+## MCP (Pilot, nur lesend)
+
+Chat-Clients verbinden sich per Streamable HTTP mit `https://hub.pleasance.org/mcp` (lokal `<APP_URL>/mcp`). Für den gebauten lokalen Webserver `bun src/server.ts` in `apps/web` verwenden (wie im Docker-Image und den Browser-Tests): Nur `/api/v1/oauth/token` und `/api/v1/oauth/revoke` gehen dort vor SvelteKit zur API, weil der OAuth-Formulartausch ohne Browser-Origin sonst am CSRF-Schutz scheitert. Die übrigen Routen behalten dessen Schutz. Das offizielle `@modelcontextprotocol/sdk` bedient den Endpunkt zustandslos; mehrere API-Instanzen teilen nur Postgres. Der Pilot ändert nichts an starter.
+
+| Tool | Inhalt |
+| --- | --- |
+| `list_projects` | Eigene aktive oder archivierte Projekte |
+| `get_project` | Projekt, eigene Rechte und angenommene Anfragen |
+| `list_tracks` | Tracks eines Projekts mit Produktionsphasen für das Board |
+| `list_versions` | Versionen eines Tracks, Messwerte und Zahl offener Kommentare |
+| `get_feedback` | Kommentare einer Version, Rückmeldungen und ausstehendes Feedback |
+| `get_overview` | Aktivitäten und Daten für Board und Plan aller eigenen aktiven Projekte |
+| `list_deliveries` | Aufträge eines Projekts, nur mit Owner-Rechten |
+
+Die Tools rufen ausschließlich fest vorgegebene GET-Routen derselben API auf, inklusive deren Rechteprüfungen. Es gibt weder frei wählbare Pfade noch Schreib- oder Download-Tools. Gast-Link-Tokens werden aus Antworten entfernt, weil sie Schreibrechte verleihen können. Die MCP-Authentifizierung ändert auch keine Lesemarken oder Sitzungen. Pro Konto gelten zusätzlich höchstens 120 MCP-Anfragen und 120 Tool-Aufrufe pro Minute, in derselben Postgres-Rate-Limit-Tabelle wie die API.
+
+Anmeldung: Der Client entdeckt `/.well-known/oauth-protected-resource/mcp` und `/.well-known/oauth-authorization-server`, registriert sich bei `/api/v1/oauth/register` und startet Authorization Code mit PKCE S256, `resource=<APP_URL>/mcp` und Scope `music:read`. Die Zustimmung unter `/oauth/consent` setzt den bestehenden Login voraus (Mail-Code oder Passkey); OAuth legt keine Konten an. Die Freigabe nennt Client, angemeldetes Konto, Umfang und Rücksprungadresse. Abgelehnt wird ohne Token. Zugriffstokens gelten eine Stunde, rotierende Refresh-Tokens 30 Tage, die Freigabe insgesamt höchstens 90 Tage. Wiederverwendete Refresh-Tokens widerrufen die gesamte Verbindung. Codes sind fünf Minuten gültig und einmalig. Tokens und Client-Secrets stehen nur als Hash in der Datenbank. Cookie-Sitzungen gelten nicht am MCP-Endpunkt und OAuth-Tokens nicht an den übrigen API-Routen.
+
+Unter **Konto → KI-Clients** stehen die verbundenen Clients und das Ende ihrer Freigabe. „Zugriff widerrufen“ löscht die Verbindung mit allen Codes und Tokens sofort; außerdem gibt es `/api/v1/oauth/revoke` nach RFC 7009. Registrierte Redirects müssen HTTPS verwenden, nur Loopback-Adressen dürfen HTTP nutzen. Es gelten exakte Redirects, keine Wildcards. Öffentliche Clients und Clients mit `client_secret_basic` oder `client_secret_post` werden unterstützt. Die Metadaten bewerben ausschließlich `music:read`, PKCE S256 und Code-/Refresh-Grants. Das bestehende stündliche Cleanup entfernt abgelaufene OAuth-Daten sowie seit 90 Tagen nicht mehr verbundene Client-Registrierungen.
+
+OAuth-Baustein: [@node-oauth/oauth2-server](https://github.com/node-oauth/node-oauth2-server) übernimmt Code-Austausch, PKCE, Scope- und Client-Prüfung sowie Token-Erneuerung; unsere Adapter speichern den Zustand in Drizzle. Geprüfte Alternativen: Die [Auth-Helfer des MCP-SDK](https://github.com/modelcontextprotocol/typescript-sdk) sind an Express gebunden; [@jmondi/oauth2-server](https://github.com/jasonraimondi/ts-oauth2-server) bringt ein umfangreicheres Repository-/OIDC-Modell mit. Der gewählte Baustein passt mit einem kleinen Fetch-Adapter zur vorhandenen Hono-API und braucht keinen weiteren Dienst und keinen neuen Signierschlüssel.
+
+Testen:
+
+- `bun run check && bun run test && bun --bun run build`. `apps/api/src/mcp.test.ts` nutzt den offiziellen SDK-Client und die isolierte Testdatenbank: eigenes und fremdes Projekt, PKCE, Scope, Audience, Code-Replay, Refresh-Rotation, gesperrtes Konto und Widerruf. `apps/web/tests/mcp.test.ts` spielt Zustimmung und Widerruf auf Desktop und Pixel 7 auf Deutsch und Englisch durch.
+- Mit dem [MCP Inspector](https://github.com/modelcontextprotocol/inspector) Streamable HTTP und die Server-URL wählen, OAuth starten, ausschließlich mit `admin@pleasance.org` anmelden, Lesen erlauben, `tools/list` und etwa `list_projects` aufrufen. Danach in **Konto → KI-Clients** widerrufen; weitere Aufrufe müssen 401 ergeben. Keine Konten der Kundschaft für Agententests verwenden.
+- Live muss `GET /mcp` ohne Bearer 401 mit `WWW-Authenticate` und der Metadata-URL liefern. Bei `tools/call` mit fremder Projekt-ID liefert das Tool einen Fehler ohne Projektdaten. Live keine fremden IDs aus Kundenkonten suchen: Die automatisierte Suite belegt die Sperre mit eigens angelegten Testdaten.
+
 ## Tests und Prozessende
 
 `bun run check && bun run test && bun --bun run build` prüft Typen, die `any`-Regeln von Biome, API, CLI und Browser und baut Web und CLI. Die API- und Browser-Suite laufen nacheinander, damit Browser-Build und API-Tests auf kleinen Rechnern nicht konkurrieren. Jede Suite bekommt eine eigene leere Datenbank auf dem Server aus `DATABASE_URL`; der Nutzer braucht `CREATEDB` (lokaler Compose- und CI-Nutzer haben es). `packages/db/test.ts` entfernt nur diese temporäre Datenbank nach Erfolg, Fehler oder SIGINT/SIGTERM. Direkte Aufrufe von `bun test` oder `playwright test` umgehen die Isolation. Playwright nutzt 31100/31101 unter dem ephemeren Linux-Portbereich; parallele Worktrees wählen andere Ports unter 32768 per `TEST_API_PORT` und `TEST_WEB_PORT`.

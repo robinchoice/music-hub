@@ -8,6 +8,7 @@
   import Input from '$lib/components/ui/Input.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import TopBar from '$lib/components/workspace/TopBar.svelte';
+  import McpSettings from '$lib/components/account/McpSettings.svelte';
   import PasskeySettings from '$lib/components/PasskeySettings.svelte';
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
@@ -133,6 +134,7 @@
     <PlanSettings />
     <ReferralSettings />
     <PasskeySettings />
+    <McpSettings />
     <ProfileSettings />
     <GuestUploadSettings />
     <PaymentAccountSettings />

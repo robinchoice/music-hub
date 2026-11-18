@@ -1,4 +1,5 @@
 import * as billing from './billing.js';
+import * as mcp from './mcp.js';
 import * as common from './common.js';
 import * as delivery from './delivery.js';
 import * as guest from './guest.js';
@@ -14,6 +15,7 @@ import * as workspace from './workspace.js';
 export const messages = {
   de: {
     billing: billing.de,
+    mcp: mcp.de,
     common: common.de,
     delivery: delivery.de,
     guest: guest.de,
@@ -26,6 +28,7 @@ export const messages = {
   },
   en: {
     billing: billing.en,
+    mcp: mcp.en,
     common: common.en,
     delivery: delivery.en,
     guest: guest.en,

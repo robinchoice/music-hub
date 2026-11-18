@@ -4,5 +4,6 @@ export type AppEnv = {
   Variables: {
     db: Database;
     userId: string;
+    mcpUserId: string;
   };
 };

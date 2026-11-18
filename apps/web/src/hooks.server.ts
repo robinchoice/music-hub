@@ -31,7 +31,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   const locale = pickLocale(event.cookies.get('locale') ?? event.request.headers.get('accept-language'));
   event.locals.locale = locale;
   const response =
-    pathname.startsWith('/api/') || AGENT_PATH.test(pathname)
+    pathname.startsWith('/api/') || pathname === '/mcp' || pathname.startsWith('/.well-known/oauth-') || AGENT_PATH.test(pathname)
       ? await proxy(event.request, `${API_ORIGIN}${pathname}${search}`)
       : ((await markdown(event.request, event.url)) ??
         (await resolve(event, {

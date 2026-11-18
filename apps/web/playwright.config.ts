@@ -53,7 +53,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: 'bun --bun run build && bun build/index.js',
+      command: 'bun --bun run build && bun src/server.ts',
       env: { PORT: String(WEB_PORT), ORIGIN: WEB, API_INTERNAL_URL: `http://127.0.0.1:${API_PORT}` },
       url: WEB,
       timeout: 300_000,

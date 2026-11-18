@@ -99,6 +99,14 @@ Bei Layoutänderungen zusätzlich die Geräteprüfkriterien aus der README von s
 - Gesetzliche Fachbegriffe bleiben in AGB, Widerrufsbelehrung und Datenschutz trotz der Regel ohne Gendern wörtlich („Verbraucher“, „Unternehmer“, „Verantwortlicher“, das Muster-Widerrufsformular), weil sie auf Gesetz und Mustertext verweisen.
 - Link-Vorschau nach dem starter (AGENTS.md, „Link-Vorschau“): je Sprache ein Bild `static/og-image-<de|en>.png`. Nach Änderung von Claim, `APP_BAND` oder Kachel (`static/favicon.svg`) mit `bun run og-image` in `apps/web` neu rendern und committen.
 
+## MCP
+
+- Pilot nur in Music Hub, Endpunkt `/mcp` mit offiziellem TypeScript-SDK, Streamable HTTP und JSON-Antworten ohne Prozess-Sessions. Web-Proxy und API bedienen außerdem die OAuth-Metadaten unter `/.well-known/`. Einrichtung und Tests: README, „MCP (Pilot, nur lesend)“.
+- **MCP bleibt strikt lesend.** Die sieben Tools in `routes/mcp.ts` dürfen nur ihre festen GET-Routen aufrufen. `mcpUserId` ist interner Hono-Context nach Prüfung eines OAuth-Tokens, niemals ein HTTP-Header. Die normale API akzeptiert diese Tokens nicht. Gast-Link-Tokens dürfen nicht in Tool-Ergebnisse gelangen; sie können außerhalb von MCP Schreibrechte verleihen. Neue Tools auf Seiteneffekte und solche Fähigkeiten in den Antworten prüfen.
+- **Web über `bun src/server.ts` starten, nach dem Build.** Das Docker-Image und Playwright nutzen denselben Einstieg. Nur `/api/v1/oauth/token` und `/api/v1/oauth/revoke` leitet er vor SvelteKit weiter, damit der standardmäßige OAuth-Formulartausch ohne Browser-Origin funktioniert. Nie den CSRF-Schutz der ganzen App abschalten.
+- OAuth über `@node-oauth/oauth2-server`, Daten in `mcp_clients`, `mcp_grants`, `mcp_codes`, `mcp_tokens`, ausschließlich Hashes von Tokens und Secrets. Feste Audience `<APP_URL>/mcp`, Scope nur `music:read`, PKCE S256, exakte Redirects. Codes einmalig/5 Minuten, Access/1 Stunde, Refresh rotierend/30 Tage, Freigabe/90 Tage. Refresh-Replay widerruft die Verbindung, gesperrte Konten sind ausgeschlossen, Cleanup läuft mit `pruneExpired`. Keine Kontenanlage über OAuth. Zustimmung und Widerruf verlangen den bestehenden Login; ihre Schreibanfragen zusätzlich den eigenen Origin.
+- Tools: `list_projects`, `get_project`, `list_tracks`, `list_versions`, `get_feedback` (Kommentare und Reviews), `get_overview` (Board/Plan), `list_deliveries` (Owner). Für neue Lesewege bestehende API-Routen und zod-Schemas verwenden. Die API-Tests nutzen den SDK-Client und eigene Daten in isolierter DB; Browser-Tests Zustimmung/Widerruf auf Desktop und Handy, Deutsch und Englisch. Live nur `admin@pleasance.org`. Auth-Änderungen brauchen vor dem Push `cross-review`.
+
 ## Rückwärtskompatibilität
 
 Gilt für Daten, API und URLs. Interner Code darf weiterhin direkt umgebaut werden.

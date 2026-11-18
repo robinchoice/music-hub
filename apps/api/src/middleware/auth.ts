@@ -31,6 +31,13 @@ async function validSession(db: Database, token: string) {
 }
 
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
+  // Only the internal MCP router sets this context, for its fixed GET routes.
+  // It already verified a scoped OAuth token; no session or last-seen writes.
+  if (c.req.method === 'GET' && c.get('mcpUserId')) {
+    c.set('userId', c.get('mcpUserId'));
+    await next();
+    return;
+  }
   const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
   if (!sessionToken) {
     return c.json({ error: 'Unauthorized' }, 401);

@@ -187,6 +187,8 @@ const PRIVACY_DE = `Stand: Oktober 2026
 
 Music Hub ist ein Werkzeug für Musikproduktionen: Versionen, Feedback und Freigaben. Ein Konto gibt es per Registrierung, solange Plätze frei sind, oder per Einladung. Hier steht, welche Daten dabei anfallen, wofür ich sie brauche und wo sie liegen. Werbung, Tracking oder Analyse-Dienste gibt es nicht.
 
+Wenn du einen KI-Client verbindest, gibst du dessen Anbieter selbst die abgefragten Daten. Es gelten dessen Bedingungen und Datenschutzregeln.
+
 ## 1. Verantwortlicher
 
 Robin Wahl, Pleasance, Bugginger Straße 37, 79114 Freiburg, E-Mail: hello@pleasance.org
@@ -244,6 +246,8 @@ Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Vera
 const PRIVACY_EN = `Last updated: October 2026. This is a translation, the German version is binding.
 
 Music Hub is a tool for music productions: versions, feedback and approvals. You get an account by signing up, as long as places are free, or by invitation. This page explains which data arises, what I need it for and where it is stored. There is no advertising, tracking or analytics service.
+
+When you connect an AI client, you share the requested data with its provider yourself. Its terms and privacy policy apply.
 
 ## 1. Controller
 

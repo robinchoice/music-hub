@@ -1,5 +1,5 @@
-import { and, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
-import { listenEvents, magicLinks, rateLimits, sessions, type Database } from '@music-hub/db';
+import { and, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
+import { listenEvents, magicLinks, mcpClients, mcpCodes, mcpGrants, mcpTokens, rateLimits, sessions, type Database } from '@music-hub/db';
 
 const DAY_MS = 86_400_000;
 // Used links count as logins in the admin pages, which look back 90 days at most
@@ -10,6 +10,11 @@ export const LISTEN_DETAILS_DAYS = 90;
 // Deletes what nobody needs anymore. Every API instance runs it; a second run finds nothing left.
 export async function pruneExpired(db: Database) {
   const now = new Date();
+  await db.delete(mcpCodes).where(lt(mcpCodes.expiresAt, now));
+  await db.delete(mcpTokens).where(lt(mcpTokens.refreshExpiresAt, now));
+  await db.delete(mcpGrants).where(lt(mcpGrants.expiresAt, now));
+  await db.delete(mcpClients).where(and(lt(mcpClients.createdAt, new Date(now.getTime() - 90 * DAY_MS)),
+    notInArray(mcpClients.id, db.select({ id: mcpGrants.clientId }).from(mcpGrants))));
   await db.delete(sessions).where(lt(sessions.expiresAt, now));
   await db.delete(magicLinks).where(
     or(

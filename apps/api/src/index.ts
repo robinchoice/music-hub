@@ -1,4 +1,6 @@
 import './env';
+import { mcpRoutes } from './routes/mcp.js';
+import { mcpMetadataRoutes, mcpOAuthRoutes, mcpConnectionRoutes } from './routes/mcp-oauth.js';
 import { drainBackground, runInBackground } from './lib/background.js';
 import { captureException } from './monitoring';
 import { Hono } from 'hono';
@@ -89,7 +91,10 @@ const startup = (async () => {
   }
 
   const app = new Hono<AppEnv>()
-    .use('*', logger())
+    .use('*', async (c, next) => {
+      if (c.req.path === '/mcp' || c.req.path.startsWith('/api/v1/oauth/')) return next();
+      return logger()(c, next);
+    })
     .use(
       '*',
       cors({
@@ -110,7 +115,11 @@ const startup = (async () => {
     .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
     // /llms.txt, /llms-full.txt and <page>.md, forwarded by the web server
     .route('/', agentRoutes)
+    .route('/', mcpMetadataRoutes)
+    .route('/mcp', mcpRoutes)
     .basePath('/api/v1')
+    .route('/oauth', mcpOAuthRoutes)
+    .route('/mcp/connections', mcpConnectionRoutes)
     .get('/health', (c) => c.json({ status: 'ok', revision: process.env.APP_VERSION || 'dev' }))
     .route('/auth', authRoutes)
     .route('/auth/passkeys', passkeyRoutes)

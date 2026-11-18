@@ -13,6 +13,7 @@
 <p class="meta">{t().landing.privacy.meta}</p>
 
 <p>{t().landing.privacy.intro}</p>
+<p>{t().mcp.privacy}</p>
 
 <h2>{t().landing.privacy.controller}</h2>
 <address>
