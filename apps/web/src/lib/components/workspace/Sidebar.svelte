@@ -38,7 +38,7 @@
     onClose?: () => void;
   } = $props();
 
-  const pickFiles = getContext<(() => void) | undefined>('pickFiles');
+  const pickFiles = getContext<((folder?: boolean) => void) | undefined>('pickFiles');
 
   // Projects and tracks come from the overview store; the sidebar keeps no copy of its own
   const tracksByProject = $derived.by(() => {
@@ -112,9 +112,9 @@
     if (open) onClose?.();
   }
 
-  function uploadFiles() {
+  function uploadFiles(folder = false) {
     handleNavClick();
-    pickFiles?.();
+    pickFiles?.(folder);
   }
 
   function handleWindowClick(e: MouseEvent) {
@@ -141,7 +141,8 @@
     {#if newOpen}
       <div class="new-menu" role="menu">
         <a role="menuitem" href="/projects/new" onclick={handleNavClick}><Icon name="music" size={16} /> {t().workspace.sidebar.newProject}</a>
-        <button role="menuitem" onclick={uploadFiles}><Icon name="upload" size={16} /> {t().workspace.sidebar.uploadFiles}</button>
+        <button role="menuitem" onclick={() => uploadFiles()}><Icon name="upload" size={16} /> {t().workspace.sidebar.uploadFiles}</button>
+        <button role="menuitem" onclick={() => uploadFiles(true)}><Icon name="folder" size={16} /> {t().workspace.sidebar.uploadFolder}</button>
         <a role="menuitem" href="/import" onclick={handleNavClick}><Icon name="cloud-download" size={16} /> {t().importer.nav}</a>
       </div>
     {/if}

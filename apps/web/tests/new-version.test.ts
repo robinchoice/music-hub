@@ -13,7 +13,7 @@ async function newTrack(page: Page) {
   return { projectId: project.id as string, trackId: track.id as string };
 }
 
-test('the project header fits the screen and "Mix hochladen" opens the file dialog', async ({ page, isMobile }) => {
+test('the project header fits the screen and "Hochladen" opens the file dialog', async ({ page, isMobile }) => {
   const { projectId } = await newTrack(page);
   await page.goto(`/projects/${projectId}`);
   await expect(page.getByRole('heading', { name: 'Nachtbus EP' })).toBeVisible();
@@ -22,7 +22,7 @@ test('the project header fits the screen and "Mix hochladen" opens the file dial
     // Phones: sharing stays in the bar, the rarer actions wait behind "⋯", uploading is the big button
     await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
     const sheet = page.getByRole('dialog', { name: 'Weitere Aktionen' });
-    for (const name of ['Neuer Track', 'Upload-Link für Gäste', 'Einstellungen und Mitwirkende']) {
+    for (const name of ['Neuer Track', 'Ordner hochladen', 'Upload-Link für Gäste', 'Einstellungen und Mitwirkende']) {
       await expect(sheet.getByRole('button', { name }).or(sheet.getByRole('link', { name }))).toBeVisible();
     }
     await sheet.getByRole('button', { name: 'Neuer Track' }).click();
@@ -32,14 +32,22 @@ test('the project header fits the screen and "Mix hochladen" opens the file dial
     await chooser;
     return;
   }
-  for (const name of ['Einstellungen', 'Upload-Link', 'Neuer Track']) {
+  for (const name of ['Einstellungen', 'Upload-Link']) {
     const header = page.getByRole('main');
     const action = header.getByRole('button', { name }).or(header.getByRole('link', { name }));
     await expect(action).toBeVisible();
     await expect(action).toHaveAttribute('title', name);
   }
+  await expect(page.getByRole('button', { name: 'Ordner hochladen' })).toBeVisible();
+  // A new empty track is the rare way; on wide screens "⋯" holds only that
+  await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Weitere Aktionen' });
+  await expect(sheet.getByRole('button', { name: 'Neuer Track' })).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Upload-Link für Gäste' })).toBeHidden();
+  await sheet.getByRole('button', { name: 'Neuer Track' }).click();
+  await expect(page.getByPlaceholder('Track-Name')).toBeVisible();
   const chooser = page.waitForEvent('filechooser', { timeout: 5000 });
-  await page.getByRole('button', { name: 'Mix hochladen' }).click();
+  await page.getByRole('button', { name: 'Hochladen', exact: true }).click();
   await chooser;
 });
 

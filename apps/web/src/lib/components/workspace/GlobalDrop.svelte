@@ -2,20 +2,27 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { t } from '$lib/i18n/index.js';
+  import { api } from '$lib/api/client.js';
+  import { chooseFiles, droppedFiles, topFolder } from '$lib/audio/folders.js';
   import { overviewIndex, loadOverview } from '$lib/stores/overview.js';
   import { pendingDrop } from '$lib/stores/pending-drop.js';
   import { toast } from '$lib/stores/toast.js';
   import Button from '$lib/components/ui/Button.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
   import Modal from '$lib/components/ui/Modal.svelte';
 
   // Files can be dropped anywhere in the app. On a project or a track they go there, elsewhere
-  // only the project is asked, preselected with the one used last. Drop zones of a page handle
-  // their own drops first (they call preventDefault), this only takes what nobody took.
+  // only the project is asked: preselected with the one used last, or a new one named after the dropped folder.
+  // Drop zones of a page handle their own drops first (they call preventDefault), this only takes what nobody took.
   const LAST = 'musichub:drop-project';
 
   let open = $state(false);
   let files = $state<File[]>([]);
+  // A project id, or NEW for a project created from the name
   let choice = $state('');
+  let name = $state('');
+  let creating = $state(false);
+  const NEW = 'new';
   let over = $state(false);
   let depth = 0;
 
@@ -24,6 +31,20 @@
   );
 
   const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
+
+  async function upload() {
+    if (choice !== NEW) return send(choice);
+    creating = true;
+    try {
+      const { project } = await api.post<{ project: { id: string } }>('/projects', { name: name.trim() });
+      await loadOverview(true);
+      send(project.id);
+    } catch {
+      // The API client already showed the error
+    } finally {
+      creating = false;
+    }
+  }
 
   function send(projectId: string, trackId?: string) {
     localStorage.setItem(LAST, projectId);
@@ -54,17 +75,13 @@
     over = false;
     if (e.defaultPrevented || !hasFiles(e)) return;
     e.preventDefault();
-    await take(Array.from(e.dataTransfer?.files ?? []));
+    await take(await droppedFiles(e.dataTransfer));
   }
 
-  // "Neu › Dateien hochladen": the same way as a drop, only from the file dialog.
+  // "Neu › Dateien hochladen" and "Ordner hochladen": the same way as a drop, only from the file dialog.
   // The input lives only for the dialog, so pages keep their own file input as the only one.
-  export function pick() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.onchange = () => void take(Array.from(input.files ?? []));
-    input.click();
+  export function pick(folder = false) {
+    chooseFiles(folder, (picked) => void take(picked));
   }
 
   async function take(dropped: File[]) {
@@ -82,7 +99,8 @@
       return send(projectId, trackId);
     }
     const last = localStorage.getItem(LAST);
-    choice = projects.some((p) => p.id === last) ? last! : projects[0]?.id ?? '';
+    choice = projects.some((p) => p.id === last) ? last! : projects[0]?.id ?? NEW;
+    name = topFolder(dropped);
     open = true;
   }
 </script>
@@ -94,20 +112,22 @@
 {/if}
 
 <Modal bind:open title={t().workspace.globalDrop.title(files.length)}>
-  {#if projects.length}
-    <label class="pick">
-      <span>{t().workspace.globalDrop.project}</span>
-      <select bind:value={choice}>
-        {#each projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-      </select>
-    </label>
-    <p class="hint">{t().workspace.globalDrop.hint}</p>
-  {:else}
-    <p class="hint">{t().workspace.globalDrop.noProject}</p>
+  <label class="pick">
+    <span>{t().workspace.globalDrop.project}</span>
+    <select bind:value={choice}>
+      {#each projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+      <option value={NEW}>+ {t().workspace.globalDrop.newProject}</option>
+    </select>
+  </label>
+  {#if choice === NEW}
+    <div class="name">
+      <Input bind:value={name} label={t().workspace.globalDrop.projectName} maxlength={255} />
+    </div>
   {/if}
+  <p class="hint">{t().workspace.globalDrop.hint}</p>
   {#snippet actions()}
     <Button variant="ghost" onclick={() => { open = false; files = []; }}>{t().common.cancel}</Button>
-    {#if projects.length}<Button onclick={() => send(choice)} disabled={!choice}>{t().workspace.globalDrop.upload}</Button>{/if}
+    <Button onclick={upload} loading={creating} disabled={!choice || (choice === NEW && !name.trim())}>{t().workspace.globalDrop.upload}</Button>
   {/snippet}
 </Modal>
 
@@ -131,6 +151,9 @@
   .pick {
     display: grid;
     gap: var(--space-1);
+  }
+  .name {
+    margin-top: var(--space-3);
   }
   .pick span {
     font-size: var(--text-sm);

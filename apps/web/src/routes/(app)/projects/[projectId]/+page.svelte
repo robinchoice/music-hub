@@ -21,6 +21,7 @@
   import TrackRow from '$lib/components/overview/TrackRow.svelte';
   import TrackBoard from '$lib/components/overview/TrackBoard.svelte';
   import ProjectDrop from '$lib/components/audio/ProjectDrop.svelte';
+  import { droppedFiles } from '$lib/audio/folders.js';
   import UploadLinkModal from '$lib/components/workspace/UploadLinkModal.svelte';
   import ProjectShareModal from '$lib/components/workspace/ProjectShareModal.svelte';
   import DeliveryPanel from '$lib/components/delivery/DeliveryPanel.svelte';
@@ -80,14 +81,13 @@
   let expanded = $state<Record<string, boolean>>({});
   let newTrackName = $state('');
   let showNewTrack = $state(false);
-  const newTrackLabel = $derived(showNewTrack ? t().common.cancel : t().workspace.projectPage.newTrack);
   let loading = $state(true);
   let creating = $state(false);
   let coverEditOpen = $state(false);
   let restoring = $state(false);
   let uploadLinkOpen = $state(false);
   let shareOpen = $state(false);
-  // Phones: the rarer actions wait behind "⋯"
+  // The rarer actions wait behind "⋯": a new empty track everywhere, on phones also the ones the bar has no room for
   let moreOpen = $state(false);
   let drop = $state<ProjectDrop>();
   let files = $state<ProjectFile[]>([]);
@@ -352,7 +352,7 @@
   function dropOnPage(e: DragEvent) {
     if (!canUpload || !e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();
-    void drop?.add(Array.from(e.dataTransfer.files));
+    void droppedFiles(e.dataTransfer).then((dropped) => drop?.add(dropped));
   }
 </script>
 
@@ -371,10 +371,8 @@
         <Button variant="ghost" size="sm" title={t().workspace.projectPage.uploadLink} onclick={() => (uploadLinkOpen = true)}>
           <Icon name="link" size={14} /> {t().workspace.projectPage.uploadLink}
         </Button>
-        <Button variant="ghost" size="sm" title={newTrackLabel} onclick={() => showNewTrack = !showNewTrack}>
-          <Icon name={showNewTrack ? 'x' : 'plus'} size={14} /> {newTrackLabel}
-        </Button>
         {#if !empty}
+          <Button variant="ghost" size="sm" onclick={() => drop?.pickFolder()}><Icon name="folder" size={14} /> {t().workspace.projectPage.uploadFolder}</Button>
           <Button variant="secondary" size="sm" onclick={() => drop?.pick()}><Icon name="upload" size={14} /> {t().workspace.projectPage.uploadMix}</Button>
         {/if}
       {/if}
@@ -384,7 +382,7 @@
         <Button size="sm" title={t().workspace.projectPage.share} onclick={() => (shareOpen = true)}><Icon name="share" size={14} /> {t().workspace.projectPage.share}</Button>
       {/if}
       {#if !loading}
-        <span class="narrow-only">
+        <span class:narrow-only={!canUpload}>
           <Button variant="ghost" size="sm" title={t().workspace.projectPage.moreActions} onclick={() => (moreOpen = true)}>
             <Icon name="more" size={16} /> <span class="sr-only">{t().workspace.projectPage.moreActions}</span>
           </Button>
@@ -658,9 +656,12 @@
   <nav class="more-list" aria-label={t().workspace.projectPage.moreActions}>
     {#if canUpload}
       <button type="button" onclick={() => { moreOpen = false; showNewTrack = true; }}><Icon name="plus" size={18} /> {t().workspace.projectPage.newTrack}</button>
-      <button type="button" onclick={() => { moreOpen = false; uploadLinkOpen = true; }}><Icon name="link" size={18} /> {t().workspace.projectPage.uploadLinkGuests}</button>
+      {#if !empty}
+        <button type="button" class="phone-only" onclick={() => { moreOpen = false; drop?.pickFolder(); }}><Icon name="folder" size={18} /> {t().workspace.projectPage.uploadFolder}</button>
+      {/if}
+      <button type="button" class="phone-only" onclick={() => { moreOpen = false; uploadLinkOpen = true; }}><Icon name="link" size={18} /> {t().workspace.projectPage.uploadLinkGuests}</button>
     {/if}
-    <a href="/projects/{projectId}/settings" onclick={() => (moreOpen = false)}><Icon name="settings" size={18} /> {t().workspace.projectPage.settingsMembers}</a>
+    <a href="/projects/{projectId}/settings" class="phone-only" onclick={() => (moreOpen = false)}><Icon name="settings" size={18} /> {t().workspace.projectPage.settingsMembers}</a>
   </nav>
 </Sheet>
 
@@ -782,7 +783,13 @@
   .more-list > :first-child {
     border-top: none;
   }
+  .more-list .phone-only {
+    display: none;
+  }
   @media (max-width: 540px) {
+    .more-list .phone-only {
+      display: flex;
+    }
     .wide-only {
       display: none;
     }

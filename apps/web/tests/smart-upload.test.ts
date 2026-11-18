@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { logIn, removeUser } from './session.js';
 
@@ -98,7 +101,7 @@ test('stems can stay without a mix, and only sounds open the files', async ({ pa
 
   await page.goto(`/projects/${projectId}`);
   chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Mix (oder Spuren )?hochladen$/ }).filter({ visible: true }).click();
+  await page.getByRole('button', { name: /^(Hochladen|Mix oder Spuren hochladen)$/ }).filter({ visible: true }).click();
   await (await chooser).setFiles([wav('Vespa_Leerlauf.wav', 6), wav('Vespa_Anlassen.wav', 3)]);
   await expect(page.locator('.toast-container')).toContainText('2 Dateien in den Dateien des Projekts');
   await expect(page).toHaveURL(/view=dateien/);
@@ -150,4 +153,57 @@ test('a sound can still become a version while it uploads', async ({ page, baseU
   await page.waitForURL(/\/tracks\/[0-9a-f-]{36}$/);
   expect(sent.map((s) => new URL(s.url).pathname.split('/').slice(3, 5).join('/'))).toEqual(['versions/track']);
   await expect(page.getByRole('heading', { name: 'Jingle Idee', level: 1 })).toBeVisible();
+});
+
+// A folder on disk, as the folder dialog hands it over, with the hidden file macOS leaves in it
+function folder(name: string, files: { name: string; buffer: Buffer }[]) {
+  const dir = join(mkdtempSync(join(tmpdir(), 'musichub-')), name);
+  mkdirSync(dir);
+  for (const f of [...files, { name: '.DS_Store', buffer: Buffer.from('finder') }]) writeFileSync(join(dir, f.name), f.buffer);
+  return dir;
+}
+
+test('a folder of stems becomes one song named after the folder', async ({ page, baseURL, isMobile }) => {
+  const sent = await fakeBucket(page, baseURL!);
+  const projectId = await newProject(page);
+  await page.goto(`/projects/${projectId}`);
+  // An empty project offers the folder in its drop zone
+  await expect(page.getByRole('button', { name: 'Ordner auswählen' })).toBeVisible();
+  await page.request.post(`/api/v1/tracks/${projectId}`, { data: { name: 'Sommer' } });
+  await page.reload();
+  const chooser = page.waitForEvent('filechooser');
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
+    await page.getByRole('dialog', { name: 'Weitere Aktionen' }).getByRole('button', { name: 'Ordner hochladen' }).click();
+  } else await page.getByRole('button', { name: 'Ordner hochladen' }).click();
+  await (await chooser).setFiles(folder('Kreise', [wav('Kick.wav', 221), wav('Bass.wav', 221)]));
+  await page.waitForURL(/\/tracks\/[0-9a-f-]{36}$/);
+  expect(sent.filter((s) => s.url.includes('/stems/track/')).map((s) => s.body.name)).toEqual(['Bass', 'Kick']);
+  expect(sent.filter((s) => s.url.includes('/files/project/'))).toEqual([]);
+  const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${projectId}`)).json();
+  expect(tracks.map((t: { name: string }) => t.name).sort()).toEqual(['Kreise', 'Sommer']);
+});
+
+test('a folder from "Neu" asks for the project and can start a new one named after it', async ({ page, baseURL, isMobile }) => {
+  const sent = await fakeBucket(page, baseURL!);
+  await newProject(page);
+  await page.goto('/music');
+  if (isMobile) await page.getByRole('button', { name: 'Menü öffnen' }).click();
+  const sidebar = page.locator('aside.sidebar');
+  await sidebar.getByRole('button', { name: 'Neu' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await sidebar.getByRole('menuitem', { name: 'Ordner hochladen' }).click();
+  await (await chooser).setFiles(folder('Nachtbus', [wav('Mix.wav', 200)]));
+  const dialog = page.getByRole('dialog', { name: 'Datei hochladen' });
+  await expect(dialog.getByLabel('In welches Projekt?')).toHaveValue(/[0-9a-f-]{36}/);
+  await dialog.getByLabel('In welches Projekt?').selectOption({ label: '+ Neues Projekt' });
+  await expect(dialog.getByLabel('Name des neuen Projekts')).toHaveValue('Nachtbus');
+  await dialog.getByRole('button', { name: 'Hochladen' }).click();
+  await page.waitForURL(/\/tracks\/[0-9a-f-]{36}$/);
+  expect(sent.filter((s) => s.url.includes('/versions/track/'))).toHaveLength(1);
+  const created = /\/projects\/([0-9a-f-]{36})\//.exec(page.url())![1];
+  const { project } = await (await page.request.get(`/api/v1/projects/${created}`)).json();
+  expect(project.name).toBe('Nachtbus');
+  const { tracks } = await (await page.request.get(`/api/v1/tracks/project/${created}`)).json();
+  expect(tracks.map((t: { name: string }) => t.name)).toEqual(['Nachtbus']);
 });

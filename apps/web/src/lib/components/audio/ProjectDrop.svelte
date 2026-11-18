@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { planDrop, similarTracks } from '@music-hub/shared';
+  import { planDrop, similarTracks, withoutMixName } from '@music-hub/shared';
+  import { chooseFiles, droppedFiles, songFolder } from '$lib/audio/folders.js';
   import { api } from '$lib/api/client.js';
   import {
     byFileName, checkFileSize, describeDrop, isVersionable, mimeOf, trackNameFromFile, unreadableFiles, uploadAudioFile, uploadToProject, registerVersion,
@@ -69,6 +70,10 @@
     input?.click();
   }
 
+  export function pickFolder() {
+    chooseFiles(true, (files) => void add(files, forTrack));
+  }
+
   const newRow = (kind: Row['kind'], name: string, files: File[], matchId: string | null, extra: Partial<Row> = {}): Row => ({
     kind, name, file: files.map((f) => f.name).join(', '), files, size: files.reduce((sum, f) => sum + f.size, 0), loaded: 0, progress: 0,
     state: 'wartet', matchId, newTrack: false, locked: false, matchedNumber: 0, abort: new AbortController(), number: matchId ? 0 : 1,
@@ -133,14 +138,16 @@
     rows = [
       ...plan.groups.map((g) => {
         const stems = g.stems.map((i) => files[i]);
-        const name = GENERIC.test(g.name) ? t().track.drop.newSongName : trackNameFromFile(g.name);
+        // Stems named "Kick", "Bass" take the name of their folder
+        const name = GENERIC.test(g.name) ? songFolder(stems) || t().track.drop.newSongName : trackNameFromFile(g.name);
         return newRow('stems', name, g.mix === null ? stems : [files[g.mix], ...stems], matchOf(name), {
           bounce: g.mix === null ? null : files[g.mix],
           duration: described[g.stems[0]].duration ?? 0,
         });
       }),
       ...plan.mixes.map((i) => {
-        const name = trackNameFromFile(files[i].name);
+        // "Mix.wav" in the folder "Kreise" is a mix of "Kreise"
+        const name = (!withoutMixName(files[i].name) && songFolder([files[i]])) || trackNameFromFile(files[i].name);
         return newRow('mix', name, [files[i]], matchOf(name));
       }),
       ...plan.files.map((i) => newRow('file', files[i].name, [files[i]], null, { choice: 'files' })),
@@ -359,7 +366,7 @@
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;
-    void add(Array.from(e.dataTransfer?.files ?? []), forTrack);
+    void droppedFiles(e.dataTransfer).then((files) => add(files, forTrack));
   }
 </script>
 
@@ -384,7 +391,10 @@
     {#if forTrack}
       <h2>{t().track.drop.dropOnTrack}</h2>
       <p>{t().track.drop.trackHint}</p>
-      <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+      <div class="pickers">
+        <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+        <Button variant="secondary" onclick={pickFolder}>{t().track.drop.chooseFolder}</Button>
+      </div>
       <div class="examples" aria-hidden="true">
         <span>{t().track.drop.exampleMix(trackName)}<b>{t().track.drop.exampleMixBecomes}</b></span>
         <span>{t().track.drop.exampleStems}<b>{t().track.drop.exampleStemsBecome}</b></span>
@@ -392,7 +402,10 @@
     {:else}
       <h2>{t().track.drop.dropMix}</h2>
       <p>{t().track.drop.hint}</p>
-      <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+      <div class="pickers">
+        <Button onclick={pick}>{t().track.drop.chooseFiles}</Button>
+        <Button variant="secondary" onclick={pickFolder}>{t().track.drop.chooseFolder}</Button>
+      </div>
     {/if}
     <span class="formats">{t().track.drop.formats}</span>
   </div>
@@ -472,6 +485,12 @@
   .row .target { white-space: normal; color: var(--color-text-primary); }
   .row .names { white-space: normal; }
   .choice { justify-self: start; margin-top: 4px; max-width: 100%; background: var(--color-bg-subtle); color: var(--color-text-primary); border: 1px solid var(--color-border-hover); border-radius: var(--radius-sm); padding: 4px 8px; font: inherit; font-size: var(--text-xs); }
+  .pickers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+  }
   .examples {
     display: flex;
     flex-wrap: wrap;

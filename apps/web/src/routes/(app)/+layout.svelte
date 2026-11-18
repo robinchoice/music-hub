@@ -23,7 +23,7 @@
 
   setContext('openMobileMenu', () => (mobileMenuOpen = true));
   // "Neu › Dateien hochladen" in the sidebar opens the file dialog of the global drop
-  setContext('pickFiles', () => dropRef?.pick());
+  setContext('pickFiles', (folder?: boolean) => dropRef?.pick(folder));
   // The sidebar shows the projects and tracks of the overview store, so a change refreshes the store
   setContext('reloadSidebar', () => void refreshOverview());
 
