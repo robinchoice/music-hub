@@ -2,7 +2,7 @@ import type { Database } from '@music-hub/db';
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { deleteCookie, getCookie } from 'hono/cookie';
-import { and, eq, isNull, isNotNull, gt, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, isNotNull, gt, lt, sql } from 'drizzle-orm';
 import {
   magicLinkSchema,
   verifyCodeSchema,
@@ -12,6 +12,7 @@ import {
   loginSchema,
   updateMeSchema,
   safeNextPath,
+  switchAccountSchema,
 } from '@music-hub/shared';
 import { users, magicLinks, referrals, sessions } from '@music-hub/db';
 import {
@@ -25,6 +26,7 @@ import {
   setSessionCookie,
 } from '../middleware/auth.js';
 import { isAdminEmail } from '../lib/admin.js';
+import { MAX_ACCOUNTS, parkedTokens, setParkedTokens, signedIn } from '../lib/accounts.js';
 import { locale, statedLocale, t } from '../lib/i18n.js';
 import { createAccount, findUserByEmail, registrationOpen } from '../lib/users.js';
 import { mayJoinBeyondLimit, referrerOf } from '../lib/referrals.js';
@@ -257,15 +259,60 @@ export const authRoutes = new Hono<AppEnv>()
     });
   })
 
+  // Logs out the active account; in the browser the next signed-in account takes over, with ?all every one of them
   .post('/logout', async (c) => {
+    const db = c.get('db');
     const sessionToken = getCookie(c, 'session') ?? bearerToken(c);
-    if (sessionToken) {
-      const db = c.get('db');
-      const tokenHash = await hashToken(sessionToken);
-      await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
+    const parked = parkedTokens(c);
+    const all = c.req.query('all') !== undefined;
+    // Other sessions of the same person end too, e.g. one set aside and then signed in again
+    const accounts = await signedIn(db, [sessionToken, ...parked]);
+    const kept = all ? [] : accounts.filter((account) => account.token !== sessionToken);
+    const ended = [sessionToken, ...parked].filter((token): token is string => !!token && !kept.some((account) => account.token === token));
+    if (ended.length) {
+      await db.delete(sessions).where(inArray(sessions.tokenHash, await Promise.all(ended.map(hashToken))));
     }
+    const [next, ...rest] = kept;
+    if (next) setSessionCookie(c, next.token);
+    else deleteCookie(c, 'session');
+    if (parked.length) setParkedTokens(c, rest.map((account) => account.token));
+    return c.json({ message: 'Logged out', switched: !!next });
+  })
+
+  // The accounts signed in in this browser, the active one first
+  .get('/accounts', async (c) => {
+    const active = getCookie(c, 'session');
+    const parked = parkedTokens(c);
+    const accounts = await signedIn(c.get('db'), [active, ...parked]);
+    const others = accounts.filter((account) => account.token !== active);
+    if (others.length !== parked.length) setParkedTokens(c, others.map((account) => account.token));
+    return c.json({
+      accounts: accounts.map(({ userId, name, email, avatarUrl, token }) => ({ id: userId, name, email, avatarUrl, active: token === active })),
+      max: MAX_ACCOUNTS,
+    });
+  })
+
+  // Sets the active account aside so the login page can sign in another one
+  .post('/accounts/add', async (c) => {
+    const active = getCookie(c, 'session');
+    const accounts = await signedIn(c.get('db'), [active, ...parkedTokens(c)]);
+    if (accounts.length >= MAX_ACCOUNTS) return c.json({ error: t(c).errors.tooManyAccounts, code: 'too_many_accounts' }, 409);
+    setParkedTokens(c, accounts.map((account) => account.token));
     deleteCookie(c, 'session');
-    return c.json({ message: 'Logged out' });
+    return c.json({ ok: true });
+  })
+
+  .post('/accounts/switch', zValidator('json', switchAccountSchema), async (c) => {
+    const db = c.get('db');
+    const { userId } = c.req.valid('json');
+    const active = getCookie(c, 'session');
+    const accounts = await signedIn(db, [active, ...parkedTokens(c)]);
+    const target = accounts.find((account) => account.userId === userId);
+    if (!target) return c.json({ error: t(c).errors.accountNotSignedIn, code: 'account_not_signed_in' }, 404);
+    setSessionCookie(c, target.token);
+    setParkedTokens(c, accounts.filter((account) => account !== target).map((account) => account.token));
+    const [user] = await db.select(userColumns).from(users).where(eq(users.id, target.userId)).limit(1);
+    return c.json({ user: toUser(user) });
   })
 
   .get('/me', async (c) => {

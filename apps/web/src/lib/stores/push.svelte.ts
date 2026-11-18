@@ -44,6 +44,20 @@ export async function subscribePush(): Promise<void> {
   }
 }
 
+// This browser's pushes follow the active account: the API moves the subscription by its endpoint.
+export async function pushToActiveAccount(): Promise<void> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  const json = sub.toJSON();
+  await api.post('/push/subscribe', {
+    endpoint: sub.endpoint,
+    keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
+    userAgent: navigator.userAgent.slice(0, 200),
+  }, true).catch(() => {});
+}
+
 export async function unsubscribePush(): Promise<void> {
   if (_loading) return;
   _loading = true;

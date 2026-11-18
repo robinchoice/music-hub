@@ -58,6 +58,10 @@ export type VerifyTokenInput = z.infer<typeof verifyTokenSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const switchAccountSchema = z.object({
+  userId: z.string().uuid(),
+});
+
 export const verifyCodeSchema = z.object({
   email: z.string().email().max(255),
   code: z.string().regex(/^\d{6}$/),

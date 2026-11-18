@@ -2,6 +2,7 @@ import { type Passkey } from '@music-hub/shared';
 import { type PublicKeyCredentialCreationOptionsJSON, type PublicKeyCredentialRequestOptionsJSON, sendSignal, startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { writable } from 'svelte/store';
 import { api } from '$lib/api/client.js';
+import { pushToActiveAccount } from '$lib/stores/push.svelte.js';
 
 type User = {
   id: string;
@@ -22,6 +23,7 @@ let authRevision = 0;
 function setAuthUser(u: User) {
   authRevision++;
   user.set(u);
+  if (u) void pushToActiveAccount();
   return u;
 }
 
@@ -65,9 +67,34 @@ export async function verifyToken(token: string, password?: string) {
   return setAuthUser(res.user);
 }
 
-export async function logout() {
-  await api.post('/auth/logout');
+// all: every account signed in in this browser. Otherwise the next one takes over (switched).
+export async function logout(all = false) {
+  const res = await api.post<{ switched?: boolean }>(all ? '/auth/logout?all' : '/auth/logout');
   setAuthUser(null);
+  return !!res.switched;
+}
+
+// Accounts signed in in this browser, the active one first, see lib/accounts.ts in the API
+export type Account = { id: string; name: string; email: string; avatarUrl: string | null; active: boolean };
+export async function listAccounts() {
+  return api.get<{ accounts: Account[]; max: number }>('/auth/accounts', true);
+}
+
+// Sets the active account aside, the login page then signs in the next one
+export async function addAccount() {
+  await api.post('/auth/accounts/add');
+  setAuthUser(null);
+}
+
+// Reloads so that stores, SSE and rights all belong to the new account
+export async function enterAccount() {
+  await pushToActiveAccount();
+  location.assign('/dashboard');
+}
+
+export async function switchAccount(userId: string) {
+  await api.post('/auth/accounts/switch', { userId });
+  await enterAccount();
 }
 
 // The code from the same mail, for when the link opens in another browser

@@ -76,11 +76,14 @@ async function catchUp(registration: ServiceWorkerRegistration) {
   const db = await openPushDb();
   try {
     let state: Cursor | undefined = await db.get('cursor', 'current');
+    let switched = false;
     // Bound each wake-up; the next foreground poll continues larger backlogs.
     for (let page = 0; page < 5; page++) {
       const result: { userId: string; notifications: Notice[]; cursor: string; more: boolean } =
         await fetchDetails(`?account=${encodeURIComponent(state?.userId ?? '')}&since=${state?.cursor ?? '0'}`);
-      for (const notice of result.notifications) {
+      // After switching to another account signed in in this browser, its past week was not missed here
+      if (page === 0) switched = !!state && state.userId !== result.userId;
+      for (const notice of switched ? [] : result.notifications) {
         if (!await db.get('seen', notice.id)) {
           await show(registration, notice, `notification-${notice.id}`);
           await db.put('seen', { time: Date.now() }, notice.id);

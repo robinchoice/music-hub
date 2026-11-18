@@ -34,6 +34,10 @@ export const de = {
     account: 'Konto',
     settings: 'Einstellungen',
     logout: 'Abmelden',
+    accounts: 'Konten',
+    switchTo: (name: string) => `Zu ${name} wechseln`,
+    addAccount: 'Konto hinzufügen',
+    logoutAll: 'Alle Konten abmelden',
   },
 
   music: {
@@ -443,6 +447,10 @@ export const en: typeof de = {
     account: 'Account',
     settings: 'Settings',
     logout: 'Log out',
+    accounts: 'Accounts',
+    switchTo: (name) => `Switch to ${name}`,
+    addAccount: 'Add account',
+    logoutAll: 'Log out of all accounts',
   },
 
   music: {

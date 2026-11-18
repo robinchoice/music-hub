@@ -4,7 +4,7 @@
   import { loginMessages, safeNextPath } from '@music-hub/shared';
   import { isApiError } from '$lib/api/client.js';
   import { locale, t } from '$lib/i18n/index.js';
-  import { user, login, sendMagicLink, verifyCode, passkeyLogin, isPasskeyCancelled } from '$lib/stores/auth.js';
+  import { user, login, sendMagicLink, verifyCode, passkeyLogin, isPasskeyCancelled, listAccounts, switchAccount, type Account } from '$lib/stores/auth.js';
   import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, WebAuthnAbortService } from '@simplewebauthn/browser';
   import { onMount, onDestroy, tick } from 'svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -37,7 +37,11 @@
   let passkeyLoading = $state(false);
   const lifetime = new AbortController();
 
+  // Accounts still signed in here, e.g. while adding another one
+  let signedInHere = $state<Account[]>([]);
+
   onMount(() => {
+    listAccounts().then(({ accounts }) => (signedInHere = accounts.filter((account) => !account.active)), () => {});
     const updateVisibility = () => (visible = document.visibilityState === 'visible');
     updateVisibility();
     document.addEventListener('visibilitychange', updateVisibility);
@@ -149,6 +153,15 @@
     <div class="card">
       <p class="brand"><Tile size={36} /> Music Hub</p>
       <h1>{t().common.logIn}</h1>
+
+      {#if signedInHere.length}
+        <div class="signed-in">
+          <p class="hint">{t().guest.login.signedInHere}</p>
+          {#each signedInHere as account (account.id)}
+            <Button variant="secondary" onclick={() => switchAccount(account.id)}>{t().guest.login.continueAs(account.email)}</Button>
+          {/each}
+        </div>
+      {/if}
 
       <div class="tabs">
         <button class:active={tab === 'password'} onclick={() => (tab = 'password')}>{t().common.password}</button>
@@ -300,6 +313,12 @@
   }
 
   .passkey { margin-top: var(--space-4); }
+  .signed-in {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+  }
   .error {
     color: var(--color-error);
     font-size: var(--text-sm);

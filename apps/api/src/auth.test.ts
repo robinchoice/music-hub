@@ -204,3 +204,97 @@ test('errors follow the locale cookie, else Accept-Language, and the web stores 
   await app.request('/auth/me', { headers: { cookie: `session=${token}; locale=en` } });
   expect(await locale()).toBe('en');
 });
+
+test('a browser keeps up to five accounts signed in, switches between them and logs out one after another', async () => {
+  const people = await db
+    .insert(users)
+    .values(Array.from({ length: 6 }, (_, i) => ({ email: freshEmail(), name: `Person ${i}` })))
+    .returning({ id: users.id });
+  const tokens = await Promise.all(people.map(async (person) => {
+    const token = generateToken();
+    await db.insert(sessions).values({ userId: person.id, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + DAY) });
+    return token;
+  }));
+  const alive = async (token: string) => (await db.select().from(sessions).where(eq(sessions.tokenHash, await hashToken(token)))).length === 1;
+
+  // A cookie jar like the browser's
+  const jar = new Map<string, string>();
+  const send = async (path: string, method = 'GET', body?: unknown) => {
+    const res = await app.request(`/auth${path}`, {
+      method,
+      headers: {
+        cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '),
+        ...(body !== undefined && { 'content-type': 'application/json' }),
+      },
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+    for (const cookie of res.headers.getSetCookie()) {
+      const [pair] = cookie.split(';');
+      const [name, value] = pair.split('=');
+      if (/Max-Age=0/.test(cookie) || !value) jar.delete(name);
+      else jar.set(name, value);
+    }
+    return res;
+  };
+  const accounts = async () =>
+    ((await (await send('/accounts')).json()).accounts as { id: string; active: boolean }[]).map((a) => `${a.id}${a.active ? '*' : ''}`);
+
+  jar.set('session', tokens[0]);
+  expect(await accounts()).toEqual([`${people[0].id}*`]);
+
+  // Adding one sets the active account aside; signing in sets the new one active
+  expect((await send('/accounts/add', 'POST')).status).toBe(200);
+  expect(jar.has('session')).toBe(false);
+  expect(await accounts()).toEqual([people[0].id]);
+  jar.set('session', tokens[1]);
+  expect(await accounts()).toEqual([`${people[1].id}*`, people[0].id]);
+
+  const switched = await send('/accounts/switch', 'POST', { userId: people[0].id });
+  expect((await switched.json()).user.id).toBe(people[0].id);
+  expect(jar.get('session')).toBe(tokens[0]);
+  expect(((await (await send('/me')).json()).user.id)).toBe(people[0].id);
+  expect(await accounts()).toEqual([`${people[0].id}*`, people[1].id]);
+
+  // Only accounts signed in here, never one by its ID alone
+  expect((await send('/accounts/switch', 'POST', { userId: people[5].id })).status).toBe(404);
+
+  // At most five
+  for (const token of tokens.slice(2, 5)) {
+    expect((await send('/accounts/add', 'POST')).status).toBe(200);
+    jar.set('session', token);
+  }
+  expect(await accounts()).toHaveLength(5);
+  expect((await send('/accounts/add', 'POST')).status).toBe(409);
+  expect(jar.get('session')).toBe(tokens[4]);
+
+  // A blocked account drops out of the list and cannot be switched to
+  await db.update(users).set({ blockedAt: new Date() }).where(eq(users.id, people[3].id));
+  expect(await accounts()).not.toContain(people[3].id);
+  expect((await send('/accounts/switch', 'POST', { userId: people[3].id })).status).toBe(404);
+
+  // Logging out ends only the active session, the next account takes over
+  const logout = await send('/logout', 'POST');
+  expect((await logout.json()).switched).toBe(true);
+  expect(await alive(tokens[4])).toBe(false);
+  expect(await alive(tokens[2])).toBe(true);
+  expect(jar.has('session')).toBe(true);
+  expect(await accounts()).toHaveLength(3);
+
+  // ?all ends every session of this browser
+  const signedInBefore = [jar.get('session')!, ...jar.get('accounts')!.split('.')];
+  expect((await (await send('/logout?all', 'POST')).json()).switched).toBe(false);
+  expect(jar.size).toBe(0);
+  for (const token of signedInBefore) expect(await alive(token)).toBe(false);
+});
+
+test('regression: logging out of an account that was set aside and signed in again does not sign it back in', async () => {
+  const [person] = await db.insert(users).values({ email: freshEmail(), name: 'Lena' }).returning({ id: users.id });
+  const [first, second] = [generateToken(), generateToken()];
+  for (const token of [first, second]) {
+    await db.insert(sessions).values({ userId: person.id, tokenHash: await hashToken(token), expiresAt: new Date(Date.now() + DAY) });
+  }
+  const res = await app.request('/auth/logout', { method: 'POST', headers: { cookie: `session=${second}; accounts=${first}` } });
+  expect((await res.json()).switched).toBe(false);
+  expect(res.headers.getSetCookie().every((cookie) => /Max-Age=0/.test(cookie))).toBe(true);
+  expect(await db.select().from(sessions).where(eq(sessions.userId, person.id))).toHaveLength(0);
+});

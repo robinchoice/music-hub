@@ -56,14 +56,16 @@ export const optionalAuth = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
+export const sessionCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+  maxAge: (SESSION_DAYS * DAY) / 1000,
+}) as const;
+
 export function setSessionCookie(c: Context, token: string) {
-  setCookie(c, 'session', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: (SESSION_DAYS * DAY) / 1000,
-  });
+  setCookie(c, 'session', token, sessionCookieOptions());
 }
 
 // Sessions in use renew at most once a day, across all API instances.

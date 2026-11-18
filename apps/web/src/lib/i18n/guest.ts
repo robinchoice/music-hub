@@ -311,6 +311,8 @@ export const de = {
     alsoReport: 'Auch an die Admins melden, z. B. bei Spam oder Belästigung',
   },
   login: {
+    signedInHere: 'In diesem Browser angemeldet',
+    continueAs: (name: string) => `Weiter als ${name}`,
     failed: 'Login fehlgeschlagen',
     sendFailed: 'Fehler beim Senden',
     emailPlaceholder: 'deine@email.de',
@@ -681,6 +683,8 @@ export const en: typeof de = {
   },
 
   login: {
+    signedInHere: 'Signed in in this browser',
+    continueAs: (name) => `Continue as ${name}`,
     failed: 'Login failed',
     sendFailed: 'Could not send',
     emailPlaceholder: 'you@example.com',

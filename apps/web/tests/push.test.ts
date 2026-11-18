@@ -116,7 +116,8 @@ test('foreground catch-up persists only a per-account cursor and retries failure
       return { notices, requests, stored };
     } finally { browser.fetch = originalFetch; }
   });
-  expect(result.notices).toEqual(['Private A', 'Private B']);
+  // After the account changed, its past week was not missed in this browser
+  expect(result.notices).toEqual(['Private A']);
   expect(result.requests).toEqual([
     '/api/v1/push/notifications?account=&since=0',
     '/api/v1/push/notifications?account=&since=0',

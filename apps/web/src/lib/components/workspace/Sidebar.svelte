@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n/index.js';
-  import { user, logout } from '$lib/stores/auth.js';
+  import { user, logout, listAccounts, addAccount, switchAccount, enterAccount, type Account } from '$lib/stores/auth.js';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import CoverImage from '$lib/components/ui/CoverImage.svelte';
@@ -48,6 +48,8 @@
     return map;
   });
   let menuOpen = $state(false);
+  // Accounts signed in in this browser; stays null while an older API does not know them
+  let accounts = $state<{ list: Account[]; max: number } | null>(null);
   let newOpen = $state(false);
   let query = $state('');
   let searchInput = $state<HTMLInputElement | undefined>();
@@ -78,8 +80,24 @@
     void loadRequests();
   });
 
-  async function handleLogout() {
-    await logout();
+  async function toggleMenu() {
+    menuOpen = !menuOpen;
+    if (!menuOpen) return;
+    try {
+      const { accounts: list, max } = await listAccounts();
+      accounts = { list, max };
+    } catch {
+      accounts = null;
+    }
+  }
+
+  async function handleLogout(all = false) {
+    if (await logout(all)) await enterAccount();
+    else goto('/login');
+  }
+
+  async function handleAddAccount() {
+    await addAccount();
     goto('/login');
   }
 
@@ -208,7 +226,7 @@
   </nav>
 
   <div class="user-block">
-    <button class="user" onclick={() => (menuOpen = !menuOpen)}>
+    <button class="user" aria-expanded={menuOpen} aria-haspopup="menu" onclick={toggleMenu}>
       {#if $user}
         <Avatar name={$user.name} src={$user.avatarUrl ?? null} size="sm" />
         <span class="user-name">{$user.name}</span>
@@ -217,8 +235,32 @@
     </button>
     {#if menuOpen}
       <div class="menu" role="menu">
+        {#if accounts && accounts.list.length > 1}
+          <p class="menu-label">{t().workspace.sidebar.accounts}</p>
+          {#each accounts.list as account (account.id)}
+            {#if account.active}
+              <div class="account" aria-current="true">
+                <Avatar name={account.name} src={account.avatarUrl} size="sm" />
+                <span class="account-text"><span>{account.name}</span><small>{account.email}</small></span>
+                <Icon name="check" size={14} />
+              </div>
+            {:else}
+              <button class="account" title={t().workspace.sidebar.switchTo(account.name)} onclick={() => switchAccount(account.id)}>
+                <Avatar name={account.name} src={account.avatarUrl} size="sm" />
+                <span class="account-text"><span>{account.name}</span><small>{account.email}</small></span>
+              </button>
+            {/if}
+          {/each}
+        {/if}
+        {#if accounts && accounts.list.length < accounts.max}
+          <button class="account" onclick={handleAddAccount}><Icon name="plus" size={14} /> {t().workspace.sidebar.addAccount}</button>
+        {/if}
+        {#if accounts}<hr />{/if}
         <a href="/account" onclick={() => { menuOpen = false; handleNavClick(); }}>{t().workspace.sidebar.account}</a>
-        <button onclick={handleLogout}>{t().workspace.sidebar.logout}</button>
+        <button onclick={() => handleLogout()}>{t().workspace.sidebar.logout}</button>
+        {#if accounts && accounts.list.length > 1}
+          <button onclick={() => handleLogout(true)}>{t().workspace.sidebar.logoutAll}</button>
+        {/if}
       </div>
     {/if}
   </div>
@@ -582,6 +624,39 @@
   .menu button:hover,
   .menu a:hover {
     background: var(--color-bg-subtle);
+  }
+  .menu-label {
+    margin: 0;
+    padding: var(--space-3) var(--space-4) var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+  .menu .account {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+  }
+  .account-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  .account-text > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-text small {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+  }
+  .menu hr {
+    margin: 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
   }
 
   /* MOBILE — Drawer overlay */
