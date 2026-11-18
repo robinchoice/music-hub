@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { Hono } from 'hono';
 import { and, eq, inArray } from 'drizzle-orm';
-import { createDb, dropboxConnections, importItems, imports, migrateDb, projectFiles, projects, sessions, stems, tracks, users, versions } from '@music-hub/db';
+import { createDb, dropboxConnections, importItems, imports, migrateDb, projectFiles, projects, sessions, stems, tracks, users, versionNotices, versions } from '@music-hub/db';
 import type { ImportPlan } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
 import type { AppEnv } from './types.js';
@@ -189,6 +189,8 @@ test('the scan proposes songs, the import brings versions in order, stems and fi
   const kreiseVersions = await db.select().from(versions).where(eq(versions.trackId, kreise.id)).orderBy(versions.versionNumber);
   expect(kreiseVersions.map((v) => [v.versionNumber, v.label])).toEqual([[1, 'Kreise v1'], [2, 'Kreise v2']]);
   expect(kreiseVersions[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+  // Announced like uploaded versions
+  expect(await db.select().from(versionNotices).where(inArray(versionNotices.versionId, kreiseVersions.map((v) => v.id)))).toHaveLength(2);
   expect((await db.select().from(stems).where(inArray(stems.trackId, [kreise.id, nachtbus.id]))).map((s) => s.name).sort()).toEqual(['Bass', 'Drums', 'Kick', 'Vox']);
   expect((await db.select().from(projectFiles).where(eq(projectFiles.projectId, project.id))).map((f) => f.originalFileName)).toEqual(['Kreise.als']);
   expect([...stored.values()].reduce((a, b) => a + b, 0)).toBe(6_000_000 * 4 + 7_000_000 * 2 + 2_000);

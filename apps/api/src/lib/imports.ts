@@ -6,13 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { AUDIO_MIME_BY_EXTENSION, IMPORT_KINDS, isAudioFile, isVersionable, MAX_FILE_SIZE, rightsOfRoles, similarTracks, type ImportPlan, type SourceEntry } from '@music-hub/shared';
-import { importItems, imports, projectFiles, projectMembers, projects, stems, tracks, versionNotices, versions, type Database } from '@music-hub/db';
+import { importItems, imports, projectFiles, projectMembers, projects, stems, tracks, type Database } from '@music-hub/db';
 import { download, DropboxError, listFolder, session, type Session } from './dropbox.js';
 import { fits, lockStorage, storageOf, takeUploadVolume } from './storage.js';
 import { membershipOf } from './access.js';
 import { resolveTrack } from './track-moves.js';
+import { addVersion, lockTrack } from './versions.js';
 import { deleteObject, putObjectFile } from '../storage/s3.js';
-import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { clearFailedStemMix, queueStemMix } from '../services/stem-mixes.js';
 import { publish } from '../services/sse.js';
 
@@ -316,8 +316,6 @@ export async function processNextImportItem(db: Database, signal: AbortSignal): 
       await fail(db, item, 'storage_full', true);
     } else {
       if (result.versionId && item.trackId) {
-        // As queueVersionNotice in lib/notices.ts, which the worker must not import: it pulls in SMTP
-        await db.insert(versionNotices).values({ projectId: item.projectId, actorId: item.userId, versionId: result.versionId });
         publish(db, item.trackId, { type: 'version:new', data: { versionId: result.versionId, versionNumber: result.versionNumber, trackId: item.trackId } });
       }
       await finish(db, item.importId);
@@ -345,22 +343,15 @@ async function register(db: Database, item: Item & { userId: string }, fileKey: 
     await lockStorage(tx, item.userId);
     const membership = await membershipOf(tx, item.projectId, item.userId);
     if (!membership?.canUpload) return 'gone' as const;
-    if (item.trackId) {
-      const [track] = await tx.select({ id: tracks.id }).from(tracks).where(and(eq(tracks.id, item.trackId), isNull(tracks.deletedAt))).for('update');
-      if (!track) return 'gone' as const;
-    }
+    const track = item.trackId ? await lockTrack(tx, item.trackId) : undefined;
+    if (item.trackId && !track) return 'gone' as const;
     if (!fits(await storageOf(tx, item.userId), item.fileSize)) return 'storage_full' as const;
     const common = { originalFileName: item.fileName, mimeType, fileSize: item.fileSize, createdById: item.userId };
     let versionId: string | null = null;
     let versionNumber = 0;
     if (item.kind === 'version') {
-      const [latest] = await tx.select({ max: sql<number>`coalesce(max(${versions.versionNumber}), 0)` }).from(versions).where(eq(versions.trackId, item.trackId!));
-      versionNumber = (latest?.max ?? 0) + 1;
-      const [version] = await tx.insert(versions).values({
-        ...common, trackId: item.trackId!, versionNumber, label: item.name.slice(0, 100), status: 'uploaded', originalFileKey: fileKey, sha256,
-      }).returning({ id: versions.id });
-      versionId = version.id;
-      await enqueueAudioJob(tx, version.id);
+      const version = await addVersion(tx, track!, { ...common, label: item.name.slice(0, 100), originalFileKey: fileKey, sha256 });
+      ({ id: versionId, versionNumber } = version);
       await clearFailedStemMix(tx, item.trackId!);
     } else if (item.kind === 'stem') {
       await tx.insert(stems).values({ ...common, trackId: item.trackId!, name: item.name, fileKey, sha256 });

@@ -12,12 +12,11 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   REJECTION_PREFIX,
 } from '@music-hub/shared';
-import { versions, comments, projectFiles, tracks } from '@music-hub/db';
+import { versions, comments, projectFiles } from '@music-hub/db';
 import { clearFailedStemMix, stemMixState } from '../services/stem-mixes.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createUploadUrl, createDownloadUrl, getObjectBuffer, getObjectSize, getObjectStream } from '../storage/s3.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
-import { enqueueAudioJob } from '../services/audio-jobs.js';
 import { undoApproval } from '../lib/approval.js';
 import { changeNotes, nameOf, reviewsOf, submitReview, withdrawApproval } from '../lib/reviews.js';
 import { rateLimit, tooManyRequests } from '../lib/rate-limit.js';
@@ -25,7 +24,7 @@ import { reachOf } from '../lib/users.js';
 import { notifyUser } from '../services/push.js';
 import { sendReviewReminderEmail } from '../services/email.js';
 import { publish } from '../services/sse.js';
-import { queueVersionNotice } from '../lib/notices.js';
+import { addVersion, lockTrack } from '../lib/versions.js';
 import { mayDownload, membershipOf, trackAccess, versionAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 import { liveTrackId, moveVersion, refuse, splitVersion } from '../lib/track-moves.js';
@@ -192,35 +191,21 @@ export const versionRoutes = new Hono<AppEnv>()
       if (await uploadKeyInUse(tx, input.fileKey)) return 'taken';
       if (!fits(await storageOf(tx, userId), fileSize)) return null;
 
-      // Next version number; versions in the trash keep theirs
-      const [currentTrack] = await tx.select().from(tracks).where(eq(tracks.id, trackId)).for('update');
-      if (!currentTrack || currentTrack.deletedAt || currentTrack.projectId !== track.projectId) return 'moved';
-      const [latest] = await tx
-        .select({ maxVersion: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
-        .from(versions)
-        .where(eq(versions.trackId, trackId));
-
-      const [version] = await tx
-        .insert(versions)
-        .values({
-          trackId,
-          versionNumber: (latest?.maxVersion ?? 0) + 1,
-          label: input.label,
-          notes: input.notes,
-          status: 'uploaded',
-          parentVersionId: input.parentVersionId,
-          branchLabel: input.branchLabel,
-          originalFileName: input.originalFileName,
-          mimeType: input.mimeType,
-          fileSize,
-          originalFileKey: input.fileKey,
-          sha256: input.sha256,
-          createdById: userId,
-        })
-        .returning();
-      await enqueueAudioJob(tx, version.id);
+      const current = await lockTrack(tx, trackId);
+      if (!current || current.projectId !== track.projectId) return 'moved';
+      const version = await addVersion(tx, current, {
+        label: input.label,
+        notes: input.notes,
+        parentVersionId: input.parentVersionId,
+        branchLabel: input.branchLabel,
+        originalFileName: input.originalFileName,
+        mimeType: input.mimeType,
+        fileSize,
+        originalFileKey: input.fileKey,
+        sha256: input.sha256,
+        createdById: userId,
+      });
       await clearFailedStemMix(tx, trackId);
-      await queueVersionNotice(tx, track.projectId, userId, version.id);
       return version;
     });
     if (version === 'taken') return c.json({ error: 'Forbidden' }, 403);

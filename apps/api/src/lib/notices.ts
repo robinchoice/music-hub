@@ -8,10 +8,6 @@ import { reachOf } from './users.js';
 const QUIET = '2 minutes';
 const MAX_WAIT = '10 minutes';
 
-export async function queueVersionNotice(db: Pick<Database, 'insert'>, projectId: string, actorId: string, versionId: string) {
-  await db.insert(versionNotices).values({ projectId, actorId, versionId });
-}
-
 export type NoticeBatch = { projectId: string; projectName: string; actorName: string; items: { versionId: string; versionNumber: number; trackId: string; trackName: string }[]; pushTo: string[]; mailTo: Awaited<ReturnType<typeof reachOf>>['mail'] };
 
 // Takes the notices that are due off the queue, one batch per project and uploader.

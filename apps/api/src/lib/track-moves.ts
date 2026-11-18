@@ -24,6 +24,7 @@ import type { Context } from 'hono';
 import { membershipOf } from './access.js';
 import { t } from './i18n.js';
 import { queueStemMix } from '../services/stem-mixes.js';
+import { nextVersionNumber } from './versions.js';
 
 // Moving tracks between projects, merging two tracks and moving a version into another track.
 // Rows change, files don't: every key in the bucket stays where it is (keysInUse looks at rows, not paths),
@@ -139,15 +140,6 @@ const nextSortOrder = async (tx: Tx, projectId: string) => {
     .select({ max: sql<number>`coalesce(max(${tracks.sortOrder}), 0)` })
     .from(tracks)
     .where(eq(tracks.projectId, projectId));
-  return Number(row?.max ?? 0) + 1;
-};
-
-const nextVersionNumber = async (tx: Reader, trackId: string) => {
-  // Versions in the trash keep their numbers, so they count too
-  const [row] = await tx
-    .select({ max: sql<number>`coalesce(max(${versions.versionNumber}), 0)` })
-    .from(versions)
-    .where(eq(versions.trackId, trackId));
   return Number(row?.max ?? 0) + 1;
 };
 

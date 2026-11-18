@@ -2,12 +2,13 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, asc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
-import { projects, stemMixJobs, stemMixUploads, stems, tracks, versionNotices, versions, type Database } from '@music-hub/db';
+import { projects, stemMixJobs, stemMixUploads, stems, tracks, type Database } from '@music-hub/db';
 import { MAX_FILE_SIZE, SUPPORTED_EXTENSIONS } from '@music-hub/shared';
 import { fits, lockStorage, storageOf } from '../lib/storage.js';
+import { addVersion, lockTrack } from '../lib/versions.js';
 import { captureException } from '../monitoring.js';
 import { createDownloadUrl, deleteObject, putObjectFile } from '../storage/s3.js';
-import { enqueueAudioJob, LEASE_MS, MAX_ATTEMPTS, RETRY_MS } from './audio-jobs.js';
+import { LEASE_MS, MAX_ATTEMPTS, RETRY_MS } from './audio-jobs.js';
 import { publish } from './sse.js';
 
 const MIX_PAUSE_MS = 20_000;
@@ -147,7 +148,7 @@ export async function processNextStemMix(db: Database, signal: AbortSignal): Pro
     const version = await db.transaction(async (tx) => {
       await lockStorage(tx, job.createdById);
       // Manual uploads use the same track lock, keeping version numbers unique across uploaders.
-      const [live] = await tx.select().from(tracks).where(and(eq(tracks.id, track.id), isNull(tracks.deletedAt))).for('update');
+      const live = await lockTrack(tx, track.id);
       const [current] = await tx.select().from(stemMixJobs).where(eq(stemMixJobs.trackId, job.trackId)).for('update');
       if (!current || current.revision !== job.revision) return null;
       const [project] = await tx.select().from(projects).where(eq(projects.id, track.projectId));
@@ -156,14 +157,11 @@ export async function processNextStemMix(db: Database, signal: AbortSignal): Pro
         return null;
       }
       if (!fits(await storageOf(tx, job.createdById), size)) throw new Error('Not enough storage for stem mix');
-      const [latest] = await tx.select({ number: sql<number>`coalesce(max(${versions.versionNumber}), 0)` }).from(versions).where(eq(versions.trackId, track.id));
-      const [created] = await tx.insert(versions).values({
-        id: versionId, trackId: track.id, versionNumber: latest.number + 1, autoMix: true,
+      const created = await addVersion(tx, live, {
+        id: versionId, autoMix: true,
         originalFileName: 'automatic-mix.wav', mimeType: 'audio/wav', fileSize: size,
         originalFileKey: key, createdById: job.createdById,
-      }).returning();
-      await enqueueAudioJob(tx, created.id);
-      await tx.insert(versionNotices).values({ projectId: track.projectId, actorId: job.createdById, versionId: created.id });
+      });
       await tx.delete(stemMixJobs).where(mine);
       return created;
     });

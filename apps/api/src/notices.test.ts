@@ -1,33 +1,30 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createDb, migrateDb, projectMembers, projects, pushSubscriptions, tracks, users, versionNotices, versions } from '@music-hub/db';
-import { queueVersionNotice, takeDueNotices } from './lib/notices.js';
+import { takeDueNotices } from './lib/notices.js';
+import { addVersion } from './lib/versions.js';
 
 // Runs against DATABASE_URL with rows of its own, which go again at the end
 const db = createDb(process.env.DATABASE_URL!);
 const userIds: string[] = [];
 let robin: string, lena: string, tom: string, mira: string, projectId: string, trackId: string;
-let versionNumber = 0;
 
 const user = async (name: string) => {
   const [u] = await db.insert(users).values({ email: `test-${crypto.randomUUID()}@example.com`, name }).returning();
   userIds.push(u.id);
   return u.id;
 };
-const upload = async (minutesAgo: number, track = trackId) => {
-  const [v] = await db
-    .insert(versions)
-    .values({
-      trackId: track,
-      versionNumber: ++versionNumber,
+// As every upload does: the version comes with its notice
+const upload = async (minutesAgo: number) => {
+  const v = await db.transaction((tx) =>
+    addVersion(tx, { id: trackId, projectId }, {
       originalFileName: 'mix.wav',
       mimeType: 'audio/wav',
       fileSize: 1000,
       originalFileKey: `test/${crypto.randomUUID()}/mix.wav`,
       createdById: robin,
-    })
-    .returning();
-  await queueVersionNotice(db, projectId, robin, v.id);
+    }),
+  );
   await db
     .update(versionNotices)
     .set({ createdAt: sql`now() - ${`${minutesAgo} minutes`}::interval` })
