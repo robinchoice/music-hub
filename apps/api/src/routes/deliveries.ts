@@ -19,6 +19,7 @@ import {
   expireOpenPayments,
   expirePendingPayments,
   lockDelivery,
+  lockOpenDelivery,
   markPaid,
   mayCreateDeliveries,
   settleIfCovered,
@@ -67,15 +68,6 @@ async function invalidTracks(db: Database, projectId: string, link: ProjectLink 
 async function studioView(db: Database, deliveryId: string, link: ProjectLink) {
   const [delivery] = await db.select().from(deliveries).where(eq(deliveries.id, deliveryId)).limit(1);
   return { delivery: await studioDeliveryOf(db, delivery!, link) };
-}
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
-
-// Re-read under the lock: the client may have changed it since the route loaded it
-async function lockedOpen(tx: Tx, deliveryId: string) {
-  await lockDelivery(tx, deliveryId);
-  const [row] = await tx.select().from(deliveries).where(eq(deliveries.id, deliveryId)).limit(1);
-  return row?.status === 'open' ? row : undefined;
 }
 
 export const deliveryRoutes = new Hono<AppEnv>()
@@ -198,7 +190,7 @@ export const deliveryRoutes = new Hono<AppEnv>()
     if (input.includeStems !== undefined) set.includeStems = input.includeStems;
 
     const updated = await db.transaction(async (tx) => {
-      if (!(await lockedOpen(tx, delivery.id))) return false;
+      if (!(await lockOpenDelivery(tx, delivery.id))) return false;
       await tx.update(deliveries).set(set).where(eq(deliveries.id, delivery.id));
       if (input.tracks) {
         const ids = input.tracks.map((t) => t.trackId);
@@ -226,7 +218,7 @@ export const deliveryRoutes = new Hono<AppEnv>()
     const found = await ownedDelivery(c);
     if (found instanceof Response) return found;
     const cancelled = await db.transaction(async (tx) => {
-      if (!(await lockedOpen(tx, found.delivery.id))) return false;
+      if (!(await lockOpenDelivery(tx, found.delivery.id))) return false;
       await tx.update(deliveries).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(deliveries.id, found.delivery.id));
       await expireOpenPayments(tx, found.delivery.id);
       return true;
@@ -246,7 +238,7 @@ export const deliveryRoutes = new Hono<AppEnv>()
     if (found.delivery.status !== 'open') return deliveryError(c, 'not_open', 409);
 
     const outcome = await db.transaction(async (tx) => {
-      if (!(await lockedOpen(tx, found.delivery.id))) return 'not_open' as const;
+      if (!(await lockOpenDelivery(tx, found.delivery.id))) return 'not_open' as const;
       const rows = await tx
         .update(deliveryTracks)
         .set({ giftedRounds: sql`${deliveryTracks.giftedRounds} + ${rounds ?? 1}` })

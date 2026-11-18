@@ -289,8 +289,10 @@ async function heardTarget(db: Database, delivery: Delivery, link: ProjectLink, 
   return { ok: true as const, ...found };
 }
 
-// Re-read under the lock: the delivery may have changed since the route loaded it
-async function openDelivery(tx: Tx, deliveryId: string) {
+// Takes the delivery's lock and reads it again: client and studio may have changed it since the route
+// loaded it. undefined when it is no longer open.
+export async function lockOpenDelivery(tx: Tx, deliveryId: string) {
+  await lockDelivery(tx, deliveryId);
   const [row] = await tx.select().from(deliveries).where(eq(deliveries.id, deliveryId)).limit(1);
   return row?.status === 'open' ? row : undefined;
 }
@@ -368,8 +370,7 @@ export async function requestRound(
   if (!target.ok) return target;
 
   const outcome = await db.transaction(async (tx): Promise<{ ok: true; round: DeliveryRound; extra: boolean } | DeliveryFailure> => {
-    await lockDelivery(tx, input.delivery.id);
-    const delivery = await openDelivery(tx, input.delivery.id);
+    const delivery = await lockOpenDelivery(tx, input.delivery.id);
     if (!delivery) return fail(409, 'not_open');
     const [dt] = await tx
       .select()
@@ -436,8 +437,7 @@ export async function approveTrack(
   if (!target.ok) return target;
 
   const outcome = await db.transaction(async (tx): Promise<{ ok: true; changed: boolean; settled?: Settled | undefined } | DeliveryFailure> => {
-    await lockDelivery(tx, input.delivery.id);
-    const delivery = await openDelivery(tx, input.delivery.id);
+    const delivery = await lockOpenDelivery(tx, input.delivery.id);
     if (!delivery) return fail(409, 'not_open');
     const [dt] = await tx
       .select()
@@ -506,8 +506,7 @@ export async function insertPayment(
   },
 ) {
   return db.transaction(async (tx) => {
-    await lockDelivery(tx, input.delivery.id);
-    const delivery = await openDelivery(tx, input.delivery.id);
+    const delivery = await lockOpenDelivery(tx, input.delivery.id);
     if (!delivery) return null;
     const { totals, payable } = await deliveryState(tx, delivery, input.link.follows);
     if (!payable || totals.dueCents !== input.amountCents) return null;
