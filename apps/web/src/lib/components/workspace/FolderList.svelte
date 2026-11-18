@@ -9,12 +9,19 @@
     folders,
     note,
     onactions,
+    selected,
+    ontoggle,
   }: {
     folders: Folder[];
     /** A second line under the name, e.g. who owns a shared project */
     note?: (folder: Folder) => string;
     onactions?: ((folder: Folder, at: { x: number; y: number }) => void) | undefined;
+    /** Track rows get a checkbox like a drive; the keys of the picked rows */
+    selected?: string[];
+    ontoggle?: ((folder: Folder) => void) | undefined;
   } = $props();
+
+  const picking = $derived(!!ontoggle && folders.some((f) => f.kind === 'track'));
 
   // Project rows carry a gear; the other rows and the head keep its room, so the columns line up
   const withGear = $derived(!!onactions || folders.some((f) => f.settingsHref));
@@ -28,7 +35,7 @@
 </script>
 
 <div class="folders">
-  <div class="head" class:with-gear={withGear} aria-hidden="true">
+  <div class="head" class:with-gear={withGear} class:with-pick={picking} aria-hidden="true">
     <span>{t().workspace.music.name}</span>
     <span>{t().workspace.music.contents}</span>
     <span>{t().workspace.music.changed}</span>
@@ -36,7 +43,13 @@
   <ul>
     {#each folders as folder (folder.key)}
       {@const extra = note?.(folder) ?? ''}
-      <li oncontextmenu={(e) => { if (onactions && folder.kind === 'track') { e.preventDefault(); onactions(folder, { x: e.clientX, y: e.clientY }); } }}>
+      {@const isPicked = !!selected?.includes(folder.key)}
+      <li class:picked={isPicked} oncontextmenu={(e) => { if (onactions && folder.kind === 'track') { e.preventDefault(); onactions(folder, { x: e.clientX, y: e.clientY }); } }}>
+        {#if picking && folder.kind === 'track'}
+          <label class="pick"><input type="checkbox" checked={isPicked} onchange={() => ontoggle?.(folder)} aria-label={t().tidy.select(folder.name)} /></label>
+        {:else if picking}
+          <span class="pick" aria-hidden="true"></span>
+        {/if}
         <a href={folder.href} class="folder" data-kind={folder.kind}>
           {#if folder.kind === 'artist'}
             <span class="icon" title={t().workspace.music.artist}><Icon name="user" size={16} /></span>
@@ -81,6 +94,23 @@
     align-items: center;
     border-bottom: 1px solid var(--color-border);
   }
+  li.picked {
+    background: var(--color-accent-subtle);
+  }
+  .pick {
+    width: 36px;
+    flex: none;
+    align-self: stretch;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .pick input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+  }
   li .folder {
     flex: 1;
     min-width: 0;
@@ -117,6 +147,9 @@
     color: var(--color-text-tertiary);
     font-size: var(--text-xs);
     border-bottom: 1px solid var(--color-border);
+  }
+  .head.with-pick {
+    padding-left: calc(36px + var(--space-3) + 32px + var(--space-3));
   }
   .head.with-gear {
     padding-right: calc(var(--space-3) + 40px + var(--space-1));

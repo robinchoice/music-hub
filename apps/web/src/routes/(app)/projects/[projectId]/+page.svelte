@@ -488,7 +488,7 @@
   {:else if view === 'dateien' && projectId}
     <!-- Like a drive: the tracks as folders, then the files that belong to no track -->
     <div class="drive">
-      {#if trackFolders.length}<FolderList folders={trackFolders} onactions={canUpload ? (folder, at) => openMenu(folder.key, at) : undefined} />{/if}
+      {#if trackFolders.length}<FolderList folders={trackFolders} onactions={canUpload ? (folder, at) => openMenu(folder.key, at) : undefined} selected={canUpload ? selected : []} ontoggle={canUpload ? (folder) => toggle(folder.key) : undefined} />{/if}
       {#if looseFiles.length || !trackFolders.length}
         {#if trackFolders.length}<h2 class="drive-title">{t().workspace.music.filesTitle}</h2>{/if}
         <ProjectFiles {projectId} files={looseFiles} canDownload={canDownloadFiles} {tracks} onChange={filesChanged} />
@@ -574,7 +574,6 @@
       <div
         class="tidy-row"
         class:selected={selected.includes(id)}
-        class:selecting
         class:dragging={dragIds.includes(id)}
         role="group"
         aria-label={info.track.name}
@@ -613,7 +612,7 @@
   />
 {/if}
 
-{#if selected.length && view === 'tracks'}
+{#if selected.length && (view === 'tracks' || view === 'dateien')}
   <div class="selection-bar" role="region" aria-label={t().tidy.selected(selected.length)}>
     <span class="count">{t().tidy.selected(selected.length)}</span>
     <Button variant="ghost" size="sm" onclick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); tidy?.menu(tidyList(selected), { x: r.left, y: r.top - 8 }); }}>
@@ -933,13 +932,7 @@
     width: 16px;
     height: 16px;
     accent-color: var(--color-accent);
-    opacity: 0;
     cursor: pointer;
-  }
-  .tidy-row:hover .pick input,
-  .tidy-row.selected .pick input,
-  .pick input:focus-visible {
-    opacity: 1;
   }
   .dots {
     width: 32px;
@@ -1013,13 +1006,11 @@
       display: none;
     }
     .pick {
-      display: none;
+      width: 36px;
     }
-    .tidy-row.selecting .pick {
-      display: grid;
-    }
-    .tidy-row.selecting .pick input {
-      opacity: 1;
+    .pick input {
+      width: 18px;
+      height: 18px;
     }
     .selection-bar {
       left: var(--space-3);

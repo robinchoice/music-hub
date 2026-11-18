@@ -80,3 +80,23 @@ test('folder menus reach track actions and dragging changes a section', async ({
     await expect.poll(async () => (await (await page.request.get(`/api/v1/tracks/${a.id}`)).json()).track.section).toBe('EP');
   }
 });
+
+test('checkboxes in the folder view move several tracks at once', async ({ page }) => {
+  const { project: from } = await (await page.request.post('/api/v1/projects', { data: { name: 'Demos' } })).json();
+  const { project: to } = await (await page.request.post('/api/v1/projects', { data: { name: 'Fernlicht' } })).json();
+  const { track: a } = await (await page.request.post(`/api/v1/tracks/${from.id}`, { data: { name: 'Kreisel' } })).json();
+  const { track: b } = await (await page.request.post(`/api/v1/tracks/${from.id}`, { data: { name: 'Nachtbus' } })).json();
+  await page.goto(`/projects/${from.id}?view=dateien`);
+  const kreisel = page.getByRole('checkbox', { name: 'Kreisel auswählen', exact: true });
+  await expect(kreisel).toBeVisible();
+  await kreisel.check();
+  await page.getByRole('checkbox', { name: 'Nachtbus auswählen', exact: true }).check();
+  await page.getByRole('region', { name: '2 ausgewählt' }).getByRole('button', { name: 'Verschieben', exact: true }).click();
+  const move = page.getByRole('dialog', { name: '2 Tracks verschieben', exact: true });
+  await move.getByRole('radio', { name: 'Fernlicht', exact: true }).click();
+  await move.getByRole('button', { name: 'Verschieben', exact: true }).click();
+  await expect(move).toBeHidden();
+  for (const id of [a.id, b.id]) {
+    await expect.poll(async () => (await (await page.request.get(`/api/v1/tracks/${id}`)).json()).track.projectId).toBe(to.id);
+  }
+});
