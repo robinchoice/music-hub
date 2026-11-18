@@ -101,25 +101,37 @@ async function idleWork(
   // A correction by hand sets analyzed_at anew while the analysis runs, and then wins
   const stillOurs = and(eq(versions.id, version.id), eq(versions[mark], claimedAt));
 
+  await yieldingToUploads(db, stop, async (signal) => {
+    const values = await work(await createDownloadUrl(version.originalFileKey, 3600), signal);
+    if (!values) return;
+    const [stored] = await db.update(versions).set(values).where(stillOurs).returning({ id: versions.id });
+    if (stored) publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
+  }, () => db.update(versions).set({ [mark]: null }).where(stillOurs));
+  return true;
+}
+
+// Idle work gives way to uploads: a waiting audio job stops it (checked every 2 seconds), and `release`
+// hands the claim back, so it comes again once the worker is idle. A shutdown does the same and throws.
+async function yieldingToUploads(
+  db: Database,
+  stop: AbortSignal,
+  work: (signal: AbortSignal) => Promise<void>,
+  release: () => Promise<unknown>,
+) {
   const upload = new AbortController();
   const signal = AbortSignal.any([stop, upload.signal]);
   const watch = setInterval(() => {
     hasWaitingAudioJob(db).then((waiting) => waiting && upload.abort(), () => {});
   }, 2000);
   try {
-    const values = await work(await createDownloadUrl(version.originalFileKey, 3600), signal);
-    if (values) {
-      const [stored] = await db.update(versions).set(values).where(stillOurs).returning({ id: versions.id });
-      if (stored) publish(db, version.trackId, { type: 'version:details', data: { versionId: version.id } });
-    }
+    await work(signal);
   } catch (error) {
     if (!signal.aborted) throw error;
-    await db.update(versions).set({ [mark]: null }).where(stillOurs);
+    await release();
     if (stop.aborted) throw error;
   } finally {
     clearInterval(watch);
   }
-  return true;
 }
 
 // Tempo and key take longest, so the worker only works on them when idle
@@ -150,21 +162,10 @@ export async function measureNextReference(db: Database, stop: AbortSignal): Pro
   if (!file) return false;
   const stillOurs = and(eq(projectFiles.id, file.id), eq(projectFiles.measuredAt, claimedAt));
 
-  const upload = new AbortController();
-  const signal = AbortSignal.any([stop, upload.signal]);
-  const watch = setInterval(() => {
-    hasWaitingAudioJob(db).then((waiting) => waiting && upload.abort(), () => {});
-  }, 2000);
-  try {
+  await yieldingToUploads(db, stop, async (signal) => {
     const measured = await measureMix(await createDownloadUrl(file.fileKey, 3600), signal);
     if (measured) await db.update(projectFiles).set(measured).where(stillOurs);
-  } catch (error) {
-    if (!signal.aborted) throw error;
-    await db.update(projectFiles).set({ measuredAt: null }).where(stillOurs);
-    if (stop.aborted) throw error;
-  } finally {
-    clearInterval(watch);
-  }
+  }, () => db.update(projectFiles).set({ measuredAt: null }).where(stillOurs));
   return true;
 }
 
@@ -238,35 +239,36 @@ export function parseLoudness(log: string, frames: string): { integratedLufs: nu
 const ANALYSIS_SCRIPT = `${import.meta.dir}/music-analysis.ts`;
 const MEASUREMENT_SCRIPT = `${import.meta.dir}/mix-measurement.ts`;
 
-// The first ten minutes are plenty and keep a long DJ mix from filling the memory. Runs with low
-// priority, so it gives way to everything else on VPS 1.
-async function analyzeMusic(url: string, signal: AbortSignal) {
+// ffmpeg decodes the first ten minutes to raw float samples and streams them into `script`, which runs in
+// its own process with low priority, so it gives way to everything else on VPS 1. Ten minutes are plenty
+// and keep a long DJ mix from filling the memory. Returns what the script printed, null when either failed.
+async function decodeInto(script: string, name: string, url: string, layout: { channels: number; rate: number }, signal: AbortSignal) {
   signal.throwIfAborted();
-  const decode = Bun.spawn(['ffmpeg', '-v', 'quiet', '-i', url, '-t', '600', '-ac', '1', '-ar', '44100', '-f', 'f32le', 'pipe:1'], { ...FFMPEG_LIMITS, signal });
-  const analyze = Bun.spawn(['nice', '-n', '10', process.execPath, ANALYSIS_SCRIPT], { stdin: decode.stdout, stderr: 'pipe', ...FFMPEG_LIMITS, signal });
-  const [output, log] = await Promise.all([new Response(analyze.stdout).text(), new Response(analyze.stderr).text()]);
-  const [decoded, analyzed] = await Promise.all([decode.exited, analyze.exited]);
+  const decode = Bun.spawn(
+    ['ffmpeg', '-v', 'quiet', '-i', url, '-t', '600', '-ac', String(layout.channels), '-ar', String(layout.rate), '-f', 'f32le', 'pipe:1'],
+    { ...FFMPEG_LIMITS, signal },
+  );
+  const child = Bun.spawn(['nice', '-n', '10', process.execPath, script], { stdin: decode.stdout, stderr: 'pipe', ...FFMPEG_LIMITS, signal });
+  const [output, log] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
+  const [decoded, finished] = await Promise.all([decode.exited, child.exited]);
   signal.throwIfAborted();
-  if (decoded !== 0 || analyzed !== 0) {
-    console.error(`[Worker] Music analysis failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
+  if (decoded !== 0 || finished !== 0) {
+    console.error(`[Worker] ${name} failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
     return null;
   }
-  return parseMusicAnalysis(output);
+  return output;
 }
 
-// The first ten minutes at 48 kHz in stereo, streamed through the measurement in its own low-priority process
+// Tempo and key from a mono signal, as Essentia expects it
+async function analyzeMusic(url: string, signal: AbortSignal) {
+  const output = await decodeInto(ANALYSIS_SCRIPT, 'Music analysis', url, { channels: 1, rate: 44100 }, signal);
+  return output === null ? null : parseMusicAnalysis(output);
+}
+
+// Spectrum and stereo image in stereo at 48 kHz
 async function measureMix(url: string, signal: AbortSignal) {
-  signal.throwIfAborted();
-  const decode = Bun.spawn(['ffmpeg', '-v', 'quiet', '-i', url, '-t', '600', '-ac', '2', '-ar', '48000', '-f', 'f32le', 'pipe:1'], { ...FFMPEG_LIMITS, signal });
-  const measure = Bun.spawn(['nice', '-n', '10', process.execPath, MEASUREMENT_SCRIPT], { stdin: decode.stdout, stderr: 'pipe', ...FFMPEG_LIMITS, signal });
-  const [output, log] = await Promise.all([new Response(measure.stdout).text(), new Response(measure.stderr).text()]);
-  const [decoded, measured] = await Promise.all([decode.exited, measure.exited]);
-  signal.throwIfAborted();
-  if (decoded !== 0 || measured !== 0) {
-    console.error(`[Worker] Mix measurement failed: ${decoded !== 0 ? 'ffmpeg could not read the file' : log.trim().split('\n').at(-1)}`);
-    return null;
-  }
-  return parseMeasuredFile(output);
+  const output = await decodeInto(MEASUREMENT_SCRIPT, 'Mix measurement', url, { channels: 2, rate: 48000 }, signal);
+  return output === null ? null : parseMeasuredFile(output);
 }
 
 // Keeps what Essentia is sure enough about. Its tempo confidence runs from 0 to 5.32, below 1 the beat
