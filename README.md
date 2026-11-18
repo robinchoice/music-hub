@@ -50,6 +50,58 @@ bun dev
 
 Web läuft auf `http://localhost:5173`, API auf `http://localhost:3000`.
 
+### Wegwerf-Stack für UX-Prüfungen
+
+Der UX-Tag arbeitet nach dem globalen Skill `ux-review`. Prod (`https://hub.pleasance.org`) nur lesend und ohne Anmeldung prüfen: öffentliche Seiten und Demo, nichts absenden und keinen Testkonto-Reset ausführen. Alles mit Anmeldung oder Schreiben läuft lokal mit leerer Datenbank und eigenem Bucket, nie mit einer Kopie echter Daten.
+
+Vom Repo aus in einer Bash starten; vorher freie Ports und eindeutige Containernamen wählen (bei parallelen Prüfungen anpassen). Die Zugangsdaten unten gelten nur für diese Wegwerf-Dienste. `env -i` und `--no-env-file` halten die API und den Worker von geerbten Zugängen und Projekt-`.env` fern, insbesondere SMTP, Zahlungen und Dropbox.
+
+```bash
+W=$(mktemp -d /tmp/musichub-ux-XXXXXX)
+mkdir -p .savor-logs
+docker run -d --rm --name musichub-ux-pg -p 127.0.0.1:55433:5432 \
+  -e POSTGRES_USER=musichub -e POSTGRES_PASSWORD=musichub -e POSTGRES_DB=musichub postgres:16-alpine
+docker run -d --rm --name musichub-ux-s3 -p 127.0.0.1:59000:9000 \
+  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+  -e MINIO_DEFAULT_BUCKETS=musichub bitnamilegacy/minio:latest
+
+uxenv() {
+  exec env -i PATH="$PATH" DATABASE_URL=postgresql://musichub:musichub@127.0.0.1:55433/musichub \
+    S3_ENDPOINT=http://127.0.0.1:59000 S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin \
+    S3_BUCKET=musichub APP_URL=http://localhost:54173 MAGIC_LINK_SECRET=ux-local-only "$@"
+}
+# Erst fortfahren, wenn Postgres und MinIO bereit sind.
+docker exec musichub-ux-pg pg_isready -U musichub
+curl -f http://127.0.0.1:59000/minio/health/ready
+
+(cd apps/api && uxenv PORT=53000 bun --no-env-file src/index.ts) > .savor-logs/ux-api.log 2>&1 &
+API_PID=$!
+# Die API migriert beim Start; auf /api/v1/health warten, bevor der Worker startet.
+curl -f http://localhost:53000/api/v1/health
+(cd apps/api && uxenv PORT=53001 bun --no-env-file src/worker.ts) > .savor-logs/ux-worker.log 2>&1 &
+WORKER_PID=$!
+(cd apps/web && bun --bun run build)
+(cd apps/web && exec env -i PATH="$PATH" PORT=54173 API_INTERNAL_URL=http://127.0.0.1:53000 \
+  ORIGIN=http://localhost:54173 bun --no-env-file build/index.js) > .savor-logs/ux-web.log 2>&1 &
+WEB_PID=$!
+
+# Nur lokal: setzt test@onboarding.invalid samt Projekten und Dateien zurück.
+(cd apps/api && uxenv bun --no-env-file -e '
+  import { createDb } from "@music-hub/db";
+  import { resetTestAccount } from "./src/lib/test-account.ts";
+  const db = createDb(process.env.DATABASE_URL);
+  console.log("http://localhost:54173/auth/verify?token=" + await resetTestAccount(db));
+  await db.$client.end();
+') > "$W/login-link.txt"
+ffmpeg -f lavfi -i sine=frequency=220:duration=65 "$W/Letzte Bahn Mix.wav"
+```
+
+`vite dev` eignet sich hier nicht: Sein API-Proxy zeigt fest auf Port 3000. Das gebaute Web nutzt dagegen `API_INTERNAL_URL`. Der lokale Login-Link gilt einmalig; weitere Magic Links stehen ohne SMTP in `.savor-logs/ux-api.log`. Gäste und weitere Konten in eigenen Browser-Kontexten öffnen. Die WAV ist absichtlich länger als 60 Sekunden, damit ein einzelner Upload als Version erkannt wird. Mit dem Datei-Upload eine Version anlegen und warten, bis der Worker sie spielbar gemacht hat.
+
+In Savor API, Worker und Web sofort nach dem Start mit `register_process` anmelden (echte PID, Arbeitsordner, Befehl, URL und jeweilige `.savor-logs/ux-*.log`). Belege und Playwright-Skripte unter `$W` ablegen; für den Import von `@playwright/test` dort `node_modules` auf `apps/web/node_modules` verlinken. Nach der Prüfung `kill "$WEB_PID" "$WORKER_PID" "$API_PID"`, auf deren Ende warten, die PIDs mit `unregister_process` austragen und nur die eigenen Container mit `docker stop musichub-ux-pg musichub-ux-s3` entfernen. Logs und Belege nach der Auswertung löschen, spätestens nach sieben Tagen.
+
+Startpunkt fürs Funktionsinventar: Erstbesuch mit Demo; Onboarding bis zum ersten Track; Version hochladen und vergleichen; Feedback als Gast per Share-Link; Kommentare und Antworten am Handy; Projekte, Tracks, Mitglieder und Papierkorb verwalten; offene Tracks und Remix. Das ersetzt nicht das vollständige Inventar aus dem aktuellen Code.
+
 ### Umgebungsvariablen
 
 Pflicht-Variablen in `.env`:
