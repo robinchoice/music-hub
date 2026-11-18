@@ -1,6 +1,6 @@
 <script lang="ts">
   import { STEM_MIME_TYPE } from '@music-hub/shared';
-  import { checkFileSize, MAX_FILE_SIZE_LABEL, unreadableFiles } from '$lib/audio/upload.js';
+  import { checkFileSize, MAX_FILE_SIZE_LABEL, putToBucket, unreadableFiles } from '$lib/audio/upload.js';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
   import { t } from '$lib/i18n/index.js';
@@ -39,13 +39,13 @@
 
   // The close button cancels the uploads, so no stem turns up later.
   // Plain variables: state read while the zone is being removed can still hold an old value.
-  const running = new Set<XMLHttpRequest>();
+  const transfers = new AbortController();
   let inFlight = false;
   let cancelled = false;
   export function cancel() {
     if (!inFlight) return;
     cancelled = true;
-    running.forEach((xhr) => xhr.abort());
+    transfers.abort();
     toast(t().track.upload.aborted);
   }
   let globalError = $state('');
@@ -130,8 +130,11 @@
 
       step = 'S3';
       if (cancelled) return;
-      await uploadWithProgress(uploadUrl, file, mimeType, (p) => {
-        files[idx].progress = p;
+      await putToBucket(uploadUrl, file, mimeType, {
+        signal: transfers.signal,
+        onLoaded: (loaded, total) => {
+          files[idx].progress = Math.round((loaded / total) * 100);
+        },
       });
 
       if (cancelled) return;
@@ -150,23 +153,6 @@
     } catch (err) {
       files[idx] = { ...files[idx], error: `[${step}] ${err instanceof Error ? err.message : t().track.drop.error}` };
     }
-  }
-
-  function uploadWithProgress(url: string, file: File, mimeType: string, onProgress: (p: number) => void): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      running.add(xhr);
-      xhr.onloadend = () => running.delete(xhr);
-      xhr.open('PUT', url);
-      xhr.setRequestHeader('Content-Type', mimeType);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-      };
-      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
-      xhr.onerror = () => reject(new Error(t().track.drop.failed));
-      xhr.onabort = () => reject(new Error(t().track.upload.aborted));
-      xhr.send(file);
-    });
   }
 </script>
 

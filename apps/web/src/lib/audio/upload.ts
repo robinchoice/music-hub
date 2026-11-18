@@ -122,6 +122,29 @@ export function trackNameFromFile(fileName: string) {
   return name || base;
 }
 
+// The file goes straight into the bucket through its upload URL. onLoaded reports the bytes sent so far;
+// aborting the signal stops the transfer and rejects.
+export function putToBucket(
+  uploadUrl: string,
+  file: File,
+  mimeType: string,
+  opts: { onLoaded?: (loaded: number, total: number) => void; signal?: AbortSignal | undefined } = {},
+) {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', mimeType);
+    xhr.upload.onprogress = (e) => e.lengthComputable && opts.onLoaded?.(e.loaded, e.total);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
+    xhr.onerror = () => reject(new Error(t().track.upload.connection));
+    xhr.onabort = () => reject(new Error(t().track.upload.aborted));
+    opts.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(file);
+  });
+}
+
+const percent = (loaded: number, total: number) => Math.round((loaded / total) * 100);
+
 type VersionUpload = {
   label?: string;
   parentVersionId?: string | null;
@@ -144,20 +167,12 @@ export async function uploadAudioFile(uploadPath: string, file: File, opts: Vers
     return fileKey;
   }
 
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', mimeType);
-    xhr.upload.onprogress = (e) => {
-      if (!e.lengthComputable) return;
-      opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
-      opts.onBytes?.(e.loaded);
-    };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
-    xhr.onerror = () => reject(new Error(t().track.upload.connection));
-    xhr.onabort = () => reject(new Error(t().track.upload.aborted));
-    opts.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
-    xhr.send(file);
+  await putToBucket(uploadUrl, file, mimeType, {
+    signal: opts.signal,
+    onLoaded: (loaded, total) => {
+      opts.onProgress?.(percent(loaded, total));
+      opts.onBytes?.(loaded);
+    },
   });
   return opts.signal?.aborted ? null : fileKey;
 }
@@ -172,17 +187,7 @@ export async function uploadToProject(projectId: string, file: File, opts: Versi
     opts.onBytes?.(file.size);
     return fileKey;
   }
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', mimeType);
-    xhr.upload.onprogress = (e) => e.lengthComputable && opts.onBytes?.(e.loaded);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
-    xhr.onerror = () => reject(new Error(t().track.upload.connection));
-    xhr.onabort = () => reject(new Error(t().track.upload.aborted));
-    opts.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
-    xhr.send(file);
-  });
+  await putToBucket(uploadUrl, file, mimeType, { signal: opts.signal, onLoaded: (loaded) => opts.onBytes?.(loaded) });
   return opts.signal?.aborted ? null : fileKey;
 }
 
@@ -218,15 +223,7 @@ export async function replaceStemFile<T>(trackId: string, stemId: string, file: 
     fileSize: file.size,
   });
 
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', mimeType);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(t().track.upload.failedStatus(xhr.status))));
-    xhr.onerror = () => reject(new Error(t().track.upload.connection));
-    xhr.send(file);
-  });
+  await putToBucket(uploadUrl, file, mimeType, { onLoaded: (loaded, total) => onProgress?.(percent(loaded, total)) });
 
   const res = await api.post<{ stem: T }>(`/stems/${stemId}/replace`, { fileKey, originalFileName: file.name, mimeType });
   return res.stem;
