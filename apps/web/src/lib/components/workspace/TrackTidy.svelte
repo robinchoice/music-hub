@@ -14,6 +14,7 @@
   import { t } from '$lib/i18n/index.js';
   import { overviewIndex } from '$lib/stores/overview.js';
   import { toast, toastSuccess, toastTrash } from '$lib/stores/toast.js';
+  import { sameTrackName } from '$lib/utils/track.js';
   import ActionMenu, { type MenuEntry } from '$lib/components/ui/ActionMenu.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
@@ -175,7 +176,7 @@
     ix ? [...ix.projects.values()].filter((p) => !moveList.every((tr) => tr.projectId === p.id)).sort((a, b) => a.name.localeCompare(b.name)) : [],
   );
   const clash = $derived(
-    moveList.length === 1 ? moveNames.find((n) => n.name.trim().toLowerCase() === moveList[0]!.name.trim().toLowerCase()) : undefined,
+    moveList.length === 1 ? moveNames.find((n) => sameTrackName(n.name, moveList[0]!.name)) : undefined,
   );
 
   export function move(list: TidyTrack[], to: string | null = null) {

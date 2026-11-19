@@ -9,6 +9,7 @@
   } from '$lib/audio/upload.js';
   import { dateLocale, t } from '$lib/i18n/index.js';
   import { toast } from '$lib/stores/toast.js';
+  import { sameTrackName } from '$lib/utils/track.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
 
@@ -50,7 +51,6 @@
     // What already went through, so trying again neither uploads nor registers a file twice
     keys: string[]; targetId: string | null; registered: number;
   };
-  const normalize = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase(dateLocale());
   const mb = (bytes: number) => (bytes / 1024 ** 2).toLocaleString(dateLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const minutes = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
   // Names a DAW gives every export, which say nothing about the song
@@ -88,7 +88,7 @@
   const songOf = (row: Row) => (row.kind === 'file' ? trackNameFromFile(row.files[0].name) : row.name);
   async function resolve(row: Row) {
     if (!dropTrackId && !row.decided) {
-      const matches = known.filter((t) => normalize(t.name) === normalize(songOf(row)));
+      const matches = known.filter((t) => sameTrackName(t.name, songOf(row)));
       row.matchId = matches.length === 1 ? matches[0].id : null;
     }
     if (row.matchId && !counts.has(row.matchId)) {
@@ -132,7 +132,7 @@
     dropTrackId = trackId;
     const matchOf = (name: string) => {
       if (trackId) return trackId;
-      const matches = known.filter((t) => normalize(t.name) === normalize(name));
+      const matches = known.filter((t) => sameTrackName(t.name, name));
       return matches.length === 1 ? matches[0].id : null;
     };
     rows = [

@@ -100,3 +100,17 @@ test('checkboxes in the folder view move several tracks at once', async ({ page 
     await expect.poll(async () => (await (await page.request.get(`/api/v1/tracks/${id}`)).json()).track.projectId).toBe(to.id);
   }
 });
+
+test('regression: moving warns of a track of the same name that only differs in spacing', async ({ page }) => {
+  const { project: from } = await (await page.request.post('/api/v1/projects', { data: { name: 'Demos' } })).json();
+  const { project: to } = await (await page.request.post('/api/v1/projects', { data: { name: 'Fernlicht' } })).json();
+  await page.request.post(`/api/v1/tracks/${from.id}`, { data: { name: 'Letzte Bahn' } });
+  await page.request.post(`/api/v1/tracks/${to.id}`, { data: { name: 'letzte  Bahn' } });
+  await page.goto(`/projects/${from.id}`);
+  await page.getByRole('button', { name: 'Aktionen für Letzte Bahn', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'In anderes Projekt verschieben …', exact: true }).click();
+  const move = page.getByRole('dialog', { name: '„Letzte Bahn“ verschieben', exact: true });
+  await move.getByRole('radio', { name: 'Fernlicht', exact: true }).click();
+  await expect(move.getByText('Dort gibt es schon')).toBeVisible();
+  await expect(move.getByRole('button', { name: 'Stattdessen zusammenführen' })).toBeVisible();
+});

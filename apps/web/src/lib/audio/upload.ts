@@ -214,9 +214,9 @@ export async function uploadVersion(trackId: string, file: File, opts: VersionUp
 
 // Upload URL, file straight to S3, then the stem gets it as its new file. Returns the updated stem.
 export async function replaceStemFile<T>(trackId: string, stemId: string, file: File, onProgress?: (percent: number) => void) {
-  const error = checkFileSize([file]) ?? (STEM_MIME_TYPE.test(file.type || 'audio/wav') ? null : t().track.upload.notAudio(file.name));
+  const mimeType = mimeOf(file);
+  const error = checkFileSize([file]) ?? (STEM_MIME_TYPE.test(mimeType) ? null : t().track.upload.notAudio(file.name));
   if (error) throw new Error(error);
-  const mimeType = file.type || 'audio/wav';
   const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(`/stems/track/${trackId}/upload-url`, {
     fileName: file.name,
     mimeType,

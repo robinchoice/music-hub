@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { t } from '$lib/i18n/index.js';
   import { api } from '$lib/api/client.js';
+  import { sameTrackName } from '$lib/utils/track.js';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -32,7 +33,7 @@
   let sent = $state<string[]>([]);
 
   // An existing song with that name gets the files, otherwise a new one is created
-  const existing = $derived(data?.tracks.find((track) => track.name.trim().toLowerCase() === songName.trim().toLowerCase()) ?? null);
+  const existing = $derived(data?.tracks.find((track) => sameTrackName(track.name, songName)) ?? null);
   // Songs of the link's project with a similar name ("Kreise v1" for "Kreise"): the guest picks one or a new song.
   // Only names the link shows anyway.
   const similar = $derived(existing || !data ? [] : similarTracks(songName, data.tracks));

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { STEM_MIME_TYPE } from '@music-hub/shared';
-  import { checkFileSize, MAX_FILE_SIZE_LABEL, putToBucket, unreadableFiles } from '$lib/audio/upload.js';
+  import { checkFileSize, MAX_FILE_SIZE_LABEL, mimeOf, putToBucket, unreadableFiles } from '$lib/audio/upload.js';
   import { api } from '$lib/api/client.js';
   import { onMount } from 'svelte';
   import { t } from '$lib/i18n/index.js';
@@ -83,7 +83,7 @@
   async function uploadFiles(selected: File[]) {
     globalError = checkFileSize(selected) ?? '';
     if (globalError) return;
-    const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(f.type || 'audio/wav'));
+    const notAudio = selected.filter((f) => !STEM_MIME_TYPE.test(mimeOf(f)));
     if (notAudio.length > 0) {
       globalError = t().track.upload.notAudio(notAudio.map((f) => f.name).join(', '));
       return;
@@ -122,7 +122,7 @@
   async function uploadOne(file: File, idx: number) {
     let step = 'URL';
     try {
-      const mimeType = file.type || 'audio/wav';
+      const mimeType = mimeOf(file);
       const { uploadUrl, fileKey } = await api.post<{ uploadUrl: string; fileKey: string }>(
         `${base}/upload-url`,
         { fileName: file.name, mimeType, fileSize: file.size },

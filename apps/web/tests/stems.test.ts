@@ -41,6 +41,36 @@ test('a stem gets a new file and then counts its takes', async ({ page, baseURL 
   expect(sent).toEqual({ fileKey: 'test/drums.wav', originalFileName: 'drums-cut.wav', mimeType: 'audio/wav' });
 });
 
+test('regression: AIFF stems without a browser type are stored as AIFF, not as WAV', async ({ page, baseURL }) => {
+  const stemId = await trackWithStem(page, 0);
+  await page.route('**/upload-url', (route) => route.fulfill({ json: { uploadUrl: `${baseURL}/fake-s3/stem.aif`, fileKey: 'test/stem.aif' } }));
+  await page.route('**/fake-s3/**', (route) => route.fulfill({ status: 200 }));
+  const sent: { mimeType: string }[] = [];
+  await page.route(`**/api/v1/stems/${stemId}/replace`, async (route) => {
+    sent.push(route.request().postDataJSON());
+    const stem = { id: stemId, name: 'Drums', originalFileName: 'drums.aif', mimeType: 'audio/aiff', fileSize: 4, createdById: userId, createdAt: new Date().toISOString() };
+    await route.fulfill({ json: { stem } });
+  });
+  await page.route('**/api/v1/stems/track/*', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({ status: 201, json: { stem: {} } });
+  });
+  // Browsers name no type for AIFF
+  const aiff = (name: string) => ({ name, mimeType: '', buffer: Buffer.from('FORM') });
+
+  const replace = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Neue Fassung von Drums hochladen' }).click();
+  await (await replace).setFiles(aiff('drums.aif'));
+  await expect.poll(() => sent.length).toBe(1);
+
+  const add = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Hochladen', exact: true }).click();
+  await (await add).setFiles(aiff('kick.aiff'));
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent.map((s) => s.mimeType)).toEqual(['audio/aiff', 'audio/aiff']);
+});
+
 test('an earlier take can become the current one again', async ({ page }) => {
   await trackWithStem(page, 1);
   await page.getByRole('button', { name: 'Fassung 2' }).click();

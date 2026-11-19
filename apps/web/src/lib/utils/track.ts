@@ -6,6 +6,11 @@ import { formatLufs, formatTruePeak } from './format.js';
 export type { ReviewVerdict } from '@music-hub/shared';
 export { predecessorOf } from '@music-hub/shared';
 
+// Whether two names mean the same track: upper and lower case and the spacing don't count. Dropping files, the
+// upload link and moving all ask this before a second track of that name comes up.
+export const sameTrackName = (a: string, b: string) => plainName(a) === plainName(b);
+const plainName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+
 export type Version = {
   id: string;
   versionNumber: number;
