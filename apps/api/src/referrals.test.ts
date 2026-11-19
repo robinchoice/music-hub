@@ -55,6 +55,9 @@ setStripeOps({
     return new Date();
   },
   async cancelAt() {},
+  async ended() {
+    return false;
+  },
   async cancelNow() {},
   async credit(customer, cents, key) {
     if (customer === 'cus_down') throw new Error('Stripe is down');

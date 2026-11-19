@@ -349,6 +349,8 @@ const WITHDRAWAL_MS = 14 * 24 * 60 * 60 * 1000;
 export type StripeOps = {
   periodEnd(subscriptionId: string): Promise<Date>;
   cancelAt(subscriptionId: string, at: Date | 'period_end'): Promise<void>;
+  // Whether the subscription has ended at Stripe, where it can't be cancelled a second time
+  ended(subscriptionId: string): Promise<boolean>;
   cancelNow(subscriptionId: string): Promise<void>;
   // Credit on the customer's balance, taken off the next invoices; the key makes a retry a no-op
   credit(customerId: string, cents: number, key: string): Promise<void>;
@@ -361,6 +363,9 @@ const stripeApi: StripeOps = {
   },
   async cancelAt(id, at) {
     await withTimeout(stripe().subscriptions.update(id, at === 'period_end' ? { cancel_at_period_end: true } : { cancel_at: Math.floor(at.getTime() / 1000) }), TIMEOUT_MS);
+  },
+  async ended(id) {
+    return (await withTimeout(stripe().subscriptions.retrieve(id), TIMEOUT_MS)).status === 'canceled';
   },
   async cancelNow(id) {
     await withTimeout(stripe().subscriptions.cancel(id), TIMEOUT_MS);
@@ -389,6 +394,15 @@ async function stripeCall<T>(call: () => Promise<T>) {
     console.error('[Billing] Stripe request failed:', err instanceof Error ? err.message : err);
     throw new PaymentServiceError();
   }
+}
+
+// Ends the subscription at Stripe now. Stripe comes before our own booking, so nobody is charged for a
+// contract we show as ended. If the booking fails after that, the next attempt finds the subscription
+// ended and only catches up on our side.
+async function endSubscription(subscriptionId: string) {
+  await stripeCall(async () => {
+    if (!(await stripeOps().ended(subscriptionId))) await stripeOps().cancelNow(subscriptionId);
+  });
 }
 
 const periodMs = (from: Date, period: PlanPeriod) => addPeriod(from, period).getTime() - from.getTime();
@@ -459,7 +473,8 @@ export async function cancelPlan(db: Database, userId: string) {
   const renewedYear = last?.period === 'year' && !!first && now >= addPeriod(startOf(first), 'year');
   const monthAhead = addPeriod(now, 'month');
   const endsAt = !paid ? now : renewedYear && monthAhead < periodEnd ? monthAhead : periodEnd;
-  await stripeCall(() => (paid ? stripeOps().cancelAt(subscriptionId, endsAt < periodEnd ? endsAt : 'period_end') : stripeOps().cancelNow(subscriptionId)));
+  if (paid) await stripeCall(() => stripeOps().cancelAt(subscriptionId, endsAt < periodEnd ? endsAt : 'period_end'));
+  else await endSubscription(subscriptionId);
   const refundCents = paid && last && endsAt < periodEnd ? proRata(last.amountCents, periodEnd.getTime() - endsAt.getTime(), periodEnd.getTime() - startOf(last).getTime()) : 0;
   await db.transaction(async (tx) => {
     await lockUser(tx, userId);
@@ -483,10 +498,7 @@ export async function withdrawPayment(db: Database, userId: string, paymentId: s
   if (!payment || !withdrawUntil(payment, all)) return null;
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return null;
-  if (payment.provider === 'stripe' && payment.stripeSubscriptionId) {
-    const id = payment.stripeSubscriptionId;
-    await stripeCall(() => stripeOps().cancelNow(id));
-  }
+  if (payment.provider === 'stripe' && payment.stripeSubscriptionId) await endSubscription(payment.stripeSubscriptionId);
   const now = new Date();
   const refundCents = await db.transaction(async (tx) => {
     await lockUser(tx, userId);

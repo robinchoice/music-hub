@@ -211,8 +211,10 @@ test('two open invoices for different plans, both paid: the bigger plan runs to 
   expect(await userRow(p.id)).toMatchObject({ plan: 'solo', planUntil: addPeriod(yearEnd, 'month') });
 });
 
-// Stripe for cancelling and withdrawing: remembers the calls, the period ends where the test says
+// Stripe for cancelling and withdrawing: remembers the calls, the period ends where the test says.
+// As at Stripe, a subscription ends only once.
 const stripeCalls: string[] = [];
+const endedSubscriptions = new Set<string>();
 let stripePeriodEnd = new Date();
 setStripeOps({
   async periodEnd() {
@@ -221,7 +223,12 @@ setStripeOps({
   async cancelAt(id, at) {
     stripeCalls.push(`cancelAt ${id} ${at === 'period_end' ? at : at.toISOString().slice(0, 10)}`);
   },
+  async ended(id) {
+    return endedSubscriptions.has(id);
+  },
   async cancelNow(id) {
+    if (endedSubscriptions.has(id)) throw new Error(`No such subscription: ${id}`);
+    endedSubscriptions.add(id);
     stripeCalls.push(`cancelNow ${id}`);
   },
   async credit(customer, cents) {
@@ -440,6 +447,38 @@ test('withdrawing the Studio payment of Studio and Pro paid together leaves Pro'
   const [proPayment] = await db.select().from(planPayments).where(eq(planPayments.externalId, pro.id));
   expect(await userRow(p.id)).toMatchObject({ plan: 'pro', planUntil: proPayment.paidUntil });
   expect(Math.abs(proPayment.periodStart!.getTime() - Date.now())).toBeLessThan(60_000);
+});
+
+test('regression: withdrawing works again after Stripe ended the subscription but the booking failed', async () => {
+  const p = await person();
+  const sub = `sub_wr_${p.id}`;
+  await stripeWebhook(subscriptionInvoice(p.id, `in_wr_${p.id}`, sub, 'month', new Date(Date.now() + 30 * DAY), 'subscription_create'));
+  const [payment] = await db.select().from(planPayments).where(eq(planPayments.externalId, `in_wr_${p.id}`));
+  // Where an attempt leaves off that got through to Stripe and no further
+  endedSubscriptions.add(sub);
+
+  const res = await app.request('/billing/withdraw', { method: 'POST', headers: p.headers, body: JSON.stringify({ paymentId: payment.id }) });
+  expect(res.status).toBe(200);
+  expect(stripeCalls).not.toContain(`cancelNow ${sub}`);
+  expect((await userRow(p.id)).stripeSubscriptionId).toBeNull();
+  const [withdrawn] = await db.select().from(planPayments).where(eq(planPayments.id, payment.id));
+  expect(withdrawn.withdrawnAt).not.toBeNull();
+});
+
+test('regression: cancelling an unpaid renewal works again after Stripe ended the subscription but the booking failed', async () => {
+  const p = await person();
+  const sub = `sub_fr_${p.id}`;
+  await stripeWebhook(subscriptionInvoice(p.id, `in_fr1_${p.id}`, sub, 'month', new Date(Date.now() - DAY), 'subscription_create'));
+  await db.update(planPayments).set({ periodStart: new Date(Date.now() - 31 * DAY) }).where(eq(planPayments.externalId, `in_fr1_${p.id}`));
+  stripePeriodEnd = addPeriod(new Date(Date.now() - DAY), 'month');
+  endedSubscriptions.add(sub);
+
+  const res = await app.request('/billing/cancel', { method: 'POST', headers: p.headers });
+  expect(res.status).toBe(200);
+  expect(stripeCalls).not.toContain(`cancelNow ${sub}`);
+  const user = await userRow(p.id);
+  expect(user.stripeSubscriptionId).toBeNull();
+  expect(user.planUntil!.getTime()).toBeLessThanOrEqual(Date.now());
 });
 
 test('cancelling while Stripe retries a failed renewal ends the plan now, without the unpaid period or a refund', async () => {
