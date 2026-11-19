@@ -51,6 +51,8 @@ import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
 
+const OPEN_CORS = /^\/(?:mcp$|\.well-known\/oauth-|api\/v1\/oauth\/(?:register|token|revoke)$)/;
+
 const stop = new AbortController();
 
 async function shutdown() {
@@ -90,18 +92,14 @@ const startup = (async () => {
       .catch((err) => console.error(`[Boot] Bucket CORS not updated: ${err.message}`)));
   }
 
+  const appCors = cors({ origin: allowedOrigins, credentials: true });
   const app = new Hono<AppEnv>()
     .use('*', async (c, next) => {
       if (c.req.path === '/mcp' || c.req.path.startsWith('/api/v1/oauth/')) return next();
       return logger()(c, next);
     })
-    .use(
-      '*',
-      cors({
-        origin: allowedOrigins,
-        credentials: true,
-      }),
-    )
+    // The MCP endpoint and the OAuth endpoints for chat clients answer any origin with their own CORS, without cookies
+    .use('*', (c, next) => (OPEN_CORS.test(c.req.path) ? next() : appCors(c, next)))
     .use('*', async (c, next) => {
       c.set('db', db);
       await next();

@@ -139,6 +139,13 @@ test('metadata, SDK handshake and fixed read tools preserve project boundaries',
   } finally { await client.close(); }
 });
 
+test('regression: the open CORS of the OAuth metadata stays off the other API routes', async () => {
+  const res = await app.request(`${origin}/api/v1/projects`, { headers: { origin: 'https://foreign.test' } });
+  expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  const metadata = await app.request(`${origin}/.well-known/oauth-authorization-server`, { headers: { origin: 'https://foreign.test' } });
+  expect(metadata.headers.get('access-control-allow-origin')).toBe('*');
+});
+
 test('PKCE, redirect, scope, resource, consent and single-use codes are enforced', async () => {
   const client = await register();
   const approved = await approval(client.client_id);
@@ -189,7 +196,8 @@ test('connections list no tokens, revocation and blocked or expired grants deny 
   await db.update(mcpGrants).set({ createdAt: grant!.createdAt, expiresAt: grant!.expiresAt }).where(eq(mcpGrants.id, grant!.id));
   await db.update(mcpTokens).set({ accessExpiresAt: new Date(0) }).where(eq(mcpTokens.grantId, grant!.id));
   expect((await call('/mcp', 'POST', {}, tokens.access_token)).status).toBe(401);
-  expect((await call(`/api/v1/mcp/connections/${grant!.id}`, 'DELETE', undefined, own.token)).status).toBe(200);
+  // The settings also run on a second domain, so revoking does not depend on the origin
+  expect((await call(`/api/v1/mcp/connections/${grant!.id}`, 'DELETE', undefined, own.token, 'https://second.test')).status).toBe(200);
   expect((await form('token', { grant_type: 'refresh_token', client_id: client.client_id, refresh_token: tokens.refresh_token })).status).toBe(400);
 });
 

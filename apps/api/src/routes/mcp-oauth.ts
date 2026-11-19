@@ -41,7 +41,7 @@ async function authorization(c: Context<AppEnv>, input: unknown) {
 }
 
 export const mcpMetadataRoutes = new Hono<AppEnv>()
-  .use('*', cors({ origin: '*' }))
+  .use('/.well-known/*', cors({ origin: '*' }))
   .get('/.well-known/oauth-protected-resource/mcp', (c) => c.json({
     resource: mcpResource(), authorization_servers: [oauthIssuer()], scopes_supported: [MCP_SCOPE], bearer_methods_supported: ['header'],
   }))
@@ -153,7 +153,6 @@ export const mcpConnectionRoutes = new Hono<AppEnv>()
     return c.json({ connections, scope: MCP_SCOPE });
   })
   .delete('/:id', zValidator('param', z.object({ id: z.uuid() })), async (c) => {
-    if (c.req.header('origin') !== oauthIssuer()) return c.json({ error: 'Forbidden' }, 403);
     await c.get('db').delete(mcpGrants).where(and(eq(mcpGrants.id, c.req.valid('param').id), eq(mcpGrants.userId, c.get('userId'))));
     return c.json({ ok: true });
   });
