@@ -294,6 +294,31 @@ test('the token only goes to the address it was issued for', async () => {
   }
 });
 
+test('a token whose address no longer answers blocks login and logout until logout --forget drops it', async () => {
+  const ada = await person();
+  const other = Bun.serve({ port: 0, fetch: app.fetch });
+  const gone = other.url.origin;
+  const { cli, token, env } = await device();
+  try {
+    expect((await cli(['login', '--link', '-', '--url', gone], { stdin: await loginLink(ada.email) })).code).toBe(0);
+  } finally {
+    await other.stop(true);
+  }
+  const oldToken = await token();
+  const stuck = { code: 1, err: `${texts.unreachable(gone)} ${texts.forgetHint(SLUG)}` };
+  expect(await cli(['login', '--link', '-'], { raw: true, stdin: await loginLink(ada.email) })).toMatchObject(stuck);
+  expect(await cli(['logout', '--url', gone])).toMatchObject(stuck);
+  expect(await token()).toBe(oldToken);
+
+  expect(await cli(['logout', '--forget'])).toMatchObject({ code: 0, out: texts.forgotten(gone) });
+  expect(await Bun.file(sessionFile(env)).exists()).toBe(false);
+  // Not revoked, as the message says
+  expect(await sessionOf(oldToken)).toEqual({ client: 'cli' });
+  expect((await cli(['logout', '--forget', '--json'])).json()).toEqual({ ok: true });
+  expect((await cli(['login', '--link', '-'], { stdin: await loginLink(ada.email) })).code).toBe(0);
+  expect((await cli(['whoami', '--json'])).json()).toMatchObject({ user: { email: ada.email } });
+});
+
 test('help, wrong usage and an unreachable app', async () => {
   const { cli } = await device();
   const helpText = await cli([]);

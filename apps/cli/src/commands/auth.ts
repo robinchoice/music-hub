@@ -1,7 +1,7 @@
 import { CLI_CLIENT } from '@music-hub/shared';
 import { z } from 'zod';
 import { type Command, type Context, EXIT, Failure, str } from '../command';
-import { removeSession, SLUG, saveSession } from '../config';
+import { loadSession, removeSession, SLUG, saveSession } from '../config';
 import { texts } from '../texts';
 
 const userSchema = z.object({ id: z.string(), email: z.string(), name: z.string() });
@@ -46,6 +46,18 @@ async function withLink({ api, io }: Context, link: string) {
   return api.post('/auth/verify', loginSchema, { token, cookie: false });
 }
 
+// Revokes the stored token at its address, then drops it here. If that address doesn't answer,
+// the token stays on this device and the message names logout --forget.
+async function revoke({ api, io }: Context) {
+  try {
+    await api.post('/auth/logout', loggedOutSchema);
+  } catch (error) {
+    if (error instanceof Failure) throw new Failure(`${error.message} ${texts.forgetHint(SLUG)}`, error.exitCode);
+    throw error;
+  }
+  await removeSession(io.env);
+}
+
 export const auth: Record<string, Command> = {
   login: {
     help: [
@@ -55,10 +67,7 @@ export const auth: Record<string, Command> = {
     options: { link: { type: 'string' } },
     async run(ctx) {
       // A new login replaces the token of this device: the old one is revoked first, so none stays valid unseen
-      if (ctx.session) {
-        await ctx.api.post('/auth/logout', loggedOutSchema);
-        await removeSession(ctx.io.env);
-      }
+      if (ctx.session) await revoke(ctx);
       const link = str(ctx.values.link);
       const { user, token } = link === undefined ? await withDevice(ctx) : await withLink(ctx, link);
       await saveSession(ctx.io.env, { url: ctx.url, token });
@@ -75,12 +84,20 @@ export const auth: Record<string, Command> = {
   },
 
   logout: {
-    help: [['logout', texts.logoutHelp]],
-    async run({ api, session, io }) {
-      if (session) {
-        await api.post('/auth/logout', loggedOutSchema);
-        await removeSession(io.env);
+    help: [
+      ['logout', texts.logoutHelp],
+      ['logout --forget', texts.forgetHelp],
+    ],
+    options: { forget: { type: 'boolean' } },
+    async run(ctx) {
+      // The way out when the address of the stored token no longer answers: whatever --url says,
+      // the token goes from this device only and stays valid at its address
+      const stored = ctx.values.forget === true ? await loadSession(ctx.io.env) : null;
+      if (stored) {
+        await removeSession(ctx.io.env);
+        return { data: { ok: true, revoked: false }, text: texts.forgotten(stored.url) };
       }
+      if (ctx.session) await revoke(ctx);
       return { data: { ok: true }, text: texts.loggedOut };
     },
   },
