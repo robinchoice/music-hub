@@ -13,7 +13,9 @@ import { mcpMetadataRoutes, mcpOAuthRoutes, mcpConnectionRoutes } from './routes
 import type { AppEnv } from './types.js';
 
 const db = createDb(process.env.DATABASE_URL!);
-const origin = process.env.APP_URL!;
+// CI has no APP_URL, and whether another test file sets it first depends on the file order
+process.env.APP_URL ||= 'https://app.test';
+const origin = process.env.APP_URL;
 const resource = `${origin}/mcp`;
 const app = new Hono<AppEnv>().use('*', async (c, next) => { c.set('db', db); await next(); })
   .route('/', mcpMetadataRoutes).route('/mcp', mcpRoutes).route('/api/v1/oauth', mcpOAuthRoutes)
