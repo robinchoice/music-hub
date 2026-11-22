@@ -99,6 +99,8 @@
     open = false;
     pointer = null;
     hot = -1;
+    // A finger still sliding has nothing left to open
+    dragging = false;
   }
   const closeSoon = () => {
     clearTimeout(closeTimer);
@@ -341,8 +343,6 @@
     touch-action: none;
   }
   button:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
     border-radius: 4px;
   }
   .band {
