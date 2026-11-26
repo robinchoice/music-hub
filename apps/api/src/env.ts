@@ -29,7 +29,7 @@ const envSchema = z.object({
     .exactOptional(),
   // Plans paid by card: the secret API key and the signing secret of the webhook to /api/v1/billing/stripe.
   // Unset: no Stripe checkout.
-  STRIPE_SECRET_KEY: z.string().startsWith('sk_').or(unset).exactOptional(),
+  STRIPE_SECRET_KEY: z.string().regex(/^(sk|rk)_/).or(unset).exactOptional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').or(unset).exactOptional(),
   // Plans paid by Lightning: BTCPay Server with a Greenfield API key (invoices of one store) and the
   // secret of the webhook to /api/v1/billing/btcpay. Unset: no Lightning checkout.
