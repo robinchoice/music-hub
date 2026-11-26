@@ -70,10 +70,20 @@ test('the account decides whether guests may upload and how much', async ({ page
   const allowed = page.getByLabel('Gäste ohne Konto dürfen hochladen');
   await expect(allowed).toBeChecked();
   await expect(page.getByLabel('Höchstens')).toHaveValue(String(2 * 1024 ** 3));
+  // Each change saves on its own, so each waits for its own response
+  const savedWith = (field: string) =>
+    page.waitForResponse(
+      (r) =>
+        r.url().endsWith('/api/v1/upload-links/settings') &&
+        r.request().method() === 'PATCH' &&
+        field in r.request().postDataJSON(),
+    );
+  const limitSaved = savedWith('limit');
   await page.getByLabel('Höchstens').selectOption({ label: '5 GB' });
-  const saved = page.waitForResponse((r) => r.url().endsWith('/api/v1/upload-links/settings') && r.request().method() === 'PATCH');
+  await limitSaved;
+  const allowedSaved = savedWith('allowed');
   await allowed.uncheck();
-  await saved;
+  await allowedSaved;
   await page.reload();
   await expect(page.getByLabel('Gäste ohne Konto dürfen hochladen')).not.toBeChecked();
   await expect(page.getByLabel('Höchstens')).toHaveCount(0);

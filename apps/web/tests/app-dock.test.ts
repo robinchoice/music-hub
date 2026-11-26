@@ -141,11 +141,23 @@ test.describe('touch', () => {
     const cdp = await page.context().newCDPSession(page);
     await touch(cdp, 'touchStart', [await center(band)]);
     await expect(band).toHaveAttribute('aria-expanded', 'true');
-    const songgate = page.getByRole('list', { name: 'Werkzeuge von Pleasance' }).getByRole('link', { name: 'Songgate' });
-    // Twice, the row moves as the icons under the finger grow
-    await touch(cdp, 'touchMove', [await center(songgate)]);
-    const finger = await center(songgate);
-    await touch(cdp, 'touchMove', [finger]);
+    const dock = page.getByRole('list', { name: 'Werkzeuge von Pleasance' });
+    const songgate = dock.getByRole('link', { name: 'Songgate' });
+    // Measured once the icons have popped up to their place
+    await dock.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+    // The row moves as the icons under the finger grow, so the finger follows
+    // Songgate until it stays under it
+    let finger = await center(songgate);
+    await expect
+      .poll(async () => {
+        finger = await center(songgate);
+        await touch(cdp, 'touchMove', [finger]);
+        await page.evaluate(() => new Promise(requestAnimationFrame));
+        const now = await center(songgate);
+        return Math.hypot(now.x - finger.x, now.y - finger.y);
+      })
+      .toBeLessThan(2);
+    await expect(dock.locator('.label')).toContainText('Songgate');
     return { band, cdp, finger };
   }
 
