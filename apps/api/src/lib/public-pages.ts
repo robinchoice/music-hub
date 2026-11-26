@@ -183,7 +183,7 @@ function terms(locale: Locale): PublicPage {
   };
 }
 
-const PRIVACY_DE = `Stand: Oktober 2026
+const PRIVACY_DE = `Stand: November 2026
 
 Music Hub ist ein Werkzeug für Musikproduktionen: Versionen, Feedback und Freigaben. Ein Konto gibt es per Registrierung, solange Plätze frei sind, oder per Einladung. Hier steht, welche Daten dabei anfallen, wofür ich sie brauche und wo sie liegen. Werbung, Tracking oder Analyse-Dienste gibt es nicht.
 
@@ -243,7 +243,7 @@ Die Datenbank sichere ich jede Nacht verschlüsselt, bei Hetzner in Deutschland 
 
 Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch. Eine Einwilligung kannst du jederzeit für die Zukunft widerrufen. Wende dich dazu an die oben genannte Kontaktadresse. Außerdem hast du das Recht, dich bei einer Datenschutz-Aufsichtsbehörde zu beschweren, zum Beispiel beim Landesbeauftragten für den Datenschutz und die Informationsfreiheit Baden-Württemberg.`;
 
-const PRIVACY_EN = `Last updated: October 2026. This is a translation, the German version is binding.
+const PRIVACY_EN = `Last updated: November 2026. This is a translation, the German version is binding.
 
 Music Hub is a tool for music productions: versions, feedback and approvals. You get an account by signing up, as long as places are free, or by invitation. This page explains which data arises, what I need it for and where it is stored. There is no advertising, tracking or analytics service.
 

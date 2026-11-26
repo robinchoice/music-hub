@@ -13,7 +13,7 @@ const OPERATOR = 'Robin Wahl, Pleasance, Bugginger Straße 37, 79114 Freiburg';
 export const TERMS: Record<Locale, LegalText> = {
   de: {
     title: 'Allgemeine Geschäfts­bedingungen',
-    meta: 'Stand: Oktober 2026',
+    meta: 'Stand: November 2026',
     sections: [
       {
         title: '§ 1 Anbieter und Geltung',
@@ -53,6 +53,7 @@ export const TERMS: Record<Locale, LegalText> = {
         items: [
           'Pro kostet 9 € im Monat oder 90 € im Jahr, Studio 24 € im Monat oder 240 € im Jahr. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.',
           'Karte, PayPal oder SEPA (über Stripe): Du zahlst im Voraus für den Monat bzw. das Jahr. Das Abo verlängert sich automatisch, bis du kündigst. Belege schickt Stripe per E-Mail.',
+          'Läuft bei der Bestellung noch ein Tarif mit Enddatum, etwa ein geschenkter Gratis-Monat, bucht Stripe erst zu dessen Ende zum ersten Mal ab. Bis dahin kannst du kostenlos kündigen.',
           'Lightning (über unseren BTCPay Server): Du zahlst im Voraus für einen Monat oder ein Jahr, ohne Abo. Der Betrag in Satoshi ergibt sich aus dem Euro-Preis zum Kurs bei Erstellung der Rechnung. Eine weitere Zahlung schließt an das Ende der bezahlten Zeit an.',
           'Schlägt eine Abbuchung fehl, versucht Stripe es einige Tage lang erneut. Bleibt sie aus, endet der Tarif drei Tage nach dem Ende der bezahlten Zeit.',
           'Preisänderungen kündigen wir mindestens sechs Wochen vorher per E-Mail an. Sie gelten erst ab dem nächsten Abrechnungszeitraum, und du kannst bis dahin kündigen.',
@@ -120,7 +121,7 @@ export const TERMS: Record<Locale, LegalText> = {
   },
   en: {
     title: 'Terms and conditions',
-    meta: 'Last updated: October 2026 · This is a translation, the German version is binding.',
+    meta: 'Last updated: November 2026 · This is a translation, the German version is binding.',
     sections: [
       {
         title: '§ 1 Provider and scope',
@@ -160,6 +161,7 @@ export const TERMS: Record<Locale, LegalText> = {
         items: [
           'Pro costs €9 a month or €90 a year, Studio €24 a month or €240 a year. No VAT is charged under the small business rule of § 19 UStG.',
           'Card, PayPal or SEPA (via Stripe): you pay in advance for the month or year. The subscription renews automatically until you cancel. Stripe sends receipts by email.',
+          'If a plan with an end date is still running when you order, such as a free month you were given, Stripe charges for the first time only when it ends. Until then you can cancel free of charge.',
           'Lightning (via our BTCPay Server): you pay in advance for a month or a year, without a subscription. The amount in satoshis follows from the euro price at the rate when the invoice is created. A further payment starts where the paid time ends.',
           'If a charge fails, Stripe retries it for a few days. If it does not come through, the plan ends three days after the end of the paid time.',
           'We announce price changes by email at least six weeks in advance. They apply from the next billing period only, and you can cancel before then.',
@@ -318,7 +320,7 @@ export const PRIVACY_PAYMENTS: Record<Locale, LegalSection> = {
     paragraphs: [
       'Wenn du Pro oder Studio bezahlst, speichere ich deinen Tarif, bis wann er bezahlt ist, und zu jeder Zahlung die Zahlungsart, die Kennung der Rechnung beim Zahlungsdienst, den Betrag, den Status, die Zeitpunkte, deine Zustimmung zum sofortigen Beginn und einen Widerruf. Kartendaten, Kontonummern oder Wallets sehe ich nicht. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertrag über den Tarif). Die Angaben zu Zahlungen bewahre ich acht Jahre auf, weil das Handels- und Steuerrecht es verlangt (Art. 6 Abs. 1 lit. c DSGVO, § 147 AO, § 257 HGB), auch wenn du dein Konto vorher löschst. Dann bleiben sie ohne Verbindung zu deinem Konto stehen.',
       'Karte, PayPal oder SEPA: Die Zahlung wickelt Stripe ab (Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin 2, Irland). Stripe bekommt deine E-Mail-Adresse und die Zahlungsdaten, die du dort eingibst, und schickt dir Belege. Bei mir liegen nur deine Kundennummer und die Nummer deines Abos bei Stripe. Für Betrugsprävention und gesetzliche Pflichten ist Stripe selbst verantwortlich. Dabei können Daten an die Stripe, Inc. in die USA gehen; sie ist nach dem EU-US Data Privacy Framework zertifiziert. Zahlst du mit PayPal, ist zusätzlich PayPal (Europe) S.à r.l. et Cie, S.C.A., 22–24 Boulevard Royal, 2449 Luxemburg, beteiligt. Es gelten auch deren Datenschutzerklärungen.',
-      'Lightning: Die Rechnung erstellt ein BTCPay Server, den ich selbst betreibe. Er kennt nur Betrag, Tarif und Status der Rechnung, keine Namen. Eine Lightning-Zahlung erscheint nicht öffentlich. Zahlst du über die Bitcoin-Blockchain statt über Lightning, ist die Transaktion dort dauerhaft öffentlich sichtbar, ohne deinen Namen.',
+      'Lightning: Die Rechnung erstellt ein BTCPay Server, den ich selbst betreibe. Er kennt nur Betrag, Tarif und Status der Rechnung, keine Namen. Eine Lightning-Zahlung erscheint nicht öffentlich.',
       'Kontakte einladen: Meldest du dich über den Empfehlungslink eines anderen Kontos an, speichere ich, wer dich empfohlen hat und wann du dafür Gratis-Tage bekommen hast, damit ihr beide sie bekommt (Art. 6 Abs. 1 lit. b DSGVO). Die Person, die dich empfohlen hat, sieht nur, wie viele sich über ihren Link angemeldet haben und wie viele davon zahlen, nicht wer.',
     ],
   },
@@ -327,7 +329,7 @@ export const PRIVACY_PAYMENTS: Record<Locale, LegalSection> = {
     paragraphs: [
       'When you pay for Pro or Studio, I store your plan, until when it is paid, and for each payment the payment method, the invoice ID at the payment service, the amount, the status, the times, your consent to the immediate start and any withdrawal. I do not see card details, account numbers or wallets. The legal basis is Art. 6(1)(b) GDPR (contract for the plan). I keep the payment records for eight years because commercial and tax law requires it (Art. 6(1)(c) GDPR, § 147 AO, § 257 HGB), even if you delete your account earlier. They then remain without any link to your account.',
       'Card, PayPal or SEPA: Stripe processes the payment (Stripe Payments Europe, Ltd., 1 Grand Canal Street Lower, Dublin 2, Ireland). Stripe receives your email address and the payment details you enter there, and sends you receipts. I only hold your customer number and the number of your subscription at Stripe. Stripe is itself responsible for fraud prevention and legal obligations. Data may be transferred to Stripe, Inc. in the USA in the process; it is certified under the EU-US Data Privacy Framework. If you pay with PayPal, PayPal (Europe) S.à r.l. et Cie, S.C.A., 22–24 Boulevard Royal, 2449 Luxembourg, is involved as well. Their privacy policies also apply.',
-      'Lightning: the invoice is created by a BTCPay Server that I run myself. It only knows the amount, plan and status of the invoice, no names. A Lightning payment is not public. If you pay on the Bitcoin blockchain instead of over Lightning, the transaction is permanently public there, without your name.',
+      'Lightning: the invoice is created by a BTCPay Server that I run myself. It only knows the amount, plan and status of the invoice, no names. A Lightning payment is not public.',
       'Inviting friends: if you sign up through another account\'s referral link, I store who referred you and when you got free days for it, so that you both get them (Art. 6(1)(b) GDPR). The person who referred you only sees how many signed up through their link and how many of them pay, not who.',
     ],
   },
