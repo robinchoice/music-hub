@@ -7,7 +7,7 @@ import { createDb, migrateDb, planPayments, sessions, users } from '@music-hub/d
 import { PLAN_PRICES, type BillingView } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
 import fc from 'fast-check';
-import { addPeriod, invoicePeriod, setBtcpayClient, setStripeOps, trialEnd, type BtcpayInvoice } from './lib/billing.js';
+import { addPeriod, invoicePeriod, remindEndingPlans, setBtcpayClient, setStripeOps, trialEnd, type BtcpayInvoice } from './lib/billing.js';
 import { publicPages } from './lib/public-pages.js';
 import { billingRoutes } from './routes/billing.js';
 import type { AppEnv } from './types.js';
@@ -632,4 +632,32 @@ test('an invoice pays from its first line to its last plus grace, a trial invoic
       expect(periodStart.getTime()).toBe(total === 0 ? end : Math.min(...lines.map((l) => l.start)) * 1000);
     }),
   );
+});
+
+test('a plan with an end gets one reminder while a subscription can still start before it, none with a subscription or no end', async () => {
+  const soon = new Date(Date.now() + 17 * DAY);
+  const due = await person({ plan: 'solo', planUntil: soon });
+  const early = await person({ plan: 'solo', planUntil: new Date(Date.now() + 25 * DAY) });
+  const late = await person({ plan: 'solo', planUntil: new Date(Date.now() + 15 * DAY) });
+  const subscribed = await person({ plan: 'solo', planUntil: soon, stripeSubscriptionId: 'sub_reminder' });
+  const noEnd = await person({ plan: 'solo' });
+  await remindEndingPlans(db);
+  const reminded = async (id: string) => (await userRow(id)).planRemindedUntil;
+  expect(await reminded(due.id)).toEqual(soon);
+  for (const p of [early, late, subscribed, noEnd]) expect(await reminded(p.id)).toBeNull();
+
+  // A new end date, say one more free week, gets its own reminder
+  const later = new Date(Date.now() + 16.5 * DAY);
+  await db.update(users).set({ planUntil: later }).where(eq(users.id, due.id));
+  await remindEndingPlans(db);
+  expect(await reminded(due.id)).toEqual(later);
+
+  delete process.env.STRIPE_SECRET_KEY;
+  try {
+    await db.update(users).set({ planRemindedUntil: null }).where(eq(users.id, due.id));
+    await remindEndingPlans(db);
+    expect(await reminded(due.id)).toBeNull();
+  } finally {
+    Object.assign(process.env, env);
+  }
 });

@@ -124,6 +124,12 @@ const de = {
       `Du hast am ${day} ausdrücklich verlangt, dass dein Tarif sofort beginnt. Widerrufst du, zahlst du anteilig für die Zeit bis dahin.`,
     planConfirmTerms: 'Darunter stehen die AGB und die Widerrufsbelehrung, die für deinen Vertrag gelten.',
     planCancelSubject: 'Deine Kündigung bei Music Hub',
+    planEndingSubject: (plan: string, day: string) => `Dein Tarif ${plan} läuft am ${day} aus`,
+    planEndingIntro: (plan: string, day: string) => `dein Tarif ${plan} läuft am ${day} aus. Deine Dateien bleiben in jedem Fall.`,
+    planEndingContinue: (by: string, end: string) =>
+      `Willst du weitermachen, schließ bis ${by} im Konto unter „Tarif“ ein Abo mit Karte oder PayPal ab. Abgebucht wird erst am ${end}, bis dahin kannst du kostenlos kündigen. Mit Lightning kannst du auch später noch verlängern.`,
+    planEndingButton: 'Zum Tarif',
+    planEndingWhy: 'Du bekommst diese Mail einmal, weil dein Tarif ein Enddatum hat und kein Abo ihn verlängert.',
     planCancelIntro: (plan: string, day: string) =>
       `wir haben deine Kündigung von ${plan} erhalten. Dein Tarif läuft bis ${day} und endet dann ohne weitere Zahlung. Deine Dateien bleiben.`,
     planRefund: (amount: string) => `Den Rest von ${amount} erstatten wir dir in den nächsten Tagen über dasselbe Zahlungsmittel.`,
@@ -275,6 +281,12 @@ const en: typeof de = {
       `On ${day} you expressly requested that your plan starts right away. If you withdraw, you pay pro rata for the time until then.`,
     planConfirmTerms: 'Below are the terms and the cancellation notice that apply to your contract.',
     planCancelSubject: 'Your cancellation at Music Hub',
+    planEndingSubject: (plan, day) => `Your ${plan} plan ends on ${day}`,
+    planEndingIntro: (plan, day) => `your ${plan} plan ends on ${day}. Your files stay either way.`,
+    planEndingContinue: (by, end) =>
+      `To carry on, take out a card or PayPal subscription under "Plan" in your account by ${by}. The first charge comes only on ${end}, and you can cancel free of charge until then. You can also extend with Lightning later.`,
+    planEndingButton: 'Go to your plan',
+    planEndingWhy: 'You get this mail once because your plan has an end date and no subscription renews it.',
     planCancelIntro: (plan, day) => `we have received your cancellation of ${plan}. Your plan runs until ${day} and then ends without further payment. Your files stay.`,
     planRefund: (amount) => `We will refund the remaining ${amount} in the next few days using the same means of payment.`,
     planWithdrawSubject: 'Your withdrawal at Music Hub',

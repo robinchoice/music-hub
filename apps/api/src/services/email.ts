@@ -258,6 +258,23 @@ export async function sendPlanCancelledEmail(to: string, input: { plan: 'pro' | 
   );
 }
 
+// A plan with an end runs out soon: a subscription can still continue it, charging first at the end
+export async function sendPlanEndingEmail(to: string, input: { plan: 'pro' | 'solo'; endsAt: Date; subscribeBy: Date }, locale: Locale) {
+  const m = messages[locale].mail;
+  const plan = m.planNames[input.plan];
+  await sendMail(
+    {
+      to,
+      subject: m.planEndingSubject(plan, day(input.endsAt, locale)),
+      html: layout(
+        `${paragraph(`${escapeHtml(m.hello)} ${escapeHtml(m.planEndingIntro(plan, day(input.endsAt, locale)))}`)}${paragraph(escapeHtml(m.planEndingContinue(day(input.subscribeBy, locale), day(input.endsAt, locale))))}${button(m.planEndingButton, `${process.env.APP_URL}/account#tarif`)}${small(escapeHtml(m.planEndingWhy))}`,
+        locale,
+      ),
+    },
+    `Plan ending mail to ${to}: ends ${input.endsAt.toISOString()}`,
+  );
+}
+
 export async function sendPlanWithdrawnEmail(to: string, input: { plan: 'pro' | 'solo'; refundCents: number; method: 'stripe' | 'lightning' }, locale: Locale) {
   const m = messages[locale].mail;
   const amount = formatEuro(input.refundCents, locale);

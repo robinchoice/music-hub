@@ -34,6 +34,7 @@ import { pruneNotifications } from './lib/push-notifications.js';
 import { pruneExpired } from './lib/cleanup.js';
 import { sendDueNotices } from './lib/notices.js';
 import { rewardReferrals } from './lib/referrals.js';
+import { remindEndingPlans } from './lib/billing.js';
 import { sendDueFeedback } from './lib/reviews.js';
 import { checkLightningPayments } from './lib/deliveries.js';
 import { profileRoutes } from './routes/profiles.js';
@@ -183,6 +184,11 @@ const startup = (async () => {
     }));
     runInBackground(rewardReferrals(db).catch((err) => {
       console.error('[Referrals] Rewarding failed:', err);
+      captureException(err);
+    }));
+    // Plans with an end that run out soon: one reminder each, see lib/billing.ts
+    runInBackground(remindEndingPlans(db).catch((err) => {
+      console.error('[Billing] Reminders failed:', err);
       captureException(err);
     }));
   };

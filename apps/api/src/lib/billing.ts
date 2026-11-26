@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import Stripe from 'stripe';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { planPayments, users, type Database } from '@music-hub/db';
 import {
@@ -19,7 +19,7 @@ import {
 import { PaymentServiceError, withTimeout } from './payments/errors.js';
 import { storageOf } from './storage.js';
 import { ADMIN_EMAILS } from './admin.js';
-import { sendPlanAdminNotice, sendPlanCancelledEmail, sendPlanConfirmationEmail, sendPlanWithdrawnEmail } from '../services/email.js';
+import { sendPlanAdminNotice, sendPlanCancelledEmail, sendPlanConfirmationEmail, sendPlanEndingEmail, sendPlanWithdrawnEmail } from '../services/email.js';
 
 // Paying Music Hub for a plan. The rule is "paid until": every payment only moves users.plan_until,
 // whichever way the money came. Stripe (card, PayPal, SEPA) renews a subscription and sends
@@ -74,6 +74,41 @@ export function trialEnd(user: Pick<User, 'plan' | 'planUntil' | 'stripeSubscrip
   // Stripe takes whole seconds
   const end = new Date(Math.floor(user.planUntil.getTime() / 1000) * 1000);
   return end.getTime() - now.getTime() >= MIN_TRIAL_MS ? end : null;
+}
+
+// One mail per end date of a plan that no subscription continues, at least a day before the last
+// moment a subscription can still start with a trial up to that end. So a free month doesn't simply
+// run out. Claimed before sending, so several API instances send it once; a failed mail isn't retried.
+const DAY_MS = 24 * 60 * 60 * 1000;
+export async function remindEndingPlans(db: Database, now = new Date()) {
+  if (!stripeConfigured()) return;
+  const notYet = or(isNull(users.planRemindedUntil), ne(users.planRemindedUntil, users.planUntil));
+  const due = await db
+    .select()
+    .from(users)
+    .where(
+      and(
+        isNotNull(users.plan),
+        isNull(users.stripeSubscriptionId),
+        isNull(users.blockedAt),
+        gt(users.planUntil, new Date(now.getTime() + MIN_TRIAL_MS + DAY_MS)),
+        lte(users.planUntil, new Date(now.getTime() + MIN_TRIAL_MS + 3 * DAY_MS)),
+        notYet,
+      ),
+    );
+  for (const user of due) {
+    const endsAt = user.planUntil!;
+    const [claimed] = await db
+      .update(users)
+      .set({ planRemindedUntil: endsAt })
+      .where(and(eq(users.id, user.id), eq(users.planUntil, endsAt), notYet))
+      .returning({ id: users.id });
+    if (!claimed) continue;
+    const plan = PLANS.find((p) => p === user.plan) ?? 'pro';
+    await sendPlanEndingEmail(user.email, { plan, endsAt, subscribeBy: new Date(endsAt.getTime() - MIN_TRIAL_MS) }, pickLocale(user.locale)).catch((err) =>
+      console.error('[Billing] Ending mail failed:', err instanceof Error ? err.message : err),
+    );
+  }
 }
 
 // What the account may buy now. Without a running plan anything. While one with an end runs, one more

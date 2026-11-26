@@ -30,6 +30,8 @@ export const users = pgTable('users', {
   // (lib/billing.ts). A paid plan runs until planUntil, null means open-ended
   plan: varchar('plan', { length: 16 }),
   planUntil: timestamp('plan_until'),
+  // The plan_until that remindEndingPlans has mailed about, so each end date gets one reminder
+  planRemindedUntil: timestamp('plan_reminded_until'),
   // The Stripe customer, for the billing portal, and the subscription that renews the plan while it runs
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
   stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
