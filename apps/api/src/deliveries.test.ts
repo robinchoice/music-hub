@@ -25,25 +25,40 @@ import type {
   GuestPaymentResponse,
   PaymentAccountResponse,
   PublicDelivery,
+  StudioBrandResponse,
 } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
 import { ADMIN_EMAILS } from './lib/admin.js';
 import { checkLightningPayments, LIGHTNING_GRACE_MS } from './lib/deliveries.js';
+import { keysInUse } from './lib/files.js';
+import { drainBackground } from './lib/background.js';
 import { setNwcFactory, type NwcClient } from './lib/payments/nwc.js';
 import { setPriceSource } from './lib/payments/rate.js';
 import type { AppEnv } from './types.js';
 
 // Signed URLs carry the key, so a test can tell which file a guest would get
 const s3 = await import('./storage/s3.js');
+// Objects that reached the bucket, the type each signed URL answers with, and what got deleted
+const bucket = new Set<string>();
+const servedAs = new Map<string, string | undefined>();
+const deleted: string[] = [];
 mock.module('./storage/s3.js', () => ({
   ...s3,
-  createDownloadUrl: async (key: string) => `https://bucket.test/${key}`,
+  createDownloadUrl: async (key: string, _expires?: number, _name?: string, type?: string) => {
+    servedAs.set(key, type);
+    return `https://bucket.test/${key}`;
+  },
   getObjectStream: async () => new Blob([new Uint8Array([1, 2, 3])]).stream(),
+  getObjectSize: async (key: string) => (bucket.has(key) ? 1000 : null),
+  deleteObject: async (key: string) => {
+    deleted.push(key);
+  },
 }));
 const { shareRoutes } = await import('./routes/share.js');
 const { deliveryRoutes } = await import('./routes/deliveries.js');
 const { paymentAccountRoutes } = await import('./routes/payment-account.js');
 const { adminRoutes } = await import('./routes/admin.js');
+const { studioBrandRoutes } = await import('./routes/studio-brand.js');
 
 // ADMIN_EMAILS is read once on import, other test files may have imported it already
 const ADMIN = `admin-${crypto.randomUUID()}@example.com`;
@@ -59,6 +74,7 @@ const app = new Hono<AppEnv>()
   .route('/share', shareRoutes)
   .route('/deliveries', deliveryRoutes)
   .route('/payment-account', paymentAccountRoutes)
+  .route('/studio-brand', studioBrandRoutes)
   .route('/admin', adminRoutes);
 const userIds: string[] = [];
 // Each test walks a whole delivery through many requests
@@ -644,4 +660,70 @@ test('cancelling restores the link; password and expiry of the link hold on the 
   const again = await createDelivery(owner, changed.projectId, [songs[1]!.id]);
   expect(again.linkToken).toBe(token);
   expect(await db.select().from(deliveries).where(and(eq(deliveries.projectLinkId, link!.id)))).toHaveLength(1);
+});
+
+test('the guest page of a delivery shows the studio brand only while the plan is Studio, and nothing of the account', async () => {
+  const { owner, token } = await setup();
+  const brand = (body?: unknown, headers = owner.headers) =>
+    call('/studio-brand', body === undefined ? { headers } : { method: 'PUT', headers, body });
+
+  // Without a brand the page names the account as before
+  expect(await json<StudioBrandResponse>(await brand())).toEqual({
+    brand: { name: null, line: null, logoKey: null, logoUrl: null, shown: false, allowed: true },
+  });
+  expect((await album(token)).delivery).toMatchObject({ studioName: 'Studio Klanglabor', studio: null });
+
+  // Only a logo that reached the bucket, only keys of the cover upload
+  const logo = `covers/${crypto.randomUUID()}.png`;
+  const missing = await brand({ logoKey: logo });
+  expect(missing.status).toBe(400);
+  expect((await json<DeliveryErrorResponse>(missing)).code).toBe('logo_missing');
+  expect((await brand({ logoKey: 'projects/x/uploads/a.png' })).status).toBe(400);
+  expect((await brand({ name: 'x'.repeat(81) })).status).toBe(400);
+  bucket.add(logo);
+  const set = await json<StudioBrandResponse>(await brand({ name: '  Studio Fernlicht ', line: 'Mix und Master · Freiburg', logoKey: logo }));
+  expect(set.brand).toEqual({
+    name: 'Studio Fernlicht',
+    line: 'Mix und Master · Freiburg',
+    logoKey: logo,
+    logoUrl: `https://bucket.test/${logo}`,
+    shown: true,
+    allowed: true,
+  });
+  expect(servedAs.get(logo)).toBe('image/png');
+  expect((await keysInUse(db, [logo])).has(logo)).toBe(true);
+
+  const res = await call(`/share/project/public/${token}`);
+  const text = await res.text();
+  const shown = JSON.parse(text) as Album;
+  expect(shown.delivery).toMatchObject({
+    studioName: 'Studio Fernlicht',
+    studio: { name: 'Studio Fernlicht', line: 'Mix und Master · Freiburg', logoUrl: `https://bucket.test/${logo}` },
+  });
+  const [account] = await db.select({ email: users.email }).from(users).where(eq(users.id, owner.id));
+  expect(text).not.toContain(account!.email);
+  expect(text).not.toContain('Studio Klanglabor');
+
+  // A new logo replaces the old one, which goes from the bucket; an empty name falls back to the account's
+  const next = `covers/${crypto.randomUUID()}.webp`;
+  bucket.add(next);
+  await brand({ logoKey: next, name: '' });
+  await drainBackground();
+  expect(deleted).toContain(logo);
+  expect((await album(token)).delivery?.studio).toEqual({ name: 'Studio Klanglabor', line: 'Mix und Master · Freiburg', logoUrl: `https://bucket.test/${next}` });
+  expect(servedAs.get(next)).toBe('image/webp');
+
+  // When the plan ends the page falls back; the brand stays for the next one
+  await db.update(users).set({ plan: null }).where(eq(users.id, owner.id));
+  expect((await album(token)).delivery).toMatchObject({ studioName: 'Studio Klanglabor', studio: null });
+  expect((await json<StudioBrandResponse>(await brand())).brand).toMatchObject({ logoKey: next, shown: false, allowed: false });
+
+  // An admin address shows it without a plan
+  await db.update(users).set({ email: ADMIN.replace('admin-', `admin-${crypto.randomUUID()}-`) }).where(eq(users.id, owner.id));
+  ADMIN_EMAILS.add((await db.select({ email: users.email }).from(users).where(eq(users.id, owner.id)))[0]!.email);
+  expect((await album(token)).delivery?.studio?.logoUrl).toBe(`https://bucket.test/${next}`);
+
+  // Removing the logo leaves the initials
+  await brand({ logoKey: null });
+  expect((await album(token)).delivery?.studio).toEqual({ name: 'Studio Klanglabor', line: 'Mix und Master · Freiburg', logoUrl: null });
 });

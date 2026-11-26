@@ -20,7 +20,10 @@ import { shareRoutes } from '../../api/src/routes/share';
 import { trackRoutes } from '../../api/src/routes/tracks';
 import { versionRoutes } from '../../api/src/routes/versions';
 import { fileRoutes } from '../../api/src/routes/files';
+import { studioBrandRoutes } from '../../api/src/routes/studio-brand';
+import { uploadRoutes } from '../../api/src/routes/uploads';
 import type { AppEnv } from '../../api/src/types';
+import { drainBackground } from '../../api/src/lib/background';
 import { run } from './cli';
 import { SLUG, sessionFile } from './config';
 import { texts } from './texts';
@@ -36,13 +39,17 @@ mock.module('../../api/src/storage/s3', () => ({
   createUploadUrl: async (key: string) => bucketUrl(key),
   createDownloadUrl: async (key: string) => bucketUrl(key),
   getObjectSize: async (key: string) => bucket.get(key)?.byteLength ?? null,
+  deleteObject: async (key: string) => {
+    bucket.delete(key);
+  },
 }));
 async function bucketFetch(req: Request) {
   const key = decodeURIComponent(new URL(req.url).pathname.slice('/bucket/'.length));
   const auth = req.headers.get('authorization');
   if (auth) bucketAuthorization.push(auth);
   if (req.method === 'PUT') {
-    if (!req.headers.get('content-type')?.startsWith('audio/')) return new Response(null, { status: 403 });
+    const type = req.headers.get('content-type') ?? '';
+    if (!type.startsWith('audio/') && !type.startsWith('image/')) return new Response(null, { status: 403 });
     bucket.set(key, new Uint8Array(await req.arrayBuffer()));
     return new Response(null, { status: 200 });
   }
@@ -68,7 +75,9 @@ const app = new Hono<AppEnv>()
   .route('/share', shareRoutes)
   .route('/deliveries', deliveryRoutes)
   .route('/billing', billingRoutes)
-  .route('/imports', importRoutes);
+  .route('/imports', importRoutes)
+  .route('/uploads', uploadRoutes)
+  .route('/studio-brand', studioBrandRoutes);
 let server: ReturnType<typeof Bun.serve>;
 let url = '';
 
@@ -744,4 +753,36 @@ test('tracks: renaming, sections, moving, merging and duplicates, for agents tid
   const split = await cli(['versions', 'split', '--project', 'Fernlicht', '--track', 'Kreisel', '--version', 'V2', '--name', 'Kreisel live']);
   expect(split).toMatchObject({ code: 0, out: 'V2 of Kreisel is now the track Kreisel live.' });
   expect(demos.id).not.toBe(band.id);
+});
+
+test('studio sets name, line and logo of the client page and shows them', async () => {
+  const ada = await person();
+  const { cli } = await device();
+  // The device login is rate-limited per address, which the tests before used up
+  expect((await cli(['login', '--link', '-'], { stdin: await loginLink(ada.email) })).code).toBe(0);
+  expect((await cli(['studio'])).out).toBe(texts.studioNotSet);
+
+  const dir = await mkdtemp(join(tmpdir(), 'cli-logo-'));
+  const logo = join(dir, 'logo.png');
+  await writeFile(logo, new Uint8Array([137, 80, 78, 71]));
+  await writeFile(join(dir, 'logo.gif'), new Uint8Array([71, 73, 70]));
+  expect(await cli(['studio', 'set', '--logo', join(dir, 'logo.gif')])).toMatchObject({ code: 1 });
+  expect(await cli(['studio', 'set'])).toMatchObject({ code: 2 });
+
+  const set = await cli(['studio', 'set', '--name', 'Studio Fernlicht', '--line', 'Mix und Master · Freiburg', '--logo', logo, '--json']);
+  const brand = set.json() as { name: string; line: string; logoUrl: string; shown: boolean; allowed: boolean };
+  expect(brand).toMatchObject({ name: 'Studio Fernlicht', line: 'Mix und Master · Freiburg', shown: false, allowed: false });
+  expect(brand).not.toHaveProperty('logoKey');
+  const [row] = await db.select({ key: users.studioLogoKey }).from(users).where(eq(users.id, ada.id));
+  expect(row!.key).toMatch(/^covers\/[0-9a-f-]{36}\.png$/);
+  expect(bucket.get(row!.key!)).toEqual(new Uint8Array([137, 80, 78, 71]));
+
+  await db.update(users).set({ plan: 'solo' }).where(eq(users.id, ada.id));
+  expect((await cli(['studio'])).out).toBe(['Studio Fernlicht · Mix und Master · Freiburg', texts.studioLogo(true), texts.studioShown(true, true)].join('\n'));
+
+  // --clear-logo removes the logo, which leaves the bucket; an empty text clears the line
+  await cli(['studio', 'set', '--clear-logo', '--line', '']);
+  await drainBackground();
+  expect(bucket.has(row!.key!)).toBe(false);
+  expect((await cli(['studio', '--json'])).json()).toMatchObject({ name: 'Studio Fernlicht', line: null, logoUrl: null, shown: true });
 });

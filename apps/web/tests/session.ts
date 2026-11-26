@@ -161,6 +161,14 @@ export function setPlan(userId: string, plan: 'solo' | null, days?: number) {
   `);
 }
 
+// A studio logo as if uploaded through the cover upload; the test bucket holds no files
+export function setStudioLogo(userId: string, key: string) {
+  bun(`
+    import { eq } from 'drizzle-orm';
+    await db.update(users).set({ studioLogoKey: ${JSON.stringify(key)} }).where(eq(users.id, ${JSON.stringify(userId)}));
+  `);
+}
+
 // A running Stripe subscription, as after a paid first invoice (lib/billing.ts)
 export function setSubscription(userId: string, subscriptionId: string) {
   bun(`

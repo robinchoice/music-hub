@@ -13,6 +13,7 @@
   import ProfileSettings from '$lib/components/profile/ProfileSettings.svelte';
   import GuestUploadSettings from '$lib/components/workspace/GuestUploadSettings.svelte';
   import PaymentAccountSettings from '$lib/components/delivery/PaymentAccountSettings.svelte';
+  import StudioBrandSettings from '$lib/components/delivery/StudioBrandSettings.svelte';
   import PlanSettings from '$lib/components/account/PlanSettings.svelte';
   import ReferralSettings from '$lib/components/account/ReferralSettings.svelte';
   import { pushStore, initPush, subscribePush, unsubscribePush } from '$lib/stores/push.svelte.js';
@@ -137,6 +138,7 @@
     <McpSettings />
     <ProfileSettings />
     <GuestUploadSettings />
+    <StudioBrandSettings />
     <PaymentAccountSettings />
   {/if}
 

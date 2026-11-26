@@ -12,6 +12,7 @@ import { referral } from './commands/referral';
 import { projects } from './commands/projects';
 import { reviews } from './commands/reviews';
 import { share } from './commands/share';
+import { studio } from './commands/studio';
 import { members } from './commands/members';
 import { tracks } from './commands/tracks';
 import { versions } from './commands/versions';
@@ -19,7 +20,7 @@ import { DEFAULT_URL, loadSession, SLUG } from './config';
 import { texts } from './texts';
 
 // Every command of the CLI. A new one goes in here (README, „CLI“).
-const commands: Record<string, Command> = { ...auth, projects, members, board, tracks, versions, files, comments, reviews, share, deliveries, plan, referral, imports };
+const commands: Record<string, Command> = { ...auth, projects, members, board, tracks, versions, files, comments, reviews, share, deliveries, studio, plan, referral, imports };
 
 const globalOptions = {
   json: { type: 'boolean' },

@@ -33,6 +33,7 @@ import { membershipOf } from './access.js';
 import { isAdminEmail } from './admin.js';
 import { runInBackground } from './background.js';
 import { submitReview } from './reviews.js';
+import { publicStudioOf } from './studio-brand.js';
 import { newestVersionId } from './shown-version.js';
 import { liveVersion } from './trash.js';
 import { epcPayload } from './payments/girocode.js';
@@ -633,7 +634,7 @@ async function mailPaid(db: Database, delivery: Delivery, amountCents: number) {
     .limit(1);
   if (!row || !delivery.clientEmail) return;
   await sendDeliveryPaidEmail(delivery.clientEmail, {
-    studioName: row.studioName,
+    studioName: (await publicStudioOf(db, delivery.createdById)).studio?.name ?? row.studioName,
     projectName: row.projectName,
     albumToken: row.token,
     amount: formatEuro(amountCents, pickLocale(row.locale)),
@@ -716,7 +717,7 @@ export async function publicDeliveryOf(db: Database, given: Delivery, link: Proj
     delivery = await current();
     state = await deliveryState(db, delivery, link.follows);
   }
-  const [studio] = await db.select({ name: users.name }).from(users).where(eq(users.id, delivery.createdById));
+  const { accountName, studio } = await publicStudioOf(db, delivery.createdById);
   const account = await paymentAccountOf(db, delivery.createdById);
   const [open] = await db
     .select()
@@ -727,7 +728,8 @@ export async function publicDeliveryOf(db: Database, given: Delivery, link: Proj
     id: delivery.id,
     status: delivery.status as DeliveryStatus,
     clientName: delivery.clientName,
-    studioName: studio?.name ?? 'Studio',
+    studioName: studio?.name ?? accountName,
+    studio,
     reference: delivery.reference,
     includeStems: delivery.includeStems,
     extraRoundCents: delivery.extraRoundCents,

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addStem, addVersion, logIn, removeUser, setPlan } from './session.js';
+import { addStem, addVersion, logIn, removeUser, setPlan, setStudioLogo } from './session.js';
 
 let userId: string;
 let projectId: string;
@@ -126,4 +126,49 @@ test('a client approves every song, pays by transfer, and downloads once the stu
   await expect(page.getByRole('heading', { name: 'Kaltfront', level: 2 })).toBeVisible();
   await expect(page.getByRole('link', { name: 'WAV', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Spuren (ZIP)' })).toHaveCount(0);
+});
+
+test('the client page shows the studio brand set in the account while the plan is Studio', async ({ page, context, baseURL }) => {
+  await page.goto('/account');
+  const card = page.locator('#studio');
+  await expect(card.getByRole('heading', { name: 'Dein Studio auf der Kundenseite' })).toBeVisible();
+  await card.getByLabel('Name des Studios').fill('Studio Fernlicht');
+  await card.getByLabel('Kurze Zeile (optional)').fill('Mix und Master · Freiburg');
+  await card.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('Gespeichert', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+  const created = await page.request.post(`/api/v1/deliveries/project/${projectId}`, {
+    data: { clientName: 'Lena Berger', tracks: trackIds.map((trackId) => ({ trackId, priceCents: 12000 })) },
+  });
+  const link = `/album/${(await created.json()).delivery.linkToken}`;
+  const logo = `covers/${crypto.randomUUID()}.png`;
+  setStudioLogo(userId, logo);
+  // 1×1 PNG instead of the bucket
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64');
+  await page.route(`**/${logo}*`, (route) => route.fulfill({ body: png, contentType: 'image/png' }));
+
+  await context.clearCookies();
+  await page.goto(link);
+  const studio = page.locator('.studio');
+  await expect(studio).toContainText('Studio Fernlicht');
+  await expect(studio).toContainText('Mix und Master · Freiburg');
+  await expect(studio.locator('img')).toHaveJSProperty('naturalWidth', 1);
+  await expect(page.locator('.sender')).toHaveCount(0);
+  await expect(page.getByText('von Studio Fernlicht')).toBeVisible();
+  await expect(page.getByText('Abgewickelt mit Music Hub · Du bezahlst direkt an Studio Fernlicht, ohne Provision')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await expect(page.locator('body')).not.toContainText('@example.com');
+
+  await context.addCookies([{ name: 'locale', value: 'en', url: baseURL! }]);
+  await page.reload();
+  await expect(page.getByText('Handled with Music Hub · You pay Studio Fernlicht directly, no commission')).toBeVisible();
+
+  // Without the plan the page names the account as before
+  setPlan(userId, null);
+  await page.reload();
+  await expect(page.getByText('by Studio Klanglabor')).toBeVisible();
+  await expect(page.locator('.studio')).toHaveCount(0);
+  await expect(page.locator('.sender')).toBeVisible();
+  await expect(page.getByText(/Handled with/)).toHaveCount(0);
 });

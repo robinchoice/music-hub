@@ -34,6 +34,7 @@ export async function keysInUse(db: Pick<Database, 'execute'>, keys: string[]) {
          OR k.key IN (SELECT file_key FROM project_files)
          OR k.key IN (SELECT cover_image_url FROM projects WHERE cover_image_url IS NOT NULL)
          OR k.key IN (SELECT cover_image_url FROM tracks WHERE cover_image_url IS NOT NULL)
+         OR k.key IN (SELECT studio_logo_key FROM users WHERE studio_logo_key IS NOT NULL)
     `);
     for (const row of rows) used.add(row.key);
   }

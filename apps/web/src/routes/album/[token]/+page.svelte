@@ -9,7 +9,7 @@
   import Tile from '$lib/components/ui/Tile.svelte';
   import { locale, t } from '$lib/i18n/index.js';
   import { formatTime } from '$lib/utils/format.js';
-  import { formatEuro, type GuestPaymentResponse, type ProjectPublicDeliveryFields, type PublicDelivery, type PublicDeliveryTrack } from '@music-hub/shared';
+  import { APP_NAME, formatEuro, type GuestPaymentResponse, type ProjectPublicDeliveryFields, type PublicDelivery, type PublicDeliveryTrack } from '@music-hub/shared';
   import DecisionDialog from '$lib/components/delivery/DecisionDialog.svelte';
   import PayDialog from '$lib/components/delivery/PayDialog.svelte';
   import { toastError } from '$lib/stores/toast.js';
@@ -42,6 +42,8 @@
   const track = $derived(album?.tracks[current]);
   // A delivery turns the page into the client's order: decide per song, pay, then download
   const delivery = $derived(album?.delivery);
+  // A studio with the plan Studio shows its own name and logo instead of the app's
+  const studio = $derived(delivery?.studio ?? null);
   const dtOf = (trackId: string) => delivery?.tracks.find((t) => t.trackId === trackId);
   const currentDt = $derived(track ? dtOf(track.id) : undefined);
   // Songs of the order without a version to hear yet
@@ -170,13 +172,23 @@
 </script>
 
 <svelte:head>
-  <title>{album ? album.project.name : 'Music Hub'}</title>
+  <title>{album ? album.project.name : APP_NAME}</title>
   <meta name="robots" content="noindex" />
 </svelte:head>
 
 <div class="shell">
   <div class="album-page" class:order-page={!!delivery}>
-    <a class="sender" href="/"><Tile size={26} /> Music Hub</a>
+    {#if studio}
+      <div class="studio">
+        <CoverImage src={studio.logoUrl} name={studio.name} size="md" rounded="md" />
+        <span class="studio-text">
+          <b>{studio.name}</b>
+          {#if studio.line}<small>{studio.line}</small>{/if}
+        </span>
+      </div>
+    {:else if !loading || passwordRequired}
+      <a class="sender" href="/"><Tile size={26} /> {APP_NAME}</a>
+    {/if}
 
     {#if loading && !passwordRequired}
       <p class="muted">{t().guest.listenTrack.loading}</p>
@@ -349,6 +361,9 @@
         {/if}
       {/if}
     {/if}
+    {#if studio && delivery}
+      <p class="powered">{t().guest.album.poweredBy(APP_NAME, delivery.studioName)}</p>
+    {/if}
     <p class="legal"><a href="/impressum">{t().common.imprint}</a> · <a href="/datenschutz">{t().common.privacy}</a></p>
   </div>
   <PleasanceFooter />
@@ -439,6 +454,37 @@
     line-height: 1;
   }
   .sender:hover { color: var(--color-text-primary); }
+  .studio {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .studio-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .studio-text b {
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    font-stretch: 76%;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+  .studio-text small {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+  }
+  .powered {
+    margin: 0;
+    text-align: center;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
 
   .hero {
     display: flex;

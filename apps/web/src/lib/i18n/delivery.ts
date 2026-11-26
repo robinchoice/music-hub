@@ -1,4 +1,4 @@
-import type { DeliveryTrackState, PaymentStatus } from '@music-hub/shared';
+import { APP_NAME, type DeliveryTrackState, type PaymentStatus } from '@music-hub/shared';
 
 export const de = {
   // utils/delivery.ts
@@ -195,6 +195,23 @@ export const de = {
     saveAccount: 'Konto speichern',
     accountSaved: 'Konto gespeichert',
   },
+
+  brand: {
+    title: 'Dein Studio auf der Kundenseite',
+    intro: `Oben auf der Seite deiner Aufträge stehen Logo und Name deines Studios, ${APP_NAME} steht nur klein darunter.`,
+    planHint: 'Das gehört zum Tarif Studio. Ohne ihn zeigt die Seite deinen Kontonamen.',
+    name: 'Name des Studios',
+    namePlaceholder: 'Studio Fernlicht',
+    line: 'Kurze Zeile (optional)',
+    linePlaceholder: 'Mix und Master · Freiburg',
+    logo: 'Logo',
+    logoHint: 'PNG, JPEG oder WebP bis 2 MB, am besten quadratisch und mit eigenem Hintergrund. Ohne Logo stehen dort die Initialen.',
+    addLogo: 'Logo hinzufügen',
+    removeLogo: 'Logo entfernen',
+    saved: 'Gespeichert',
+    logoSaved: 'Logo gespeichert',
+    logoRemoved: 'Logo entfernt',
+  },
 };
 
 export const en: typeof de = {
@@ -386,5 +403,22 @@ export const en: typeof de = {
     transferHint: 'Clients only see holder and IBAN when they pay by bank transfer, along with a GiroCode for their banking app.',
     saveAccount: 'Save account',
     accountSaved: 'Account saved',
+  },
+
+  brand: {
+    title: 'Your studio on the client page',
+    intro: `The page of your orders shows your studio's logo and name at the top, ${APP_NAME} only in small print below.`,
+    planHint: 'This comes with the Studio plan. Without it the page shows your account name.',
+    name: 'Studio name',
+    namePlaceholder: 'Studio Fernlicht',
+    line: 'Short line (optional)',
+    linePlaceholder: 'Mixing and mastering · Freiburg',
+    logo: 'Logo',
+    logoHint: 'PNG, JPEG or WebP up to 2 MB, ideally square and with its own background. Without a logo the initials show.',
+    addLogo: 'Add logo',
+    removeLogo: 'Remove logo',
+    saved: 'Saved',
+    logoSaved: 'Logo saved',
+    logoRemoved: 'Logo removed',
   },
 };

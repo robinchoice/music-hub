@@ -26,7 +26,7 @@ export type Storage = { used: number; limit: number };
 // One row per file somebody pays for, with who pays (uid): the originals of versions and stems
 // they uploaded, earlier files of stems included, and the files of projects, in all projects including archived ones.
 // Stems taken over from open tracks (forked) belong to their first uploader, so they are left out here.
-// Covers, MP3s and waveforms derived from versions don't count.
+// Covers, studio logos (images of at most 2 MB, one per row, paced by takeUploadVolume), MP3s and waveforms derived from versions don't count.
 // kept: counts towards the storage, also while in the trash. live: not deleted at all.
 // guest: uploaded through an upload link in the payer's name.
 // Every count of storage builds on this, so the rule lives in one place.

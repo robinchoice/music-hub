@@ -594,6 +594,9 @@ const ROUTES: [string, RegExp, Handler][] = [
   ['GET', /^\/payment-account$/, () => ({
     account: { lightningAvailable: false, lightning: { connected: false, alias: null }, transfer: null, updatedAt: null },
   })],
+  ['GET', /^\/studio-brand$/, () => ({
+    brand: { name: null, line: null, logoKey: null, logoUrl: null, shown: false, allowed: false },
+  })],
   ['POST', /^\/overview\/dismissals$/, (_, body) => {
     overviewState.dismissed.add(String(body?.taskKey));
     return { ok: true };

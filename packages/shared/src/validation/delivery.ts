@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { dateLocales, type Locale } from '../i18n.js';
 import { PLANS, type Plan } from '../constants/plans.js';
+import { coverKeySchema } from './track.js';
 
 // Deliveries (Aufträge): a studio attaches an order to its own project link. The client approves each
 // song or asks for a correction round, pays the total to the studio once every song is approved, and
@@ -19,6 +20,9 @@ import { PLANS, type Plan } from '../constants/plans.js';
 //   Payment account (requireAuth, own account):
 //     GET    /payment-account                                        -> PaymentAccountResponse
 //     PUT    /payment-account                    paymentAccountSchema -> PaymentAccountResponse
+//   Studio brand (requireAuth, own account): name, line and logo on the guest page of the caller's deliveries
+//     GET    /studio-brand                                           -> StudioBrandResponse
+//     PUT    /studio-brand                       studioBrandSchema   -> StudioBrandResponse (logo: key from POST /uploads/cover)
 //   Admin (adminRoutes, requireAuth + requireAdmin):
 //     PATCH  /admin/users/:id/plan               adminPlanSchema      -> AdminPlanResponse
 //   Guest (no account; X-Share-Password header like the project link):
@@ -72,6 +76,7 @@ export const DELIVERY_ERROR_CODES = [
   'link_has_delivery',
   'already_paid',
   'zip_too_large',
+  'logo_missing',
 ] as const;
 export type DeliveryErrorCode = (typeof DELIVERY_ERROR_CODES)[number];
 
@@ -99,6 +104,7 @@ export const DELIVERY_ERRORS: Record<Locale, Record<DeliveryErrorCode, string>> 
     link_has_delivery: 'An diesem Link hängt ein offener oder bezahlter Auftrag. Einen offenen kannst du erst stornieren.',
     already_paid: 'Die Zahlung ist schon angekommen. Lade die Seite neu, um herunterzuladen.',
     zip_too_large: 'Die Spuren sind zu groß für ein ZIP. Bitte frag das Studio nach einem anderen Weg.',
+    logo_missing: 'Das Logo ist nicht angekommen. Bitte lade es noch einmal hoch.',
   },
   en: {
     plan_required: 'Orders come with the Solo plan.',
@@ -122,6 +128,7 @@ export const DELIVERY_ERRORS: Record<Locale, Record<DeliveryErrorCode, string>> 
     link_has_delivery: 'An open or paid order is attached to this link. Cancel an open one first.',
     already_paid: 'The payment has already arrived. Reload the page to download.',
     zip_too_large: 'The stems are too large for a ZIP. Please ask the studio for another way.',
+    logo_missing: 'The logo did not arrive. Please upload it again.',
   },
 };
 
@@ -190,6 +197,14 @@ export const paymentAccountSchema = z.object({
   accountHolder: z.string().trim().min(1).max(70).nullable().optional(),
 });
 
+// undefined keeps a value, null or an empty text clears it
+const brandText = (max: number) => z.string().trim().max(max).nullable().optional();
+export const studioBrandSchema = z.object({
+  name: brandText(80),
+  line: brandText(120),
+  logoKey: coverKeySchema.nullable().optional(),
+});
+
 export const adminPlanSchema = z.object({
   plan: z.enum(PLANS).nullable(),
   // ISO date-time; null or missing means open-ended
@@ -225,6 +240,7 @@ export type CreateDeliveryInput = z.infer<typeof createDeliverySchema>;
 export type UpdateDeliveryInput = z.infer<typeof updateDeliverySchema>;
 export type GiftRoundInput = z.infer<typeof giftRoundSchema>;
 export type PaymentAccountInput = z.infer<typeof paymentAccountSchema>;
+export type StudioBrandInput = z.infer<typeof studioBrandSchema>;
 export type AdminPlanInput = z.infer<typeof adminPlanSchema>;
 export type DeliveryRoundInput = z.infer<typeof deliveryRoundSchema>;
 export type DeliveryApproveInput = z.infer<typeof deliveryApproveSchema>;
@@ -298,14 +314,23 @@ export type PublicPayment = {
   paidAt: string | null;
 };
 
+export type PublicStudio = {
+  name: string;
+  line: string | null;
+  // Short-lived URL of the logo, null shows the initials
+  logoUrl: string | null;
+};
+
 // The optional `delivery` field of GET /share/project/public/:token, absent without a delivery or
 // when it was cancelled
 export type PublicDelivery = {
   id: string;
   status: DeliveryStatus;
   clientName: string;
-  // Name of the account that made the delivery
+  // The studio's name from its brand while it shows, else the name of the account that made the delivery
   studioName: string;
+  // Name, line and logo of the studio, only while its account has the plan Studio (or is an admin) and set a brand
+  studio?: PublicStudio | null;
   reference: string | null;
   includeStems: boolean;
   extraRoundCents: number;
@@ -406,5 +431,17 @@ export type PaymentAccount = {
 };
 
 export type PaymentAccountResponse = { account: PaymentAccount };
+
+export type StudioBrand = {
+  name: string | null;
+  line: string | null;
+  logoKey: string | null;
+  logoUrl: string | null;
+  // Guests see the brand: the plan is Studio (or the account an admin) and something of it is set
+  shown: boolean;
+  // Whether the plan allows the brand at all
+  allowed: boolean;
+};
+export type StudioBrandResponse = { brand: StudioBrand };
 
 export type AdminPlanResponse = { plan: Plan | null; planUntil: string | null };

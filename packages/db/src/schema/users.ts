@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, bigint, boolean } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, timestamp, bigint, boolean, check } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -34,6 +35,15 @@ export const users = pgTable('users', {
   stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
   // The code in this account's referral link (/register?ref=…), made on first use, see lib/referrals.ts
   referralCode: varchar('referral_code', { length: 16 }).unique(),
+  // How the studio appears on the guest page of its deliveries while the plan is Studio, see routes/studio-brand.ts.
+  // The logo is an image under covers/ like a project cover, see keysInUse in apps/api/src/lib/files.ts.
+  studioName: varchar('studio_name', { length: 80 }),
+  studioLine: varchar('studio_line', { length: 120 }),
+  studioLogoKey: text('studio_logo_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  check('users_studio_name_not_blank', sql`${t.studioName} is null or btrim(${t.studioName}) <> ''`),
+  check('users_studio_line_not_blank', sql`${t.studioLine} is null or btrim(${t.studioLine}) <> ''`),
+  check('users_studio_logo_key', sql`${t.studioLogoKey} is null or ${t.studioLogoKey} ~ '^covers/[0-9a-f-]{36}\\.(jpg|png|webp)$'`),
+]);

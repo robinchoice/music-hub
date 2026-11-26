@@ -42,6 +42,7 @@ import { agentRoutes } from './routes/agents.js';
 import { updateRoutes } from './routes/updates.js';
 import { deliveryRoutes } from './routes/deliveries.js';
 import { paymentAccountRoutes } from './routes/payment-account.js';
+import { studioBrandRoutes } from './routes/studio-brand.js';
 import { billingRoutes } from './routes/billing.js';
 import { dropboxRoutes, importRoutes } from './routes/imports.js';
 import { deliverUpdates, importDrafts } from './lib/updates.js';
@@ -146,6 +147,7 @@ const startup = (async () => {
     .route('/updates', updateRoutes)
     .route('/deliveries', deliveryRoutes)
     .route('/payment-account', paymentAccountRoutes)
+    .route('/studio-brand', studioBrandRoutes)
     .route('/billing', billingRoutes)
     .route('/dropbox', dropboxRoutes)
     .route('/imports', importRoutes);

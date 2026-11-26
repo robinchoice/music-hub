@@ -8,10 +8,13 @@
   let {
     currentUrl = null,
     name = '',
+    labels,
     onChange,
   }: {
     currentUrl?: string | null;
     name?: string;
+    // What the field says instead of "cover", e.g. for a logo
+    labels?: { add: string; remove: string };
     // A new cover key with its file, or null when the cover is removed
     onChange: (key: string | null, file?: File) => void | Promise<void>;
   } = $props();
@@ -93,12 +96,12 @@
       <span class="spinner"></span>
     {:else}
       <Icon name="upload" size={20} />
-      <span class="hint">{currentUrl ? t().workspace.cover.change : t().workspace.cover.add}</span>
+      <span class="hint">{currentUrl ? t().workspace.cover.change : (labels?.add ?? t().workspace.cover.add)}</span>
     {/if}
   </div>
 </label>
 {#if currentUrl}
-  <button type="button" class="remove" onclick={remove} disabled={uploading}>{t().workspace.cover.remove}</button>
+  <button type="button" class="remove" onclick={remove} disabled={uploading}>{labels?.remove ?? t().workspace.cover.remove}</button>
 {/if}
 </div>
 
