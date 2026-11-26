@@ -30,6 +30,16 @@ test('the account offers Pro and Studio by the year or month, and shows a runnin
   await page.reload();
   await expect(card.getByText('Studio, ohne Enddatum')).toBeVisible();
   await expect(card.getByRole('button', { name: 'Mit Karte oder PayPal' })).toHaveCount(0);
+
+  // A free month from an admin: the subscription of the same plan starts charging when it ends
+  setPlan(userId, 'solo', 30);
+  await page.reload();
+  await expect(card.getByText(/^Studio bis /)).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Mit Karte oder PayPal weiterführen' })).toHaveCount(1);
+  await expect(card.getByText(/^Erste Abbuchung am /)).toBeVisible();
+  await expect(card.getByRole('radio', { name: 'Monatlich' })).toBeChecked();
+  await expect(card.locator('.price b')).toHaveText([/^24\s€$/]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('the terms are public while plans are for sale, and a subscription is cancelled in two steps', async ({ page }) => {

@@ -194,7 +194,16 @@ export async function sendDeliveryPaidEmail(to: string, input: { studioName: str
 
 // ---------- Plans (lib/billing.ts) ----------
 
-type PlanMail = { plan: 'pro' | 'solo'; period: 'month' | 'year'; amountCents: number; method: 'stripe' | 'lightning'; paidAt: Date; consentedAt: Date | null };
+// firstChargeAt: a subscription with a trial, amountCents is then what the first charge takes
+type PlanMail = {
+  plan: 'pro' | 'solo';
+  period: 'month' | 'year';
+  amountCents: number;
+  method: 'stripe' | 'lightning';
+  paidAt: Date;
+  consentedAt: Date | null;
+  firstChargeAt: Date | null;
+};
 
 const day = (date: Date, locale: Locale) => date.toLocaleDateString(dateLocales[locale], { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' });
 
@@ -214,8 +223,12 @@ function legalHtml(text: LegalText) {
 export async function sendPlanConfirmationEmail(to: string, input: PlanMail, locale: Locale) {
   const m = messages[locale].mail;
   const plan = m.planNames[input.plan];
-  const intro = m.planConfirmIntro(plan, m.planPeriods[input.period], formatEuro(input.amountCents, locale), day(input.paidAt, locale), m.planMethods[input.method]);
-  const start = input.consentedAt ? m.planConfirmStart(day(input.consentedAt, locale)) : null;
+  const amount = formatEuro(input.amountCents, locale);
+  const intro = input.firstChargeAt
+    ? m.planConfirmTrial(plan, m.planPeriods[input.period], amount, day(input.firstChargeAt, locale), m.planMethods[input.method])
+    : m.planConfirmIntro(plan, m.planPeriods[input.period], amount, day(input.paidAt, locale), m.planMethods[input.method]);
+  // During a trial nothing is paid yet, so withdrawing costs nothing
+  const start = input.consentedAt && !input.firstChargeAt ? m.planConfirmStart(day(input.consentedAt, locale)) : null;
   const terms = TERMS[locale];
   const notice = WITHDRAWAL[locale];
   await sendMail(

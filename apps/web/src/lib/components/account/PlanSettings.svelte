@@ -9,6 +9,7 @@
     PLAN_STORAGE,
     PLANS,
     type BillingCancelResponse,
+    type BillingCheckoutResponse,
     type BillingMethod,
     type BillingView,
     type BillingWithdrawResponse,
@@ -20,6 +21,7 @@
   import { toastSuccess } from '$lib/stores/toast.js';
   import { formatGb } from '$lib/utils/format.js';
   import Button from '$lib/components/ui/Button.svelte';
+  import LightningInvoice from './LightningInvoice.svelte';
 
   // The running plan and buying Pro or Studio (lib/billing.ts in the API). Shown once there is a plan or something to buy.
   let view = $state<BillingView | null>(null);
@@ -30,11 +32,20 @@
   // Two steps for ending a contract: the button, then "now"
   let confirming = $state<'cancel' | string | null>(null);
   let done = $state<string | null>(null);
+  // The Lightning invoice shown as QR code
+  let invoice = $state<{ url: string; paymentId: string } | null>(null);
+  let invoiceOpen = $state(false);
+  const showInvoice = (url: string, paymentId: string) => {
+    invoice = { url, paymentId };
+    invoiceOpen = true;
+  };
   const tx = $derived(t().billing);
   const day = (iso: string) => new Date(iso).toLocaleDateString(dateLocale());
 
   onMount(async () => {
     view = await api.get<BillingView>('/billing', true).catch(() => null);
+    // Continuing a free month goes on monthly unless chosen otherwise
+    if (view?.trialUntil) period = 'month';
     if (page.url.searchParams.get('plan') === 'paid') {
       toastSuccess(t().billing.thanks);
       await goto('/account', { replaceState: true, noScroll: true, keepFocus: true });
@@ -44,7 +55,13 @@
   async function open(path: string, body: unknown, key: string) {
     busy = key;
     try {
-      const { url } = await api.post<{ url: string }>(path, body);
+      const { url, paymentId } = await api.post<BillingCheckoutResponse>(path, body);
+      if (paymentId && url.startsWith('lightning:')) {
+        showInvoice(url, paymentId);
+        busy = null;
+        view = await api.get<BillingView>('/billing', true).catch(() => view);
+        return;
+      }
       window.location.href = url;
     } catch {
       // The API client already showed the error
@@ -132,7 +149,12 @@
             </ul>
             <span class="btns">
               {#if view.plan}
-                <Button size="sm" disabled={!consent} loading={busy === `${plan}-lightning`} onclick={() => buy(plan, 'lightning')}>{tx.extend(tx.extendPeriod[period])}</Button>
+                {#if methodsFor(plan).includes('stripe')}
+                  <Button size="sm" disabled={!consent} loading={busy === `${plan}-stripe`} onclick={() => buy(plan, 'stripe')}>{tx.continueStripe}</Button>
+                {/if}
+                {#if methodsFor(plan).includes('lightning')}
+                  <Button size="sm" variant="secondary" disabled={!consent} loading={busy === `${plan}-lightning`} onclick={() => buy(plan, 'lightning')}>{tx.extend(tx.extendPeriod[period])}</Button>
+                {/if}
               {:else}
                 {#each methodsFor(plan) as method (method)}
                   <Button size="sm" disabled={!consent} variant={method === 'stripe' ? 'primary' : 'secondary'} loading={busy === `${plan}-${method}`} onclick={() => buy(plan, method)}>
@@ -141,6 +163,9 @@
                 {/each}
               {/if}
             </span>
+            {#if view.plan && view.trialUntil && methodsFor(plan).includes('stripe')}
+              <p class="hint">{tx.firstCharge(day(view.trialUntil))}</p>
+            {/if}
           </div>
         {/each}
       </div>
@@ -153,7 +178,10 @@
         {#each view.payments as p (p.id)}
           <li>
             <span>{day(p.createdAt)} · {tx.names[p.plan]} · {formatEuro(p.amountCents, locale())} · {p.method === 'stripe' ? tx.payStripe : tx.payLightning}</span>
-            {#if p.checkoutUrl}
+            {#if p.checkoutUrl?.startsWith('lightning:')}
+              {@const url = p.checkoutUrl}
+              <button type="button" class="link" onclick={() => showInvoice(url, p.id)}>{tx.openInvoice}</button>
+            {:else if p.checkoutUrl}
               <a href={p.checkoutUrl} rel="noopener">{tx.openInvoice}</a>
             {:else if p.withdrawUntil && p.withdrawUntil > new Date().toISOString()}
               <button type="button" class="link" onclick={() => (confirming = p.id)}>{tx.withdraw(day(p.withdrawUntil))}</button>
@@ -176,6 +204,10 @@
   </section>
 {/if}
 
+{#if invoice}
+  <LightningInvoice bind:open={invoiceOpen} url={invoice.url} paymentId={invoice.paymentId} onview={(next) => (view = next)} />
+{/if}
+
 <style>
   .card {
     margin-top: var(--space-5);
@@ -194,6 +226,7 @@
     font-size: var(--text-sm);
   }
   .hint { margin-top: var(--space-3); font-size: var(--text-xs); }
+  .plan .hint { margin: 0; }
   .periods {
     display: inline-flex;
     margin: var(--space-4) 0 var(--space-3);

@@ -118,6 +118,8 @@ const de = {
     planConfirmSubject: (plan: string) => `Dein Tarif ${plan} bei Music Hub`,
     planConfirmIntro: (plan: string, period: string, amount: string, day: string, method: string) =>
       `danke für deine Bestellung: ${plan}, ${period}, ${amount}, bezahlt am ${day} per ${method}. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.`,
+    planConfirmTrial: (plan: string, period: string, amount: string, day: string, method: string) =>
+      `danke für deine Bestellung: ${plan}, ${period}, ${amount} per ${method}. Dein bisheriger Tarif läuft bis ${day} weiter, erst dann wird zum ersten Mal abgebucht. Bis dahin kannst du kostenlos kündigen. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.`,
     planConfirmStart: (day: string) =>
       `Du hast am ${day} ausdrücklich verlangt, dass dein Tarif sofort beginnt. Widerrufst du, zahlst du anteilig für die Zeit bis dahin.`,
     planConfirmTerms: 'Darunter stehen die AGB und die Widerrufsbelehrung, die für deinen Vertrag gelten.',
@@ -267,6 +269,8 @@ const en: typeof de = {
     planConfirmSubject: (plan) => `Your ${plan} plan at Music Hub`,
     planConfirmIntro: (plan, period, amount, day, method) =>
       `thank you for your order: ${plan}, ${period}, ${amount}, paid on ${day} by ${method}. No VAT is charged under § 19 UStG.`,
+    planConfirmTrial: (plan, period, amount, day, method) =>
+      `thank you for your order: ${plan}, ${period}, ${amount} by ${method}. Your current plan runs until ${day}, the first charge comes only then. Until then you can cancel free of charge. No VAT is charged under § 19 UStG.`,
     planConfirmStart: (day) =>
       `On ${day} you expressly requested that your plan starts right away. If you withdraw, you pay pro rata for the time until then.`,
     planConfirmTerms: 'Below are the terms and the cancellation notice that apply to your contract.',

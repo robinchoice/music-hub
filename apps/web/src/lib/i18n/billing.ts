@@ -38,6 +38,16 @@ export const de = {
   payLightning: 'Mit Lightning',
   extend: (period: string) => `Mit Lightning ${period} verlängern`,
   extendPeriod: { month: 'um einen Monat', year: 'um ein Jahr' } as Record<PlanPeriod, string>,
+  continueStripe: 'Mit Karte oder PayPal weiterführen',
+  firstCharge: (day: string) => `Erste Abbuchung am ${day}, bis dahin jederzeit kostenlos kündbar.`,
+  invoice: {
+    title: 'Mit Lightning bezahlen',
+    qr: 'QR-Code der Lightning-Rechnung',
+    openInWallet: 'In der Wallet öffnen',
+    copied: 'Rechnung kopiert',
+    info: 'Bezahl die Rechnung mit einer Lightning-Wallet. Sobald sie bezahlt ist, geht es hier von selbst weiter.',
+    expired: 'Die Rechnung ist abgelaufen. Schließ das Fenster und hol dir eine neue.',
+  },
   conditions:
     'Endpreise, gemäß § 19 UStG ohne Umsatzsteuer. Karte und PayPal laufen als Abo, das sich verlängert, bis du es kündigst; gekündigt läuft es bis zum Ende der bezahlten Zeit. Lightning zahlt einen Monat oder ein Jahr im Voraus, ohne Abo.',
   payments: 'Zahlungen',
@@ -96,6 +106,16 @@ export const en: typeof de = {
   payLightning: 'With Lightning',
   extend: (period) => `Extend ${period} with Lightning`,
   extendPeriod: { month: 'by a month', year: 'by a year' },
+  continueStripe: 'Continue by card or PayPal',
+  firstCharge: (day) => `First charge on ${day}, cancel free of charge any time before.`,
+  invoice: {
+    title: 'Pay with Lightning',
+    qr: 'QR code of the Lightning invoice',
+    openInWallet: 'Open in wallet',
+    copied: 'Invoice copied',
+    info: 'Pay the invoice with a Lightning wallet. Once it is paid, this page moves on by itself.',
+    expired: 'The invoice has expired. Close this window and get a new one.',
+  },
   conditions:
     'Final prices, no VAT under § 19 UStG. Card and PayPal run as a subscription that renews until you cancel; once cancelled it runs to the end of the paid time. Lightning pays a month or a year ahead, no subscription.',
   payments: 'Payments',

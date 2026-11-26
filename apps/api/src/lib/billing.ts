@@ -62,16 +62,32 @@ export function addPeriod(date: Date, period: PlanPeriod) {
   return next;
 }
 
-// What the account may buy now. Without a running plan anything. While one runs, only one more period
-// of the same plan by Lightning; a subscription, a plan without end (set by an admin) or a switch waits.
+const WITHDRAWAL_MS = 14 * 24 * 60 * 60 * 1000;
+// A checkout session lives a day, so a trial this long still ends after the 14 days for withdrawing
+const MIN_TRIAL_MS = WITHDRAWAL_MS + 24 * 60 * 60 * 1000;
+
+// A subscription bought while a plan with an end runs (a free month from an admin, Lightning, referral
+// days) is free until that end and charges first then. Only when the 14 days for withdrawing are over
+// by then, so a withdrawal never has to give back a charge. null: no trial.
+export function trialEnd(user: Pick<User, 'plan' | 'planUntil' | 'stripeSubscriptionId'>, now = new Date()) {
+  if (!activePlan(user, now) || !user.planUntil) return null;
+  // Stripe takes whole seconds
+  const end = new Date(Math.floor(user.planUntil.getTime() / 1000) * 1000);
+  return end.getTime() - now.getTime() >= MIN_TRIAL_MS ? end : null;
+}
+
+// What the account may buy now. Without a running plan anything. While one with an end runs, one more
+// period of the same plan by Lightning, or a subscription of it that starts charging at that end
+// (trialEnd). A subscription, a plan without end (set by an admin) or a switch waits.
 export function buyable(user: Pick<User, 'plan' | 'planUntil' | 'stripeSubscriptionId'>, now = new Date()) {
   const methods = methodsConfigured();
   // A subscription that Stripe still retries counts even after its paid time ran out
   if (user.stripeSubscriptionId) return [];
   const running = activePlan(user, now);
   if (!running) return PLANS.map((plan) => ({ plan, methods }));
-  if (user.planUntil === null || !methods.includes('lightning')) return [];
-  return [{ plan: running, methods: ['lightning'] as BillingMethod[] }];
+  if (user.planUntil === null) return [];
+  const extend = methods.filter((m) => m === 'lightning' || (m === 'stripe' && trialEnd(user, now)));
+  return extend.length ? [{ plan: running, methods: extend }] : [];
 }
 
 export const mayBuy = (user: Parameters<typeof buyable>[0], plan: Plan, method: BillingMethod) =>
@@ -88,6 +104,9 @@ const appUrl = () => process.env.APP_URL || 'http://localhost:5173';
 export async function stripeCheckout(db: Database, user: User, plan: Plan, period: PlanPeriod) {
   try {
     let customer = user.stripeCustomerId;
+    const trial = trialEnd(user);
+    // While a plan with an end runs, a subscription only ever starts with a trial (buyable)
+    if (activePlan(user) && !trial) throw new PaymentServiceError();
     if (!customer) {
       ({ id: customer } = await withTimeout(stripe().customers.create({ email: user.email, metadata: { userId: user.id } }), TIMEOUT_MS));
       await db.update(users).set({ stripeCustomerId: customer }).where(eq(users.id, user.id));
@@ -109,7 +128,10 @@ export async function stripeCheckout(db: Database, user: User, plan: Plan, perio
             },
           },
         ],
-        subscription_data: { metadata: { userId: user.id, plan, period, consentAt: new Date().toISOString() } },
+        subscription_data: {
+          metadata: { userId: user.id, plan, period, consentAt: new Date().toISOString() },
+          ...(trial ? { trial_end: trial.getTime() / 1000 } : {}),
+        },
         success_url: `${appUrl()}/account?plan=paid`,
         cancel_url: `${appUrl()}/account`,
       }),
@@ -149,6 +171,15 @@ export async function stripeEvent(payload: string, signature: string) {
   }
 }
 
+// The time an invoice pays for, plus the grace for retried renewals. A trial's invoice (total 0) buys
+// no time of its own, so it starts where the trial ends: withdrawing it takes back only the grace,
+// and the first real invoice comes after it.
+export function invoicePeriod(lines: { start: number; end: number }[], total: number) {
+  const end = Math.max(...lines.map((l) => l.end)) * 1000;
+  const periodStart = new Date(total === 0 ? end : Math.min(...lines.map((l) => l.start)) * 1000);
+  return { periodStart, until: new Date(end + STRIPE_GRACE_MS) };
+}
+
 const metadataSchema = z.object({ userId: z.uuid(), plan: z.enum(PLANS), period: z.enum(PLAN_PERIODS), consentAt: z.iso.datetime().optional() });
 
 // invoice.paid moves plan_until to the end of the paid period. customer.subscription.deleted only
@@ -164,9 +195,7 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event) {
   const meta = metadataSchema.safeParse(details?.metadata);
   if (!details || !meta.success || !invoice.id) return;
   const subscriptionId = typeof details.subscription === 'string' ? details.subscription : details.subscription.id;
-  const periodStart = new Date(Math.min(...invoice.lines.data.map((line) => line.period.start)) * 1000);
-  const periodEnd = Math.max(...invoice.lines.data.map((line) => line.period.end));
-  const until = new Date(periodEnd * 1000 + STRIPE_GRACE_MS);
+  const { periodStart, until } = invoicePeriod(invoice.lines.data.map((line) => line.period), invoice.total);
   const { userId, plan, period, consentAt } = meta.data;
 
   await db.transaction(async (tx) => {
@@ -210,31 +239,40 @@ export async function handleStripeEvent(db: Database, event: Stripe.Event) {
 
 // ---------- Lightning (BTCPay Server) ----------
 
-// Greenfield API: https://docs.btcpayserver.org/API/Greenfield/v1/
-export type BtcpayInvoice = { id: string; checkoutLink: string; status: string };
+// Greenfield API: https://docs.btcpayserver.org/API/Greenfield/v1/. Its checkout page stays private
+// (BTCPay is only reachable over the tailnet), the account page shows the Lightning invoice itself.
+export type BtcpayInvoice = { id: string; status: string };
 export type BtcpayClient = {
-  createInvoice(input: { amountCents: number; description: string; redirectUrl: string }): Promise<BtcpayInvoice>;
+  createInvoice(input: { amountCents: number; description: string }): Promise<BtcpayInvoice>;
   invoice(id: string): Promise<BtcpayInvoice>;
+  // The BOLT11 invoice to pay it with
+  lightningInvoice(id: string): Promise<string>;
 };
 
-const invoiceSchema = z.object({ id: z.string(), checkoutLink: z.string(), status: z.string() });
+const invoiceSchema = z.object({ id: z.string(), status: z.string() });
+// BTCPay 2 names the method BTC-LN, 1.x BTC-LightningNetwork; both have the BOLT11 as destination
+const paymentMethodsSchema = z.array(z.object({ destination: z.string().nullish() }));
 
 const greenfield: BtcpayClient = {
-  async createInvoice({ amountCents, description, redirectUrl }) {
-    return btcpayRequest('/invoices', {
+  async createInvoice({ amountCents, description }) {
+    return btcpayRequest(invoiceSchema, '/invoices', {
       method: 'POST',
-      body: JSON.stringify({
-        amount: (amountCents / 100).toFixed(2),
-        currency: 'EUR',
-        metadata: { itemDesc: description },
-        checkout: { redirectURL: redirectUrl, redirectAutomatically: true },
-      }),
+      body: JSON.stringify({ amount: (amountCents / 100).toFixed(2), currency: 'EUR', metadata: { itemDesc: description } }),
     });
   },
-  invoice: (id) => btcpayRequest(`/invoices/${encodeURIComponent(id)}`, { method: 'GET' }),
+  invoice: (id) => btcpayRequest(invoiceSchema, `/invoices/${encodeURIComponent(id)}`, { method: 'GET' }),
+  async lightningInvoice(id) {
+    const methods = await btcpayRequest(paymentMethodsSchema, `/invoices/${encodeURIComponent(id)}/payment-methods`, { method: 'GET' });
+    const bolt11 = methods.map((m) => m.destination).find((d) => d && /^ln(bc|tb|bcrt)/i.test(d));
+    if (!bolt11) {
+      console.error('[Billing] BTCPay invoice without Lightning:', id);
+      throw new PaymentServiceError();
+    }
+    return bolt11;
+  },
 };
 
-async function btcpayRequest(path: string, init: RequestInit) {
+async function btcpayRequest<T>(schema: z.ZodType<T>, path: string, init: RequestInit): Promise<T> {
   const url = `${process.env.BTCPAY_URL!.replace(/\/$/, '')}/api/v1/stores/${encodeURIComponent(process.env.BTCPAY_STORE_ID!)}${path}`;
   let body: unknown;
   try {
@@ -249,7 +287,7 @@ async function btcpayRequest(path: string, init: RequestInit) {
     console.error('[Billing] BTCPay request failed:', err instanceof Error ? err.message : err);
     throw new PaymentServiceError();
   }
-  const parsed = invoiceSchema.safeParse(body);
+  const parsed = schema.safeParse(body);
   if (!parsed.success) throw new PaymentServiceError();
   return parsed.data;
 }
@@ -263,24 +301,25 @@ export function setBtcpayClient(next: BtcpayClient | null) {
 const btcpay = () => btcpayClient ?? greenfield;
 
 // An invoice for one period. Paying it later adds the period to plan_until (markLightningPaid).
+// checkout_url holds the lightning: link, the account page shows it as a QR code.
 export async function lightningCheckout(db: Database, user: User, plan: Plan, period: PlanPeriod) {
   const amountCents = PLAN_PRICES[plan][period];
-  const invoice = await btcpay().createInvoice({
-    amountCents,
-    description: `${planName(plan)} · ${period === 'month' ? '1 month' : '1 year'}`,
-    redirectUrl: `${appUrl()}/account?plan=paid`,
-  });
-  await db.insert(planPayments).values({
-    userId: user.id,
-    provider: 'btcpay',
-    externalId: invoice.id,
-    plan,
-    period,
-    amountCents,
-    checkoutUrl: invoice.checkoutLink,
-    consentedAt: new Date(),
-  });
-  return invoice.checkoutLink;
+  const invoice = await btcpay().createInvoice({ amountCents, description: `${planName(plan)} · ${period === 'month' ? '1 month' : '1 year'}` });
+  const url = `lightning:${await btcpay().lightningInvoice(invoice.id)}`;
+  const [payment] = await db
+    .insert(planPayments)
+    .values({
+      userId: user.id,
+      provider: 'btcpay',
+      externalId: invoice.id,
+      plan,
+      period,
+      amountCents,
+      checkoutUrl: url,
+      consentedAt: new Date(),
+    })
+    .returning({ id: planPayments.id });
+  return { url, paymentId: payment!.id };
 }
 
 // The BTCPay webhook body; its content only says which invoice to look at, the status comes from the API
@@ -342,8 +381,6 @@ async function markLightningPaid(db: Database, paymentId: string) {
 }
 
 // ---------- Contracts: confirmation, cancelling, withdrawal ----------
-
-const WITHDRAWAL_MS = 14 * 24 * 60 * 60 * 1000;
 
 // The Stripe calls behind cancelling and withdrawing, replaceable in tests
 export type StripeOps = {
@@ -408,6 +445,8 @@ async function endSubscription(subscriptionId: string) {
 const periodMs = (from: Date, period: PlanPeriod) => addPeriod(from, period).getTime() - from.getTime();
 // Where the time a payment bought starts; rows from before period_start fall back to the payment
 const startOf = (p: Payment) => p.periodStart ?? p.paidAt ?? p.createdAt;
+// A trial's invoice starts where the first real one does (invoicePeriod); the older one comes first
+const byStart = (a: Payment, b: Payment) => startOf(a).getTime() - startOf(b).getTime() || a.createdAt.getTime() - b.createdAt.getTime();
 const proRata = (amountCents: number, part: number, whole: number) => Math.round((amountCents * Math.max(0, Math.min(part, whole))) / whole);
 
 type Payment = typeof planPayments.$inferSelect;
@@ -419,7 +458,7 @@ function withdrawUntil(payment: Payment, all: Payment[]) {
   if (payment.provider === 'stripe') {
     const first = all
       .filter((p) => p.stripeSubscriptionId && p.stripeSubscriptionId === payment.stripeSubscriptionId && p.status === 'paid')
-      .sort((a, b) => startOf(a).getTime() - startOf(b).getTime())[0];
+      .sort(byStart)[0];
     if (first?.id !== payment.id) return null;
   }
   const until = new Date(payment.paidAt.getTime() + WITHDRAWAL_MS);
@@ -437,12 +476,17 @@ async function confirmContract(db: Database, externalId: string) {
     .where(eq(planPayments.externalId, externalId));
   if (!row || row.payment.confirmedAt) return;
   const { payment } = row;
+  const plan = PLANS.find((p) => p === payment.plan) ?? 'pro';
+  const period = payment.period === 'year' ? 'year' : 'month';
+  // A subscription with a trial: its invoice is 0, the price comes with the first charge
+  const firstChargeAt = payment.provider === 'stripe' && payment.amountCents === 0 ? payment.periodStart : null;
   await sendPlanConfirmationEmail(
     row.email,
     {
-      plan: PLANS.find((p) => p === payment.plan) ?? 'pro',
-      period: payment.period === 'year' ? 'year' : 'month',
-      amountCents: payment.amountCents,
+      plan,
+      period,
+      amountCents: firstChargeAt ? PLAN_PRICES[plan][period] : payment.amountCents,
+      firstChargeAt,
       method: payment.provider === 'stripe' ? 'stripe' : 'lightning',
       paidAt: payment.paidAt ?? new Date(),
       consentedAt: payment.consentedAt,
@@ -464,7 +508,7 @@ export async function cancelPlan(db: Database, userId: string) {
     .select()
     .from(planPayments)
     .where(and(eq(planPayments.userId, userId), eq(planPayments.stripeSubscriptionId, subscriptionId), eq(planPayments.status, 'paid')))
-    .orderBy(planPayments.periodStart);
+    .orderBy(planPayments.periodStart, planPayments.createdAt);
   const [first, last] = [payments[0], payments.at(-1)];
   const periodEnd = await stripeCall(() => stripeOps().periodEnd(subscriptionId));
   const now = new Date();
@@ -534,7 +578,12 @@ export async function withdrawPayment(db: Database, userId: string, paymentId: s
         : undefined;
     await tx
       .update(users)
-      .set({ planUntil: until, ...(plan ? { plan } : {}), ...(withdrawing.provider === 'stripe' ? { stripeSubscriptionId: null } : {}) })
+      .set({
+        planUntil: until,
+        ...(plan ? { plan } : {}),
+        // A subscription taken out after this one was cancelled stays
+        ...(withdrawing.provider === 'stripe' && current?.stripeSubscriptionId === withdrawing.stripeSubscriptionId ? { stripeSubscriptionId: null } : {}),
+      })
       .where(eq(users.id, userId));
     await tx.update(planPayments).set({ withdrawnAt: now, refundCents: refund }).where(eq(planPayments.id, withdrawing.id));
     return refund;
@@ -612,6 +661,7 @@ export async function billingView(db: Database, userId: string): Promise<Billing
     planUntil: plan && user!.planUntil ? user!.planUntil.toISOString() : null,
     renews: !!user!.stripeSubscriptionId,
     canBuy: buyable(user!).filter((b) => b.methods.length),
+    trialUntil: trialEnd(user!)?.toISOString() ?? null,
     storage: { usedBytes: storage.used, limitBytes: storage.limit },
     payments: payments.slice(0, 20).map((p) => ({
       withdrawUntil: withdrawUntil(p, payments)?.toISOString() ?? null,

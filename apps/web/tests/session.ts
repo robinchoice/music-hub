@@ -152,10 +152,12 @@ export function sessionClientOf(userId: string) {
 }
 
 // The paid plan that allows deliveries (Aufträge)
-export function setPlan(userId: string, plan: 'solo' | null) {
+// days: the plan ends that many days from now, as a free month from an admin; without, it has no end
+export function setPlan(userId: string, plan: 'solo' | null, days?: number) {
+  const until = days === undefined ? 'null' : `new Date(Date.now() + ${days} * 86400000)`;
   bun(`
     import { eq } from 'drizzle-orm';
-    await db.update(users).set({ plan: ${JSON.stringify(plan)} }).where(eq(users.id, ${JSON.stringify(userId)}));
+    await db.update(users).set({ plan: ${JSON.stringify(plan)}, planUntil: ${until} }).where(eq(users.id, ${JSON.stringify(userId)}));
   `);
 }
 

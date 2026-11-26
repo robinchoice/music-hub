@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
-import { billingCheckoutSchema, billingWithdrawSchema, type BillingCancelResponse, type BillingErrorCode, type BillingWithdrawResponse } from '@music-hub/shared';
+import { billingCheckoutSchema, billingWithdrawSchema, type BillingCancelResponse, type BillingCheckoutResponse, type BillingErrorCode, type BillingWithdrawResponse } from '@music-hub/shared';
 import { users } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
 import {
@@ -59,8 +59,9 @@ export const billingRoutes = new Hono<AppEnv>()
     if (!user || !mayBuy(user, plan, method)) return billingError(c, 'plan_running', 409);
     if (!(await checkouts.hit(db, user.id))) return tooManyRequests(c);
     try {
-      const url = method === 'stripe' ? await stripeCheckout(db, user, plan, period) : await lightningCheckout(db, user, plan, period);
-      return c.json({ url });
+      const body: BillingCheckoutResponse =
+        method === 'stripe' ? { url: await stripeCheckout(db, user, plan, period) } : await lightningCheckout(db, user, plan, period);
+      return c.json(body);
     } catch (err) {
       if (err instanceof PaymentServiceError) return billingError(c, 'billing_failed', 502);
       throw err;

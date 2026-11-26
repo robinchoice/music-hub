@@ -6,7 +6,8 @@ import { eq, inArray, sql, type Column } from 'drizzle-orm';
 import { createDb, migrateDb, planPayments, sessions, users } from '@music-hub/db';
 import { PLAN_PRICES, type BillingView } from '@music-hub/shared';
 import { generateToken, hashToken } from './middleware/auth.js';
-import { addPeriod, setBtcpayClient, setStripeOps, type BtcpayInvoice } from './lib/billing.js';
+import fc from 'fast-check';
+import { addPeriod, invoicePeriod, setBtcpayClient, setStripeOps, trialEnd, type BtcpayInvoice } from './lib/billing.js';
 import { publicPages } from './lib/public-pages.js';
 import { billingRoutes } from './routes/billing.js';
 import type { AppEnv } from './types.js';
@@ -40,11 +41,11 @@ const person = async (values: Partial<typeof users.$inferInsert> = {}) => {
 const userRow = async (id: string) => (await db.select().from(users).where(eq(users.id, id)))[0];
 
 // BTCPay that answers with whatever status the test sets
-const invoices = new Map<string, BtcpayInvoice>();
+const invoices = new Map<string, BtcpayInvoice & { amountCents: number }>();
 setBtcpayClient({
   async createInvoice({ amountCents }) {
-    const id = `inv-${crypto.randomUUID()}`;
-    const invoice = { id, checkoutLink: `https://btcpay.example.com/i/${id}?amount=${amountCents}`, status: 'New' };
+    const id = `inv${crypto.randomUUID().replaceAll('-', '')}`;
+    const invoice = { id, amountCents, status: 'New' };
     invoices.set(id, invoice);
     return invoice;
   },
@@ -53,7 +54,12 @@ setBtcpayClient({
     if (!invoice) throw new Error('unknown invoice');
     return invoice;
   },
+  async lightningInvoice(id) {
+    return `lnbc1fake${id}`;
+  },
 });
+// The invoice behind the lightning: link a checkout answered with
+const invoiceOf = (url: string) => [...invoices.values()].find((i) => url === `lightning:lnbc1fake${i.id}`)!;
 
 const stripeWebhook = async (event: object, secret = env.STRIPE_WEBHOOK_SECRET) => {
   const payload = JSON.stringify(event);
@@ -141,12 +147,16 @@ test('a settled Lightning invoice buys one period, the next one adds to it, an e
   const checkout = async () => {
     const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan: 'pro', period: 'month', method: 'lightning', consent: true }) });
     expect(res.status).toBe(200);
-    const { url } = (await res.json()) as { url: string };
-    return [...invoices.values()].find((i) => i.checkoutLink === url)!;
+    const { url, paymentId } = (await res.json()) as { url: string; paymentId: string };
+    expect(paymentId).toBeString();
+    return invoiceOf(url);
   };
 
   const first = await checkout();
-  expect(first.checkoutLink).toContain(`amount=${PLAN_PRICES.pro.month}`);
+  expect(first.amountCents).toBe(PLAN_PRICES.pro.month);
+  // BTCPay's checkout page stays private: the account page gets the Lightning invoice to show as QR code
+  const pending = (await (await app.request('/billing', { headers: p.headers })).json()) as BillingView;
+  expect(pending.payments).toMatchObject([{ status: 'pending', checkoutUrl: `lightning:lnbc1fake${first.id}` }]);
   expect((await btcpayWebhook(first.id, 'wrong')).status).toBe(400);
   // Not paid yet: the webhook asks BTCPay and changes nothing
   expect((await btcpayWebhook(first.id)).status).toBe(200);
@@ -160,9 +170,9 @@ test('a settled Lightning invoice buys one period, the next one adds to it, an e
   expect(once.plan).toBe('pro');
   expect(Math.abs(once.planUntil!.getTime() - addPeriod(before, 'month').getTime())).toBeLessThan(5000);
 
-  // One more month of the running plan by Lightning, a switch has to wait
+  // One more month of the running plan by Lightning or a subscription from its end, a switch has to wait
   const view = (await (await app.request('/billing', { headers: p.headers })).json()) as BillingView;
-  expect(view.canBuy).toEqual([{ plan: 'pro', methods: ['lightning'] }]);
+  expect(view.canBuy).toEqual([{ plan: 'pro', methods: ['stripe', 'lightning'] }]);
   const switchTo = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan: 'solo', period: 'year', method: 'lightning', consent: true }) });
   expect(switchTo.status).toBe(409);
 
@@ -199,7 +209,7 @@ test('two open invoices for different plans, both paid: the bigger plan runs to 
   const buy = async (plan: string, period: string) => {
     const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period, method: 'lightning', consent: true }) });
     const { url } = (await res.json()) as { url: string };
-    return [...invoices.values()].find((i) => i.checkoutLink === url)!;
+    return invoiceOf(url);
   };
   const studio = await buy('solo', 'year');
   const pro = await buy('pro', 'month');
@@ -345,7 +355,7 @@ test('withdrawing from one more Lightning month takes that month back and refund
   const pay = async () => {
     const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan: 'pro', period: 'month', method: 'lightning', consent: true }) });
     const { url } = (await res.json()) as { url: string };
-    const invoice = [...invoices.values()].find((i) => i.checkoutLink === url)!;
+    const invoice = invoiceOf(url);
     invoice.status = 'Settled';
     await btcpayWebhook(invoice.id);
     return invoice;
@@ -375,7 +385,7 @@ test('withdrawing from a subscription keeps a Lightning month bought on top, and
   await app.request('/billing/cancel', { method: 'POST', headers: p.headers });
   const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan: 'pro', period: 'month', method: 'lightning', consent: true }) });
   const { url } = (await res.json()) as { url: string };
-  const invoice = [...invoices.values()].find((i) => i.checkoutLink === url)!;
+  const invoice = invoiceOf(url);
   invoice.status = 'Settled';
   await btcpayWebhook(invoice.id);
   const extended = (await userRow(p.id)).planUntil!;
@@ -399,7 +409,7 @@ const daysPass = async (userId: string, days: number) => {
 const payLightning = async (p: Awaited<ReturnType<typeof person>>, plan: 'pro' | 'solo', period: 'month' | 'year' = 'month') => {
   const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period, method: 'lightning', consent: true }) });
   const { url } = (await res.json()) as { url: string };
-  const invoice = [...invoices.values()].find((i) => i.checkoutLink === url)!;
+  const invoice = invoiceOf(url);
   invoice.status = 'Settled';
   await btcpayWebhook(invoice.id);
   return (await db.select().from(planPayments).where(eq(planPayments.externalId, invoice.id)))[0];
@@ -433,7 +443,7 @@ test('withdrawing the Studio payment of Studio and Pro paid together leaves Pro'
   const buy = async (plan: string) => {
     const res = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan, period: 'month', method: 'lightning', consent: true }) });
     const { url } = (await res.json()) as { url: string };
-    return [...invoices.values()].find((i) => i.checkoutLink === url)!;
+    return invoiceOf(url);
   };
   const studio = await buy('solo');
   const pro = await buy('pro');
@@ -499,4 +509,127 @@ test('cancelling while Stripe retries a failed renewal ends the plan now, withou
     expect(stripeCalls).toContain(`cancelNow ${sub}`);
     expect((await userRow(p.id)).planUntil!.getTime()).toBeLessThanOrEqual(Date.now());
   }
+});
+
+// A subscription bought during a free month: Stripe's first invoice is 0 for the trial up to `trialEnd`
+const trialInvoice = (userId: string, id: string, subscription: string, trialEnd: Date, start = new Date()) => ({
+  id: `evt_${id}`,
+  object: 'event',
+  type: 'invoice.paid',
+  data: {
+    object: {
+      id,
+      object: 'invoice',
+      customer: 'cus_3',
+      billing_reason: 'subscription_create',
+      amount_paid: 0,
+      total: 0,
+      lines: { data: [{ period: { start: Math.floor(start.getTime() / 1000), end: Math.floor(trialEnd.getTime() / 1000) } }] },
+      parent: {
+        type: 'subscription_details',
+        subscription_details: { subscription, metadata: { userId, plan: 'solo', period: 'month', consentAt: new Date().toISOString() } },
+      },
+    },
+  },
+});
+const renewal = (userId: string, id: string, subscription: string, start: Date, end: Date) => {
+  const event = trialInvoice(userId, id, subscription, end, start);
+  return {
+    ...event,
+    data: { object: { ...event.data.object, billing_reason: 'subscription_cycle', amount_paid: PLAN_PRICES.solo.month, total: PLAN_PRICES.solo.month } },
+  };
+};
+const seconds = (date: Date) => new Date(Math.floor(date.getTime() / 1000) * 1000);
+
+test('during a free month from an admin a card subscription can start, it charges first when the month ends', async () => {
+  const gift = new Date(Date.now() + 30 * DAY);
+  const p = await person({ plan: 'solo', planUntil: gift });
+  const view = (await (await app.request('/billing', { headers: p.headers })).json()) as BillingView;
+  expect(view.canBuy).toEqual([{ plan: 'solo', methods: ['stripe', 'lightning'] }]);
+  expect(view.trialUntil).toBe(seconds(gift).toISOString());
+  // No switch to another plan meanwhile
+  const pro = await app.request('/billing/checkout', { method: 'POST', headers: p.headers, body: JSON.stringify({ plan: 'pro', period: 'month', method: 'stripe', consent: true }) });
+  expect(pro.status).toBe(409);
+
+  // Less than the 14 days for withdrawing plus a day left: only Lightning, no trial
+  const late = await person({ plan: 'solo', planUntil: new Date(Date.now() + 14 * DAY) });
+  const lateView = (await (await app.request('/billing', { headers: late.headers })).json()) as BillingView;
+  expect(lateView.canBuy).toEqual([{ plan: 'solo', methods: ['lightning'] }]);
+  expect(lateView.trialUntil).toBeNull();
+  const refused = await app.request('/billing/checkout', { method: 'POST', headers: late.headers, body: JSON.stringify({ plan: 'solo', period: 'month', method: 'stripe', consent: true }) });
+  expect(refused.status).toBe(409);
+});
+
+test('the trial invoice keeps the free month, the first charge follows it, and only the trial can be withdrawn from', async () => {
+  const gift = seconds(new Date(Date.now() + 30 * DAY));
+  const p = await person({ plan: 'solo', planUntil: gift });
+  const sub = `sub_t_${p.id}`;
+  await stripeWebhook(trialInvoice(p.id, `in_t1_${p.id}`, sub, gift));
+  let user = await userRow(p.id);
+  expect(user).toMatchObject({ plan: 'solo', stripeSubscriptionId: sub });
+  expect(user.planUntil!.getTime()).toBe(gift.getTime() + 3 * DAY);
+  const [trial] = await db.select().from(planPayments).where(eq(planPayments.externalId, `in_t1_${p.id}`));
+  expect(trial).toMatchObject({ amountCents: 0, periodStart: gift });
+  expect(trial.confirmedAt).not.toBeNull();
+  expect(((await (await app.request('/billing', { headers: p.headers })).json()) as BillingView).canBuy).toEqual([]);
+
+  // The month ends, Stripe charges for the first time
+  await stripeWebhook(renewal(p.id, `in_t2_${p.id}`, sub, gift, addPeriod(gift, 'month')));
+  user = await userRow(p.id);
+  expect(user.planUntil!.getTime()).toBe(addPeriod(gift, 'month').getTime() + 3 * DAY);
+  const view = (await (await app.request('/billing', { headers: p.headers })).json()) as BillingView;
+  const byAmount = Object.fromEntries(view.payments.map((x) => [x.amountCents, x.withdrawUntil]));
+  expect(byAmount[0]).not.toBeNull();
+  expect(byAmount[PLAN_PRICES.solo.month]).toBeNull();
+
+  // Cancelling keeps the paid month
+  stripePeriodEnd = addPeriod(gift, 'month');
+  const res = await app.request('/billing/cancel', { method: 'POST', headers: p.headers });
+  expect(await res.json()).toEqual({ endsAt: stripePeriodEnd.toISOString(), refundCents: 0 });
+  expect(stripeCalls).toContain(`cancelAt ${sub} period_end`);
+});
+
+test('withdrawing or cancelling during the trial ends the subscription and leaves the free month as it was', async () => {
+  const gift = seconds(new Date(Date.now() + 30 * DAY));
+  const p = await person({ plan: 'solo', planUntil: gift });
+  await stripeWebhook(trialInvoice(p.id, `in_tw_${p.id}`, `sub_tw_${p.id}`, gift));
+  const [trial] = await db.select().from(planPayments).where(eq(planPayments.externalId, `in_tw_${p.id}`));
+  expect(await withdraw(p, trial.id)).toBe(0);
+  expect(stripeCalls).toContain(`cancelNow sub_tw_${p.id}`);
+  expect(await userRow(p.id)).toMatchObject({ plan: 'solo', planUntil: gift, stripeSubscriptionId: null });
+
+  const q = await person({ plan: 'solo', planUntil: gift });
+  await stripeWebhook(trialInvoice(q.id, `in_tc_${q.id}`, `sub_tc_${q.id}`, gift));
+  stripePeriodEnd = gift;
+  const res = await app.request('/billing/cancel', { method: 'POST', headers: q.headers });
+  expect(await res.json()).toEqual({ endsAt: gift.toISOString(), refundCents: 0 });
+  expect(stripeCalls).toContain(`cancelAt sub_tc_${q.id} period_end`);
+  expect(await userRow(q.id)).toMatchObject({ plan: 'solo', planUntil: gift, stripeSubscriptionId: null });
+});
+
+test('a trial ends exactly where the running plan does, never before the 14 days for withdrawing plus a day', () => {
+  fc.assert(
+    fc.property(fc.integer({ min: -60 * DAY, max: 800 * DAY }), fc.date({ min: new Date('2026-01-01'), max: new Date('2030-01-01'), noInvalidDate: true }), (offset, now) => {
+      const planUntil = new Date(now.getTime() + offset);
+      const end = trialEnd({ plan: 'solo', planUntil, stripeSubscriptionId: null }, now);
+      // Stripe takes whole seconds, so right at the limit the trial may fall short of it by less than one
+      if (end === null) return offset < 15 * DAY + 1000;
+      return end.getTime() - now.getTime() >= 15 * DAY && end.getTime() % 1000 === 0 && end <= planUntil && planUntil.getTime() - end.getTime() < 1000;
+    }),
+  );
+  expect(trialEnd({ plan: 'solo', planUntil: null, stripeSubscriptionId: null })).toBeNull();
+  expect(trialEnd({ plan: null, planUntil: new Date(Date.now() + 30 * DAY), stripeSubscriptionId: null })).toBeNull();
+});
+
+test('an invoice pays from its first line to its last plus grace, a trial invoice only the grace after the trial', () => {
+  const second = fc.integer({ min: 1_700_000_000, max: 1_900_000_000 });
+  fc.assert(
+    fc.property(fc.array(fc.tuple(second, fc.integer({ min: 1, max: 400 * 86_400 })), { minLength: 1, maxLength: 4 }), fc.nat(100_000), (spans, total) => {
+      const lines = spans.map(([start, length]) => ({ start, end: start + length }));
+      const { periodStart, until } = invoicePeriod(lines, total);
+      const end = Math.max(...lines.map((l) => l.end)) * 1000;
+      expect(until.getTime()).toBe(end + 3 * DAY);
+      expect(periodStart.getTime()).toBe(total === 0 ? end : Math.min(...lines.map((l) => l.start)) * 1000);
+    }),
+  );
 });

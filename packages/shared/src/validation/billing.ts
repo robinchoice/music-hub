@@ -5,7 +5,7 @@ import { PLAN_PERIODS, PLANS, type Plan, type PlanPeriod } from '../constants/pl
 // (BTCPay) pays one month or year ahead. Either way a payment only moves users.plan_until.
 //
 //     GET   /billing           -> BillingView
-//     POST  /billing/checkout  billingCheckoutSchema -> { url }
+//     POST  /billing/checkout  billingCheckoutSchema -> BillingCheckoutResponse
 //     POST  /billing/portal    -> { url }   Stripe's page to change the card and see receipts
 //     POST  /billing/cancel    -> BillingCancelResponse   "Verträge hier kündigen" (§ 312k BGB)
 //     POST  /billing/withdraw  billingWithdrawSchema -> BillingWithdrawResponse   within 14 days (§ 356a BGB)
@@ -28,6 +28,8 @@ export const billingCheckoutSchema = z.object({
 export const billingWithdrawSchema = z.object({ paymentId: z.uuid() });
 
 // When the plan ends now, and what we refund by hand (pro rata, in cents)
+// Stripe: its checkout page. Lightning: a lightning: link to show as QR code, paymentId to wait for it.
+export type BillingCheckoutResponse = { url: string; paymentId?: string };
 export type BillingCancelResponse = { endsAt: string; refundCents: number };
 export type BillingWithdrawResponse = { refundCents: number };
 export type BillingCheckoutInput = z.infer<typeof billingCheckoutSchema>;
@@ -60,6 +62,8 @@ export type BillingView = {
   renews: boolean;
   // Plans the account may buy now, and how: one more period of the running plan only by Lightning
   canBuy: { plan: Plan; methods: BillingMethod[] }[];
+  // While a plan with an end runs: a subscription bought now charges first then, see trialEnd in the API
+  trialUntil: string | null;
   storage: { usedBytes: number; limitBytes: number };
   payments: PlanPaymentView[];
 };
