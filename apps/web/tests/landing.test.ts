@@ -1,14 +1,19 @@
 import { expect, test, type Page } from '@playwright/test';
 import { logIn, removeUser } from './session.js';
 
-// Console errors fail the test
+// Console errors fail the test. A ResizeObserver loop only means the browser
+// delivers the remaining notifications in the next frame, which the layout
+// changes here may cause in WebKit; it is no error of the page.
+const benign = 'ResizeObserver loop completed with undelivered notifications.';
 let errors: string[] = [];
 test.beforeEach(({ page }) => {
   errors = [];
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
+    if (msg.type() === 'error' && msg.text() !== benign) errors.push(msg.text());
   });
-  page.on('pageerror', (err) => errors.push(err.message));
+  page.on('pageerror', (err) => {
+    if (err.message !== benign) errors.push(err.message);
+  });
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
