@@ -33,6 +33,7 @@ type Mail = {
   text?: string;
   replyTo?: { name: string; address: string };
   headers?: Record<string, string>;
+  attachments?: { filename: string; content: Buffer }[];
 };
 
 // Without SMTP the mail goes to the log as devLog, in dev only
@@ -407,6 +408,17 @@ export async function sendFeedbackEmail(
     },
     `Feedback mail to ${to}: ${subject}`,
   );
+}
+
+// Bug report or idea from the bug button, for the team (FEEDBACK_EMAIL). Answering reaches the tester.
+export async function sendAppFeedbackEmail(mail: {
+  to: string;
+  replyTo: { name: string; address: string };
+  subject: string;
+  text: string;
+  attachments: { filename: string; content: Buffer }[];
+}) {
+  await sendMail({ ...mail, html: `<pre style="white-space: pre-wrap; font-family: inherit;">${escapeHtml(mail.text)}</pre>` }, `App feedback mail to ${mail.to}: ${mail.subject}`);
 }
 
 // Someone who uploaded a version asks for your feedback. Shares the opt-out with the version mails.

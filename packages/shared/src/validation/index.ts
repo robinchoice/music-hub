@@ -10,3 +10,4 @@ export * from './profile.js';
 export * from './updates.js';
 export * from './delivery.js';
 export * from './billing.js';
+export * from './app-feedback.js';

@@ -37,6 +37,11 @@ const envSchema = z.object({
   BTCPAY_STORE_ID: z.string().or(unset).exactOptional(),
   BTCPAY_API_KEY: z.string().or(unset).exactOptional(),
   BTCPAY_WEBHOOK_SECRET: z.string().or(unset).exactOptional(),
+  // Feedback on the app (README, „Feedback zur App“): issues in GITHUB_REPOSITORY (owner/repo, baked in by
+  // the CI) with a fine-grained token that may only write issues, mails to FEEDBACK_EMAIL. Unset: neither.
+  GITHUB_REPOSITORY: z.string().regex(/^[\w.-]+\/[\w.-]+$/).or(unset).exactOptional(),
+  FEEDBACK_GITHUB_TOKEN: z.string().or(unset).exactOptional(),
+  FEEDBACK_EMAIL: z.email().or(unset).exactOptional(),
 });
 
 declare module 'bun' {

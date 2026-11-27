@@ -1,6 +1,8 @@
 <script lang="ts">
   import AppDock from '$lib/components/AppDock.svelte';
+  import { setTestMode, testMode } from '$lib/app-feedback.svelte.js';
   import { locale, setLocale, t } from '$lib/i18n/index.js';
+  import { user } from '$lib/stores/auth.js';
 
   const other = $derived(locale() === 'de' ? 'en' : 'de');
 </script>
@@ -10,6 +12,12 @@
   <a href="https://pleasance.org">{t().common.madeBy} <span class="wordmark" role="img" aria-label="Pleasance"></span></a>
   <!-- The colour band is the dock of the Pleasance apps -->
   <AppDock />
+  {#if $user}
+    <label title={t().appFeedback.testModeHint}>
+      <input type="checkbox" checked={testMode.on} onchange={(e) => setTestMode(e.currentTarget.checked)} />
+      {t().appFeedback.testMode}
+    </label>
+  {/if}
   <button type="button" lang={other} onclick={() => setLocale(other)}>{t().common.otherLanguage}</button>
 </footer>
 
@@ -44,6 +52,20 @@
   footer > :global(.dock) {
     min-width: 3rem;
     margin-left: auto;
+  }
+  label {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 0.375rem;
+    align-items: center;
+    cursor: pointer;
+  }
+  label:hover {
+    color: var(--color-text-primary);
+  }
+  input {
+    margin: 0;
+    accent-color: var(--color-accent);
   }
   button {
     flex-shrink: 0;

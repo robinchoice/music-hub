@@ -182,6 +182,18 @@ Mails zu neuen Funktionen an alle, die sie bestellt haben. Ohne Opt-in geht nich
 - Senden: nur Admins aus `ADMIN_EMAILS` unter `/admin/updates`, mit Vorschau und Testmail an sich selbst je Sprache. Gesendet wird erst mit Titel und Feature auf Deutsch und Englisch, jede Person bekommt die Sprache ihres Kontos (`users.locale`). Updates von vor Englisch (ohne `content.en`) lesen alle auf Deutsch. Danach lässt sich das Update nicht mehr ändern.
 - Versand: die API, eine Mail alle `UPDATE_MAIL_INTERVAL_MS` (Standard 6000) über alle Instanzen, mit drei Versuchen pro Empfänger. Zwei Instanzen schicken nie dieselbe Zeile gleichzeitig, als gesendet gilt sie aber erst nach dem Commit: Stirbt die API zwischen SMTP-Annahme und Commit oder meldet der Server einen Fehler für eine zugestellte Mail, geht sie erneut raus. Eine doppelte Mail ist also selten möglich, eine nie angenommene gilt nie als gesendet. Die Logs nennen keine Adressen.
 
+## Feedback zur App
+
+Rückmeldungen zu Music Hub selbst, nicht zu Tracks (die heißen im Code `reviews`). Nach dem Baustein „Feedback“ aus robinchoice/starter.
+
+- Käfer-Knopf: Mit dem Testmodus in der Fußzeile (gespeichert pro Gerät, Standard aus, weil Music Hub live ist) erscheint auf jeder Seite hinter dem Login ein verschiebbarer Knopf. Ein Tipp macht einen Screenshot, die Stelle lässt sich markieren.
+- Ideen ohne Screenshot: „Feedback zur App“ im Kontomenü der Seitenleiste, für alle.
+- Mitgeschickt werden Seite, Gerät, Fenstergröße, Sprache und die letzten fünf fehlgeschlagenen API-Aufrufe, das Formular zeigt sie unter „Was mitgeschickt wird“. Tokens von Share-, Album- und Upload-Links in Pfaden werden zu `…` (`withoutTokens`).
+- Die API (`routes/app-feedback.ts`) speichert jede Meldung in der Tabelle `feedback` (wie im starter, im Code `appFeedback`) und legt dann ein Issue in diesem Repo an, mit den Labels `feedback`, `bug` oder `idea` und der Plattform. Das Repo ist öffentlich: Im Issue stehen weder Name noch Mail noch Screenshot, das Formular sagt das. Danach geht eine Mail mit Screenshot im Anhang und Link aufs Issue an `FEEDBACK_EMAIL`, eine Antwort darauf erreicht die Person. Fällt GitHub oder die Mail aus, bleibt die Meldung gespeichert.
+- Screenshots liefert `/api/v1/app-feedback/<id>/screenshot` nur an Admins aus `ADMIN_EMAILS`.
+- Das Repo backt die CI als `GITHUB_REPOSITORY` ins API-Image. Ohne `FEEDBACK_GITHUB_TOKEN` (fine-grained, nur Issues) entsteht kein Issue, ohne `FEEDBACK_EMAIL` keine Mail.
+- Alle offenen Meldungen: `gh issue list -R robinchoice/music-hub --label feedback`
+
 ## Ablieferung mit Bezahlwand
 
 Ein Studio hängt an seinen Link zum Reinhören für ein Projekt (`/album/<token>`) einen Auftrag: Kunde, Preis je Song, inklusive Korrekturrunden (Standard 2) und Preis jeder weiteren Runde. Im Projekt unter „Auftrag“, nur für Owner, oder per CLI `musichub deliveries`.

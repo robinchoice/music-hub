@@ -20,9 +20,10 @@ FROM base AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 3000
-# Set by CI: /health reports it as revision, the deploy waits for it
+# Set by CI: /health reports it as revision, the deploy waits for it. Feedback on the app files issues in GITHUB_REPOSITORY.
 ARG APP_VERSION=dev
-ENV NODE_ENV=production APP_VERSION=$APP_VERSION
+ARG GITHUB_REPOSITORY=
+ENV NODE_ENV=production APP_VERSION=$APP_VERSION GITHUB_REPOSITORY=$GITHUB_REPOSITORY
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 CMD curl -f http://localhost:3000/health || exit 1
 
 # Audio worker (ghcr.io/robinchoice/musichub-worker): the API image with another start command

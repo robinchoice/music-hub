@@ -10,6 +10,7 @@
   import ShortcutsModal from '$lib/components/ui/ShortcutsModal.svelte';
   import TooltipLayer from '$lib/components/ui/TooltipLayer.svelte';
   import GlobalDrop from '$lib/components/workspace/GlobalDrop.svelte';
+  import AppFeedback from '$lib/components/AppFeedback.svelte';
   import { stopListen } from '$lib/stores/listen.js';
   import { refreshOverview } from '$lib/stores/overview.js';
   import { onKey } from '$lib/utils/shortcuts.js';
@@ -74,6 +75,7 @@
   <ShortcutsModal bind:open={shortcutsOpen} />
   <TooltipLayer />
   <GlobalDrop bind:this={dropRef} />
+  <AppFeedback />
 {/if}
 
 <style>

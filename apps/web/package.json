@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",
+    "modern-screenshot": "^4.7.0",
     "zod": "^4.6.5"
   }
 }

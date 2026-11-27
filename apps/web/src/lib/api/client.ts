@@ -6,6 +6,14 @@ import { t } from '$lib/i18n/index.js';
 
 const errorAnswer = z.object({ error: z.string(), code: z.string().exactOptional() });
 
+// The last failed calls, newest first. Feedback on the app sends them along.
+export const recentErrors: string[] = [];
+
+function noteError(method: string, path: string, status: number | string) {
+  recentErrors.unshift(`${method} /api/v1${path.split('?')[0]} → ${status}`);
+  recentErrors.length = Math.min(recentErrors.length, 5);
+}
+
 type FetchOptions = {
   method?: string;
   body?: unknown;
@@ -44,9 +52,13 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
     },
     credentials: 'include',
     body: body ? JSON.stringify(body) : null,
+  }).catch((err) => {
+    noteError(method, path, 'offline');
+    throw err;
   });
 
   if (!res.ok) {
+    noteError(method, path, res.status);
     const error = errorAnswer.safeParse(await res.json().catch(() => null)).data;
     // Invalid input comes back as a validation object, a few API messages are still English codes
     const text = typeof error?.error === 'string' ? error.error : null;

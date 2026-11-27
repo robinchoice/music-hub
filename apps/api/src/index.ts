@@ -41,6 +41,7 @@ import { profileRoutes } from './routes/profiles.js';
 import { requestRoutes } from './routes/requests.js';
 import { agentRoutes } from './routes/agents.js';
 import { updateRoutes } from './routes/updates.js';
+import { appFeedbackRoutes } from './routes/app-feedback.js';
 import { deliveryRoutes } from './routes/deliveries.js';
 import { paymentAccountRoutes } from './routes/payment-account.js';
 import { studioBrandRoutes } from './routes/studio-brand.js';
@@ -146,6 +147,7 @@ const startup = (async () => {
     .route('/profiles', profileRoutes)
     .route('/requests', requestRoutes)
     .route('/updates', updateRoutes)
+    .route('/app-feedback', appFeedbackRoutes)
     .route('/deliveries', deliveryRoutes)
     .route('/payment-account', paymentAccountRoutes)
     .route('/studio-brand', studioBrandRoutes)

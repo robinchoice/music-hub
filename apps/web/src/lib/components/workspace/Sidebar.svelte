@@ -11,6 +11,7 @@
   import { loadOverview, overview, tasks } from '$lib/stores/overview.js';
   import { STATUS_COLORS, type OverviewProject, type OverviewTrack } from '$lib/utils/overview.js';
   import { loadRequests, requests } from '$lib/stores/requests.js';
+  import { openFeedback } from '$lib/app-feedback.svelte.js';
 
   // Like a drive: a few fixed places here, the projects themselves live in "Meine Musik"
   const NAV = $derived([
@@ -258,6 +259,7 @@
         {/if}
         {#if accounts}<hr />{/if}
         <a href="/account" onclick={() => { menuOpen = false; handleNavClick(); }}>{t().workspace.sidebar.account}</a>
+        <button onclick={() => { menuOpen = false; handleNavClick(); openFeedback('idea'); }}>{t().appFeedback.giveFeedback}</button>
         <button onclick={() => handleLogout()}>{t().workspace.sidebar.logout}</button>
         {#if accounts && accounts.list.length > 1}
           <button onclick={() => handleLogout(true)}>{t().workspace.sidebar.logoutAll}</button>

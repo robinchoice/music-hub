@@ -160,7 +160,7 @@ export const de = {
       [
         '8. Speicherung auf deinem Gerät',
         [
-          'Music Hub legt in deinem Browser nur ab, was für die Funktion nötig ist: das Cookie für die Anmeldung, die Sprache, die du in der Fußzeile wählst, deinen Namen für geteilte Links, ob du die Einführung schon gesehen hast, und Audiodateien, die du ausdrücklich offline speicherst. Ein Service Worker hält die Programmdateien vor, damit Music Hub schnell lädt und sich als App installieren lässt. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG (unbedingt erforderlich).',
+          'Music Hub legt in deinem Browser nur ab, was für die Funktion nötig ist: das Cookie für die Anmeldung, die Sprache, die du in der Fußzeile wählst, deinen Namen für geteilte Links, ob du die Einführung schon gesehen hast, ob der Testmodus an ist und wo der Käfer-Knopf steht, und Audiodateien, die du ausdrücklich offline speicherst. Ein Service Worker hält die Programmdateien vor, damit Music Hub schnell lädt und sich als App installieren lässt. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG (unbedingt erforderlich).',
         ],
       ],
       [
@@ -173,6 +173,7 @@ export const de = {
         '10. Fehlerberichte',
         [
           'Tritt in Music Hub ein Fehler auf, geht ein Bericht an GlitchTip, das auf meinem eigenen Server läuft. Die Berichte enthalten technische Angaben zum Fehler, aber keine Kontodaten, Cookies oder Inhalte von Anfragen. GlitchTip löscht die Berichte nach 90 Tagen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem fehlerfreien Betrieb).',
+          'Schickst du über „Feedback zur App“ oder den Käfer-Knopf eine Meldung, speichere ich sie mit deinem Konto, der Seite, deinem Gerät und Browser, der Fenstergröße, der Sprache und den letzten fehlgeschlagenen Anfragen, beim Käfer-Knopf auch mit dem Screenshot. Nachricht und diese technischen Angaben erscheinen ohne Name, Mail und Screenshot als öffentliches Issue im Quellcode-Repository auf GitHub (GitHub Inc., USA). Die Meldung samt Screenshot geht außerdem per Mail an mich, damit ich dir antworten kann. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (deine Anfrage).',
         ],
       ],
       [
@@ -400,7 +401,7 @@ export const en: typeof de = {
       [
         '8. Storage on your device',
         [
-          'Music Hub stores in your browser only what is needed for it to work: the cookie for logging in, the language you pick in the footer, your name for shared links, whether you have already seen the introduction, and audio files you explicitly save offline. A service worker keeps the program files so that Music Hub loads quickly and can be installed as an app. The legal basis is § 25(2) no. 2 TDDDG (strictly necessary).',
+          'Music Hub stores in your browser only what is needed for it to work: the cookie for logging in, the language you pick in the footer, your name for shared links, whether you have already seen the introduction, whether test mode is on and where the bug button sits, and audio files you explicitly save offline. A service worker keeps the program files so that Music Hub loads quickly and can be installed as an app. The legal basis is § 25(2) no. 2 TDDDG (strictly necessary).',
         ],
       ],
       [
@@ -413,6 +414,7 @@ export const en: typeof de = {
         '10. Error reports',
         [
           'If an error occurs in Music Hub, a report goes to GlitchTip, which runs on my own server. The reports contain technical details about the error, but no account data, cookies or request contents. GlitchTip deletes the reports after 90 days. The legal basis is Art. 6(1)(f) GDPR (legitimate interest in error-free operation).',
+          'If you send a report through “Feedback on the app” or the bug button, I store it with your account, the page, your device and browser, the window size, the language and the most recent failed requests, and with the screenshot for the bug button. The message and these technical details appear without your name, email or screenshot as a public issue in the source code repository on GitHub (GitHub Inc., USA). The report and screenshot also reach me by email so I can reply. The legal basis is Art. 6(1)(b) GDPR (your request).',
         ],
       ],
       [

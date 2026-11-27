@@ -1,3 +1,4 @@
+import * as appFeedback from './app-feedback.js';
 import * as billing from './billing.js';
 import * as mcp from './mcp.js';
 import * as common from './common.js';
@@ -14,6 +15,7 @@ import * as workspace from './workspace.js';
 // object. `en: typeof de` makes TypeScript report any text English lacks.
 export const messages = {
   de: {
+    appFeedback: appFeedback.de,
     billing: billing.de,
     mcp: mcp.de,
     common: common.de,
@@ -27,6 +29,7 @@ export const messages = {
     workspace: workspace.de,
   },
   en: {
+    appFeedback: appFeedback.en,
     billing: billing.en,
     mcp: mcp.en,
     common: common.en,

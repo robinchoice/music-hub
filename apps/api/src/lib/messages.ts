@@ -59,6 +59,7 @@ const de = {
     moveRemix: 'Ein Remix lässt sich nur mit einem Remix desselben Originals unter derselben Lizenz zusammenführen.',
     moveSameTrack: 'Wähle einen anderen Track als Ziel.',
     uploadTrackChanged: 'Der Track wurde während des Uploads verschoben oder zusammengeführt. Bitte erneut versuchen.',
+    invalidScreenshot: 'Der Screenshot muss ein PNG oder JPEG sein.',
   },
 
   push: {
@@ -218,6 +219,7 @@ const en: typeof de = {
     moveRemix: 'A remix can only be merged with a remix of the same original under the same license.',
     moveSameTrack: 'Pick another track as the target.',
     uploadTrackChanged: 'The track was moved or merged during the upload. Please try again.',
+    invalidScreenshot: 'The screenshot must be a PNG or JPEG.',
   },
 
   push: {

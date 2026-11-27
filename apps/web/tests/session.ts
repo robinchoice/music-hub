@@ -196,3 +196,15 @@ export async function projectAction(page: Page, name: 'Neuer Track' | 'Upload-Li
   await page.getByRole('button', { name: 'Weitere Aktionen' }).click();
   await page.getByRole('dialog', { name: 'Weitere Aktionen' }).getByRole('button', { name: name === 'Upload-Link' ? 'Upload-Link für Gäste' : name }).click();
 }
+
+// Feedback on the app a user sent, oldest first, with the first bytes of the screenshot
+export function appFeedbackOf(userId: string) {
+  return JSON.parse(
+    bun(`
+      import { asc, eq } from 'drizzle-orm';
+      import { appFeedback } from '@music-hub/db';
+      const rows = await db.select().from(appFeedback).where(eq(appFeedback.userId, ${JSON.stringify(userId)})).orderBy(asc(appFeedback.createdAt));
+      console.log(JSON.stringify(rows.map((r) => ({ kind: r.kind, message: r.message, screenshot: r.screenshot ? [...r.screenshot.subarray(0, 3)] : null, context: r.context }))));
+    `),
+  ) as { kind: string; message: string; screenshot: number[] | null; context: Record<string, unknown> }[];
+}
