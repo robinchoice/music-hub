@@ -45,7 +45,7 @@ import { replyTarget } from './comments.js';
 import { notBlocked } from '../lib/users.js';
 import { submitReview } from '../lib/reviews.js';
 import { publish } from '../services/sse.js';
-import { zipResponse } from './stems.js';
+import { zipResponse } from '../lib/zip.js';
 import {
   activeDeliveryOfProjectLink,
   announcePayment,

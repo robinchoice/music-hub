@@ -89,12 +89,12 @@
     stems = res.stems;
   }
 
-  function downloadZip() {
+  function downloadZip(kind: 'download-zip' | 'ableton') {
     if (demoMode) return toastError(t().track.stems.demoUnavailable);
     if (totalSize > MAX_ZIP_SIZE) return toastError(t().track.stems.zipTooBig);
     // As a plain download the browser writes the stream to disk and shows progress
     const a = document.createElement('a');
-    a.href = `/api/v1/stems/track/${trackId}/download-zip`;
+    a.href = `/api/v1/stems/track/${trackId}/${kind}`;
     a.download = '';
     a.click();
   }
@@ -230,7 +230,8 @@
   {#if stems.length > 0}
     <div class="tools">
       {#if canDownload}
-        <Button variant="secondary" size="sm" onclick={downloadZip}><Icon name="download" size={14} /> {t().track.stems.allAsZip}</Button>
+        <Button variant="secondary" size="sm" onclick={() => downloadZip('download-zip')}><Icon name="download" size={14} /> {t().track.stems.allAsZip}</Button>
+        <Button variant="secondary" size="sm" title={t().track.stems.asAbletonHint} onclick={() => downloadZip('ableton')}><Icon name="download" size={14} /> {t().track.stems.asAbleton}</Button>
       {/if}
       {#if canUpload}
         <Button variant="secondary" size="sm" onclick={onUpload}><Icon name="upload" size={14} /> {t().track.stems.upload}</Button>
@@ -400,6 +401,7 @@
 
   .tools {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
   }
 

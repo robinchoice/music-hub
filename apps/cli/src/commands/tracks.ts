@@ -1,9 +1,12 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { TRACK_STATUS_LABELS, TRACK_STATUSES } from '@music-hub/shared';
 import { z } from 'zod';
 import { type Command, EXIT, Failure, str } from '../command';
 import { SLUG } from '../config';
 import { findProject, findTrack, type Project, tracksOf } from '../lookup';
 import { texts } from '../texts';
+import { mb } from './versions';
 
 const createdSchema = z.object({ track: z.looseObject({ id: z.string(), name: z.string(), status: z.enum(TRACK_STATUSES) }) });
 const trackSchema = z.object({ track: z.looseObject({ id: z.string(), name: z.string(), section: z.string().nullable() }).nullable() });
@@ -40,6 +43,7 @@ export const tracks: Command = {
     ['tracks move --project <…> --track <…> --to <project> [--section <name> | --none]', texts.tracksMoveHelp],
     ['tracks merge --project <…> --track <…> --into <track> [--into-project <…>] [--dry-run]', texts.tracksMergeHelp],
     ['tracks duplicates [--project <…>]', texts.tracksDuplicatesHelp],
+    ['tracks ableton --project <…> --track <…> [--out <file>]', texts.tracksAbletonHelp],
   ],
   positionals: true,
   options: {
@@ -51,6 +55,7 @@ export const tracks: Command = {
     into: { type: 'string' },
     'into-project': { type: 'string' },
     'dry-run': { type: 'boolean' },
+    out: { type: 'string' },
   },
   async run({ api, session, values, positionals }) {
     if (!session) throw new Failure(texts.notLoggedIn(SLUG), EXIT.loggedOut);
@@ -102,6 +107,15 @@ export const tracks: Command = {
         ...(preview.files ? [texts.mergedFiles(preview.files)] : []),
       ];
       return { data: { preview, track: merged, dryRun }, text: lines.join('\n') };
+    }
+
+    if (sub === 'ableton' && !words.length) {
+      const { track } = await findTrack(api, values);
+      const out = resolve(str(values.out) ?? `${track.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-ableton.zip`);
+      // Never over an existing file, it may be the only copy of something else
+      if (existsSync(out)) throw new Failure(texts.fileExists(out), EXIT.error);
+      const bytes = await Bun.write(out, await api.file(`/stems/track/${track.id}/ableton`));
+      return { data: { track, file: out, bytes }, text: texts.abletonSaved(track.name, out, mb(bytes)) };
     }
 
     if (sub === 'duplicates' && !words.length) {

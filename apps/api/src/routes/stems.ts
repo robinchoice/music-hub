@@ -1,13 +1,13 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, asc, desc, isNull, isNotNull, getTableColumns, sql } from 'drizzle-orm';
 import { requestStemUploadUrlSchema, createStemSchema, replaceStemSchema, MAX_ZIP_SIZE } from '@music-hub/shared';
-import { stems, stemRevisions, stemMixJobs, stemMixUploads, guestNotes, openTracks, tracks, users, type Database } from '@music-hub/db';
+import { comments, stems, stemRevisions, stemMixJobs, stemMixUploads, guestNotes, openTracks, tracks, users, versions, type Database } from '@music-hub/db';
 import { requireAuth } from '../middleware/auth.js';
-import { createUploadUrl, createDownloadUrl, getObjectStream, getObjectSize } from '../storage/s3.js';
+import { createUploadUrl, createDownloadUrl, getObjectSize } from '../storage/s3.js';
 import { freshStemKey, replaceStem, restoreRevision } from '../lib/stems.js';
 import { storageOf, fits, lockStorage, storageFull, takeUploadVolume, uploadVolumeExceeded } from '../lib/storage.js';
-import { Zip, ZipPassThrough } from 'fflate';
+import { abletonResponse, zipResponse } from '../lib/zip.js';
 import { mayDownload, trackAccess } from '../lib/access.js';
 import type { AppEnv } from '../types.js';
 import { liveTrackId } from '../lib/track-moves.js';
@@ -250,29 +250,70 @@ export const stemRoutes = new Hono<AppEnv>()
   })
 
   .get('/track/:trackId/download-zip', async (c) => {
-    const db = c.get('db');
-    const userId = c.get('userId');
-    const trackId = await liveTrackId(db, c.req.param('trackId'));
+    const found = await downloadableStems(c);
+    return found instanceof Response ? found : zipResponse(found.track.name, found.stems);
+  })
 
-    const found = await trackAccess(db, trackId, userId);
-    if (!found) return c.json({ error: 'Not found' }, 404);
-    const { track, membership } = found;
-    if (!membership) return c.json({ error: 'Forbidden' }, 403);
-    if (!mayDownload(membership)) return c.json({ error: 'Forbidden' }, 403);
+  // The stems as an Ableton project: tempo of the newest version, its open timed comments as locators
+  .get('/track/:trackId/ableton', async (c) => {
+    const found = await downloadableStems(c);
+    if (found instanceof Response) return found;
+    const { db, track } = found;
 
-    const trackStems = await db
-      .select()
-      .from(stems)
-      .where(and(eq(stems.trackId, trackId), isNull(stems.deletedAt)))
-      .orderBy(asc(stems.sortOrder), asc(stems.createdAt));
-
-    if (trackStems.length === 0) return c.json({ error: 'No stems found' }, 404);
-    if (trackStems.reduce((sum, stem) => sum + stem.fileSize, 0) > MAX_ZIP_SIZE) {
-      return c.json({ error: t(c).errors.zipTooLarge }, 413);
+    const [newest] = await db
+      .select({ id: versions.id, bpm: versions.bpm })
+      .from(versions)
+      .where(and(eq(versions.trackId, track.id), isNull(versions.deletedAt)))
+      .orderBy(desc(versions.versionNumber))
+      .limit(1);
+    const marks = newest
+      ? await db
+          .select({ seconds: comments.timestampSeconds, body: comments.body, author: users.name, guestName: comments.guestName })
+          .from(comments)
+          .leftJoin(users, eq(users.id, comments.userId))
+          .where(
+            and(
+              eq(comments.versionId, newest.id),
+              isNull(comments.parentId),
+              isNull(comments.resolvedAt),
+              isNull(comments.deletedAt),
+              isNotNull(comments.timestampSeconds),
+            ),
+          )
+          .orderBy(asc(comments.timestampSeconds))
+      : [];
+    const locators: { seconds: number; name: string }[] = [];
+    for (const mark of marks) {
+      const text = `${mark.author ?? mark.guestName ?? '?'}: ${mark.body.replace(/\s+/g, ' ').trim()}`;
+      const name = text.length > 80 ? `${text.slice(0, 79)}…` : text;
+      const same = locators.find((l) => l.seconds === mark.seconds);
+      // One locator per moment, comments at the same second share it
+      if (same) same.name = `${same.name} / ${name}`;
+      else locators.push({ seconds: mark.seconds!, name });
     }
 
-    return zipResponse(track.name, trackStems);
+    return abletonResponse(track.name, found.stems, { tempo: Math.round((newest?.bpm ?? 120) * 100) / 100, locators });
   });
+
+// The stems of a track for one download, for members with the download right, as long as they fit into a ZIP
+async function downloadableStems(c: Context<AppEnv>) {
+  const db = c.get('db');
+  const trackId = await liveTrackId(db, c.req.param('trackId')!);
+  const found = await trackAccess(db, trackId, c.get('userId'));
+  if (!found) return c.json({ error: 'Not found' }, 404);
+  if (!found.membership || !mayDownload(found.membership)) return c.json({ error: 'Forbidden' }, 403);
+
+  const trackStems = await db
+    .select()
+    .from(stems)
+    .where(and(eq(stems.trackId, trackId), isNull(stems.deletedAt)))
+    .orderBy(asc(stems.sortOrder), asc(stems.createdAt));
+  if (trackStems.length === 0) return c.json({ error: 'No stems found' }, 404);
+  if (trackStems.reduce((sum, stem) => sum + stem.fileSize, 0) > MAX_ZIP_SIZE) {
+    return c.json({ error: t(c).errors.zipTooLarge }, 413);
+  }
+  return { db, track: found.track, stems: trackStems };
+}
 
 // The live stem with its track and the user's membership in the project
 async function stemAccess(db: Database, stemId: string, userId: string) {
@@ -301,59 +342,3 @@ async function liveRevision(db: Database, revisionId: string) {
 // Who may delete a stem may also give it a new file
 const mayChange = ({ stem, membership }: NonNullable<Awaited<ReturnType<typeof stemAccess>>>, userId: string) =>
   membership.canUpload && (membership.role === 'owner' || stem.createdById === userId);
-
-// Pulls the next chunk only once the client has taken the last one
-export function zipResponse(trackName: string, files: { originalFileName: string; fileKey: string }[]) {
-  const chunks = zipStems(files);
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { done, value } = await chunks.next();
-      if (done) controller.close();
-      else controller.enqueue(value);
-    },
-    async cancel() {
-      await chunks.return();
-    },
-  });
-
-  const zipName = `${trackName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-stems.zip`;
-  return new Response(body, {
-    headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${zipName}"`,
-    },
-  });
-}
-
-// Streams one stem after the other from the bucket into the uncompressed ZIP, so
-// memory holds a few chunks however large the stems are
-async function* zipStems(files: { originalFileName: string; fileKey: string }[]) {
-  const out: Uint8Array[] = [];
-  const zip = new Zip((err, chunk) => {
-    if (err) throw err;
-    out.push(chunk);
-  });
-  const names = new Set<string>();
-
-  for (const file of files) {
-    const entry = new ZipPassThrough(uniqueName(file.originalFileName, names));
-    zip.add(entry);
-    for await (const data of await getObjectStream(file.fileKey)) {
-      entry.push(data);
-      yield* out.splice(0);
-    }
-    entry.push(new Uint8Array(0), true);
-  }
-  zip.end();
-  yield* out.splice(0);
-}
-
-// Plain, distinct file names: unpacking would otherwise create folders or overwrite
-// files of the same name
-function uniqueName(fileName: string, taken: Set<string>): string {
-  const base = fileName.replace(/[\\/]/g, '_');
-  let name = base;
-  for (let n = 2; taken.has(name.toLowerCase()); n++) name = base.replace(/(\.[^.]*)?$/, ` (${n})$1`);
-  taken.add(name.toLowerCase());
-  return name;
-}

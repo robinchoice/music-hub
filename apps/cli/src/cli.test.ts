@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { comments, createDb, imports as importRows, deliveryTracks, magicLinks, migrateDb, payments, projectFiles, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
+import { comments, createDb, imports as importRows, stems, deliveryTracks, magicLinks, migrateDb, payments, projectFiles, projectMembers, projects, reviews, sessions, tracks, users, versions } from '@music-hub/db';
 import { DELIVERY_ERRORS, formatEuro, rightsOfRoles } from '@music-hub/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -17,6 +17,7 @@ import { importRoutes } from '../../api/src/routes/imports';
 import { billingRoutes } from '../../api/src/routes/billing';
 import { commentRoutes } from '../../api/src/routes/comments';
 import { shareRoutes } from '../../api/src/routes/share';
+import { stemRoutes } from '../../api/src/routes/stems';
 import { trackRoutes } from '../../api/src/routes/tracks';
 import { versionRoutes } from '../../api/src/routes/versions';
 import { fileRoutes } from '../../api/src/routes/files';
@@ -42,6 +43,7 @@ mock.module('../../api/src/storage/s3', () => ({
   deleteObject: async (key: string) => {
     bucket.delete(key);
   },
+  getObjectStream: async (key: string) => new Blob([bucket.get(key)!]).stream(),
 }));
 async function bucketFetch(req: Request) {
   const key = decodeURIComponent(new URL(req.url).pathname.slice('/bucket/'.length));
@@ -73,6 +75,7 @@ const app = new Hono<AppEnv>()
   .route('/files', fileRoutes)
   .route('/comments', commentRoutes)
   .route('/share', shareRoutes)
+  .route('/stems', stemRoutes)
   .route('/deliveries', deliveryRoutes)
   .route('/billing', billingRoutes)
   .route('/imports', importRoutes)
@@ -588,6 +591,18 @@ test('tracks, versions, comments and reviews: a song from the upload to the verd
   expect((await label.cli(['files', 'download', 'Vespa Hupe.wav', '--project', 'Nachtfahrt', '--out', join(dir, 'l.wav')])).code).toBe(1);
   expect(await studio.cli(['files', 'download', 'nope', '--project', 'Nachtfahrt'])).toMatchObject({ code: 1, err: texts.noSuchProjectFile('nope', 'Nachtfahrt') });
   expect(bucketAuthorization).toEqual([]);
+
+  // The stems as an Ableton project, a ZIP the API streams itself
+  const bassKey = `test/${crypto.randomUUID()}/bass.wav`;
+  bucket.set(bassKey, new TextEncoder().encode('RIFF bass'));
+  await db.insert(stems).values({ trackId: v1!.trackId, name: 'Bass', originalFileName: 'bass.wav', mimeType: 'audio/wav', fileSize: 9, fileKey: bassKey, createdById: v1!.createdById });
+  const zip = join(dir, 'abendrot.zip');
+  expect(await studio.cli(['tracks', 'ableton', ...at, '--out', zip])).toMatchObject({ code: 0, out: expect.stringMatching(/^Saved Abendrot as an Ableton project to .*abendrot\.zip \(0\.0 MB\)\.$/) });
+  // Stored uncompressed, so the names and the stem stand in the ZIP as they are
+  const zipped = await readFile(zip, 'latin1');
+  for (const part of ['Abendrot Project/Samples/Imported/bass.wavRIFF bass', 'Abendrot Project/Abendrot.als']) expect(zipped).toContain(part);
+  expect(await studio.cli(['tracks', 'ableton', ...at, '--out', zip])).toMatchObject({ code: 1, err: texts.fileExists(zip) });
+  expect(await label.cli(['tracks', 'ableton', ...at, '--out', join(dir, 'label.zip')])).toMatchObject({ code: 1, err: 'Forbidden' });
 
   // Comments, at a point in the song or for the whole version
   expect(await label.cli(['comments', 'add', 'Kick', 'too', 'loud', ...at, '--at', '1:23'])).toMatchObject({ code: 0, out: 'Commented on V1 of Abendrot at 1:23.' });

@@ -21,7 +21,7 @@ import {
 } from '../lib/open.js';
 import { handlesOf } from '../lib/profiles.js';
 import { sendOpenReportEmail } from '../services/email.js';
-import { zipResponse } from './stems.js';
+import { zipResponse } from '../lib/zip.js';
 import type { AppEnv } from '../types.js';
 import { locale, t } from '../lib/i18n.js';
 
